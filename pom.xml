@@ -11,7 +11,7 @@
     <version>1.0.0</version>
     <packaging>pom</packaging>     <!-- pom = aggregator only, no jar -->
 
-    <n>KMC Tournament (Parent)</n>
+    <name>KMC Tournament (Parent)</name>
     <description>Parent project containing KMCCore and all tournament game modules</description>
 
     <!-- ================================================== -->
