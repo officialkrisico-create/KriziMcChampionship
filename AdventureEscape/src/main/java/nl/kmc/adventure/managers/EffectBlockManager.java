@@ -128,9 +128,9 @@ public class EffectBlockManager {
     private PotionEffectType mapEffectType(String key) {
         return switch (key.toLowerCase()) {
             case "speed"        -> PotionEffectType.SPEED;
-            case "jump"         -> PotionEffectType.JUMP;
-            case "haste"        -> PotionEffectType.FAST_DIGGING;
-            case "strength"     -> PotionEffectType.INCREASE_DAMAGE;
+            case "jump"         -> PotionEffectType.JUMP_BOOST;
+            case "haste"        -> PotionEffectType.HASTE;
+            case "strength"     -> PotionEffectType.STRENGTH;
             case "regen"        -> PotionEffectType.REGENERATION;
             case "dolphin"      -> PotionEffectType.DOLPHINS_GRACE;
             case "night_vision" -> PotionEffectType.NIGHT_VISION;
@@ -163,7 +163,7 @@ public class EffectBlockManager {
             case "feather_boots" -> {
                 ItemStack boots = new ItemStack(Material.LEATHER_BOOTS);
                 ItemMeta meta = boots.getItemMeta();
-                meta.addEnchant(Enchantment.PROTECTION_FALL, 4, true);
+                meta.addEnchant(Enchantment.FEATHER_FALLING, 4, true);
                 boots.setItemMeta(meta);
                 player.getInventory().setBoots(boots);
             }

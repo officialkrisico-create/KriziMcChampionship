@@ -14,7 +14,7 @@
 
     <artifactId>KMCCore</artifactId>
     <packaging>jar</packaging>
-    <n>KMCCore</n>
+    <name>KMCCore</name>
     <description>Core plugin for the Krizi Minecraft Championship</description>
 
     <dependencies>

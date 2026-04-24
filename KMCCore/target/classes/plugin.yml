@@ -1,0 +1,119 @@
+name: KMCCore
+version: '1.0.0'
+main: nl.kmc.kmccore.KMCCore
+api-version: '1.21'
+description: Core plugin for the Krizi Minecraft Championship
+authors: [ KMC ]
+
+softdepend:
+  - Citizens
+  - WorldEdit
+  - FastAsyncWorldEdit
+  - FancyNpcs
+
+commands:
+  kmcteam:
+    description: Manage KMC teams
+    usage: /kmcteam <add|remove|list|info|chat> [player] [team]
+    permission: kmc.team
+
+  kmcstats:
+    description: View player statistics
+    usage: /kmcstats [player]
+    permission: kmc.stats
+
+  kmctournament:
+    description: Manage the KMC tournament
+    usage: /kmctournament <start|stop|end|status|reset|hardreset>
+    permission: kmc.tournament.admin
+
+  kmcgame:
+    description: Control the current game
+    usage: /kmcgame <start|stop|skip|forceskip|next|vote|list|set> [game]
+    permission: kmc.game.admin
+
+  kmclb:
+    description: View leaderboards
+    usage: /kmclb <teams|players> [page]
+    permission: kmc.leaderboard
+
+  kmcnpc:
+    description: Manage leaderboard NPCs
+    usage: /kmcnpc <create|remove|list> [type] [fancyNpcId]
+    permission: kmc.npc.admin
+
+  kmcround:
+    description: Manage tournament rounds
+    usage: /kmcround <set|next|info> [round]
+    permission: kmc.round.admin
+
+  kmcpoints:
+    description: Manage team and player points
+    usage: /kmcpoints <set|add|remove> <team|player> <n> <amount>
+    permission: kmc.points.admin
+
+  tc:
+    description: Team chat
+    usage: /tc [message]
+    permission: kmc.teamchat
+
+  kmcvote:
+    description: Vote for the next game (opens GUI)
+    usage: /kmcvote [open|<number>]
+    permission: kmc.vote
+
+  kmcauto:
+    description: Control the automation engine
+    usage: /kmcauto <start|stop|pause|resume|status|endgame>
+    permission: kmc.automation.admin
+
+  kmcarena:
+    description: Manage game arenas
+    usage: /kmcarena <setorigin|setteamspawn|addsolospawn|status|paste|reset> [args...]
+    permission: kmc.arena.admin
+
+  kmclobby:
+    description: Lobby teleport and setup
+    usage: /kmclobby [set|tp|tpall]
+    permission: kmc.lobby
+
+  kmcrandomteams:
+    description: Randomly distribute online players across teams
+    usage: /kmcrandomteams [all|new] [confirm]
+    permission: kmc.team.admin
+
+permissions:
+  kmc.*:
+    description: All KMC permissions
+    children:
+      kmc.team: true
+      kmc.team.admin: true
+      kmc.stats: true
+      kmc.leaderboard: true
+      kmc.teamchat: true
+      kmc.vote: true
+      kmc.lobby: true
+      kmc.tournament.admin: true
+      kmc.game.admin: true
+      kmc.npc.admin: true
+      kmc.round.admin: true
+      kmc.points.admin: true
+      kmc.automation.admin: true
+      kmc.arena.admin: true
+      kmc.lobby.admin: true
+
+  kmc.team:             { description: Basic team commands,    default: true }
+  kmc.team.admin:       { description: Manage team assignments, default: op }
+  kmc.stats:            { description: View statistics,         default: true }
+  kmc.leaderboard:      { description: View leaderboards,       default: true }
+  kmc.teamchat:         { description: Use team chat,           default: true }
+  kmc.vote:             { description: Vote in game vote,       default: true }
+  kmc.lobby:            { description: Use /kmclobby tp,        default: true }
+  kmc.tournament.admin: { description: Manage tournament,       default: op }
+  kmc.game.admin:       { description: Manage games,            default: op }
+  kmc.npc.admin:        { description: Manage NPCs,             default: op }
+  kmc.round.admin:      { description: Manage rounds,           default: op }
+  kmc.points.admin:     { description: Manage points,           default: op }
+  kmc.automation.admin: { description: Control automation,      default: op }
+  kmc.arena.admin:      { description: Manage arenas,           default: op }
+  kmc.lobby.admin:      { description: Set/move lobby,          default: op }

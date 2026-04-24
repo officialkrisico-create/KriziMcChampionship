@@ -5,6 +5,7 @@ import nl.kmc.adventure.models.RacerData;
 import nl.kmc.kmccore.api.KMCApi;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
@@ -89,9 +90,9 @@ public class RaceManager {
             p.setFoodLevel(20);
             // Freeze: give slowness IV + jump reduction during countdown
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.SLOW, countdownSeconds * 20, 255, true, false, false));
+                    PotionEffectType.SLOWNESS, countdownSeconds * 20, 255, true, false, false));
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.JUMP, countdownSeconds * 20, 128, true, false, false));
+                    PotionEffectType.JUMP_BOOST, countdownSeconds * 20, 128, true, false, false));
         }
 
         // BossBar
@@ -138,8 +139,8 @@ public class RaceManager {
             Player p = Bukkit.getPlayer(rd.getUuid());
             if (p != null) {
                 // Remove freeze effects
-                p.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOW);
-                p.removePotionEffect(org.bukkit.potion.PotionEffectType.JUMP);
+                p.removePotionEffect(PotionEffectType.SLOWNESS);
+                p.removePotionEffect(PotionEffectType.JUMP_BOOST);
                 p.sendTitle(ChatColor.GREEN + "GO!", ChatColor.YELLOW + "Race is live!", 0, 40, 10);
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1.5f);
             }

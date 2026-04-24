@@ -62,25 +62,25 @@ public class LootExecutor {
                 }
                 // Give item or drop at feet
                 giveOrDrop(player, stack);
-                spawnParticles(location, Particle.VILLAGER_HAPPY, 20);
+                spawnParticles(location, Particle.HAPPY_VILLAGER, 20);
             }
 
             case EFFECT -> {
                 int durationTicks = entry.getDurationSeconds() * 20;
                 player.addPotionEffect(new PotionEffect(
                         entry.getPotionEffect(), durationTicks, entry.getAmplifier()));
-                spawnParticles(location, Particle.SPELL_MOB, 30);
+                spawnParticles(location, Particle.ENTITY_EFFECT, 30);
             }
 
             case EXPLOSION -> {
                 location.getWorld().createExplosion(location,
                         entry.getExplosionPower(), true, true, player);
-                spawnParticles(location, Particle.EXPLOSION_HUGE, 5);
+                spawnParticles(location, Particle.EXPLOSION, 5);
             }
 
             case LIGHTNING -> {
                 location.getWorld().strikeLightning(location);
-                spawnParticles(location, Particle.EXPLOSION_LARGE, 10);
+                spawnParticles(location, Particle.EXPLOSION, 10);
             }
 
             case MOB -> {
@@ -89,18 +89,18 @@ public class LootExecutor {
                             location.clone().add(random.nextInt(3) - 1, 0, random.nextInt(3) - 1),
                             entry.getMobType());
                 }
-                spawnParticles(location, Particle.SMOKE_LARGE, 20);
+                spawnParticles(location, Particle.LARGE_SMOKE, 20);
             }
 
             case COINS -> {
                 // Coins removed from system — converted to points
                 api.givePoints(player.getUniqueId(), entry.getRewardAmount());
-                spawnParticles(location, Particle.TOTEM, 20);
+                spawnParticles(location, Particle.TOTEM_OF_UNDYING, 20);
             }
 
             case POINTS -> {
                 api.givePoints(player.getUniqueId(), entry.getRewardAmount());
-                spawnParticles(location, Particle.ENCHANTMENT_TABLE, 20);
+                spawnParticles(location, Particle.ENCHANT, 20);
             }
 
             case INSTANT_KILL -> {
@@ -116,7 +116,7 @@ public class LootExecutor {
                 giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_CHESTPLATE")));
                 giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_LEGGINGS")));
                 giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_BOOTS")));
-                spawnParticles(location, Particle.FIREWORKS_SPARK, 40);
+                spawnParticles(location, Particle.FIREWORK, 40);
             }
 
             case TNT_RAIN -> {
@@ -124,10 +124,10 @@ public class LootExecutor {
                     Location above = location.clone().add(
                             random.nextInt(7) - 3, 8 + random.nextInt(4), random.nextInt(7) - 3);
                     TNTPrimed tnt = (TNTPrimed) above.getWorld().spawnEntity(above,
-                            org.bukkit.entity.EntityType.PRIMED_TNT);
+                            org.bukkit.entity.EntityType.TNT);
                     tnt.setFuseTicks(40 + random.nextInt(20)); // 2-3 second fuse
                 }
-                spawnParticles(location, Particle.EXPLOSION_NORMAL, 30);
+                spawnParticles(location, Particle.EXPLOSION, 30);
             }
 
             case TELEPORT_RANDOM -> {
@@ -140,22 +140,22 @@ public class LootExecutor {
                 }
             }
 
-            case SWAP_POSITION -> {
-                // Find a random other alive player in the game
-                List<Player> others = new ArrayList<>(
-                        plugin.getGameState().getAlivePlayers());
-                others.remove(player);
-                if (!others.isEmpty()) {
-                    Player other = others.get(random.nextInt(others.size()));
-                    Location myLoc    = player.getLocation().clone();
-                    Location theirLoc = other.getLocation().clone();
-                    spawnParticles(myLoc,    Particle.PORTAL, 20);
-                    spawnParticles(theirLoc, Particle.PORTAL, 20);
-                    player.teleport(theirLoc);
-                    other.teleport(myLoc);
-                    other.sendMessage(ChatColor.LIGHT_PURPLE + "🔀 Je bent gewisseld van positie!");
-                }
-            }
+//            case SWAP_POSITION -> {
+//                // Find a random other alive player in the game
+//                List<Player> others = new ArrayList<>(
+//                        plugin.getGameState().getAlivePlayers());
+//                others.remove(player);
+//                if (!others.isEmpty()) {
+//                    Player other = others.get(random.nextInt(others.size()));
+//                    Location myLoc    = player.getLocation().clone();
+//                    Location theirLoc = other.getLocation().clone();
+//                    spawnParticles(myLoc,    Particle.PORTAL, 20);
+//                    spawnParticles(theirLoc, Particle.PORTAL, 20);
+//                    player.teleport(theirLoc);
+//                    other.teleport(myLoc);
+//                    other.sendMessage(ChatColor.LIGHT_PURPLE + "🔀 Je bent gewisseld van positie!");
+//                }
+//            }
         }
     }
 
