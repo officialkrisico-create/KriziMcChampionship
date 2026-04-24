@@ -205,4 +205,4 @@ All the work we've done together is in this one bundle.
 Delete your old project folders and use this as the single
 source of truth going forward.
 
-krisheeshs
+krisheesh
