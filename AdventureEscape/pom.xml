@@ -13,7 +13,7 @@
 
     <artifactId>AdventureEscape</artifactId>
     <packaging>jar</packaging>
-    <n>Adventure Escape</n>
+    <name>Adventure Escape</name>
     <description>Ace Race style minigame for the KMC tournament</description>
 
     <dependencies>

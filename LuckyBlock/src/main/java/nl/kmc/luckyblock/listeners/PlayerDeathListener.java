@@ -26,7 +26,7 @@ public class PlayerDeathListener implements Listener {
 
         // Suppress default death message — GameStateManager broadcasts its own
         event.setDeathMessage(null);
-        event.setDropItems(false);
+        event.getDrops().clear();
         event.setKeepInventory(false);
 
         // Award kill points (reads from KMCCore points.yml — no hardcoded value)

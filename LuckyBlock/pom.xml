@@ -13,7 +13,7 @@
 
     <artifactId>LuckyBlock</artifactId>
     <packaging>jar</packaging>
-    <n>KMC Lucky Block</n>
+    <name>KMC Lucky Block</name>
     <description>Lucky Block minigame for the KMC tournament</description>
 
     <dependencies>
