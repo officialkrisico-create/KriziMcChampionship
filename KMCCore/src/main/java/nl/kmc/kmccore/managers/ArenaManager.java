@@ -5,21 +5,20 @@ import nl.kmc.kmccore.models.KMCTeam;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
 import java.util.*;
 
 /**
- * Arena manager with readiness checks for auto-skip support.
+ * Arena manager with per-game Multiverse world support.
  *
- * <p>A game is considered "ready" when it has:
- *   - A schematic file configured (or is marked schematic-less)
- *   - An arena origin set
- *   - At least one team spawn OR at least one solo spawn
+ * <p>Each game entry in config.yml can have an optional {@code world:}
+ * field pointing to a Multiverse world. When that game starts, all
+ * players are teleported into that world before spawn placement.
  *
- * <p>Games that don't meet this bar are auto-skipped by the automation
- * engine so players don't get stranded in an empty arena.
+ * <p>Readiness check added so auto-skip still works.
  */
 public class ArenaManager {
 
@@ -52,12 +51,32 @@ public class ArenaManager {
     public void teleportAllToLobby() {
         if (lobby == null) return;
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.teleport(lobby);
-            p.setGameMode(GameMode.ADVENTURE);
-            p.setHealth(20);
-            p.setFoodLevel(20);
-            p.getInventory().clear();
+            try {
+                p.teleport(lobby);
+                p.setGameMode(GameMode.ADVENTURE);
+                p.setHealth(20);
+                p.setFoodLevel(20);
+                p.getInventory().clear();
+            } catch (Exception e) {
+                plugin.getLogger().warning("TP to lobby failed for " + p.getName() + ": " + e.getMessage());
+            }
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Per-game world
+    // ----------------------------------------------------------------
+
+    /** Returns the configured Multiverse world for a game, or null. */
+    public World getGameWorld(String gameId) {
+        String worldName = plugin.getConfig().getString("games.list." + gameId + ".world");
+        if (worldName == null || worldName.isBlank()) return null;
+        World w = Bukkit.getWorld(worldName);
+        if (w == null) {
+            plugin.getLogger().warning("Configured world '" + worldName
+                    + "' for game " + gameId + " does not exist on this server.");
+        }
+        return w;
     }
 
     // ----------------------------------------------------------------
@@ -112,28 +131,10 @@ public class ArenaManager {
     }
 
     // ----------------------------------------------------------------
-    // READINESS — used by auto-skip
+    // Readiness (auto-skip support)
     // ----------------------------------------------------------------
 
-    /**
-     * Checks if a game has enough config to be played.
-     *
-     * <p>A game is ready when:
-     * <ol>
-     *   <li>It has either a schematic OR is marked schematic-less (no schematic = external plugin handles arena)</li>
-     *   <li>It has an arena origin SET (skipped if schematic-less)</li>
-     *   <li>It has at least one spawn (team or solo)</li>
-     * </ol>
-     *
-     * <p>External games that manage their own arenas (like Adventure Escape
-     * with its own world) can be marked {@code external-arena: true} in
-     * their game config — readiness will always return true for them.
-     *
-     * @param gameId game identifier
-     * @return true if the game can be started safely
-     */
     public boolean isGameReady(String gameId) {
-        // External arena check — e.g. Adventure Escape runs in its own world
         if (plugin.getConfig().getBoolean("games.list." + gameId + ".external-arena", false)) {
             return true;
         }
@@ -141,13 +142,11 @@ public class ArenaManager {
         String schematic = plugin.getSchematicManager().getSchematicForGame(gameId);
         Location origin  = plugin.getSchematicManager().getOriginForGame(gameId);
 
-        // Schematic path — needs BOTH schematic name AND origin
         if (schematic != null) {
             if (origin == null) return false;
             if (!plugin.getSchematicManager().isWorldEditAvailable()) return false;
         }
 
-        // Needs at least one spawn
         int teamSpawns = getAllTeamSpawns(gameId).size();
         int soloSpawns = getSoloSpawns(gameId).size();
         if (teamSpawns == 0 && soloSpawns == 0) return false;
@@ -155,7 +154,6 @@ public class ArenaManager {
         return true;
     }
 
-    /** Human-readable report of why a game isn't ready. */
     public String getReadinessReason(String gameId) {
         if (plugin.getConfig().getBoolean("games.list." + gameId + ".external-arena", false)) {
             return "external arena — ready";
@@ -170,7 +168,6 @@ public class ArenaManager {
         if (schematic != null && origin == null) issues.add("origin not set");
         if (schematic != null && !plugin.getSchematicManager().isWorldEditAvailable()) issues.add("WorldEdit missing");
         if (teamSpawns == 0 && soloSpawns == 0) issues.add("no spawns");
-
         return issues.isEmpty() ? "ready" : String.join(", ", issues);
     }
 
@@ -183,7 +180,6 @@ public class ArenaManager {
         Location origin  = plugin.getSchematicManager().getOriginForGame(gameId);
 
         if (schematic == null || origin == null) {
-            // No schematic to paste — just TP players to spawns
             teleportPlayersForGame(gameId);
             return false;
         }
@@ -200,6 +196,11 @@ public class ArenaManager {
         return plugin.getSchematicManager().resetArena(schematic, origin);
     }
 
+    /**
+     * Teleports players to their spawns for the given game.
+     * If spawns are in a different world (per-game world), Minecraft
+     * handles the cross-world teleport automatically.
+     */
     public void teleportPlayersForGame(String gameId) {
         Map<String, Location> teamSpawns = getAllTeamSpawns(gameId);
         List<Location>        soloSpawns = getSoloSpawns(gameId);
@@ -217,11 +218,15 @@ public class ArenaManager {
             }
 
             if (dest != null) {
-                p.teleport(dest);
-                p.setGameMode(GameMode.SURVIVAL);
-                p.setHealth(20);
-                p.setFoodLevel(20);
-                p.getInventory().clear();
+                try {
+                    p.teleport(dest);
+                    p.setGameMode(GameMode.SURVIVAL);
+                    p.setHealth(20);
+                    p.setFoodLevel(20);
+                    p.getInventory().clear();
+                } catch (Exception e) {
+                    plugin.getLogger().warning("TP to arena failed for " + p.getName() + ": " + e.getMessage());
+                }
             }
         }
     }
@@ -231,11 +236,13 @@ public class ArenaManager {
         Location origin  = plugin.getSchematicManager().getOriginForGame(gameId);
         int teamSpawns   = getAllTeamSpawns(gameId).size();
         int soloSpawns   = getSoloSpawns(gameId).size();
+        World gameWorld  = getGameWorld(gameId);
 
         StringBuilder sb = new StringBuilder();
+        sb.append("World:        ").append(gameWorld != null ? "✔ " + gameWorld.getName() : "none (uses any)").append("\n");
         sb.append("Schematic:    ").append(schematic != null ? "✔ " + schematic : "✘ niet ingesteld").append("\n");
         sb.append("Arena origin: ").append(origin != null ? "✔ " + formatLoc(origin) : "✘ niet ingesteld").append("\n");
-        sb.append("Team spawns:  ").append(teamSpawns).append(" / 8 teams\n");
+        sb.append("Team spawns:  ").append(teamSpawns).append("\n");
         sb.append("Solo spawns:  ").append(soloSpawns).append("\n");
         sb.append("Ready:        ").append(isGameReady(gameId) ? "✔" : "✘ (" + getReadinessReason(gameId) + ")");
         return sb.toString();

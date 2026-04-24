@@ -13,12 +13,9 @@ softdepend:
 commands:
   adventure:
     description: Manage Adventure Escape game
-    usage: /adventure <start|stop|setspawn|setstartline|setfinishline|setlaps|setworld|status>
+    usage: /adventure <start|stop|setspawn|setstartline|setfinishline|setlaps|setworld|reload|status>
     permission: adventure.admin
-  ae:
-    description: Alias for /adventure
-    usage: /ae <...>
-    permission: adventure.admin
+    aliases: [ae, advescape]
 
 permissions:
   adventure.admin:

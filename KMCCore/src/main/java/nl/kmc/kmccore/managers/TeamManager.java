@@ -6,267 +6,150 @@ import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.GameMode;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
-import org.bukkit.scoreboard.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.logging.Level;
 
 /**
- * Manages the 8 KMC teams.
+ * Manages KMC teams.
  *
- * <p>Responsibilities:
+ * <p>Changes in this version:
  * <ul>
- *   <li>Load team definitions from config</li>
- *   <li>Add / remove players from teams</li>
- *   <li>Persist team point totals via DatabaseManager</li>
- *   <li>Maintain Bukkit Scoreboard {@link Team}s for coloured nametags</li>
+ *   <li>{@link #sendPlayerToLobby(Player)} — teleport after team add/remove</li>
+ *   <li>{@link #createTeam(String, String, ChatColor, String)} — admin create</li>
+ *   <li>{@link #deleteTeam(String)} — admin delete, kicks members to no-team</li>
+ *   <li>{@link #sendTeamChat(Player, String)} — sends a message to every
+ *       member of the player's team (restored — was used by TeamChatCommand)</li>
+ *   <li>All public methods defensively null-check</li>
+ *   <li>Team load order respected — used for color-sorted tablist</li>
  * </ul>
  */
 public class TeamManager {
 
+    public enum AddResult { OK, ALREADY_IN_TEAM, TEAM_FULL, TEAM_NOT_FOUND }
+
     private final KMCCore plugin;
 
-    /** All registered teams, keyed by team ID. */
-    private final Map<String, KMCTeam> teams = new LinkedHashMap<>();
-
-    /** Bukkit scoreboard used only for nametag colouring. */
-    private Scoreboard nametag;
-
-    // ----------------------------------------------------------------
-    // Init
-    // ----------------------------------------------------------------
+    /** LinkedHashMap preserves insertion order — used for tablist sort order. */
+    private final LinkedHashMap<String, KMCTeam> teams = new LinkedHashMap<>();
 
     public TeamManager(KMCCore plugin) {
         this.plugin = plugin;
-        loadTeamsFromConfig();
-        setupNametagScoreboard();
-        loadTeamDataFromDB();
+        loadTeams();
     }
 
     // ----------------------------------------------------------------
-    // Config loading
+    // Loading
     // ----------------------------------------------------------------
 
-    /**
-     * Reads the {@code teams.list} block from config.yml and creates
-     * {@link KMCTeam} instances for each entry.
-     */
-    private void loadTeamsFromConfig() {
-        ConfigurationSection teamSection = plugin.getConfig().getConfigurationSection("teams.list");
-        if (teamSection == null) {
-            plugin.getLogger().warning("No teams found in config.yml under 'teams.list'!");
-            return;
+    private void loadTeams() {
+        teams.clear();
+
+        Map<String, KMCTeam> fromDb = plugin.getDatabaseManager().loadAllTeams();
+
+        ConfigurationSection ts = plugin.getConfig().getConfigurationSection("teams.list");
+        if (ts != null) {
+            for (String id : ts.getKeys(false)) {
+                ConfigurationSection t = ts.getConfigurationSection(id);
+                if (t == null) continue;
+                String displayName = t.getString("display-name", id);
+                String tagColor    = t.getString("tag-color", "&7");
+                ChatColor color;
+                try { color = ChatColor.valueOf(t.getString("color", "WHITE").toUpperCase()); }
+                catch (IllegalArgumentException e) { color = ChatColor.WHITE; }
+
+                KMCTeam existing = fromDb.get(id);
+                if (existing != null) {
+                    teams.put(id, existing);
+                } else {
+                    KMCTeam fresh = new KMCTeam(id, displayName, color, tagColor);
+                    teams.put(id, fresh);
+                    plugin.getDatabaseManager().saveTeam(fresh);
+                }
+            }
         }
 
-        for (String key : teamSection.getKeys(false)) {
-            ConfigurationSection tc = teamSection.getConfigurationSection(key);
-            if (tc == null) continue;
+        for (Map.Entry<String, KMCTeam> e : fromDb.entrySet()) {
+            teams.putIfAbsent(e.getKey(), e.getValue());
+        }
 
-            String displayName = tc.getString("display-name", key);
-            String colorName   = tc.getString("color", "WHITE");
-            String tagColor    = tc.getString("tag-color", "WHITE");
-
-            ChatColor color;
-            try {
-                color = ChatColor.valueOf(colorName.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("Invalid color '" + colorName + "' for team " + key + ". Defaulting to WHITE.");
-                color = ChatColor.WHITE;
+        for (PlayerData pd : plugin.getDatabaseManager().loadAllPlayers()) {
+            if (pd.getTeamId() != null && teams.containsKey(pd.getTeamId())) {
+                teams.get(pd.getTeamId()).addMember(pd.getUuid());
             }
-
-            KMCTeam team = new KMCTeam(key, displayName, color, tagColor);
-            teams.put(key, team);
         }
 
         plugin.getLogger().info("Loaded " + teams.size() + " teams.");
     }
 
-    // ----------------------------------------------------------------
-    // Scoreboard nametags
-    // ----------------------------------------------------------------
-
-    /**
-     * Creates a Bukkit {@link Scoreboard} with one {@link Team} per
-     * KMC team so that player nametags appear in the correct colour.
-     *
-     * <p>This scoreboard is sent to every player on join/team-change
-     * via {@link #applyNametagScoreboard(Player)}.
-     */
-    private void setupNametagScoreboard() {
-        ScoreboardManager sbm = Bukkit.getScoreboardManager();
-        nametag = sbm.getNewScoreboard();
-
-        for (KMCTeam t : teams.values()) {
-            Team bt = nametag.registerNewTeam("kmc_" + t.getId());
-
-            // Build a net.kyori.adventure.text prefix using the team colour
-            bt.setPrefix(t.getColor().toString());
-            bt.setSuffix(ChatColor.RESET.toString());
-            bt.setCanSeeFriendlyInvisibles(true);
-            bt.setAllowFriendlyFire(false);
-        }
-    }
-
-    /**
-     * Applies the nametag scoreboard to an online player and adds them
-     * to the correct {@link Team} entry.
-     */
-    public void applyNametagScoreboard(Player player) {
-        player.setScoreboard(nametag);
-
-        KMCTeam team = getTeamByPlayer(player.getUniqueId());
-        if (team == null) return;
-
-        Team bt = nametag.getTeam("kmc_" + team.getId());
-        if (bt != null) bt.addEntry(player.getName());
+    public void saveAll() {
+        for (KMCTeam t : teams.values()) plugin.getDatabaseManager().saveTeam(t);
     }
 
     // ----------------------------------------------------------------
-    // Database load
+    // Membership
     // ----------------------------------------------------------------
 
-    private void loadTeamDataFromDB() {
-        Map<String, KMCTeam> saved = plugin.getDatabaseManager().loadAllTeams();
-
-        for (Map.Entry<String, KMCTeam> entry : saved.entrySet()) {
-            KMCTeam live = teams.get(entry.getKey());
-            if (live != null) {
-                live.setPoints(entry.getValue().getPoints());
-                live.setWins(entry.getValue().getWins());
-            }
-        }
-
-        // Also restore member assignments from player data
-        for (PlayerData pd : plugin.getDatabaseManager().loadAllPlayers()) {
-            if (pd.hasTeam()) {
-                KMCTeam t = teams.get(pd.getTeamId());
-                if (t != null) t.addMember(pd.getUuid());
-            }
-        }
-    }
-
-    // ----------------------------------------------------------------
-    // Public API – member management
-    // ----------------------------------------------------------------
-
-    /**
-     * Adds a player to a team.
-     *
-     * @param uuid   player UUID
-     * @param teamId team ID
-     * @return result code; one of: OK, ALREADY_IN_TEAM, TEAM_FULL, TEAM_NOT_FOUND
-     */
     public AddResult addPlayerToTeam(UUID uuid, String teamId) {
+        if (uuid == null || teamId == null) return AddResult.TEAM_NOT_FOUND;
+
         KMCTeam target = teams.get(teamId);
         if (target == null) return AddResult.TEAM_NOT_FOUND;
 
         int maxPlayers = plugin.getConfig().getInt("teams.max-players-per-team", 4);
         if (target.getMemberCount() >= maxPlayers) return AddResult.TEAM_FULL;
-
-        // Check player isn't already in another team
-        if (getTeamByPlayer(uuid) != null) return AddResult.ALREADY_IN_TEAM;
+        if (getTeamByPlayer(uuid) != null)         return AddResult.ALREADY_IN_TEAM;
 
         target.addMember(uuid);
 
-        // Update PlayerData
         PlayerData pd = plugin.getPlayerDataManager().getOrCreate(uuid, null);
         pd.setTeamId(teamId);
         plugin.getDatabaseManager().savePlayer(pd);
+        plugin.getDatabaseManager().saveTeam(target);
 
-        // Update nametag for all online players (needed for prefixes to propagate)
-        if (plugin.getTabListManager() != null) {
-            plugin.getTabListManager().refreshAllNametags();
-            plugin.getTabListManager().refreshAll();
-        }
+        safeRefreshAllUi();
+
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null) sendPlayerToLobby(online);
 
         return AddResult.OK;
     }
 
-    /**
-     * Removes a player from their current team.
-     *
-     * @param uuid player UUID
-     * @return {@code false} if player was not in any team
-     */
     public boolean removePlayerFromTeam(UUID uuid) {
+        if (uuid == null) return false;
+
         KMCTeam team = getTeamByPlayer(uuid);
         if (team == null) return false;
 
         team.removeMember(uuid);
-
         PlayerData pd = plugin.getPlayerDataManager().get(uuid);
         if (pd != null) {
             pd.setTeamId(null);
             plugin.getDatabaseManager().savePlayer(pd);
         }
+        plugin.getDatabaseManager().saveTeam(team);
 
-        // Refresh nametags for all players
-        if (plugin.getTabListManager() != null) {
-            plugin.getTabListManager().refreshAllNametags();
-            plugin.getTabListManager().refreshAll();
-        }
-
+        safeRefreshAllUi();
         return true;
     }
 
     // ----------------------------------------------------------------
-    // Queries
-    // ----------------------------------------------------------------
-
-    public KMCTeam getTeam(String id) {
-        return teams.get(id.toLowerCase());
-    }
-
-    /** Returns the team a player belongs to, or {@code null}. */
-    public KMCTeam getTeamByPlayer(UUID uuid) {
-        for (KMCTeam t : teams.values()) {
-            if (t.hasMember(uuid)) return t;
-        }
-        return null;
-    }
-
-    /** Returns all teams sorted by points descending. */
-    public List<KMCTeam> getTeamsSortedByPoints() {
-        return teams.values().stream()
-                .sorted(Comparator.comparingInt(KMCTeam::getPoints).reversed())
-                .collect(Collectors.toList());
-    }
-
-    public Collection<KMCTeam> getAllTeams() {
-        return Collections.unmodifiableCollection(teams.values());
-    }
-
-    /** Returns the nametag scoreboard (used by TabListManager). */
-    public Scoreboard getNametagScoreboard() { return nametag; }
-
-    public int getMaxPlayersPerTeam() {
-        return plugin.getConfig().getInt("teams.max-players-per-team", 4);
-    }
-
-    // ----------------------------------------------------------------
-    // Persistence
-    // ----------------------------------------------------------------
-
-    /** Saves all team point / win totals to DB. */
-    public void saveAll() {
-        for (KMCTeam t : teams.values()) {
-            plugin.getDatabaseManager().saveTeam(t);
-        }
-    }
-
-    // ----------------------------------------------------------------
-    // Team chat
+    // Team chat (restored)
     // ----------------------------------------------------------------
 
     /**
-     * Broadcasts a message to all online members of a team.
+     * Sends a team-chat message to every online member of the sender's team.
+     * Used by {@code TeamChatCommand}.
      *
      * @param sender  the sending player
      * @param message raw message text
      */
     public void sendTeamChat(Player sender, String message) {
+        if (sender == null || message == null) return;
+
         KMCTeam team = getTeamByPlayer(sender.getUniqueId());
         if (team == null) {
             sender.sendMessage(MessageUtil.get("team.no-team"));
@@ -291,23 +174,153 @@ public class TeamManager {
     }
 
     // ----------------------------------------------------------------
-    // Reset
+    // Lobby teleport
     // ----------------------------------------------------------------
 
-    /** Clears all team scores (used on tournament reset). */
+    /**
+     * Sends a player to the KMC lobby in adventure mode, full HP/food.
+     * No-op if the lobby isn't set or if a game is currently active.
+     */
+    public void sendPlayerToLobby(Player player) {
+        if (player == null || !player.isOnline()) return;
+        if (plugin.getGameManager().isGameActive()) return;
+
+        var lobby = plugin.getArenaManager().getLobby();
+        if (lobby == null) return;
+
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            player.teleport(lobby);
+            player.setGameMode(GameMode.ADVENTURE);
+            player.setHealth(20);
+            player.setFoodLevel(20);
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // Create / delete teams at runtime
+    // ----------------------------------------------------------------
+
+    public KMCTeam createTeam(String id, String displayName, ChatColor color, String tagColor) {
+        if (id == null) return null;
+        String key = id.toLowerCase();
+        if (teams.containsKey(key)) return null;
+
+        KMCTeam t = new KMCTeam(key, displayName, color, tagColor);
+        teams.put(key, t);
+        plugin.getDatabaseManager().saveTeam(t);
+
+        try {
+            String path = "teams.list." + key;
+            plugin.getConfig().set(path + ".display-name", displayName);
+            plugin.getConfig().set(path + ".color", color.name());
+            plugin.getConfig().set(path + ".tag-color", tagColor);
+            plugin.saveConfig();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Couldn't persist new team to config", e);
+        }
+
+        safeRefreshAllUi();
+        return t;
+    }
+
+    public boolean deleteTeam(String id) {
+        if (id == null) return false;
+        String key = id.toLowerCase();
+        KMCTeam t = teams.get(key);
+        if (t == null) return false;
+
+        for (UUID uuid : new ArrayList<>(t.getMembers())) {
+            removePlayerFromTeam(uuid);
+        }
+
+        teams.remove(key);
+
+        try {
+            plugin.getConfig().set("teams.list." + key, null);
+            plugin.saveConfig();
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Couldn't remove team from config", e);
+        }
+
+        try {
+            plugin.getDatabaseManager().deleteTeam(key);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Couldn't remove team from DB", e);
+        }
+
+        safeRefreshAllUi();
+        return true;
+    }
+
+    // ----------------------------------------------------------------
+    // Queries
+    // ----------------------------------------------------------------
+
+    public KMCTeam getTeam(String id) {
+        if (id == null) return null;
+        return teams.get(id.toLowerCase());
+    }
+
+    public Collection<KMCTeam> getAllTeams() {
+        return Collections.unmodifiableCollection(teams.values());
+    }
+
+    public KMCTeam getTeamByPlayer(UUID uuid) {
+        if (uuid == null) return null;
+        for (KMCTeam t : teams.values()) {
+            if (t.hasMember(uuid)) return t;
+        }
+        return null;
+    }
+
+    public List<KMCTeam> getTeamsSortedByPoints() {
+        List<KMCTeam> list = new ArrayList<>(teams.values());
+        list.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
+        return list;
+    }
+
+    /** Teams in insertion / config order — used for tablist sort. */
+    public List<KMCTeam> getTeamsInOrder() {
+        return new ArrayList<>(teams.values());
+    }
+
+    public int getMaxPlayersPerTeam() {
+        return plugin.getConfig().getInt("teams.max-players-per-team", 4);
+    }
+
+    public int getTeamCount() { return teams.size(); }
+
+    // ----------------------------------------------------------------
+    // Bulk
+    // ----------------------------------------------------------------
+
     public void resetScores() {
         for (KMCTeam t : teams.values()) {
             t.setPoints(0);
             t.setWins(0);
+            plugin.getDatabaseManager().saveTeam(t);
         }
-        saveAll();
     }
 
     // ----------------------------------------------------------------
-    // Inner enum
+    // Internal helpers
     // ----------------------------------------------------------------
 
-    public enum AddResult {
-        OK, ALREADY_IN_TEAM, TEAM_FULL, TEAM_NOT_FOUND
+    private void safeRefreshAllUi() {
+        try {
+            if (plugin.getTabListManager() != null) {
+                plugin.getTabListManager().refreshAllNametags();
+                plugin.getTabListManager().refreshAll();
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "TabList refresh failed", e);
+        }
+        try {
+            if (plugin.getScoreboardManager() != null) {
+                plugin.getScoreboardManager().refreshAll();
+            }
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Sidebar refresh failed", e);
+        }
     }
 }

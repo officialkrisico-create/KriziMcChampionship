@@ -86,10 +86,6 @@ public class DatabaseManager {
             st.execute(players);
             st.execute(teams);
             st.execute(tournament);
-
-            // Migration: drop coin columns if they exist from old DB
-            // SQLite < 3.35 doesn't support DROP COLUMN directly — just ignore them
-            // The new INSERT/UPDATE won't touch removed columns so old data is harmless
         }
     }
 
@@ -214,6 +210,32 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * Deletes a single team from the database.
+     * Called by TeamManager.deleteTeam(id) for the /kmcteam delete command.
+     *
+     * @param teamId the id of the team to remove (case-sensitive)
+     */
+    public void deleteTeam(String teamId) {
+        if (teamId == null) return;
+        String sql = "DELETE FROM teams WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, teamId);
+            int rows = ps.executeUpdate();
+            if (rows > 0) {
+                plugin.getLogger().info("Deleted team '" + teamId + "' from database.");
+            }
+            // Also clear team assignments on any players that referenced this team
+            try (PreparedStatement ps2 = connection.prepareStatement(
+                    "UPDATE players SET team_id = NULL WHERE team_id = ?")) {
+                ps2.setString(1, teamId);
+                ps2.executeUpdate();
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Delete team failed", e);
+        }
+    }
+
     public Map<String, KMCTeam> loadAllTeams() {
         Map<String, KMCTeam> map = new LinkedHashMap<>();
         try (Statement st = connection.createStatement();
@@ -268,7 +290,6 @@ public class DatabaseManager {
                 st.execute("DELETE FROM players");
                 st.execute("DELETE FROM tournament_state");
             } else {
-                // Soft reset — keep lifetime stats like bestWinStreak, winsPerGame, playtime
                 st.execute("UPDATE players SET points = 0, kills = 0, wins = 0, " +
                            "win_streak = 0, games_played = 0");
                 st.execute("DELETE FROM tournament_state");

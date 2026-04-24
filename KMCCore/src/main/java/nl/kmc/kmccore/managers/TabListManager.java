@@ -12,37 +12,37 @@ import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 
 import java.util.*;
+import java.util.logging.Level;
 
 /**
  * Manages team-coloured names in chat, tab list, and above-head.
  *
- * <p><b>FIX for "only own name is coloured":</b>
+ * <p><b>Tab list sorting:</b> Minecraft sorts the tab list alphabetically
+ * by internal Bukkit Team name. To group teammates together in the order
+ * they're defined, each internal team name gets a 2-digit numeric prefix:
  *
- * <p>Each player has their own personal Scoreboard so their sidebar can
- * show per-player data. A team's "prefix" (the [TeamName] tag + colour)
- * lives on a Bukkit {@link Team} object <em>inside</em> that personal
- * scoreboard. If player A's board has only A registered on "kmc_red"
- * and not B, then A sees B's name uncoloured.
+ * <pre>
+ *   00_rode_ratten       ← first team in config = appears first in tab
+ *   01_oranje_otters
+ *   02_gele_gnoes
+ *   ...
+ *   zz_nobody            ← prefix for teamless players (sort last)
+ * </pre>
  *
- * <p>The cure: {@link #syncAllBoards()} walks every online player's
- * personal scoreboard and ensures every KMC team contains every correct
- * player entry. We call this whenever:
- * <ul>
- *   <li>A player joins or quits (via PlayerJoinQuitListener)</li>
- *   <li>A player is added to or removed from a team</li>
- *   <li>A new personal sidebar is first created</li>
- *   <li>Tournament reset / hardreset</li>
- * </ul>
+ * <p><b>Tab list always smooth:</b> syncAllBoards() is idempotent and
+ * wrapped in try/catch at each step — no exceptions bubble up to break
+ * refresh loops.
  */
 public class TabListManager {
 
     private final KMCCore plugin;
-
-    /** Kept as a reference — but personal boards do the real work. */
     private final Scoreboard mainScoreboard;
 
-    /** Per-player boards registered by ScoreboardManager. Shared so we can walk them. */
+    /** Per-player personal boards. */
     private final Map<UUID, Scoreboard> personalBoards = new HashMap<>();
+
+    /** Bukkit team name for teamless players — sorts last. */
+    private static final String NO_TEAM_KEY = "zz_noteam";
 
     private static final Map<ChatColor, NamedTextColor> COLOR_MAP = new HashMap<>();
     static {
@@ -66,7 +66,6 @@ public class TabListManager {
     public TabListManager(KMCCore plugin) {
         this.plugin = plugin;
         this.mainScoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
-        // Set up teams on main scoreboard (used as a template)
         ensureTeamsExist(mainScoreboard);
     }
 
@@ -74,17 +73,16 @@ public class TabListManager {
     // Public API
     // ================================================================
 
-    /**
-     * Registers a personal scoreboard so it gets team-sync treatment.
-     * Called by ScoreboardManager when it creates a new sidebar.
-     */
     public void registerPersonalBoard(UUID uuid, Scoreboard board) {
         personalBoards.put(uuid, board);
-        ensureTeamsExist(board);
-        syncTeamsOn(board);
+        try {
+            ensureTeamsExist(board);
+            syncTeamsOn(board);
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "registerPersonalBoard failed", e);
+        }
     }
 
-    /** Removes personal board (player quit). */
     public void unregisterPersonalBoard(UUID uuid) {
         personalBoards.remove(uuid);
     }
@@ -92,22 +90,27 @@ public class TabListManager {
     public Scoreboard getMainScoreboard() { return mainScoreboard; }
 
     /**
-     * THE CRITICAL METHOD: walks every registered personal scoreboard
-     * and syncs KMC team memberships so all players see all prefixes.
+     * Walks every registered personal board + the main board, re-aligning
+     * team memberships to match reality. Safe to call any number of times.
      */
     public void syncAllBoards() {
-        for (Scoreboard board : personalBoards.values()) syncTeamsOn(board);
-        // Also keep main board in sync for completeness
-        syncTeamsOn(mainScoreboard);
+        for (Scoreboard board : new ArrayList<>(personalBoards.values())) {
+            try { syncTeamsOn(board); }
+            catch (Exception e) { plugin.getLogger().log(Level.WARNING, "syncTeamsOn failed", e); }
+        }
+        try { syncTeamsOn(mainScoreboard); }
+        catch (Exception e) { plugin.getLogger().log(Level.WARNING, "syncTeamsOn(main) failed", e); }
     }
 
     /** Legacy alias. */
     public void refreshAllNametags() { syncAllBoards(); }
 
-    /** Refresh tab list header/footer for every player + re-sync team prefixes. */
     public void refreshAll() {
         syncAllBoards();
-        for (Player p : Bukkit.getOnlinePlayers()) updateTabList(p);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            try { updateTabList(p); }
+            catch (Exception e) { plugin.getLogger().log(Level.WARNING, "updateTabList failed for " + p.getName(), e); }
+        }
     }
 
     // ----------------------------------------------------------------
@@ -129,7 +132,7 @@ public class TabListManager {
     }
 
     // ----------------------------------------------------------------
-    // Chat message builders (unchanged)
+    // Chat message builders
     // ----------------------------------------------------------------
 
     public Component buildChatMessage(Player player, String message) {
@@ -164,49 +167,93 @@ public class TabListManager {
     }
 
     // ----------------------------------------------------------------
-    // Team sync internals
+    // Internal team management
     // ----------------------------------------------------------------
 
-    /** Makes sure every KMC team exists on the given scoreboard with correct prefix. */
+    /**
+     * Builds the internal Bukkit team name for a given KMC team.
+     * Uses a numeric prefix so tab list sorts teams in their config order.
+     */
+    private String bukkitTeamName(KMCTeam kmcTeam) {
+        int index = plugin.getTeamManager().getTeamsInOrder().indexOf(kmcTeam);
+        return String.format("%02d_%s", index, kmcTeam.getId());
+    }
+
+    /** Internal name for teamless players. Sorts last. */
+    private String bukkitNoTeamName() { return NO_TEAM_KEY; }
+
+    /** Ensures a Bukkit Team exists on the board for each KMC team + a "no team" group. */
     private void ensureTeamsExist(Scoreboard board) {
-        for (KMCTeam kmcTeam : plugin.getTeamManager().getAllTeams()) {
-            String teamKey = "kmc_" + kmcTeam.getId();
+        // KMC teams
+        for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
+            String teamKey = bukkitTeamName(kmcTeam);
             Team bt = board.getTeam(teamKey);
-            if (bt == null) {
-                bt = board.registerNewTeam(teamKey);
-            }
+            if (bt == null) bt = board.registerNewTeam(teamKey);
+
             NamedTextColor ntc = COLOR_MAP.getOrDefault(kmcTeam.getColor(), NamedTextColor.WHITE);
             bt.prefix(Component.text("[" + kmcTeam.getDisplayName() + "] ", ntc, TextDecoration.BOLD));
             bt.color(ntc);
             bt.setAllowFriendlyFire(false);
             bt.setCanSeeFriendlyInvisibles(true);
         }
+
+        // No-team group — for teamless players, no prefix, default color
+        Team none = board.getTeam(bukkitNoTeamName());
+        if (none == null) {
+            none = board.registerNewTeam(bukkitNoTeamName());
+            none.prefix(Component.empty());
+            none.color(NamedTextColor.GRAY);
+        }
+
+        // Clean up any orphaned kmc_* teams from older versions
+        for (Team t : new ArrayList<>(board.getTeams())) {
+            String nm = t.getName();
+            if (nm.startsWith("kmc_")) {
+                try { t.unregister(); } catch (Exception ignored) {}
+            }
+        }
     }
 
-    /** Aligns team memberships on one scoreboard to match actual team assignments. */
+    /**
+     * Aligns the Bukkit team memberships on a given scoreboard to match
+     * the current team assignments. Called by syncAllBoards().
+     */
     private void syncTeamsOn(Scoreboard board) {
         ensureTeamsExist(board);
 
-        for (KMCTeam kmcTeam : plugin.getTeamManager().getAllTeams()) {
-            Team bt = board.getTeam("kmc_" + kmcTeam.getId());
-            if (bt == null) continue;
-
-            // Build desired member name set
-            Set<String> desired = new HashSet<>();
+        // Build player → desired team name
+        Map<String, String> desiredTeam = new HashMap<>();
+        for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
+            String btName = bukkitTeamName(kmcTeam);
             for (UUID uuid : kmcTeam.getMembers()) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (p != null) desired.add(p.getName());
+                if (p != null) desiredTeam.put(p.getName(), btName);
             }
+        }
+        // Everyone else → no-team
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            desiredTeam.putIfAbsent(p.getName(), bukkitNoTeamName());
+        }
 
-            // Remove any entries not in desired
+        // Clear all KMC + no-team entries, then add the desired ones
+        for (Team bt : board.getTeams()) {
+            String nm = bt.getName();
+            if (!nm.equals(NO_TEAM_KEY) && !nm.matches("\\d\\d_.+")) continue;
+
             Set<String> current = new HashSet<>(bt.getEntries());
             for (String entry : current) {
-                if (!desired.contains(entry)) bt.removeEntry(entry);
+                String desired = desiredTeam.get(entry);
+                if (desired == null || !desired.equals(nm)) {
+                    bt.removeEntry(entry);
+                }
             }
+        }
 
-            // Add any missing entries
-            for (String name : desired) {
-                if (!bt.hasEntry(name)) bt.addEntry(name);
+        // Add desired entries
+        for (Map.Entry<String, String> e : desiredTeam.entrySet()) {
+            Team bt = board.getTeam(e.getValue());
+            if (bt != null && !bt.hasEntry(e.getKey())) {
+                bt.addEntry(e.getKey());
             }
         }
     }
