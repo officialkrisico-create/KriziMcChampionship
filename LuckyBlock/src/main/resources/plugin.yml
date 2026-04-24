@@ -1,0 +1,22 @@
+name: KMCLuckyBlock
+version: '${project.version}'
+main: nl.kmc.luckyblock.LuckyBlockPlugin
+api-version: '1.21'
+description: Lucky Block minigame for KMC tournament
+authors: [ KMC ]
+depend:
+  - KMCCore
+softdepend:
+  - WorldEdit
+  - FastAsyncWorldEdit
+
+commands:
+  luckyblock:
+    description: Control the Lucky Block game
+    usage: /luckyblock <start|stop|status>
+    permission: kmc.luckyblock.admin
+
+permissions:
+  kmc.luckyblock.admin:
+    description: Admin control of Lucky Block
+    default: op

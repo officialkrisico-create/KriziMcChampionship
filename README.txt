@@ -1,133 +1,206 @@
 ================================================================
-KMC Tournament — Multi-Module Project Setup
+KMC Tournament — Complete Bundle
 ================================================================
 
-This ZIP contains the parent project structure with empty module
-folders. You need to move your existing KMCCore, LuckyBlock, and
-AdventureEscape project files INTO the matching module folders.
+This is the FULL project: KMCCore + LuckyBlock + AdventureEscape
+in one unified multi-module Maven project. No missing pieces —
+all the code we built together is inside.
 
 ================================================================
-STEP 1 — Unzip this file
+STRUCTURE
 ================================================================
 
-You'll get a folder called `kmc-tournament/` with this structure:
-
-    kmc-tournament/
+kmc-tournament/
+├── pom.xml                    parent (lists all modules + shared config)
+├── build-all.bat              Windows build script
+├── build-all.sh               Linux/Mac build script
+├── README.txt                 this file
+│
+├── KMCCore/                   main plugin — tournament engine
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/nl/kmc/kmccore/
+│       │   ├── KMCCore.java        main class
+│       │   ├── api/                public API for other plugins
+│       │   ├── commands/           all /kmc... commands
+│       │   ├── database/           SQLite persistence
+│       │   ├── listeners/          event listeners (lobby protection,
+│       │   │                       chat, votes, etc.)
+│       │   ├── managers/           one manager per feature:
+│       │   │                       Team, PlayerData, Points,
+│       │   │                       Tournament, Game, Automation,
+│       │   │                       TabList, Arena, Schematic
+│       │   ├── models/             KMCTeam, PlayerData, KMCGame
+│       │   ├── npc/                FancyNpcs hologram leaderboards
+│       │   ├── scoreboard/         live per-player sidebar
+│       │   └── util/               MessageUtil, AnnouncementUtil,
+│       │                           ClickableVoteMessage
+│       └── resources/
+│           ├── plugin.yml          all commands + permissions
+│           ├── config.yml          tournament settings
+│           ├── messages.yml        all chat messages (Dutch)
+│           └── points.yml          all point rewards
+│
+├── LuckyBlock/                minigame — yellow-concrete lucky blocks
+│   ├── pom.xml
+│   └── src/main/
+│       ├── java/nl/kmc/luckyblock/
+│       │   ├── LuckyBlockPlugin.java
+│       │   ├── commands/           /luckyblock start/stop/status
+│       │   ├── listeners/          block break + death
+│       │   ├── managers/           game state, tracker, loot table
+│       │   ├── models/             LootEntry
+│       │   └── util/               LootExecutor
+│       └── resources/
+│           ├── plugin.yml
+│           └── config.yml          full loot table with 20+ entries
+│
+└── AdventureEscape/           minigame — Ace Race style
     ├── pom.xml
-    ├── build-all.bat
-    ├── build-all.sh
-    ├── README.txt  (this file)
-    ├── KMCCore/
-    │   └── pom.xml       ← child POM, ready
-    ├── LuckyBlock/
-    │   └── pom.xml       ← child POM, ready
-    └── AdventureEscape/
-        └── pom.xml       ← child POM, ready
+    └── src/main/
+        ├── java/nl/kmc/adventure/
+        │   ├── AdventureEscapePlugin.java
+        │   ├── commands/           /adventure or /ae
+        │   ├── listeners/          block step + line crossing
+        │   ├── managers/           arena, effect blocks, race,
+        │   │                       race scoreboard
+        │   └── models/             EffectBlock, RacerData
+        └── resources/
+            ├── plugin.yml
+            └── config.yml          10 effect-block colors + settings
 
 ================================================================
-STEP 2 — Move your existing src/ folders INTO the modules
+BUILDING
 ================================================================
 
-For each module, copy the `src/` folder from your existing
-standalone project into that module:
-
-  Your existing KMCCore project:
-    MyProjects/KMCCore/src/main/java/...
-    MyProjects/KMCCore/src/main/resources/...
-    MyProjects/KMCCore/pom.xml                    ← DELETE this (replaced)
-
-  After moving:
-    kmc-tournament/KMCCore/
-    ├── pom.xml                                   ← keep (from this zip)
-    └── src/                                      ← moved from old project
-        └── main/java/...
-
-Do the same for LuckyBlock and AdventureEscape.
-
-IMPORTANT: REPLACE the old pom.xml files with the ones from this
-zip. The child POMs in this zip inherit from the parent and are
-much shorter than your old standalone pom.xml files.
-
-================================================================
-STEP 3 — Build everything with ONE command
-================================================================
-
-From inside the kmc-tournament/ folder, run:
+From inside kmc-tournament/ run:
 
     mvn clean package
 
-Or use the convenience script:
+Or use the script:
     Windows:   build-all.bat
     Linux/Mac: ./build-all.sh
 
-Maven will:
-  1. Read the parent pom.xml
-  2. Build KMCCore first (it's listed first in <modules>)
-  3. Build LuckyBlock next (depends on KMCCore — classes available now)
-  4. Build AdventureEscape last (same reason)
+Both scripts create a dist/ folder at the top level containing
+the 3 finished jars ready to drop in plugins/.
 
-The finished jars end up in each module's target/ folder:
-  KMCCore/target/KMCCore-1.0.0.jar
-  LuckyBlock/target/LuckyBlock-1.0.0.jar
-  AdventureEscape/target/AdventureEscape-1.0.0.jar
-
-The build-all scripts also copy all three jars into dist/
-for convenient deployment.
+Build order (automatic):
+    1. KMCCore         (no deps — built first)
+    2. LuckyBlock      (depends on KMCCore)
+    3. AdventureEscape (depends on KMCCore)
 
 ================================================================
-STEP 4 — Copy to server
+INSTALLING
 ================================================================
 
-Copy the three finished jars into your server's plugins/ folder.
-Restart (don't /reload) the server. KMCCore loads first (because
-the other plugins have 'depend: - KMCCore' in plugin.yml).
+Copy all 3 jars into your server's plugins/ folder:
+    plugins/KMCCore-1.0.0.jar
+    plugins/LuckyBlock-1.0.0.jar
+    plugins/AdventureEscape-1.0.0.jar
+
+Optional plugins that add features:
+    - WorldEdit  (for schematic paste/reset arenas)
+    - FancyNpcs  (for leaderboard NPC integration)
+
+Restart the server. KMCCore loads first, then the games.
 
 ================================================================
-WHY A MULTI-MODULE PROJECT?
+WHAT'S INCLUDED (FEATURE CHECKLIST)
 ================================================================
 
-- Build everything with ONE command
-- KMCCore changes propagate instantly — change a method signature
-  in KMCCore and both game plugins see it on their next compile
-- No need to `mvn install` KMCCore separately to your local repo
-- Adding a new game plugin = create a new folder + pom.xml, add
-  it to the parent <modules> list, done
-- Your IDE (IntelliJ, VS Code, Eclipse) will detect the parent
-  pom and treat it as one project with three subprojects
+KMCCore:
+  ✔ 8 teams (Rode Ratten, Oranje Otters, etc.) max 4 players each
+  ✔ Coloured nametags in tab + chat + above head (all synced)
+  ✔ Personal points auto-add to team points
+  ✔ Round multiplier system (round 1 = 1x, round 5 = 3x)
+  ✔ Tournament lifecycle: start → rounds → end with auto-reset
+  ✔ Automation engine: intermission → vote → pre-start → game
+  ✔ Force-skip command with auto-next-vote
+  ✔ Auto-skip games with no arena config
+  ✔ Clickable GUI vote with ALL unplayed games per tournament
+  ✔ Post-game leaderboard chain (players → teams → total, 10s apart)
+  ✔ Random team assignment that works for OPs too
+  ✔ Lobby with /kmclobby, damage/mob/grief protection
+  ✔ Schematic arena paste + reset via WorldEdit
+  ✔ SQLite persistence, extended lifetime stats
+  ✔ FancyNpcs leaderboard integration
+
+LuckyBlock:
+  ✔ Scans yellow concrete in pasted schematic
+  ✔ 20+ loot entries across good/bad/rare categories
+  ✔ Weighted random selection
+  ✔ Last-one-standing win condition
+  ✔ Points awarded via KMCCore API (credits team automatically)
+
+AdventureEscape:
+  ✔ Ace Race style with 10 coloured glazed terracotta blocks
+  ✔ Effect blocks give speed/jump/elytra/dolphin/etc for X seconds
+  ✔ Multi-lap races with start + finish line boxes
+  ✔ Live per-player race scoreboard (leader, top 5, your stats)
+  ✔ Best-lap tracking + total-time tracking
+  ✔ First-past-the-post wins, DNF players get last-place points
+  ✔ Runs in its own world (Multiverse compatible)
+  ✔ Uses external-arena flag to bypass KMCCore's arena check
+
+================================================================
+QUICK START
+================================================================
+
+1. Build:                     mvn clean package
+2. Copy dist/*.jar             → plugins/
+3. Restart server
+4. In-game as op:
+     /kmclobby set             (stand in lobby)
+     /kmcrandomteams           (distribute online players)
+     /kmcarena setorigin lucky_block   (stand where arena pastes)
+     /ae setworld racetrack    (pick AE race world)
+     /kmctournament start      (begin!)
+     /kmcauto start            (automation takes over)
 
 ================================================================
 ADDING A NEW GAME LATER
 ================================================================
 
-1. Create a folder next to the others:    kmc-tournament/Quake/
-2. Copy LuckyBlock/pom.xml into it, rename the <artifactId>
-3. Add your src/ folder
-4. Open kmc-tournament/pom.xml and add:
+1. Copy LuckyBlock/ as a template folder, rename it
+2. Update the <artifactId> in the new folder's pom.xml
+3. Rewrite src/ with your game's code
+4. Add the folder to the parent pom.xml's <modules> list:
        <modules>
            <module>KMCCore</module>
            <module>LuckyBlock</module>
            <module>AdventureEscape</module>
-           <module>Quake</module>     ← new
+           <module>YourNewGame</module>
        </modules>
 5. mvn clean package
 
-Done — Quake automatically has access to KMCCore's API.
+Any new game plugin automatically has access to KMCCore's API
+just by adding the KMCCore dependency (see LuckyBlock/pom.xml).
 
 ================================================================
 TROUBLESHOOTING
 ================================================================
 
 "Could not resolve dependencies for nl.kmc:KMCCore"
-  → You built LuckyBlock or AdventureEscape BEFORE KMCCore.
-    Run `mvn clean package` from the PARENT folder, not the
-    child module folder.
+  → You tried to build a single module. Build from the PARENT
+    folder instead: cd kmc-tournament && mvn clean package
 
-"Parent pom not found"
-  → The <relativePath> is missing from child POMs (it's inferred
-    by default — the pom.xml's I provided don't set it). Make
-    sure your folder layout matches the expected structure.
+"BUILD SUCCESS but no jar in target/"
+  → You forgot to run 'package' — 'compile' alone doesn't produce jars.
 
-"BUILD SUCCESS but jars don't work on the server"
-  → Check you copied KMCCore-1.0.0.jar (not original-KMCCore).
-    The shade plugin produces both — the unshaded `original-`
-    prefix version is incomplete.
+"Plugin loads but some feature is missing"
+  → Check your server is Paper 1.21+ with Java 21.
+
+"Lobby protection doesn't work"
+  → Set the lobby first: /kmclobby set
+
+"Random teams skipped me"
+  → That was a bug in an earlier version. This bundle has the fix.
+    If it still happens, make sure you rebuilt and copied the new jar.
+
+================================================================
+THAT'S EVERYTHING!
+================================================================
+
+All the work we've done together is in this one bundle.
+Delete your old project folders and use this as the single
+source of truth going forward.

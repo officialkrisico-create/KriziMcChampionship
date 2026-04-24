@@ -1,0 +1,26 @@
+name: AdventureEscape
+version: '${project.version}'
+main: nl.kmc.adventure.AdventureEscapePlugin
+api-version: '1.21'
+description: Ace Race style minigame for KMC tournament
+authors: [ KMC ]
+
+depend:
+  - KMCCore
+softdepend:
+  - Multiverse-Core
+
+commands:
+  adventure:
+    description: Manage Adventure Escape game
+    usage: /adventure <start|stop|setspawn|setstartline|setfinishline|setlaps|setworld|status>
+    permission: adventure.admin
+  ae:
+    description: Alias for /adventure
+    usage: /ae <...>
+    permission: adventure.admin
+
+permissions:
+  adventure.admin:
+    description: Admin controls for Adventure Escape
+    default: op
