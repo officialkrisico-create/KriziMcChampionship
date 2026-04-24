@@ -123,8 +123,6 @@ public class ScoreboardManager {
         line = setLine(sidebar, line, "&r   ");
         line = setLine(sidebar, line, "&b&lJij:");
         line = setLine(sidebar, line, "&7Punten: &e" + (pd != null ? pd.getPoints() : 0));
-        line = setLine(sidebar, line, "&7Kills:  &c" + (pd != null ? pd.getKills()  : 0));
-        line = setLine(sidebar, line, "&7Wins:   &a" + (pd != null ? pd.getWins()   : 0));
 
         player.setScoreboard(board);
     }
