@@ -1,0 +1,129 @@
+# ================================================================
+# QuakeCraft — Configuration
+# ================================================================
+
+game:
+  # Win condition mode: KILL_TARGET, TIME_LIMIT, FIRST_OF_BOTH
+  win-mode: FIRST_OF_BOTH
+  
+  # Number of kills needed to win (KILL_TARGET / FIRST_OF_BOTH mode)
+  kill-target: 25
+  
+  # Maximum game duration in seconds (TIME_LIMIT / FIRST_OF_BOTH mode)
+  max-duration-seconds: 300
+  
+  # Pre-game countdown before launch
+  countdown-seconds: 15
+  
+  # Respawn delay after death (in seconds)
+  respawn-delay: 1
+  
+  # Railgun cooldown between shots (in milliseconds)
+  railgun-cooldown-ms: 1500
+  
+  # Movement speed boost effect for all players (Speed I)
+  base-speed-boost: true
+
+# ================================================================
+# Arena
+# ================================================================
+
+arena:
+  # Set via /qc setworld, /qc setspawn, etc.
+  world: ""
+  spawns: []
+  powerup-locations: {}
+
+# ================================================================
+# Powerups (limited-use weapons)
+#   Spec: Sniper [3 uses], Grenade [1 use], Shotgun [5 uses],
+#         Machine gun [25 uses], Speed II [15 sec]
+# ================================================================
+
+powerups:
+  sniper:
+    display-name: "&b&lSniper"
+    icon: SPYGLASS
+    uses: 3
+    cooldown-ms: 2000
+    bonus-coins: 25
+  
+  grenade:
+    display-name: "&c&lGrenade"
+    icon: SNOWBALL
+    uses: 1
+    cooldown-ms: 0
+    bonus-coins: 50
+  
+  shotgun:
+    display-name: "&e&lShotgun"
+    icon: BLAZE_ROD
+    uses: 5
+    cooldown-ms: 800
+    bonus-coins: 30
+  
+  machine_gun:
+    display-name: "&6&lMachine Gun"
+    icon: IRON_INGOT
+    uses: 25
+    cooldown-ms: 200
+    bonus-coins: 40
+  
+  speed:
+    display-name: "&a&lSpeed II Boost"
+    icon: SUGAR
+    duration-seconds: 15
+    bonus-coins: 15
+
+# ================================================================
+# Powerup spawning
+# ================================================================
+
+powerup-spawning:
+  # How often a random powerup spawns at a configured location
+  interval-seconds: 30
+  
+  # Time before an unclaimed powerup despawns
+  despawn-seconds: 60
+  
+  # Drop weights — higher = more common
+  weights:
+    sniper: 20
+    grenade: 5
+    shotgun: 25
+    machine_gun: 30
+    speed: 30
+
+# ================================================================
+# Killstreaks
+# ================================================================
+
+killstreaks:
+  enabled: true
+  
+  # Kill count → reward
+  rewards:
+    3:
+      bonus-points: 10
+      message: "&e{player} &7is op een streak! &e×3"
+    5:
+      bonus-points: 25
+      speed-seconds: 10
+      message: "&6{player} &7is HOT! &6×5 &c(SPEED BOOST)"
+    7:
+      bonus-points: 50
+      message: "&c{player} &7is &c&lUNSTOPPABLE! &7×7"
+    10:
+      bonus-points: 100
+      message: "&4&l{player} &c&lDOMINATING! &7×10"
+
+# ================================================================
+# Points (awarded via KMCCore PointsManager)
+# ================================================================
+
+points:
+  per-kill: 10
+  first-place: 250
+  second-place: 150
+  third-place: 100
+  participation: 25

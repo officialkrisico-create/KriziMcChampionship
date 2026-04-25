@@ -5,6 +5,7 @@
       <module fileurl="file://$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" filepath="$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" />
       <module fileurl="file://$PROJECT_DIR$/KMCCore/KMCCore.iml" filepath="$PROJECT_DIR$/KMCCore/KMCCore.iml" />
       <module fileurl="file://$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" filepath="$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" />
+      <module fileurl="file://$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" filepath="$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" />
     </modules>
   </component>
 </project>

@@ -26,6 +26,7 @@
         <module>KMCCore</module>
         <module>LuckyBlock</module>
         <module>AdventureEscape</module>
+        <module>QuakeCraft</module>
     </modules>
 
     <!-- ================================================== -->

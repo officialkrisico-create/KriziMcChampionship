@@ -8,6 +8,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="KMCCore" />
         <module name="AdventureEscape" />
+        <module name="QuakeCraft" />
         <module name="LuckyBlock" />
       </profile>
     </annotationProcessing>

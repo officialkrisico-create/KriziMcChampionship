@@ -1,0 +1,6 @@
+nl\kmc\quake\models\PowerupType.class
+nl\kmc\quake\managers\ArenaManager.class
+nl\kmc\quake\models\ActivePowerup.class
+nl\kmc\quake\commands\QuakeCommand.class
+nl\kmc\quake\QuakeCraftPlugin.class
+nl\kmc\quake\models\PlayerState.class

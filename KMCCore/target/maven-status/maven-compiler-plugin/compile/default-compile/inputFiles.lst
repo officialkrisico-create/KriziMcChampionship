@@ -2,6 +2,7 @@ C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\api\KM
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\ArenaCommand.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\AutomationCommand.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\GameCommand.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\HoFCommand.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\LeaderboardCommand.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\LobbyCommand.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\commands\NPCCommand.java
@@ -17,6 +18,7 @@ C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\databa
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\KMCCore.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\ChatListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\DeathListener.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\GlobalPvPListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\LobbyProtectionListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\PlayerJoinQuitListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\PlayerKillListener.java
@@ -25,12 +27,14 @@ C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listen
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\ArenaManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\AutomationManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\GameManager.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\HallOfFameManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\PlayerDataManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\PointsManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\SchematicManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\TabListManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\TeamManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\managers\TournamentManager.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\HoFRecord.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\KMCGame.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\KMCTeam.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\PlayerData.java
