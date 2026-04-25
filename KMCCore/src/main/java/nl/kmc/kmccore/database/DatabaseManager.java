@@ -1,6 +1,7 @@
 package nl.kmc.kmccore.database;
 
 import nl.kmc.kmccore.KMCCore;
+import nl.kmc.kmccore.models.HoFRecord;
 import nl.kmc.kmccore.models.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.models.PointAward;
@@ -20,10 +21,10 @@ import java.util.logging.Level;
  *                      play_time_minutes, win_streak, best_win_streak, wins_per_game,
  *                      deaths)
  *   teams             (id, display_name, color, tag_color, points, wins)
- *   tournament_state  (key, value)         ← also stores 'event_number'
+ *   tournament_state  (key, value)
  *   point_awards      (id, player_uuid, team_id, reason, game_id, amount, round, timestamp)
- *                       NEW — every point award is logged here for the
- *                       end-of-event breakdown book.
+ *   hof_records       (category, player_uuid, player_name, value, event_number, timestamp)
+ *                       NEW — Hall of Fame. Persists across all resets.
  * </pre>
  */
 public class DatabaseManager {
@@ -99,18 +100,27 @@ public class DatabaseManager {
                 round        INTEGER DEFAULT 1,
                 timestamp    INTEGER NOT NULL
             );""";
-        String idx = "CREATE INDEX IF NOT EXISTS idx_awards_player ON point_awards(player_uuid);";
+        String hof = """
+            CREATE TABLE IF NOT EXISTS hof_records (
+                category      TEXT PRIMARY KEY,
+                player_uuid   TEXT NOT NULL,
+                player_name   TEXT NOT NULL,
+                value         INTEGER NOT NULL,
+                event_number  INTEGER DEFAULT 0,
+                timestamp     INTEGER NOT NULL
+            );""";
+        String idxAwards = "CREATE INDEX IF NOT EXISTS idx_awards_player ON point_awards(player_uuid);";
 
         try (Statement st = connection.createStatement()) {
             st.execute(players);
             st.execute(teams);
             st.execute(tournament);
             st.execute(pointAwards);
-            st.execute(idx);
+            st.execute(hof);
+            st.execute(idxAwards);
         }
     }
 
-    /** Migrate older DBs that don't have the deaths column yet. */
     private void migrateAddDeathsColumn() {
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery("PRAGMA table_info(players)")) {
@@ -134,8 +144,7 @@ public class DatabaseManager {
     // ----------------------------------------------------------------
 
     public PlayerData loadPlayer(UUID uuid) {
-        String sql = "SELECT * FROM players WHERE uuid = ?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement("SELECT * FROM players WHERE uuid = ?")) {
             ps.setString(1, uuid.toString());
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return readPlayerRow(rs);
@@ -174,17 +183,11 @@ public class DatabaseManager {
                 games_played, play_time_minutes, win_streak, best_win_streak, wins_per_game, deaths)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(uuid) DO UPDATE SET
-                name               = excluded.name,
-                team_id            = excluded.team_id,
-                points             = excluded.points,
-                kills              = excluded.kills,
-                wins               = excluded.wins,
-                games_played       = excluded.games_played,
-                play_time_minutes  = excluded.play_time_minutes,
-                win_streak         = excluded.win_streak,
-                best_win_streak    = excluded.best_win_streak,
-                wins_per_game      = excluded.wins_per_game,
-                deaths             = excluded.deaths;
+                name=excluded.name, team_id=excluded.team_id, points=excluded.points,
+                kills=excluded.kills, wins=excluded.wins, games_played=excluded.games_played,
+                play_time_minutes=excluded.play_time_minutes, win_streak=excluded.win_streak,
+                best_win_streak=excluded.best_win_streak, wins_per_game=excluded.wins_per_game,
+                deaths=excluded.deaths;
             """;
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, pd.getUuid().toString());
@@ -225,11 +228,8 @@ public class DatabaseManager {
             INSERT INTO teams (id, display_name, color, tag_color, points, wins)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                display_name = excluded.display_name,
-                color        = excluded.color,
-                tag_color    = excluded.tag_color,
-                points       = excluded.points,
-                wins         = excluded.wins;""";
+                display_name=excluded.display_name, color=excluded.color,
+                tag_color=excluded.tag_color, points=excluded.points, wins=excluded.wins;""";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, team.getId());
             ps.setString(2, team.getDisplayName());
@@ -277,7 +277,7 @@ public class DatabaseManager {
     }
 
     // ----------------------------------------------------------------
-    // Point awards (NEW)
+    // Point awards
     // ----------------------------------------------------------------
 
     public void recordPointAward(PointAward award) {
@@ -299,11 +299,10 @@ public class DatabaseManager {
         }
     }
 
-    /** Returns all point awards for a player, ordered oldest → newest. */
     public List<PointAward> loadAwardsForPlayer(UUID uuid) {
         List<PointAward> list = new ArrayList<>();
-        String sql = "SELECT * FROM point_awards WHERE player_uuid = ? ORDER BY timestamp ASC";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM point_awards WHERE player_uuid = ? ORDER BY timestamp ASC")) {
             ps.setString(1, uuid.toString());
             ResultSet rs = ps.executeQuery();
             while (rs.next()) list.add(readAwardRow(rs));
@@ -313,11 +312,10 @@ public class DatabaseManager {
         return list;
     }
 
-    /** Returns all point awards for a team's members, ordered oldest → newest. */
     public List<PointAward> loadAwardsForTeam(String teamId) {
         List<PointAward> list = new ArrayList<>();
-        String sql = "SELECT * FROM point_awards WHERE team_id = ? ORDER BY timestamp ASC";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "SELECT * FROM point_awards WHERE team_id = ? ORDER BY timestamp ASC")) {
             ps.setString(1, teamId);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) list.add(readAwardRow(rs));
@@ -347,6 +345,72 @@ public class DatabaseManager {
     }
 
     // ----------------------------------------------------------------
+    // Hall of Fame  (NEW — survives all resets)
+    // ----------------------------------------------------------------
+
+    public Map<String, HoFRecord> loadAllHoFRecords() {
+        Map<String, HoFRecord> map = new LinkedHashMap<>();
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("SELECT * FROM hof_records")) {
+            while (rs.next()) {
+                map.put(rs.getString("category"), new HoFRecord(
+                        rs.getString("category"),
+                        UUID.fromString(rs.getString("player_uuid")),
+                        rs.getString("player_name"),
+                        rs.getLong("value"),
+                        rs.getInt("event_number"),
+                        rs.getLong("timestamp")));
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Load HoF records failed", e);
+        }
+        return map;
+    }
+
+    public void saveHoFRecord(HoFRecord rec) {
+        if (rec == null) return;
+        String sql = """
+            INSERT INTO hof_records (category, player_uuid, player_name, value, event_number, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(category) DO UPDATE SET
+                player_uuid=excluded.player_uuid,
+                player_name=excluded.player_name,
+                value=excluded.value,
+                event_number=excluded.event_number,
+                timestamp=excluded.timestamp;""";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, rec.getCategory());
+            ps.setString(2, rec.getPlayerUuid().toString());
+            ps.setString(3, rec.getPlayerName());
+            ps.setLong(4,   rec.getValue());
+            ps.setInt(5,    rec.getEventNumber());
+            ps.setLong(6,   rec.getTimestamp());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Save HoF record failed", e);
+        }
+    }
+
+    /** Clears ONE category. Use clearAllHoFRecords() for everything. */
+    public void clearHoFRecord(String category) {
+        try (PreparedStatement ps = connection.prepareStatement(
+                "DELETE FROM hof_records WHERE category = ?")) {
+            ps.setString(1, category);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Clear HoF record failed", e);
+        }
+    }
+
+    public void clearAllHoFRecords() {
+        try (Statement st = connection.createStatement()) {
+            st.execute("DELETE FROM hof_records");
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Clear all HoF failed", e);
+        }
+    }
+
+    // ----------------------------------------------------------------
     // Tournament state
     // ----------------------------------------------------------------
 
@@ -369,16 +433,19 @@ public class DatabaseManager {
         return def;
     }
 
+    /**
+     * Soft reset: zero player stats but preserve event_number and HoF.
+     * Hard reset: also zero event_number, but HoF still persists.
+     */
     public void resetAll(boolean fullWipe) {
         try (Statement st = connection.createStatement()) {
             if (fullWipe) {
                 st.execute("DELETE FROM players");
                 st.execute("DELETE FROM tournament_state");
+                // NOTE: hof_records is intentionally NOT touched here.
             } else {
                 st.execute("UPDATE players SET points = 0, kills = 0, wins = 0, " +
                            "win_streak = 0, games_played = 0, deaths = 0");
-                // Don't wipe tournament_state on soft reset — we need event_number
-                // Just delete state keys that should reset, leaving event_number alone
                 st.execute("DELETE FROM tournament_state WHERE key NOT IN ('event_number')");
             }
             st.execute("UPDATE teams SET points = 0, wins = 0");

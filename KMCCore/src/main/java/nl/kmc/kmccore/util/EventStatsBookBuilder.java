@@ -17,17 +17,16 @@ import org.bukkit.inventory.meta.BookMeta;
 import java.util.*;
 
 /**
- * Builds the post-event signed book given to every player at the end
- * of a tournament.
+ * Builds the post-event signed book for every player.
  *
- * <p>Pages:
+ * <p>6 pages:
  * <ol>
  *   <li>KMC Event Number, Winning Team, Best Player</li>
  *   <li>Full Team Leaderboard</li>
  *   <li>Top 10 Players + viewer's placement</li>
  *   <li>Viewer's Team Breakdown (who got what)</li>
  *   <li>Viewer's Points Breakdown (where points came from)</li>
- *   <li>Viewer's Stats (kills, deaths, K/D, lap times etc.)</li>
+ *   <li>Viewer's Stats (kills, deaths, K/D, wins, games, streak)</li>
  * </ol>
  */
 public final class EventStatsBookBuilder {
@@ -55,10 +54,7 @@ public final class EventStatsBookBuilder {
         return book;
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 1 — Event overview
-    // ----------------------------------------------------------------
-
+    // PAGE 1
     private static Component page1Overview(KMCCore plugin, int eventNumber) {
         var winningTeam = plugin.getTeamManager().getTeamsSortedByPoints().stream()
                 .findFirst().orElse(null);
@@ -89,10 +85,7 @@ public final class EventStatsBookBuilder {
         return b.build();
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 2 — Full team leaderboard
-    // ----------------------------------------------------------------
-
+    // PAGE 2
     private static Component page2TeamLeaderboard(KMCCore plugin) {
         var b = Component.text();
         b.append(Component.text("Team Klassement\n", NamedTextColor.DARK_RED, TextDecoration.BOLD));
@@ -102,7 +95,7 @@ public final class EventStatsBookBuilder {
         int rank = 1;
         for (KMCTeam t : teams) {
             var nc = TabListManager.toNamed(t.getColor());
-            String medal = rank == 1 ? "★ " : rank == 2 ? "2. " : rank == 3 ? "3. " : rank + ". ";
+            String medal = rank == 1 ? "★ " : rank + ". ";
             b.append(Component.text(medal, NamedTextColor.GRAY));
             b.append(Component.text(t.getDisplayName(), nc, TextDecoration.BOLD));
             b.append(Component.text("\n  " + t.getPoints() + " pt\n", NamedTextColor.DARK_GRAY));
@@ -111,10 +104,7 @@ public final class EventStatsBookBuilder {
         return b.build();
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 3 — Top 10 players + viewer placement
-    // ----------------------------------------------------------------
-
+    // PAGE 3
     private static Component page3TopPlayers(KMCCore plugin, Player viewer) {
         var leaderboard = plugin.getPlayerDataManager().getLeaderboard();
 
@@ -125,22 +115,14 @@ public final class EventStatsBookBuilder {
         for (int i = 0; i < Math.min(10, leaderboard.size()); i++) {
             PlayerData pd = leaderboard.get(i);
             boolean isViewer = pd.getUuid().equals(viewer.getUniqueId());
-
             var color = isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY;
-
             b.append(Component.text((i + 1) + ". ", NamedTextColor.GRAY));
-
             Component nameComp = Component.text(pd.getName(), color);
-
-            if (isViewer) {
-                nameComp = nameComp.decorate(TextDecoration.BOLD);
-            }
-
+            if (isViewer) nameComp = nameComp.decorate(TextDecoration.BOLD);
             b.append(nameComp);
             b.append(Component.text(" — " + pd.getPoints() + "\n", NamedTextColor.DARK_GRAY));
         }
 
-        // Viewer's placement if outside top 10
         int viewerPlace = -1;
         for (int i = 0; i < leaderboard.size(); i++) {
             if (leaderboard.get(i).getUuid().equals(viewer.getUniqueId())) {
@@ -150,9 +132,7 @@ public final class EventStatsBookBuilder {
         if (viewerPlace > 10) {
             b.append(Component.text("\nJij: #" + viewerPlace + "\n", NamedTextColor.GOLD, TextDecoration.BOLD));
             PlayerData me = plugin.getPlayerDataManager().get(viewer.getUniqueId());
-            if (me != null) {
-                b.append(Component.text(me.getPoints() + " punten", NamedTextColor.DARK_GRAY));
-            }
+            if (me != null) b.append(Component.text(me.getPoints() + " punten", NamedTextColor.DARK_GRAY));
         } else if (viewerPlace > 0) {
             b.append(Component.text("\nJouw plaats: #" + viewerPlace, NamedTextColor.DARK_GRAY));
         }
@@ -160,18 +140,14 @@ public final class EventStatsBookBuilder {
         return b.build();
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 4 — Viewer's team — who got what
-    // ----------------------------------------------------------------
-
+    // PAGE 4
     private static Component page4TeamBreakdown(KMCCore plugin, Player viewer) {
         var b = Component.text();
         KMCTeam team = plugin.getTeamManager().getTeamByPlayer(viewer.getUniqueId());
 
         if (team == null) {
             b.append(Component.text("Geen team\n\n", NamedTextColor.DARK_RED, TextDecoration.BOLD));
-            b.append(Component.text("Je was niet bij een team in dit toernooi.",
-                    NamedTextColor.DARK_GRAY));
+            b.append(Component.text("Je zat niet in een team.", NamedTextColor.DARK_GRAY));
             return b.build();
         }
 
@@ -180,42 +156,28 @@ public final class EventStatsBookBuilder {
         b.append(Component.text("━━━━━━━━━━━━━━━\n", NamedTextColor.GRAY));
         b.append(Component.text("Punten per lid:\n\n", NamedTextColor.DARK_GRAY));
 
-        // Sort members by points desc
         List<PlayerData> members = new ArrayList<>();
         for (UUID uuid : team.getMembers()) {
             PlayerData pd = plugin.getPlayerDataManager().get(uuid);
-            if (pd == null) {
-                pd = plugin.getDatabaseManager().loadPlayer(uuid);
-            }
+            if (pd == null) pd = plugin.getDatabaseManager().loadPlayer(uuid);
             if (pd != null) members.add(pd);
         }
         members.sort((a, x) -> Integer.compare(x.getPoints(), a.getPoints()));
 
         for (PlayerData pd : members) {
             boolean isViewer = pd.getUuid().equals(viewer.getUniqueId());
-
-            Component nameComp = Component.text(
-                    pd.getName(),
-                    isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY
-            );
-
-            if (isViewer) {
-                nameComp = nameComp.decorate(TextDecoration.BOLD);
-            }
-
+            Component nameComp = Component.text(pd.getName(),
+                    isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY);
+            if (isViewer) nameComp = nameComp.decorate(TextDecoration.BOLD);
             b.append(nameComp);
             b.append(Component.text(" — " + pd.getPoints() + "\n", NamedTextColor.DARK_GRAY));
         }
 
         b.append(Component.text("\nTotaal: " + team.getPoints(), NamedTextColor.DARK_RED, TextDecoration.BOLD));
-
         return b.build();
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 5 — Viewer's points breakdown by reason
-    // ----------------------------------------------------------------
-
+    // PAGE 5
     private static Component page5PointsBreakdown(KMCCore plugin, Player viewer) {
         var b = Component.text();
         b.append(Component.text("Jouw Punten\n", NamedTextColor.DARK_RED, TextDecoration.BOLD));
@@ -227,7 +189,6 @@ public final class EventStatsBookBuilder {
             return b.build();
         }
 
-        // Group by displayReason → sum
         Map<String, Integer> byReason = new LinkedHashMap<>();
         int total = 0;
         for (PointAward a : awards) {
@@ -235,7 +196,6 @@ public final class EventStatsBookBuilder {
             total += a.getAmount();
         }
 
-        // Sort by amount desc
         List<Map.Entry<String, Integer>> sorted = new ArrayList<>(byReason.entrySet());
         sorted.sort((x, y) -> Integer.compare(y.getValue(), x.getValue()));
 
@@ -248,10 +208,7 @@ public final class EventStatsBookBuilder {
         return b.build();
     }
 
-    // ----------------------------------------------------------------
-    // PAGE 6 — Personal stats
-    // ----------------------------------------------------------------
-
+    // PAGE 6
     private static Component page6PersonalStats(KMCCore plugin, Player viewer) {
         var b = Component.text();
         b.append(Component.text("Jouw Stats\n", NamedTextColor.DARK_RED, TextDecoration.BOLD));
@@ -261,24 +218,18 @@ public final class EventStatsBookBuilder {
         if (pd == null) pd = plugin.getDatabaseManager().loadPlayer(viewer.getUniqueId());
 
         if (pd == null) {
-            b.append(Component.text("Geen data beschikbaar.", NamedTextColor.DARK_GRAY));
+            b.append(Component.text("Geen data.", NamedTextColor.DARK_GRAY));
             return b.build();
         }
 
-        line(b, "Punten",       String.valueOf(pd.getPoints()));
-        line(b, "Kills",        String.valueOf(pd.getKills()));
-        line(b, "Deaths",       String.valueOf(pd.getDeaths()));
-        if (pd.getDeaths() > 0) {
-            double kd = (double) pd.getKills() / pd.getDeaths();
-            line(b, "K/D",      String.format("%.2f", kd));
-        }
-        line(b, "Wins",         String.valueOf(pd.getWins()));
-        line(b, "Games",        String.valueOf(pd.getGamesPlayed()));
-        line(b, "Win streak",   pd.getWinStreak() + " (best: " + pd.getBestWinStreak() + ")");
-
-        if (pd.getFavouriteGame() != null) {
-            line(b, "Favo game", pd.getFavouriteGame().replace("_", " "));
-        }
+        line(b, "Punten",     String.valueOf(pd.getPoints()));
+        line(b, "Kills",      String.valueOf(pd.getKills()));
+        line(b, "Deaths",     String.valueOf(pd.getDeaths()));
+        if (pd.getDeaths() > 0) line(b, "K/D", String.format("%.2f", (double) pd.getKills() / pd.getDeaths()));
+        line(b, "Wins",       String.valueOf(pd.getWins()));
+        line(b, "Games",      String.valueOf(pd.getGamesPlayed()));
+        line(b, "Win streak", pd.getWinStreak() + " (best: " + pd.getBestWinStreak() + ")");
+        if (pd.getFavouriteGame() != null) line(b, "Favo game", pd.getFavouriteGame().replace("_", " "));
 
         return b.build();
     }

@@ -6,6 +6,7 @@ import nl.kmc.kmccore.models.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Sound;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -18,12 +19,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Tournament automation engine.
+ * Fully automatic tournament engine.
  *
- * <p>FIX — auto-skip unconfigured games: {@link #enterPreStart(KMCGame)}
- * now checks arena readiness. If the next game has no arena configured,
- * it's skipped and the engine picks another. Prevents teleporting
- * players to null locations or pasting missing schematics.
+ * <p>FIXES:
+ * <ul>
+ *   <li>First-run error: now auto-starts the tournament if it isn't
+ *       already active when /kmcauto start is called.</li>
+ *   <li>Inventory clearing: players' inventories are cleared on
+ *       teleport to lobby and before each game.</li>
+ *   <li>HoF hooks: evaluateGameEnd() called between games.</li>
+ *   <li>Null-safety throughout.</li>
+ * </ul>
  */
 public class AutomationManager {
 
@@ -39,7 +45,6 @@ public class AutomationManager {
     private BukkitTask tickTask;
     private BossBar    bossBar;
 
-    /** Games already attempted this cycle (avoid infinite skip loops). */
     private final Set<String> attemptedThisCycle = new HashSet<>();
 
     public AutomationManager(KMCCore plugin) { this.plugin = plugin; }
@@ -50,9 +55,19 @@ public class AutomationManager {
 
     public void start() {
         if (state != State.IDLE) return;
+
+        // Auto-start tournament if not active
+        if (!plugin.getTournamentManager().isActive()) {
+            plugin.getTournamentManager().start();
+        }
+
         gamesThisRound = 0;
         attemptedThisCycle.clear();
         createBossBar();
+
+        // Clear everyone's inventory and TP to lobby
+        clearAndLobbyAll();
+
         enterIntermission();
     }
 
@@ -69,6 +84,13 @@ public class AutomationManager {
         gamesThisRound++;
         attemptedThisCycle.clear();
 
+        // HoF: evaluate per-game records
+        try { plugin.getHallOfFameManager().evaluateGameEnd(); }
+        catch (Exception e) { plugin.getLogger().warning("HoF evaluateGameEnd failed: " + e.getMessage()); }
+
+        // Clear inventories + TP to lobby
+        clearAndLobbyAll();
+
         int gamesPerRound = plugin.getConfig().getInt("automation.games-per-round", 3);
         if (gamesThisRound >= gamesPerRound) {
             gamesThisRound = 0;
@@ -78,10 +100,29 @@ public class AutomationManager {
             }
         }
 
-        plugin.getArenaManager().teleportAllToLobby();
         postGameLeaderboardChain();
         createBossBar();
         enterIntermission();
+    }
+
+    /**
+     * Clears every online player's inventory, effects, HP, food,
+     * puts them in adventure mode, and TPs to lobby.
+     */
+    private void clearAndLobbyAll() {
+        var lobby = plugin.getArenaManager().getLobby();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            try {
+                p.getInventory().clear();
+                p.setHealth(20);
+                p.setFoodLevel(20);
+                p.setGameMode(GameMode.ADVENTURE);
+                for (var eff : p.getActivePotionEffects()) p.removePotionEffect(eff.getType());
+                if (lobby != null) p.teleport(lobby);
+            } catch (Exception e) {
+                plugin.getLogger().warning("clearAndLobbyAll failed for " + p.getName());
+            }
+        }
     }
 
     public void pause() {
@@ -100,8 +141,12 @@ public class AutomationManager {
         switch (state) {
             case INTERMISSION -> enterIntermission();
             case VOTING       -> enterVoting();
-            case PRE_START    -> enterPreStart(plugin.getGameManager().getNextGame());
-            default           -> {}
+            case PRE_START    -> {
+                KMCGame next = plugin.getGameManager().getNextGame();
+                if (next == null) next = plugin.getGameManager().randomNextGame();
+                enterPreStart(next);
+            }
+            default -> {}
         }
         broadcast("&6[KMC] &aAutomatisering hervat.");
     }
@@ -126,10 +171,11 @@ public class AutomationManager {
         startTick(() -> {
             countdownSeconds--;
             double progress = (double) countdownSeconds /
-                    plugin.getConfig().getInt("automation.intermission-seconds", 30);
+                    Math.max(1, plugin.getConfig().getInt("automation.intermission-seconds", 30));
             setBossBarProgress(progress);
             playTickSound(countdownSeconds);
-            bossBar.setTitle(MessageUtil.color("&eTussenpauze: &6" + countdownSeconds + "s"));
+            if (bossBar != null)
+                bossBar.setTitle(MessageUtil.color("&eTussenpauze: &6" + countdownSeconds + "s"));
 
             if (countdownSeconds <= 0) {
                 cancelTick();
@@ -153,9 +199,10 @@ public class AutomationManager {
         startTick(() -> {
             countdownSeconds--;
             double progress = (double) countdownSeconds /
-                    plugin.getConfig().getInt("games.voting-duration", 30);
+                    Math.max(1, plugin.getConfig().getInt("games.voting-duration", 30));
             setBossBarProgress(progress);
-            bossBar.setTitle(MessageUtil.color("&bStemmen sluiten over: &e" + countdownSeconds + "s"));
+            if (bossBar != null)
+                bossBar.setTitle(MessageUtil.color("&bStemmen sluiten over: &e" + countdownSeconds + "s"));
             playTickSound(countdownSeconds);
 
             if (countdownSeconds <= 0) {
@@ -168,10 +215,6 @@ public class AutomationManager {
         });
     }
 
-    /**
-     * Pre-start countdown. If the picked game isn't configured (no arena),
-     * auto-skip and pick another.
-     */
     private void enterPreStart(KMCGame game) {
         if (game == null) {
             broadcast("&c[KMC] Geen game beschikbaar! Automatisering gestopt.");
@@ -179,14 +222,13 @@ public class AutomationManager {
             return;
         }
 
-        // AUTO-SKIP check — game must be ready
+        // AUTO-SKIP: game must be ready (has arena/spawns configured)
         if (!plugin.getArenaManager().isGameReady(game.getId())) {
             attemptedThisCycle.add(game.getId());
             String reason = plugin.getArenaManager().getReadinessReason(game.getId());
             broadcast("&e[KMC] &7Game &e" + game.getDisplayName()
                     + " &7is niet geconfigureerd (" + reason + "). Overslaan...");
 
-            // Try another game — avoid already-attempted ones
             KMCGame fallback = pickNextReadyGame();
             if (fallback == null) {
                 broadcast("&c[KMC] Geen enkele game is correct geconfigureerd! Automatisering gestopt.");
@@ -194,7 +236,7 @@ public class AutomationManager {
                 stop();
                 return;
             }
-            enterPreStart(fallback);  // recurse with a ready game
+            enterPreStart(fallback);
             return;
         }
 
@@ -209,9 +251,10 @@ public class AutomationManager {
         startTick(() -> {
             countdownSeconds--;
             double progress = (double) countdownSeconds /
-                    plugin.getConfig().getInt("automation.prestart-seconds", 10);
+                    Math.max(1, plugin.getConfig().getInt("automation.prestart-seconds", 10));
             setBossBarProgress(progress);
-            bossBar.setTitle(MessageUtil.color(
+            if (bossBar != null)
+                bossBar.setTitle(MessageUtil.color(
                     "&a" + game.getDisplayName() + " &estart over &6" + countdownSeconds + "s"));
 
             if (countdownSeconds <= 5 && countdownSeconds > 0) {
@@ -231,10 +274,6 @@ public class AutomationManager {
         });
     }
 
-    /**
-     * Picks the next playable game, excluding ones we've already tried
-     * this cycle and ones not configured.
-     */
     private KMCGame pickNextReadyGame() {
         for (KMCGame candidate : plugin.getGameManager().getAvailableGames()) {
             if (attemptedThisCycle.contains(candidate.getId())) continue;
@@ -250,6 +289,13 @@ public class AutomationManager {
         state = State.GAME_ACTIVE;
         attemptedThisCycle.clear();
         hideBossBar();
+
+        // Clear inventories before game starts
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.getInventory().clear();
+            for (var eff : p.getActivePotionEffects()) p.removePotionEffect(eff.getType());
+        }
+
         plugin.getGameManager().startGame(game.getId());
 
         createBossBar();
@@ -262,6 +308,11 @@ public class AutomationManager {
 
     private void endTournament(String lastWinner) {
         stop();
+
+        // HoF: evaluate end-of-event records BEFORE stats reset
+        try { plugin.getHallOfFameManager().evaluateEventEnd(); }
+        catch (Exception e) { plugin.getLogger().warning("HoF evaluateEventEnd failed: " + e.getMessage()); }
+
         plugin.getTournamentManager().endTournament();
 
         String topTeam = plugin.getTeamManager().getTeamsSortedByPoints().stream()
@@ -277,7 +328,7 @@ public class AutomationManager {
     }
 
     // ----------------------------------------------------------------
-    // Post-game leaderboard chain (unchanged)
+    // Post-game leaderboard chain
     // ----------------------------------------------------------------
 
     private void postGameLeaderboardChain() {
@@ -296,7 +347,6 @@ public class AutomationManager {
         }
 
         final String finalGameName = gameName;
-
         Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastTopPlayers(finalGameName), 20L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastGameTeamLeaderboard(finalGameName), 200L);
         Bukkit.getScheduler().runTaskLater(plugin, this::broadcastOverallTeamLeaderboard, 400L);
@@ -352,9 +402,7 @@ public class AutomationManager {
         cancelTick();
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, onTick, 20L, 20L);
     }
-    private void cancelTick() {
-        if (tickTask != null) { tickTask.cancel(); tickTask = null; }
-    }
+    private void cancelTick() { if (tickTask != null) { tickTask.cancel(); tickTask = null; } }
 
     private void createBossBar() {
         if (bossBar != null) hideBossBar();
@@ -362,40 +410,28 @@ public class AutomationManager {
         for (Player p : Bukkit.getOnlinePlayers()) bossBar.addPlayer(p);
         bossBar.setVisible(true);
     }
-
     private void hideBossBar() {
         if (bossBar == null) return;
-        bossBar.setVisible(false);
-        bossBar.removeAll();
-        bossBar = null;
+        bossBar.setVisible(false); bossBar.removeAll(); bossBar = null;
     }
-
     private void setBossBar(String title, BarColor color, double progress) {
         if (bossBar == null) return;
         bossBar.setTitle(MessageUtil.color(title));
         bossBar.setColor(color);
         bossBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
     }
-
     private void setBossBarProgress(double progress) {
         if (bossBar == null) return;
         bossBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
     }
-
-    public void addPlayerToBossBar(Player player) {
-        if (bossBar != null) bossBar.addPlayer(player);
-    }
-
+    public void addPlayerToBossBar(Player player) { if (bossBar != null) bossBar.addPlayer(player); }
     private void playTickSound(int secondsLeft) {
         if (secondsLeft != 10 && secondsLeft != 5 && secondsLeft > 3) return;
         if (secondsLeft <= 0) return;
         Sound s = secondsLeft <= 3 ? Sound.BLOCK_NOTE_BLOCK_BASS : Sound.BLOCK_NOTE_BLOCK_HAT;
         for (Player p : Bukkit.getOnlinePlayers()) p.playSound(p.getLocation(), s, 0.8f, 1f);
     }
-
-    private void broadcast(String msg) {
-        Bukkit.broadcastMessage(MessageUtil.color(msg));
-    }
+    private void broadcast(String msg) { Bukkit.broadcastMessage(MessageUtil.color(msg)); }
 
     public State   getState()            { return state; }
     public boolean isRunning()           { return state != State.IDLE && state != State.PAUSED; }

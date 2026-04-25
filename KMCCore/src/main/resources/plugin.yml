@@ -117,3 +117,10 @@ permissions:
   kmc.automation.admin: { description: Control automation,      default: op }
   kmc.arena.admin:      { description: Manage arenas,           default: op }
   kmc.lobby.admin:      { description: Set/move lobby,          default: op }
+  kmchof:
+    description: Hall of Fame management
+    usage: /kmchof <list|info|clear>
+    permission: kmc.hof.admin
+  kmc.hof.admin:
+    description: Hall of Fame admin commands
+    default: op
