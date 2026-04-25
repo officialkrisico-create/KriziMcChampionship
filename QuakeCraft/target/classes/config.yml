@@ -1,77 +1,86 @@
 # ================================================================
 # QuakeCraft — Configuration
 # ================================================================
+# Hoe-based weapons. Right-click hoe to fire.
+#   Wooden hoe   = Railgun (base, infinite ammo)
+#   Iron hoe     = Shotgun (5 uses, spread)
+#   Netherite hoe= Sniper (3 uses, long range)
+#   Gold hoe     = Machine gun (25 uses, fast)
+#   Bone         = Grenade (1 use, throwable)
+#   Sugar        = Speed II buff (15 sec, consumed on pickup)
+# ================================================================
 
 game:
-  # Win condition mode: KILL_TARGET, TIME_LIMIT, FIRST_OF_BOTH
-  win-mode: FIRST_OF_BOTH
+  # Number of kills the first team must reach
+  team-kill-target: 25
   
-  # Number of kills needed to win (KILL_TARGET / FIRST_OF_BOTH mode)
-  kill-target: 25
+  # Maximum game duration. When timer hits 0, team with most kills wins.
+  max-duration-seconds: 600
   
-  # Maximum game duration in seconds (TIME_LIMIT / FIRST_OF_BOTH mode)
-  max-duration-seconds: 300
-  
-  # Pre-game countdown before launch
+  # Pre-game countdown
   countdown-seconds: 15
   
-  # Respawn delay after death (in seconds)
-  respawn-delay: 1
+  # Respawn delay
+  respawn-delay-seconds: 1
   
-  # Railgun cooldown between shots (in milliseconds)
+  # Base railgun cooldown (ms between shots) for the wooden hoe
   railgun-cooldown-ms: 1500
   
-  # Movement speed boost effect for all players (Speed I)
-  base-speed-boost: true
+  # Maximum range for the base railgun (blocks)
+  railgun-max-range: 80
+  
+  # Whether to friendly-fire (teammates damage each other)
+  friendly-fire: false
+  
+  # Whether the wooden hoe (base railgun) is given to all players
+  give-base-railgun: true
 
 # ================================================================
-# Arena
-# ================================================================
-
-arena:
-  # Set via /qc setworld, /qc setspawn, etc.
-  world: ""
-  spawns: []
-  powerup-locations: {}
-
-# ================================================================
-# Powerups (limited-use weapons)
-#   Spec: Sniper [3 uses], Grenade [1 use], Shotgun [5 uses],
-#         Machine gun [25 uses], Speed II [15 sec]
+# Powerups — values from your spec
 # ================================================================
 
 powerups:
-  sniper:
-    display-name: "&b&lSniper"
-    icon: SPYGLASS
-    uses: 3
-    cooldown-ms: 2000
-    bonus-coins: 25
-  
-  grenade:
-    display-name: "&c&lGrenade"
-    icon: SNOWBALL
-    uses: 1
-    cooldown-ms: 0
-    bonus-coins: 50
-  
   shotgun:
     display-name: "&e&lShotgun"
-    icon: BLAZE_ROD
+    material: IRON_HOE
     uses: 5
     cooldown-ms: 800
     bonus-coins: 30
+    # Shotgun fires 5 rays in a cone
+    pellets: 5
+    spread-degrees: 8
+    max-range: 25
+  
+  sniper:
+    display-name: "&b&lSniper"
+    material: NETHERITE_HOE
+    uses: 3
+    cooldown-ms: 2000
+    bonus-coins: 25
+    max-range: 200
+    # Sniper has a tracer particle line
+    show-tracer: true
   
   machine_gun:
     display-name: "&6&lMachine Gun"
-    icon: IRON_INGOT
+    material: GOLDEN_HOE
     uses: 25
     cooldown-ms: 200
     bonus-coins: 40
+    max-range: 60
+  
+  grenade:
+    display-name: "&c&lGrenade"
+    material: BONE
+    uses: 1
+    cooldown-ms: 0
+    bonus-coins: 50
+    explosion-radius: 4.0
+    fuse-ticks: 40    # 2 seconds
   
   speed:
     display-name: "&a&lSpeed II Boost"
-    icon: SUGAR
+    material: SUGAR
     duration-seconds: 15
     bonus-coins: 15
 
@@ -80,10 +89,12 @@ powerups:
 # ================================================================
 
 powerup-spawning:
-  # How often a random powerup spawns at a configured location
+  enabled: true
+  
+  # How often a powerup attempts to spawn at a random configured location
   interval-seconds: 30
   
-  # Time before an unclaimed powerup despawns
+  # Time before unclaimed powerup despawns
   despawn-seconds: 60
   
   # Drop weights — higher = more common
@@ -100,8 +111,6 @@ powerup-spawning:
 
 killstreaks:
   enabled: true
-  
-  # Kill count → reward
   rewards:
     3:
       bonus-points: 10
@@ -123,7 +132,16 @@ killstreaks:
 
 points:
   per-kill: 10
-  first-place: 250
-  second-place: 150
-  third-place: 100
-  participation: 25
+  team-first-place: 250
+  team-second-place: 150
+  team-third-place: 100
+  team-participation: 25
+
+# ================================================================
+# Arena (set via /qc commands)
+# ================================================================
+
+arena:
+  world: ""
+  spawns: []
+  powerup-locations: {}

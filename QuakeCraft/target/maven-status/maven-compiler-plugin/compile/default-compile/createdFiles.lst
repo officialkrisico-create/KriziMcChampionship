@@ -1,6 +1,15 @@
-nl\kmc\quake\models\PowerupType.class
+nl\kmc\quake\util\WeaponFactory.class
+nl\kmc\quake\managers\PowerupSpawner.class
 nl\kmc\quake\managers\ArenaManager.class
+nl\kmc\quake\util\WeaponFactory$1.class
+nl\kmc\quake\managers\GameManager$MessageWrap.class
+nl\kmc\quake\models\PlayerState.class
+nl\kmc\quake\weapons\GrenadeWeapon.class
+nl\kmc\quake\weapons\RailgunWeapon.class
+nl\kmc\quake\listeners\WeaponListener.class
+nl\kmc\quake\models\PowerupType.class
+nl\kmc\quake\managers\GameManager.class
 nl\kmc\quake\models\ActivePowerup.class
 nl\kmc\quake\commands\QuakeCommand.class
 nl\kmc\quake\QuakeCraftPlugin.class
-nl\kmc\quake\models\PlayerState.class
+nl\kmc\quake\managers\GameManager$State.class
