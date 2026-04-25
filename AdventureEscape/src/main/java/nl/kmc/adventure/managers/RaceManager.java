@@ -90,7 +90,7 @@ public class RaceManager {
             p.setFoodLevel(20);
             // Freeze: give slowness IV + jump reduction during countdown
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    PotionEffectType.SLOWNESS, countdownSeconds * 20, 255, true, false, false));
+                    org.bukkit.potion.PotionEffectType.SLOWNESS, countdownSeconds * 20, 255, true, false, false));
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     PotionEffectType.JUMP_BOOST, countdownSeconds * 20, 128, true, false, false));
         }
@@ -128,6 +128,11 @@ public class RaceManager {
 
     private void launchRace() {
         state = State.ACTIVE;
+
+        // Acquire scoreboard ownership from KMCCore so the lobby
+        // sidebar stops competing for setScoreboard() — fixes flicker.
+        plugin.getRaceScoreboard().start();
+
         bossBar.setColor(org.bukkit.boss.BarColor.GREEN);
         bossBar.setTitle(ChatColor.GREEN + "🏁 RACE ACTIVE");
 

@@ -17,31 +17,21 @@ import java.util.logging.Level;
 /**
  * Manages team-coloured names in chat, tab list, and above-head.
  *
- * <p><b>Tab list sorting:</b> Minecraft sorts the tab list alphabetically
- * by internal Bukkit Team name. To group teammates together in the order
- * they're defined, each internal team name gets a 2-digit numeric prefix:
+ * <p><b>Ownership-aware:</b> {@link #refreshAll()} no-ops while a
+ * minigame holds the scoreboard lock. The minigame is responsible for
+ * keeping team colours visible during its lifetime; the alternative
+ * (running both refresh loops at once) caused the flicker you saw.
  *
- * <pre>
- *   00_rode_ratten       ← first team in config = appears first in tab
- *   01_oranje_otters
- *   02_gele_gnoes
- *   ...
- *   zz_nobody            ← prefix for teamless players (sort last)
- * </pre>
- *
- * <p><b>Tab list always smooth:</b> syncAllBoards() is idempotent and
- * wrapped in try/catch at each step — no exceptions bubble up to break
- * refresh loops.
+ * <p>Note: {@link #syncAllBoards()} still runs because it only touches
+ * Bukkit Team membership (which IS shared across all boards), not the
+ * sidebar objective. So team prefixes stay consistent everywhere even
+ * during a minigame.
  */
 public class TabListManager {
 
     private final KMCCore plugin;
     private final Scoreboard mainScoreboard;
-
-    /** Per-player personal boards. */
     private final Map<UUID, Scoreboard> personalBoards = new HashMap<>();
-
-    /** Bukkit team name for teamless players — sorts last. */
     private static final String NO_TEAM_KEY = "zz_noteam";
 
     private static final Map<ChatColor, NamedTextColor> COLOR_MAP = new HashMap<>();
@@ -70,8 +60,6 @@ public class TabListManager {
     }
 
     // ================================================================
-    // Public API
-    // ================================================================
 
     public void registerPersonalBoard(UUID uuid, Scoreboard board) {
         personalBoards.put(uuid, board);
@@ -89,10 +77,7 @@ public class TabListManager {
 
     public Scoreboard getMainScoreboard() { return mainScoreboard; }
 
-    /**
-     * Walks every registered personal board + the main board, re-aligning
-     * team memberships to match reality. Safe to call any number of times.
-     */
+    /** Always-safe: only touches Bukkit Team membership (shared across boards). */
     public void syncAllBoards() {
         for (Scoreboard board : new ArrayList<>(personalBoards.values())) {
             try { syncTeamsOn(board); }
@@ -102,20 +87,25 @@ public class TabListManager {
         catch (Exception e) { plugin.getLogger().log(Level.WARNING, "syncTeamsOn(main) failed", e); }
     }
 
-    /** Legacy alias. */
     public void refreshAllNametags() { syncAllBoards(); }
 
+    /**
+     * Full refresh — sync teams AND update the tab header/footer.
+     * No-op while a minigame owns the scoreboard, except for team sync
+     * (which is always safe since it only touches shared Team objects).
+     */
     public void refreshAll() {
+        // Always sync team prefixes — they're shared across all boards
         syncAllBoards();
+
+        // But only touch the tab header/footer when nobody else owns it
+        if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
+
         for (Player p : Bukkit.getOnlinePlayers()) {
             try { updateTabList(p); }
             catch (Exception e) { plugin.getLogger().log(Level.WARNING, "updateTabList failed for " + p.getName(), e); }
         }
     }
-
-    // ----------------------------------------------------------------
-    // Tab list header/footer
-    // ----------------------------------------------------------------
 
     public void updateTabList(Player player) {
         KMCTeam team = plugin.getTeamManager().getTeamByPlayer(player.getUniqueId());
@@ -132,7 +122,7 @@ public class TabListManager {
     }
 
     // ----------------------------------------------------------------
-    // Chat message builders
+    // Chat builders
     // ----------------------------------------------------------------
 
     public Component buildChatMessage(Player player, String message) {
@@ -170,21 +160,14 @@ public class TabListManager {
     // Internal team management
     // ----------------------------------------------------------------
 
-    /**
-     * Builds the internal Bukkit team name for a given KMC team.
-     * Uses a numeric prefix so tab list sorts teams in their config order.
-     */
     private String bukkitTeamName(KMCTeam kmcTeam) {
         int index = plugin.getTeamManager().getTeamsInOrder().indexOf(kmcTeam);
         return String.format("%02d_%s", index, kmcTeam.getId());
     }
 
-    /** Internal name for teamless players. Sorts last. */
     private String bukkitNoTeamName() { return NO_TEAM_KEY; }
 
-    /** Ensures a Bukkit Team exists on the board for each KMC team + a "no team" group. */
     private void ensureTeamsExist(Scoreboard board) {
-        // KMC teams
         for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
             String teamKey = bukkitTeamName(kmcTeam);
             Team bt = board.getTeam(teamKey);
@@ -197,7 +180,6 @@ public class TabListManager {
             bt.setCanSeeFriendlyInvisibles(true);
         }
 
-        // No-team group — for teamless players, no prefix, default color
         Team none = board.getTeam(bukkitNoTeamName());
         if (none == null) {
             none = board.registerNewTeam(bukkitNoTeamName());
@@ -205,7 +187,6 @@ public class TabListManager {
             none.color(NamedTextColor.GRAY);
         }
 
-        // Clean up any orphaned kmc_* teams from older versions
         for (Team t : new ArrayList<>(board.getTeams())) {
             String nm = t.getName();
             if (nm.startsWith("kmc_")) {
@@ -214,14 +195,9 @@ public class TabListManager {
         }
     }
 
-    /**
-     * Aligns the Bukkit team memberships on a given scoreboard to match
-     * the current team assignments. Called by syncAllBoards().
-     */
     private void syncTeamsOn(Scoreboard board) {
         ensureTeamsExist(board);
 
-        // Build player → desired team name
         Map<String, String> desiredTeam = new HashMap<>();
         for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
             String btName = bukkitTeamName(kmcTeam);
@@ -230,12 +206,10 @@ public class TabListManager {
                 if (p != null) desiredTeam.put(p.getName(), btName);
             }
         }
-        // Everyone else → no-team
         for (Player p : Bukkit.getOnlinePlayers()) {
             desiredTeam.putIfAbsent(p.getName(), bukkitNoTeamName());
         }
 
-        // Clear all KMC + no-team entries, then add the desired ones
         for (Team bt : board.getTeams()) {
             String nm = bt.getName();
             if (!nm.equals(NO_TEAM_KEY) && !nm.matches("\\d\\d_.+")) continue;
@@ -249,7 +223,6 @@ public class TabListManager {
             }
         }
 
-        // Add desired entries
         for (Map.Entry<String, String> e : desiredTeam.entrySet()) {
             Team bt = board.getTeam(e.getValue());
             if (bt != null && !bt.hasEntry(e.getKey())) {
@@ -258,8 +231,6 @@ public class TabListManager {
         }
     }
 
-    // ----------------------------------------------------------------
-    // Helpers
     // ----------------------------------------------------------------
 
     public static Component fromLegacy(String text) {

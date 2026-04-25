@@ -107,6 +107,11 @@ public class GameManager {
                 .replace("{multiplier}", String.valueOf(plugin.getTournamentManager().getMultiplier())));
 
         plugin.getScoreboardManager().refreshAll();
+
+        // Notify minigame plugins that this game has started.
+        // Adventure Escape uses this to auto-launch its lobby countdown.
+        plugin.getApi().fireGameStart(gameId);
+
         return true;
     }
 
