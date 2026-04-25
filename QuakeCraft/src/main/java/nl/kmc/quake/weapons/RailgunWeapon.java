@@ -2,30 +2,25 @@ package nl.kmc.quake.weapons;
 
 import nl.kmc.quake.QuakeCraftPlugin;
 import nl.kmc.quake.models.PlayerState;
-import nl.kmc.quake.models.PowerupType;
 import org.bukkit.*;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 /**
- * The railgun firing logic — instant raytrace from the player's eye
- * to find a target. Handles the base wooden-hoe railgun plus the
- * powerup variants (sniper, shotgun, machine gun).
+ * Railgun firing logic — instant raytrace from the player's eye.
  *
- * <p>For grenades, see {@link nl.kmc.quake.weapons.GrenadeWeapon}.
- * For speed buff, see the listener — no projectile.
+ * <p>Visible tracer line drawn with particles every shot. Different
+ * particle types per weapon so players can tell what's being fired.
  */
 public final class RailgunWeapon {
 
     private RailgunWeapon() {}
 
-    /**
-     * Fire the base railgun (wooden hoe).
-     *
-     * @return true if the shot was fired (cooldown ok), false otherwise
-     */
+    // ----------------------------------------------------------------
+    // Public fire methods
+    // ----------------------------------------------------------------
+
     public static boolean fireBase(QuakeCraftPlugin plugin, Player shooter, PlayerState state) {
         long cd = plugin.getConfig().getLong("game.railgun-cooldown-ms", 1500);
         if (!state.canShoot(cd)) {
@@ -37,30 +32,24 @@ public final class RailgunWeapon {
         state.markShot();
 
         double range = plugin.getConfig().getDouble("game.railgun-max-range", 80);
-        fireRay(plugin, shooter, range, "railgun");
+        fireRay(plugin, shooter, range, "railgun",
+                shooter.getEyeLocation().getDirection(), Particle.CRIT);
         playShot(shooter, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.6f);
         return true;
     }
 
-    /**
-     * Fire the sniper — long range + tracer particle line.
-     */
     public static boolean fireSniper(QuakeCraftPlugin plugin, Player shooter, PlayerState state) {
         long cd = plugin.getConfig().getLong("powerups.sniper.cooldown-ms", 2000);
         if (!state.canShoot(cd)) return false;
         state.markShot();
 
         double range = plugin.getConfig().getDouble("powerups.sniper.max-range", 200);
-        boolean tracer = plugin.getConfig().getBoolean("powerups.sniper.show-tracer", true);
-        fireRay(plugin, shooter, range, "sniper");
-        if (tracer) drawTracer(shooter, range);
+        fireRay(plugin, shooter, range, "sniper",
+                shooter.getEyeLocation().getDirection(), Particle.END_ROD);
         playShot(shooter, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 1.0f, 0.5f);
         return true;
     }
 
-    /**
-     * Fire the shotgun — N rays in a cone.
-     */
     public static boolean fireShotgun(QuakeCraftPlugin plugin, Player shooter, PlayerState state) {
         long cd = plugin.getConfig().getLong("powerups.shotgun.cooldown-ms", 800);
         if (!state.canShoot(cd)) return false;
@@ -73,50 +62,60 @@ public final class RailgunWeapon {
         Vector aim = shooter.getEyeLocation().getDirection();
         for (int i = 0; i < pellets; i++) {
             Vector pellet = applySpread(aim, spread);
-            fireRay(plugin, shooter, range, "shotgun", pellet);
+            fireRay(plugin, shooter, range, "shotgun", pellet, Particle.FLAME);
         }
         playShot(shooter, Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 1.4f);
         return true;
     }
 
-    /**
-     * Fire the machine gun — fast small range.
-     */
     public static boolean fireMachineGun(QuakeCraftPlugin plugin, Player shooter, PlayerState state) {
         long cd = plugin.getConfig().getLong("powerups.machine_gun.cooldown-ms", 200);
         if (!state.canShoot(cd)) return false;
         state.markShot();
 
         double range = plugin.getConfig().getDouble("powerups.machine_gun.max-range", 60);
-        fireRay(plugin, shooter, range, "machine_gun");
+        fireRay(plugin, shooter, range, "machine_gun",
+                shooter.getEyeLocation().getDirection(), Particle.SMOKE);
         playShot(shooter, Sound.ENTITY_BLAZE_SHOOT, 0.8f, 2.0f);
         return true;
     }
 
     // ----------------------------------------------------------------
-    // Core raytrace
+    // Core raytrace + tracer
     // ----------------------------------------------------------------
 
-    private static void fireRay(QuakeCraftPlugin plugin, Player shooter, double range, String reason) {
-        fireRay(plugin, shooter, range, reason, shooter.getEyeLocation().getDirection());
-    }
-
     private static void fireRay(QuakeCraftPlugin plugin, Player shooter, double range,
-                                String reason, Vector direction) {
+                                String reason, Vector direction, Particle tracerParticle) {
         Location origin = shooter.getEyeLocation();
         World world = origin.getWorld();
         if (world == null) return;
 
+        // Slight forward offset so the tracer doesn't start INSIDE the player
+        Location rayStart = origin.clone().add(direction.clone().multiply(0.5));
+
         RayTraceResult result = world.rayTrace(
-                origin, direction, range,
-                org.bukkit.FluidCollisionMode.NEVER, true, 0.3,
+                rayStart, direction, range,
+                FluidCollisionMode.NEVER, true, 0.4,
                 e -> e instanceof Player && !e.equals(shooter) && !e.isDead()
         );
 
-        // Visual: small redstone particle at the impact point
+        // Determine where the shot ended (hit point or max range)
+        double actualRange = range;
         if (result != null && result.getHitPosition() != null) {
-            world.spawnParticle(Particle.CRIT,
-                    result.getHitPosition().toLocation(world), 5, 0.1, 0.1, 0.1, 0);
+            actualRange = result.getHitPosition().distance(rayStart.toVector());
+        }
+
+        // Draw the tracer particle line — every 0.5 blocks
+        for (double d = 0; d < actualRange; d += 0.5) {
+            Location point = rayStart.clone().add(direction.clone().multiply(d));
+            world.spawnParticle(tracerParticle, point, 1, 0, 0, 0, 0);
+        }
+
+        // Hit point splash effect
+        if (result != null && result.getHitPosition() != null) {
+            Location hitLoc = result.getHitPosition().toLocation(world);
+            world.spawnParticle(Particle.CRIT, hitLoc, 12, 0.2, 0.2, 0.2, 0);
+            world.spawnParticle(Particle.LARGE_SMOKE, hitLoc, 5, 0.1, 0.1, 0.1, 0);
         }
 
         // Did we hit a player?
@@ -125,31 +124,17 @@ public final class RailgunWeapon {
         }
     }
 
-    // ----------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------
-
     private static Vector applySpread(Vector base, double maxDegrees) {
         double yawSpread   = (Math.random() - 0.5) * 2 * Math.toRadians(maxDegrees);
         double pitchSpread = (Math.random() - 0.5) * 2 * Math.toRadians(maxDegrees);
 
         Vector result = base.clone();
         result.rotateAroundY(yawSpread);
-        // Apply pitch by rotating around the local X axis (perpendicular to direction)
         Vector right = base.clone().crossProduct(new Vector(0, 1, 0)).normalize();
-        result.rotateAroundAxis(right, pitchSpread);
-        return result.normalize();
-    }
-
-    private static void drawTracer(Player shooter, double range) {
-        Location start = shooter.getEyeLocation();
-        Vector dir = start.getDirection();
-        World world = start.getWorld();
-        if (world == null) return;
-        for (double d = 1.0; d < range; d += 0.5) {
-            Location point = start.clone().add(dir.clone().multiply(d));
-            world.spawnParticle(Particle.END_ROD, point, 1, 0, 0, 0, 0);
+        if (right.lengthSquared() > 0.001) {
+            result.rotateAroundAxis(right, pitchSpread);
         }
+        return result.normalize();
     }
 
     private static void playShot(Player shooter, Sound s, float volume, float pitch) {

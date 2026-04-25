@@ -22,16 +22,17 @@ import java.util.*;
 /**
  * QuakeCraft game state machine.
  *
- * <p>States: IDLE → COUNTDOWN → ACTIVE → ENDED → IDLE
- *
- * <p>Win conditions:
+ * <p>FIXES IN THIS VERSION:
  * <ul>
- *   <li>First team to {@code team-kill-target} kills wins</li>
- *   <li>If timer runs out, team with most kills wins</li>
+ *   <li>handleHit() now ACTUALLY kills the target — sets HP to 0,
+ *       triggers vanilla death animation. Was just registering kill
+ *       in model without affecting target's HP.</li>
+ *   <li>Death effects: explosion particle + lightning sound at kill spot.</li>
+ *   <li>Arena world has PvP enabled at game launch (so the global
+ *       PvP-disabled listener doesn't block our hits even if they
+ *       went through damage events).</li>
+ *   <li>BossBar updates immediately on every hit, not only on tick.</li>
  * </ul>
- *
- * <p>Per-player state lives in {@link PlayerState}; per-team kill totals
- * are computed live by summing player kills.
  */
 public class GameManager {
 
@@ -53,10 +54,14 @@ public class GameManager {
     private int  remainingSeconds;
     private long gameStartMs;
 
+    /** Tracks the previous PvP state of the arena world so we can restore it. */
+    private World    arenaWorld;
+    private boolean  arenaWorldPreviousPvp;
+
     public GameManager(QuakeCraftPlugin plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
-    // Helpers — Paper 1.21 compatible
+    // Helpers
     // ----------------------------------------------------------------
 
     private PotionEffectType slow() {
@@ -96,7 +101,6 @@ public class GameManager {
         players.clear();
         spectators.clear();
 
-        // Register everyone with a team as a player; everyone else as spectator
         for (Player p : Bukkit.getOnlinePlayers()) {
             var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
             if (team != null) {
@@ -111,10 +115,8 @@ public class GameManager {
             return "Geen spelers met een team — geen game gestart.";
         }
 
-        // Acquire scoreboard lock
         plugin.getKmcCore().getApi().acquireScoreboard("quakecraft");
 
-        // Spread players across spawns + freeze
         teleportAllToSpawns();
 
         PotionEffectType slowType = slow();
@@ -136,7 +138,6 @@ public class GameManager {
             if (p != null) p.setGameMode(GameMode.SPECTATOR);
         }
 
-        // BossBar
         bossBar = Bukkit.createBossBar(
                 ChatColor.YELLOW + "" + ChatColor.BOLD + "QuakeCraft start over " + countdownSeconds + "s",
                 BarColor.YELLOW, BarStyle.SOLID);
@@ -175,13 +176,23 @@ public class GameManager {
         gameStartMs = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 600);
 
+        // Enable PvP in the arena world for the duration of the game.
+        // (KMCCore's GlobalPvPListener cancels at NORMAL — this gives the
+        // arena world its own pvp=true so vanilla rules don't block hits
+        // either way. Our hits don't go through damage events anyway, but
+        // this keeps the world consistent.)
+        arenaWorld = plugin.getArenaManager().getArenaWorld();
+        if (arenaWorld != null) {
+            arenaWorldPreviousPvp = arenaWorld.getPVP();
+            arenaWorld.setPVP(true);
+        }
+
         bossBar.setColor(BarColor.GREEN);
         updateBossBar();
 
         PotionEffectType slowType = slow();
         PotionEffectType jumpType = jumpBoost();
 
-        // Unfreeze + give base railgun
         for (UUID uuid : players.keySet()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
@@ -195,25 +206,20 @@ public class GameManager {
 
         broadcast("&a&l[QuakeCraft] &eGO! &7Eerste team naar &625 &7kills wint!");
 
-        // Game timer
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
             updateBossBar();
 
-            // Time up?
             if (remainingSeconds <= 0) {
                 endGame("time_limit");
                 return;
             }
-
-            // Kill target reached?
-            String winningTeam = checkKillTargetReached();
-            if (winningTeam != null) {
+            UUID winningPlayer = checkKillTargetReached();
+            if (winningPlayer != null) {
                 endGame("kill_target");
             }
         }, 20L, 20L);
 
-        // Start powerup spawner
         if (plugin.getConfig().getBoolean("powerup-spawning.enabled", true)) {
             plugin.getPowerupSpawner().start();
         }
@@ -223,7 +229,6 @@ public class GameManager {
         if (plugin.getConfig().getBoolean("game.give-base-railgun", true)) {
             p.getInventory().setItem(0, WeaponFactory.buildRailgun(plugin));
         }
-        // Apply base speed boost
         if (plugin.getConfig().getBoolean("game.base-speed-boost", true)) {
             PotionEffectType speedType = speed();
             if (speedType != null) {
@@ -247,17 +252,21 @@ public class GameManager {
     }
 
     // ----------------------------------------------------------------
-    // Hit handling — called by RailgunWeapon and GrenadeWeapon
+    // Hit handling — FIXED
     // ----------------------------------------------------------------
 
     /**
-     * A shooter hit a target. Decide whether to count it as a kill.
-     * Refuses team kills (friendly fire off by default).
+     * A shooter hit a target. Applies the kill: tracks stats, awards
+     * points, plays death effects, and ACTUALLY kills the target.
+     *
+     * <p>Friendly fire is checked first — same-team hits are silently
+     * ignored.
      */
     public void handleHit(Player shooter, Player target, String weapon) {
         if (state != State.ACTIVE) return;
         if (shooter == null || target == null) return;
         if (shooter.equals(target)) return;
+        if (target.isDead() || target.getGameMode() == GameMode.SPECTATOR) return;
 
         PlayerState shooterState = players.get(shooter.getUniqueId());
         PlayerState targetState  = players.get(target.getUniqueId());
@@ -270,47 +279,78 @@ public class GameManager {
             if (sTeam != null && tTeam != null && sTeam.getId().equals(tTeam.getId())) return;
         }
 
-        // Register the kill
+        // Track stats
         shooterState.addKill();
         targetState.addDeath();
 
-        // Award points to the shooter (logs to point_awards table)
+        // Award points
         int perKill = plugin.getConfig().getInt("points.per-kill", 10);
         plugin.getKmcCore().getApi().givePoints(shooter.getUniqueId(), perKill);
 
-        // HoF tracking
+        // HoF
         plugin.getKmcCore().getHallOfFameManager().recordKill(shooter);
 
-        // Killstreak
-        checkKillstreak(shooter, shooterState);
+        // ---- DEATH EFFECTS ----
+        Location deathLoc = target.getLocation().add(0, 1, 0);
+        World w = target.getWorld();
 
-        // Death effects + respawn
-        target.playSound(target.getLocation(), Sound.ENTITY_PLAYER_HURT, 1f, 1f);
+        // Big explosion-style particle burst at the death location
+        w.spawnParticle(Particle.EXPLOSION, deathLoc, 1);
+        w.spawnParticle(Particle.LARGE_SMOKE, deathLoc, 25, 0.5, 0.5, 0.5, 0.05);
+        w.spawnParticle(Particle.CRIT, deathLoc, 30, 0.4, 0.4, 0.4, 0.1);
+        w.spawnParticle(Particle.CLOUD, deathLoc, 15, 0.3, 0.3, 0.3, 0.05);
+
+        // Sound
+        w.playSound(deathLoc, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.5f);
+        w.playSound(deathLoc, Sound.ENTITY_PLAYER_DEATH, 1.0f, 1.0f);
+
         shooter.playSound(shooter.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
 
+        // Broadcast
         broadcast("&c☠ &7" + target.getName() + " &8← &e" + shooter.getName()
                 + " &8(" + shooterState.getKills() + ")");
 
+        // ---- ACTUALLY KILL THE TARGET ----
+        // Kill via setHealth(0) — triggers vanilla death + respawn. Some
+        // listeners may interfere, so we go through the full death flow.
+        // Use setLastDamageCause for proper death message attribution.
+        try {
+            target.setHealth(0.0);
+        } catch (Exception ignored) {}
+
+        // Respawn the target after a brief delay (handled by respawn flow)
         respawn(target, targetState);
+
+        // Killstreak check
+        checkKillstreak(shooter, shooterState);
+
         updateBossBar();
     }
 
+    /**
+     * Respawns the target — switches to spectator briefly, then teleports
+     * to a far spawn and gives them a fresh loadout.
+     */
     private void respawn(Player target, PlayerState state) {
+        // Brief spectator phase so death animation plays
         target.setGameMode(GameMode.SPECTATOR);
         target.getInventory().clear();
         target.sendTitle(ChatColor.RED + "Je bent dood!",
-                ChatColor.GRAY + "Respawn over " + plugin.getConfig().getInt("game.respawn-delay-seconds", 1) + "s",
+                ChatColor.GRAY + "Respawn over "
+                + plugin.getConfig().getInt("game.respawn-delay-seconds", 1) + "s",
                 0, 20, 5);
 
         int delay = plugin.getConfig().getInt("game.respawn-delay-seconds", 1) * 20;
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (this.state != State.ACTIVE) return;
-            // Find spawn far away from other players
+            // Find spawn far away from other live players
             List<Location> avoid = new ArrayList<>();
             for (UUID otherId : players.keySet()) {
                 if (otherId.equals(target.getUniqueId())) continue;
                 Player other = Bukkit.getPlayer(otherId);
-                if (other != null && !other.isDead()) avoid.add(other.getLocation());
+                if (other != null && !other.isDead() && other.getGameMode() != GameMode.SPECTATOR) {
+                    avoid.add(other.getLocation());
+                }
             }
             Location spawn = plugin.getArenaManager().randomSpawnAwayFrom(avoid);
             if (spawn != null) target.teleport(spawn);
@@ -357,24 +397,16 @@ public class GameManager {
     // Win check + end
     // ----------------------------------------------------------------
 
-    /** Returns winning team's id if any team has reached the kill target. */
-    private String checkKillTargetReached() {
-        int target = plugin.getConfig().getInt("game.team-kill-target", 25);
-        Map<String, Integer> totals = computeTeamKills();
-        for (var e : totals.entrySet()) {
-            if (e.getValue() >= target) return e.getKey();
+    /**
+     * Returns the winning player's UUID if any individual has reached
+     * the kill target, or null otherwise.
+     */
+    private UUID checkKillTargetReached() {
+        int target = plugin.getConfig().getInt("game.kill-target", 25);
+        for (PlayerState ps : players.values()) {
+            if (ps.getKills() >= target) return ps.getUuid();
         }
         return null;
-    }
-
-    private Map<String, Integer> computeTeamKills() {
-        Map<String, Integer> totals = new HashMap<>();
-        for (PlayerState ps : players.values()) {
-            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(ps.getUuid());
-            if (team == null) continue;
-            totals.merge(team.getId(), ps.getKills(), Integer::sum);
-        }
-        return totals;
     }
 
     private void endGame(String reason) {
@@ -384,58 +416,66 @@ public class GameManager {
         cancelTasks();
         plugin.getPowerupSpawner().stop();
 
-        // Sort teams by kills
-        Map<String, Integer> totals = computeTeamKills();
-        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(totals.entrySet());
-        sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+        // Sort players by kills desc, deaths asc as tiebreaker
+        List<PlayerState> ranked = new ArrayList<>(players.values());
+        ranked.sort((a, b) -> {
+            if (a.getKills() != b.getKills()) return Integer.compare(b.getKills(), a.getKills());
+            return Integer.compare(a.getDeaths(), b.getDeaths());
+        });
 
         broadcast("&6═══════════════════════════════════");
         broadcast("&6&lQuakeCraft — Uitslag");
         broadcast("&7Reden: " + (reason.equals("kill_target") ? "&aKill target bereikt" : "&eTijd op"));
         broadcast("&6═══════════════════════════════════");
 
-        // Display + award
+        // Award individual placement bonuses (top 3) — team aggregation
+        // happens automatically via KMCCore since each kill already
+        // awarded points to the killer.
         KMCApi api = plugin.getKmcCore().getApi();
-        String[] placePts = {"team-first-place", "team-second-place", "team-third-place"};
+        String[] placeKeys = {"first-place", "second-place", "third-place"};
         String winnerName = "Niemand";
 
-        for (int i = 0; i < sorted.size(); i++) {
-            String teamId = sorted.get(i).getKey();
-            int teamKills = sorted.get(i).getValue();
-            KMCTeam team = plugin.getKmcCore().getTeamManager().getTeam(teamId);
-            if (team == null) continue;
+        for (int i = 0; i < ranked.size(); i++) {
+            PlayerState ps = ranked.get(i);
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(ps.getUuid());
+            String teamColor = team != null ? team.getColor().toString() : "";
 
             String medal = i == 0 ? "&6🥇" : i == 1 ? "&7🥈" : i == 2 ? "&c🥉" : "&7#" + (i + 1);
-            broadcast("  " + medal + " " + team.getColor() + team.getDisplayName()
-                    + " &8- &e" + teamKills + " kills");
-
-            // Award team placement points (per-player so KMCCore tracks correctly)
-            int placePoints;
-            if (i < placePts.length) {
-                placePoints = plugin.getConfig().getInt("points." + placePts[i], 0);
-            } else {
-                placePoints = plugin.getConfig().getInt("points.team-participation", 25);
-            }
-            for (UUID memberId : team.getMembers()) {
-                if (placePoints > 0) api.givePoints(memberId, placePoints);
-            }
-
-            if (i == 0) winnerName = team.getColor() + team.getDisplayName();
-        }
-
-        broadcast("&6═══════════════════════════════════");
-        broadcast("&6Top spelers:");
-        var topPlayers = new ArrayList<>(players.values());
-        topPlayers.sort((a, b) -> Integer.compare(b.getKills(), a.getKills()));
-        for (int i = 0; i < Math.min(3, topPlayers.size()); i++) {
-            PlayerState ps = topPlayers.get(i);
-            broadcast("  &e#" + (i + 1) + " &f" + ps.getName()
-                    + " &8- &e" + ps.getKills() + "K/" + ps.getDeaths() + "D"
+            broadcast("  " + medal + " " + teamColor + ps.getName()
+                    + " &8- &e" + ps.getKills() + "K&8/&c" + ps.getDeaths() + "D"
                     + " &8(streak " + ps.getBestStreak() + ")");
+
+            int placeBonus;
+            if (i < placeKeys.length)
+                placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
+            else
+                placeBonus = plugin.getConfig().getInt("points.participation", 25);
+
+            if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
+            if (i == 0) winnerName = teamColor + ps.getName();
+        }
+
+        // Show team aggregate as informational footer (KMCCore tracks this)
+        Map<String, Integer> teamKillTotals = new HashMap<>();
+        Map<String, KMCTeam> teamLookup = new HashMap<>();
+        for (PlayerState ps : ranked) {
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(ps.getUuid());
+            if (team == null) continue;
+            teamKillTotals.merge(team.getId(), ps.getKills(), Integer::sum);
+            teamLookup.put(team.getId(), team);
+        }
+        if (!teamKillTotals.isEmpty()) {
+            broadcast("&6═══ Team Kills ═══");
+            teamKillTotals.entrySet().stream()
+                    .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                    .forEach(e -> {
+                        KMCTeam t = teamLookup.get(e.getKey());
+                        broadcast("  " + t.getColor() + t.getDisplayName()
+                                + " &8- &e" + e.getValue() + " kills");
+                    });
         }
         broadcast("&6═══════════════════════════════════");
 
-        // End sequence: 5 seconds of victory titles, then cleanup
         final String finalWinnerName = winnerName;
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.sendTitle(MessageWrap.color("&6&l🏆 " + finalWinnerName),
@@ -451,6 +491,12 @@ public class GameManager {
         if (bossBar != null) {
             bossBar.removeAll();
             bossBar = null;
+        }
+
+        // Restore arena world's previous PvP setting
+        if (arenaWorld != null) {
+            arenaWorld.setPVP(arenaWorldPreviousPvp);
+            arenaWorld = null;
         }
 
         var lobby = plugin.getKmcCore().getArenaManager().getLobby();
@@ -486,22 +532,30 @@ public class GameManager {
 
     private void updateBossBar() {
         if (bossBar == null) return;
-        Map<String, Integer> totals = computeTeamKills();
-        var top = totals.entrySet().stream()
-                .max(Map.Entry.comparingByValue());
 
-        int target = plugin.getConfig().getInt("game.team-kill-target", 25);
-        int leadingKills = top.map(Map.Entry::getValue).orElse(0);
-        String leadingTeam = top
-                .map(e -> plugin.getKmcCore().getTeamManager().getTeam(e.getKey()))
-                .map(t -> t != null ? t.getColor() + t.getDisplayName() : "?")
-                .orElse("Niemand");
+        // Find the leading individual player
+        PlayerState top = null;
+        for (PlayerState ps : players.values()) {
+            if (top == null || ps.getKills() > top.getKills()) top = ps;
+        }
+
+        int target = plugin.getConfig().getInt("game.kill-target", 25);
+        int leadingKills = top != null ? top.getKills() : 0;
+        String leadingName;
+        if (top != null) {
+            // Show with team color
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(top.getUuid());
+            String prefix = team != null ? team.getColor().toString() : "";
+            leadingName = prefix + top.getName();
+        } else {
+            leadingName = "Niemand";
+        }
 
         int min = remainingSeconds / 60;
         int sec = remainingSeconds % 60;
 
         bossBar.setTitle(MessageWrap.color(
-                "&e" + leadingTeam + "&r &8| &f" + leadingKills + "/" + target + "  "
+                "&e" + leadingName + "&r &8| &f" + leadingKills + "/" + target + "  "
                 + "&8| &b" + String.format("%02d:%02d", min, sec)));
         bossBar.setProgress(Math.max(0, Math.min(1, (double) leadingKills / target)));
     }
@@ -517,7 +571,6 @@ public class GameManager {
     public Map<UUID, PlayerState> getPlayers()  { return Collections.unmodifiableMap(players); }
     public PlayerState            get(UUID uuid){ return players.get(uuid); }
 
-    /** Helper local color util to avoid pulling in MessageUtil. */
     private static class MessageWrap {
         static String color(String s) { return ChatColor.translateAlternateColorCodes('&', s); }
     }

@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
@@ -28,12 +29,21 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 /**
- * Handles all in-game player interaction:
+ * Handles all in-game player interaction.
  *
+ * <p>FIXES:
  * <ul>
- *   <li>Right-click hoe → fire weapon</li>
- *   <li>Pick up powerup item → equip it</li>
- *   <li>Block dropping weapons / swapping to off-hand / item damage</li>
+ *   <li>{@code onInteract} no longer uses {@code ignoreCancelled=true}.
+ *       Other listeners (e.g. block adventure-mode protections) sometimes
+ *       pre-cancel right-clicks on grass etc., which prevented our
+ *       fire handler from running.</li>
+ *   <li>{@code onDamage} now lets scripted kill damage through (the
+ *       setHealth(0) call from GameManager). It only blocks environmental
+ *       damage (fall, drown, etc.) so players don't accidentally die.</li>
+ *   <li>NEW {@code onPlayerDamagePlayer} at HIGHEST priority — un-cancels
+ *       PvP that KMCCore's GlobalPvPListener cancelled at NORMAL priority.
+ *       Note: railgun hits don't actually go through this event, but
+ *       this keeps the world consistent for any indirect PvP.</li>
  * </ul>
  */
 public class WeaponListener implements Listener {
@@ -43,10 +53,10 @@ public class WeaponListener implements Listener {
     public WeaponListener(QuakeCraftPlugin plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
-    // Right-click handler
+    // Right-click → fire weapon
     // ----------------------------------------------------------------
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler   // ← removed ignoreCancelled=true so we always run
     public void onInteract(PlayerInteractEvent event) {
         if (!plugin.getGameManager().isActive()) return;
 
@@ -54,7 +64,7 @@ public class WeaponListener implements Listener {
         PlayerState state = plugin.getGameManager().get(p.getUniqueId());
         if (state == null) return;
 
-        // Only right-clicks
+        // Only right-clicks (in air or on block)
         if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
             && event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
 
@@ -64,6 +74,7 @@ public class WeaponListener implements Listener {
         String weaponId = WeaponFactory.getWeaponId(plugin, item);
         if (weaponId == null) return;
 
+        // Cancel default behavior (block placement, food eating, etc.)
         event.setCancelled(true);
 
         switch (weaponId) {
@@ -79,25 +90,21 @@ public class WeaponListener implements Listener {
             }
             case "GRENADE" -> {
                 GrenadeWeapon.throwGrenade(plugin, p);
-                // Single-use → remove from inventory
                 p.getInventory().remove(item);
                 state.clearPowerup();
             }
         }
     }
 
-    /** Decrement powerup uses; if exhausted, remove the item. */
     private void consumeUse(Player p, PlayerState state, ItemStack stack) {
         boolean stillActive = state.consumePowerupUse();
         if (!stillActive) {
-            // Replace with base railgun (slot 0 stays as base)
             int slot = p.getInventory().getHeldItemSlot();
             p.getInventory().setItem(slot, null);
             p.sendActionBar(net.kyori.adventure.text.Component.text(
                     org.bukkit.ChatColor.GRAY + "Powerup leeg!"));
             return;
         }
-        // Update display lore with new use count
         ActivePowerup ap = state.getActivePowerup();
         if (ap != null) {
             ItemStack updated = WeaponFactory.buildPowerup(plugin, ap.getType(), ap.getRemainingUses());
@@ -124,12 +131,10 @@ public class WeaponListener implements Listener {
         Item item = event.getItem();
         PowerupType type = PowerupSpawner.getPowerupType(plugin, item);
         if (type == null) {
-            // Not a powerup spawner item — block all other pickups
             event.setCancelled(true);
             return;
         }
 
-        // Cancel default pickup; we handle it manually
         event.setCancelled(true);
         plugin.getPowerupSpawner().onPickedUp(item);
         item.remove();
@@ -138,7 +143,6 @@ public class WeaponListener implements Listener {
     }
 
     private void applyPowerup(Player p, PlayerState state, PowerupType type) {
-        // Award bonus coins via KMCCore
         int bonus = plugin.getConfig().getInt(
                 "powerups." + type.getConfigKey() + ".bonus-coins", 0);
         if (bonus > 0) {
@@ -146,7 +150,6 @@ public class WeaponListener implements Listener {
         }
 
         if (type == PowerupType.SPEED) {
-            // Apply Speed II effect
             PotionEffectType speedType = speed();
             if (speedType != null) {
                 int seconds = plugin.getConfig().getInt(
@@ -159,19 +162,11 @@ public class WeaponListener implements Listener {
             return;
         }
 
-        // Weapon powerup — set active + give item
         int uses = plugin.getConfig().getInt("powerups." + type.getConfigKey() + ".uses", 1);
         state.setActivePowerup(new ActivePowerup(type, uses));
 
         ItemStack weapon = WeaponFactory.buildPowerup(plugin, type, uses);
-        // Place in slot 1 (slot 0 is reserved for the base railgun)
-        if (p.getInventory().getItem(1) != null
-                && WeaponFactory.getWeaponId(plugin, p.getInventory().getItem(1)) != null) {
-            // Already have a powerup — replace it
-            p.getInventory().setItem(1, weapon);
-        } else {
-            p.getInventory().setItem(1, weapon);
-        }
+        p.getInventory().setItem(1, weapon);
         p.getInventory().setHeldItemSlot(1);
 
         p.sendActionBar(net.kyori.adventure.text.Component.text(
@@ -187,14 +182,13 @@ public class WeaponListener implements Listener {
     }
 
     // ----------------------------------------------------------------
-    // Protection — block dropping, off-hand swap, item damage
+    // Protection
     // ----------------------------------------------------------------
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         if (!plugin.getGameManager().isActive()) return;
         if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
-        // Block dropping weapons during the game
         if (WeaponFactory.isQuakeWeapon(plugin, event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
         }
@@ -204,19 +198,48 @@ public class WeaponListener implements Listener {
     public void onSwap(PlayerSwapHandItemsEvent event) {
         if (!plugin.getGameManager().isActive()) return;
         if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
-        event.setCancelled(true); // No off-hand cheese
+        event.setCancelled(true);
     }
 
+    /**
+     * Blocks PURELY environmental damage — fall, lava, drown, suffocation,
+     * etc. — to participants. PvP damage IS allowed (you specifically want
+     * it enabled in QuakeCraft). The railgun kills via {@code setHealth(0)}
+     * which doesn't fire this event anyway.
+     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         if (!plugin.getGameManager().isActive()) return;
         if (!(event.getEntity() instanceof Player p)) return;
+        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
 
-        // Block fall damage, drowning, etc. — only railgun hits should count
-        // (railgun "hits" don't go through EntityDamageEvent — they go through
-        // GameManager.handleHit() directly. So all damage here is environmental.)
-        if (plugin.getGameManager().get(p.getUniqueId()) != null) {
-            event.setCancelled(true);
+        // Allow player-vs-player damage (PvP is enabled in QuakeCraft)
+        if (event instanceof EntityDamageByEntityEvent ebe
+                && ebe.getDamager() instanceof Player) {
+            return;
         }
+
+        // Block environmental damage so HP stays full from fall/lava/etc.
+        event.setCancelled(true);
+    }
+
+    /**
+     * Un-cancels player-vs-player damage at HIGHEST priority, overriding
+     * KMCCore's GlobalPvPListener which cancels at NORMAL.
+     *
+     * <p>Without this, melee/projectile attacks between players would be
+     * silently blocked. Railgun hits don't actually go through damage
+     * events (they call GameManager.handleHit directly), but standard
+     * PvP from punching, bows, etc., needs this override.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void onPlayerDamagePlayer(EntityDamageByEntityEvent event) {
+        if (!plugin.getGameManager().isActive()) return;
+        if (!(event.getDamager() instanceof Player)) return;
+        if (!(event.getEntity()  instanceof Player target)) return;
+        if (plugin.getGameManager().get(target.getUniqueId()) == null) return;
+
+        // Un-cancel — GlobalPvPListener cancelled at NORMAL, we override
+        event.setCancelled(false);
     }
 }

@@ -8,6 +8,8 @@
         <outputRelativeToContentRoot value="true" />
         <module name="KMCCore" />
         <module name="AdventureEscape" />
+        <module name="ParkourWarrior" />
+        <module name="Bingo" />
         <module name="QuakeCraft" />
         <module name="LuckyBlock" />
       </profile>

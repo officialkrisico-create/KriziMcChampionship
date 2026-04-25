@@ -27,6 +27,8 @@
         <module>LuckyBlock</module>
         <module>AdventureEscape</module>
         <module>QuakeCraft</module>
+        <module>Bingo</module>
+        <module>ParkourWarrior</module>
     </modules>
 
     <!-- ================================================== -->

@@ -11,10 +11,10 @@
 # ================================================================
 
 game:
-  # Number of kills the first team must reach
-  team-kill-target: 25
+  # First INDIVIDUAL player to reach this kill count wins
+  kill-target: 25
   
-  # Maximum game duration. When timer hits 0, team with most kills wins.
+  # Maximum game duration. When timer hits 0, player with most kills wins.
   max-duration-seconds: 600
   
   # Pre-game countdown
@@ -29,14 +29,17 @@ game:
   # Maximum range for the base railgun (blocks)
   railgun-max-range: 80
   
-  # Whether to friendly-fire (teammates damage each other)
+  # Whether to allow friendly fire (teammates damage each other)
   friendly-fire: false
   
   # Whether the wooden hoe (base railgun) is given to all players
   give-base-railgun: true
+  
+  # Apply Speed I to all players for the whole game
+  base-speed-boost: true
 
 # ================================================================
-# Powerups — values from your spec
+# Powerups
 # ================================================================
 
 powerups:
@@ -46,7 +49,6 @@ powerups:
     uses: 5
     cooldown-ms: 800
     bonus-coins: 30
-    # Shotgun fires 5 rays in a cone
     pellets: 5
     spread-degrees: 8
     max-range: 25
@@ -58,7 +60,6 @@ powerups:
     cooldown-ms: 2000
     bonus-coins: 25
     max-range: 200
-    # Sniper has a tracer particle line
     show-tracer: true
   
   machine_gun:
@@ -76,7 +77,7 @@ powerups:
     cooldown-ms: 0
     bonus-coins: 50
     explosion-radius: 4.0
-    fuse-ticks: 40    # 2 seconds
+    fuse-ticks: 40
   
   speed:
     display-name: "&a&lSpeed II Boost"
@@ -90,14 +91,8 @@ powerups:
 
 powerup-spawning:
   enabled: true
-  
-  # How often a powerup attempts to spawn at a random configured location
   interval-seconds: 30
-  
-  # Time before unclaimed powerup despawns
   despawn-seconds: 60
-  
-  # Drop weights — higher = more common
   weights:
     sniper: 20
     grenade: 5
@@ -128,14 +123,15 @@ killstreaks:
 
 # ================================================================
 # Points (awarded via KMCCore PointsManager)
+# Team totals aggregate automatically via per-kill points.
 # ================================================================
 
 points:
   per-kill: 10
-  team-first-place: 250
-  team-second-place: 150
-  team-third-place: 100
-  team-participation: 25
+  first-place: 250
+  second-place: 150
+  third-place: 100
+  participation: 25
 
 # ================================================================
 # Arena (set via /qc commands)
