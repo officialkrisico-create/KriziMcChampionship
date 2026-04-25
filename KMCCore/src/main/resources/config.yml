@@ -44,7 +44,7 @@ database:
 # -----------------------------------------------------------------------
 tournament:
   name: "Krizi Minecraft Championship"
-  total-rounds: 5
+  total-rounds: 8
   current-round: 1
   active: false
 
@@ -56,6 +56,11 @@ tournament:
     3: 2.0
     4: 2.5
     5: 3.0
+    6: 3.5
+    7: 4.0
+    8: 5.0
+
+
 
 # -----------------------------------------------------------------------
 # Teams
@@ -134,53 +139,63 @@ games:
   list:
     team_skywars:
       display-name: "Team Skywars"
-      icon: FEATHER
+      icon: BOW
       min-players: 2
       schematic: team_skywars.schem
 
-    gttos:
-      display-name: "GTTOS"
-      icon: GRASS_BLOCK
+    tgttos:
+      display-name: "TGTTOS"
+      icon: MAGENTA_GLAZED_TERRACOTTA
       min-players: 2
 
-    build_mart:
-      display-name: "Build Mart"
-      icon: BRICKS
+    the_bridge:
+      display-name: "The Bridge"
+      icon: WHITE_WOOL
       min-players: 2
 
     survival_games:
       display-name: "Survival Games"
-      icon: DIAMOND_SWORD
+      icon: CARROT
       min-players: 2
 
     quake_craft:
       display-name: "Quake Craft"
-      icon: BOW
+      icon: WOODEN_HOE
       min-players: 2
 
-    wave_survival:
-      display-name: "Wave Survival"
+    mob_mayhem:
+      display-name: "Mob Mayhem"
       icon: ZOMBIE_HEAD
       min-players: 2
 
     adventure_escape:
       display-name: "Adventure Escape"
-      icon: MAP
+      icon: LEATHER_BOOTS
       min-players: 1
 
-    parkour_levels:
-      display-name: "Parkour Levels"
+    parkour_warrior:
+      display-name: "Parkour Warrior"
       icon: LEATHER_BOOTS
       min-players: 1
 
     spleef_teams:
       display-name: "Spleef Teams"
-      icon: SNOW_BLOCK
+      icon: WOODEN_SHOVEL
       min-players: 2
 
     bingo_teams:
       display-name: "Bingo Teams"
       icon: PAPER
+      min-players: 2
+
+    elytra_endrium:
+      display-name: "Elytra Endrium"
+      icon: ELYTRA
+      min-players: 2
+
+    tnt_tag:
+      display-name: "TNT TAG"
+      icon: TNT
       min-players: 2
 
 # -----------------------------------------------------------------------

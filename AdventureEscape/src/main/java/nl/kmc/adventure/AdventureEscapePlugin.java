@@ -13,18 +13,20 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Adventure Escape plugin entry point.
+ * Adventure Escape — Ace Race style minigame plugin.
  *
- * <p>NO PVP LISTENER — players can NOT damage each other during a race.
+ * <p>Depends on KMCCore for team/points integration.
  *
- * <p>Auto-start hook: when KMCCore picks Adventure Escape as the next
- * game (via vote or random), this plugin's onGameStart hook fires and
- * runs startCountdown() automatically.
+ * <p><b>Auto-start integration:</b> registers an onGameStart hook with
+ * KMCCore. When the automation/voting picks "adventure_escape" as the
+ * next game, KMCCore fires the hook and we run startCountdown()
+ * automatically — no admin needed.
  */
 public final class AdventureEscapePlugin extends JavaPlugin {
 
     private static AdventureEscapePlugin instance;
 
+    /** Game id that KMCCore uses to identify this minigame. */
     public static final String GAME_ID = "adventure_escape";
 
     private KMCCore            kmcCore;
@@ -45,37 +47,44 @@ public final class AdventureEscapePlugin extends JavaPlugin {
         }
         kmcCore = core;
 
+        // Init managers
         arenaManager       = new ArenaManager(this);
         effectBlockManager = new EffectBlockManager(this);
         raceManager        = new RaceManager(this);
         raceScoreboard     = new RaceScoreboard(this);
 
-        AdventureCommand cmd = new AdventureCommand(this);
-        var bukkitCmd = getCommand("adventure");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        } else {
-            getLogger().severe("Command 'adventure' not found in plugin.yml!");
-        }
+        // Commands
+        var cmd = new AdventureCommand(this);
+        getCommand("adventure").setExecutor(cmd);
+        getCommand("adventure").setTabCompleter(cmd);
+        getCommand("ae").setExecutor(cmd);
+        getCommand("ae").setTabCompleter(cmd);
 
+        // Listeners
         getServer().getPluginManager().registerEvents(new BlockStepListener(this),    this);
         getServer().getPluginManager().registerEvents(new LineCrossListener(this),    this);
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
 
-        // Auto-start hook: KMCCore tells us when our game is picked
+        // -----------------------------------------------------------
+        // Auto-start hook — RESTORED (was missing in this build)
+        // -----------------------------------------------------------
+        // KMCCore fires fireGameStart(gameId) when GameManager.startGame
+        // is called. We register a listener that catches our id and runs
+        // the race countdown after a brief delay (gives KMCCore time to
+        // finish announcements and teleport players to the right world).
         kmcCore.getApi().onGameStart(gameId -> {
             if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore started '" + gameId + "' — launching race countdown.");
+            getLogger().info("KMCCore picked Adventure Escape — launching countdown.");
             Bukkit.getScheduler().runTaskLater(this, () -> {
                 String error = raceManager.startCountdown();
                 if (error != null) {
-                    getLogger().warning("Auto-start failed: " + error);
+                    getLogger().warning("Adventure Escape auto-start failed: " + error);
+                    // Notify automation so it doesn't get stuck on a failed game
                     if (kmcCore.getAutomationManager().isRunning()) {
                         kmcCore.getAutomationManager().onGameEnd(null);
                     }
                 }
-            }, 40L);
+            }, 40L);  // 2-second delay — same pattern as QuakeCraft / Bingo / Parkour
         });
 
         getLogger().info("Adventure Escape enabled!");

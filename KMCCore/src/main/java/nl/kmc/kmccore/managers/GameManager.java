@@ -109,7 +109,10 @@ public class GameManager {
         plugin.getScoreboardManager().refreshAll();
 
         // Notify minigame plugins that this game has started.
-        // Adventure Escape uses this to auto-launch its lobby countdown.
+        // AE, QuakeCraft, Bingo, ParkourWarrior, MobMayhem all register
+        // onGameStart hooks via KMCApi to auto-launch their countdowns.
+        // Without this line, /kmcauto teleports players but the game
+        // never starts — admin has to run /ae start manually.
         plugin.getApi().fireGameStart(gameId);
 
         return true;
