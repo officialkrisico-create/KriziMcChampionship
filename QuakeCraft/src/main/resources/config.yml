@@ -66,9 +66,14 @@ powerups:
     display-name: "&6&lMachine Gun"
     material: GOLDEN_HOE
     uses: 25
+    # Cooldown between right-clicks. Each click fires a burst (see below)
     cooldown-ms: 200
     bonus-coins: 40
     max-range: 60
+    # Number of shots per right-click — gives sustained fire feel
+    burst-count: 3
+    # Ticks between shots in the burst (1 tick = 50ms; 2 ticks = 100ms)
+    burst-delay-ticks: 2
   
   grenade:
     display-name: "&c&lGrenade"

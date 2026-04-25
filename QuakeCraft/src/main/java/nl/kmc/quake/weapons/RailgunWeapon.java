@@ -68,15 +68,45 @@ public final class RailgunWeapon {
         return true;
     }
 
+    /**
+     * Machine gun — fires a burst of N shots per right-click with a small
+     * delay between them, simulating sustained fire.
+     *
+     * <p>Why a burst? PlayerInteractEvent has a built-in ~200ms throttle
+     * per item, so single-shot-per-click can never go faster than 5/sec.
+     * A burst per click decouples fire rate from event rate.
+     */
     public static boolean fireMachineGun(QuakeCraftPlugin plugin, Player shooter, PlayerState state) {
         long cd = plugin.getConfig().getLong("powerups.machine_gun.cooldown-ms", 200);
         if (!state.canShoot(cd)) return false;
         state.markShot();
 
         double range = plugin.getConfig().getDouble("powerups.machine_gun.max-range", 60);
+        int burstCount = plugin.getConfig().getInt("powerups.machine_gun.burst-count", 3);
+        int burstDelayTicks = plugin.getConfig().getInt("powerups.machine_gun.burst-delay-ticks", 2);
+
+        // Fire first shot immediately
         fireRay(plugin, shooter, range, "machine_gun",
                 shooter.getEyeLocation().getDirection(), Particle.SMOKE);
         playShot(shooter, Sound.ENTITY_BLAZE_SHOOT, 0.8f, 2.0f);
+
+        // Schedule the rest of the burst
+        for (int i = 1; i < burstCount; i++) {
+            int shotIndex = i;
+            org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!shooter.isOnline() || shooter.isDead()) return;
+                if (shooter.getGameMode() != org.bukkit.GameMode.ADVENTURE) return;
+                // Verify they still hold a machine gun (so they can't fire after
+                // running out of ammo or switching weapons)
+                var current = shooter.getInventory().getItemInMainHand();
+                String wid = nl.kmc.quake.util.WeaponFactory.getWeaponId(plugin, current);
+                if (!"MACHINE_GUN".equals(wid)) return;
+
+                fireRay(plugin, shooter, range, "machine_gun",
+                        shooter.getEyeLocation().getDirection(), Particle.SMOKE);
+                playShot(shooter, Sound.ENTITY_BLAZE_SHOOT, 0.6f, 2.0f);
+            }, (long) burstDelayTicks * shotIndex);
+        }
         return true;
     }
 

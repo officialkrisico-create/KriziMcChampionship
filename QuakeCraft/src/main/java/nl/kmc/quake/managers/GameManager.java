@@ -310,15 +310,10 @@ public class GameManager {
         broadcast("&c☠ &7" + target.getName() + " &8← &e" + shooter.getName()
                 + " &8(" + shooterState.getKills() + ")");
 
-        // ---- ACTUALLY KILL THE TARGET ----
-        // Kill via setHealth(0) — triggers vanilla death + respawn. Some
-        // listeners may interfere, so we go through the full death flow.
-        // Use setLastDamageCause for proper death message attribution.
-        try {
-            target.setHealth(0.0);
-        } catch (Exception ignored) {}
-
-        // Respawn the target after a brief delay (handled by respawn flow)
+        // ---- KILL THE TARGET ----
+        // We don't call setHealth(0) — that triggers vanilla death/respawn
+        // which races with our scripted respawn and causes glitches. Instead
+        // we go straight to spectator-then-teleport.
         respawn(target, targetState);
 
         // Killstreak check
@@ -328,17 +323,24 @@ public class GameManager {
     }
 
     /**
-     * Respawns the target — switches to spectator briefly, then teleports
-     * to a far spawn and gives them a fresh loadout.
+     * Respawns the target — spectator for the death-delay, then teleport
+     * to a spawn far from other players, then back to ADVENTURE with kit.
+     *
+     * <p>No vanilla death/respawn involved — we control the entire flow.
      */
     private void respawn(Player target, PlayerState state) {
-        // Brief spectator phase so death animation plays
+        // Phase 1: instant — spectator mode while particles/sound play
         target.setGameMode(GameMode.SPECTATOR);
         target.getInventory().clear();
-        target.sendTitle(ChatColor.RED + "Je bent dood!",
+        target.setHealth(20);    // reset HP so we're not at 0 when we come back
+        target.setFoodLevel(20);
+        target.setFireTicks(0);
+        target.setFallDistance(0);
+
+        target.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Je bent dood!",
                 ChatColor.GRAY + "Respawn over "
                 + plugin.getConfig().getInt("game.respawn-delay-seconds", 1) + "s",
-                0, 20, 5);
+                0, 30, 5);
 
         int delay = plugin.getConfig().getInt("game.respawn-delay-seconds", 1) * 20;
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -354,12 +356,31 @@ public class GameManager {
             }
             Location spawn = plugin.getArenaManager().randomSpawnAwayFrom(avoid);
             if (spawn != null) target.teleport(spawn);
+
+            // Phase 2: back to gameplay — must happen AFTER teleport so the
+            // player doesn't briefly fall back into the world they died in.
             target.setGameMode(GameMode.ADVENTURE);
             target.setHealth(20);
             target.setFoodLevel(20);
+            target.setFireTicks(0);
+            target.setFallDistance(0);
             for (var eff : target.getActivePotionEffects()) target.removePotionEffect(eff.getType());
             giveBaseLoadout(target);
+
+            // Brief invulnerability (2 seconds) — set high HP regen via
+            // a fire-and-forget regen effect, prevents instant re-kill on spawn
+            PotionEffectType regen = regen();
+            if (regen != null) {
+                target.addPotionEffect(new PotionEffect(regen, 40, 4, true, false, false));
+            }
         }, delay);
+    }
+
+    private PotionEffectType regen() {
+        try { return RegistryAccess.registryAccess()
+                .getRegistry(RegistryKey.MOB_EFFECT)
+                .get(NamespacedKey.minecraft("regeneration")); }
+        catch (Exception e) { return null; }
     }
 
     private void checkKillstreak(Player shooter, PlayerState state) {
