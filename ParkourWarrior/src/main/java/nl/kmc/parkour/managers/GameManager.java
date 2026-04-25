@@ -460,6 +460,9 @@ public class GameManager {
                 bonus = plugin.getConfig().getInt("points.participation", 25);
             if (bonus > 0) api.givePoints(rs.getUuid(), bonus);
 
+            // Record per-player tournament stats
+            api.recordGameParticipation(rs.getUuid(), rs.getName(), GAME_ID, i == 0);
+
             if (i == 0) winnerName = rs.getName();
         }
 

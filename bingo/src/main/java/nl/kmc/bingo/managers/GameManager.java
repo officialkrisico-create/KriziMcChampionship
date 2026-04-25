@@ -376,6 +376,12 @@ public class GameManager {
             int total = squarePts + linePts + fullPts + placePts2;
             for (UUID memberId : team.getMembers()) {
                 if (total > 0) api.givePoints(memberId, total);
+
+                // Record per-player tournament stats — every member of the
+                // winning team gets a win, others get a streak reset.
+                Player member = Bukkit.getPlayer(memberId);
+                String memberName = member != null ? member.getName() : memberId.toString();
+                api.recordGameParticipation(memberId, memberName, GAME_ID, i == 0);
             }
 
             if (i == 0) winnerName = team.getColor() + team.getDisplayName();

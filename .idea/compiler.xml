@@ -6,12 +6,13 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="KMCCore" />
         <module name="AdventureEscape" />
-        <module name="ParkourWarrior" />
-        <module name="Bingo" />
+        <module name="MobMayhem" />
         <module name="QuakeCraft" />
         <module name="LuckyBlock" />
+        <module name="KMCCore" />
+        <module name="ParkourWarrior" />
+        <module name="Bingo" />
       </profile>
     </annotationProcessing>
   </component>

@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/bingo/Bingo.iml" filepath="$PROJECT_DIR$/bingo/Bingo.iml" />
       <module fileurl="file://$PROJECT_DIR$/KMCCore/KMCCore.iml" filepath="$PROJECT_DIR$/KMCCore/KMCCore.iml" />
       <module fileurl="file://$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" filepath="$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" />
+      <module fileurl="file://$PROJECT_DIR$/MobMayhem/MobMayhem.iml" filepath="$PROJECT_DIR$/MobMayhem/MobMayhem.iml" />
       <module fileurl="file://$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" filepath="$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" />
       <module fileurl="file://$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" filepath="$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" />
     </modules>

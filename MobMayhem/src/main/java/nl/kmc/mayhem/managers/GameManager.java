@@ -390,6 +390,15 @@ public class GameManager {
                     api.givePoints(memberId, placeBonus);
                 }
             }
+
+            // Record per-player tournament stats — every member of the
+            // winning team gets a win, others reset their streak.
+            for (UUID memberId : team.getMembers()) {
+                Player member = Bukkit.getPlayer(memberId);
+                String memberName = member != null ? member.getName() : memberId.toString();
+                api.recordGameParticipation(memberId, memberName, GAME_ID, i == 0);
+            }
+
             if (i == 0) winnerName = team.getColor() + team.getDisplayName();
         }
         broadcast("&6═══════════════════════════════════");

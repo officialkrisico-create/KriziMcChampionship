@@ -473,6 +473,10 @@ public class GameManager {
                 placeBonus = plugin.getConfig().getInt("points.participation", 25);
 
             if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
+
+            // Record per-player tournament stats
+            api.recordGameParticipation(ps.getUuid(), ps.getName(), GAME_ID, i == 0);
+
             if (i == 0) winnerName = teamColor + ps.getName();
         }
 

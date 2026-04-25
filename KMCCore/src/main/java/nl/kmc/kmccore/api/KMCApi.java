@@ -140,4 +140,26 @@ public class KMCApi {
     }
 
     public String getScoreboardOwner() { return scoreboardOwner; }
+
+    // ---- End-of-game stats helper ---------------------------------
+
+    /**
+     * Records standard end-of-game player stats: increments games played,
+     * adds a win (or resets streak) based on whether the player won.
+     *
+     * <p>Call this from each minigame's end-of-game routine for every
+     * participant. Standardizes the per-player tournament stat update
+     * across all minigames.
+     *
+     * @param uuid    participant UUID
+     * @param name    display name (used if the PlayerData record needs creating)
+     * @param gameId  game id (e.g. "adventure_escape", "quake_craft")
+     * @param won     true if this player came in 1st place
+     */
+    public void recordGameParticipation(UUID uuid, String name, String gameId, boolean won) {
+        var pd = plugin.getPlayerDataManager().getOrCreate(uuid, name);
+        pd.incrementGamesPlayed();
+        if (won) pd.addWin(gameId);
+        else     pd.resetStreak();
+    }
 }
