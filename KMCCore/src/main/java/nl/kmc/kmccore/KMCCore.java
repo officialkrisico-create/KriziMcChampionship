@@ -45,6 +45,7 @@ public final class KMCCore extends JavaPlugin {
         teamManager       = new TeamManager(this);
         playerDataManager = new PlayerDataManager(this);
         pointsManager     = new PointsManager(this);
+        api               = new KMCApi(this);   // moved up — needed by managers
         tournamentManager = new TournamentManager(this);
         gameManager       = new GameManager(this);
         schematicManager  = new SchematicManager(this);
@@ -58,8 +59,6 @@ public final class KMCCore extends JavaPlugin {
 
         registerCommands();
         registerListeners();
-
-        api = new KMCApi(this);
 
         getLogger().info("KMCCore v" + getDescription().getVersion() + " enabled!");
     }
@@ -100,12 +99,14 @@ public final class KMCCore extends JavaPlugin {
     }
 
     private void registerListeners() {
-        getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
-        getServer().getPluginManager().registerEvents(new ChatListener(this),            this);
-        getServer().getPluginManager().registerEvents(new PlayerKillListener(this),      this);
-        getServer().getPluginManager().registerEvents(new VoteListener(this),            this);
-        getServer().getPluginManager().registerEvents(voteGuiListener,                    this);
-        getServer().getPluginManager().registerEvents(new LobbyProtectionListener(this), this);
+        var pm = getServer().getPluginManager();
+        pm.registerEvents(new PlayerJoinQuitListener(this),  this);
+        pm.registerEvents(new ChatListener(this),            this);
+        pm.registerEvents(new PlayerKillListener(this),      this);
+        pm.registerEvents(new VoteListener(this),            this);
+        pm.registerEvents(voteGuiListener,                    this);
+        pm.registerEvents(new LobbyProtectionListener(this), this);
+        pm.registerEvents(new DeathListener(this),           this);  // NEW — counts deaths
     }
 
     public static KMCCore getInstance() { return instance; }

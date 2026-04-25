@@ -24,7 +24,7 @@ arena:
 
 game:
   # Countdown before the race starts
-  countdown-seconds: 10
+  countdown-seconds: 30
 
   # Max race duration in seconds (0 = no limit, race ends when everyone finishes)
   max-duration-seconds: 600

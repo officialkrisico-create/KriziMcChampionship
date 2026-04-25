@@ -4,7 +4,6 @@ import nl.kmc.adventure.commands.AdventureCommand;
 import nl.kmc.adventure.listeners.BlockStepListener;
 import nl.kmc.adventure.listeners.LineCrossListener;
 import nl.kmc.adventure.listeners.PlayerJoinQuitListener;
-import nl.kmc.adventure.listeners.RacePvpListener;
 import nl.kmc.adventure.managers.ArenaManager;
 import nl.kmc.adventure.managers.EffectBlockManager;
 import nl.kmc.adventure.managers.RaceManager;
@@ -16,16 +15,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 /**
  * Adventure Escape plugin entry point.
  *
- * <p>NEW: registers a {@code KMCApi.onGameStart} hook so that when
- * KMCCore picks Adventure Escape as the next game (via voting or
- * randomNextGame), the lobby countdown auto-starts. Players don't
- * need to run /ae start manually anymore.
+ * <p>NO PVP LISTENER — players can NOT damage each other during a race.
+ *
+ * <p>Auto-start hook: when KMCCore picks Adventure Escape as the next
+ * game (via vote or random), this plugin's onGameStart hook fires and
+ * runs startCountdown() automatically.
  */
 public final class AdventureEscapePlugin extends JavaPlugin {
 
     private static AdventureEscapePlugin instance;
 
-    /** Game ID this plugin responds to — must match the entry in KMCCore's config.yml. */
     public static final String GAME_ID = "adventure_escape";
 
     private KMCCore            kmcCore;
@@ -63,28 +62,20 @@ public final class AdventureEscapePlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockStepListener(this),    this);
         getServer().getPluginManager().registerEvents(new LineCrossListener(this),    this);
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
-        getServer().getPluginManager().registerEvents(new RacePvpListener(this),      this);
 
-        // ----------------------------------------------------------------
-        // Auto-start hook
-        // ----------------------------------------------------------------
-        // When KMCCore picks Adventure Escape as the next game, it fires
-        // this hook with our game id. We respond by launching the lobby
-        // countdown automatically — no manual /ae start needed.
+        // Auto-start hook: KMCCore tells us when our game is picked
         kmcCore.getApi().onGameStart(gameId -> {
             if (!GAME_ID.equals(gameId)) return;
             getLogger().info("KMCCore started '" + gameId + "' — launching race countdown.");
-            // Slight delay so KMCCore can finish its own start broadcast first
             Bukkit.getScheduler().runTaskLater(this, () -> {
                 String error = raceManager.startCountdown();
                 if (error != null) {
                     getLogger().warning("Auto-start failed: " + error);
-                    // Notify KMCCore that the game ended (so it can pick a different one)
                     if (kmcCore.getAutomationManager().isRunning()) {
                         kmcCore.getAutomationManager().onGameEnd(null);
                     }
                 }
-            }, 40L); // 2s delay
+            }, 40L);
         });
 
         getLogger().info("Adventure Escape enabled!");

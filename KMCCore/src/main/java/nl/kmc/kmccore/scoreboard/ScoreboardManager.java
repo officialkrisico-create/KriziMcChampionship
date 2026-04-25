@@ -14,25 +14,28 @@ import java.util.*;
 import java.util.logging.Level;
 
 /**
- * Per-player sidebar scoreboards.
+ * Per-player sidebar.
  *
- * <p><b>Minigame ownership:</b> When a minigame (like Adventure Escape)
- * takes over a player's scoreboard, it calls
- * {@link nl.kmc.kmccore.api.KMCApi#acquireScoreboard(String)}. While
- * any minigame holds the lock, this manager stops overwriting player
- * scoreboards — no more flicker between the lobby sidebar and the
- * race sidebar.
- *
- * <p>When the minigame ends, it calls {@code releaseScoreboard()} and
- * the lobby sidebar comes back automatically on the next tick.
+ * <p>FIXES IN THIS VERSION:
+ * <ul>
+ *   <li><b>No more flicker.</b> Previously each tick we unregistered the
+ *       objective and re-created it — leaving a one-tick gap where the
+ *       sidebar was invisible. Now we keep TWO objectives ("kmc_a" and
+ *       "kmc_b"), only one shown at a time. We populate the hidden one,
+ *       then atomically swap which one is on the sidebar slot. No gap.</li>
+ *   <li><b>Top 5 only</b> instead of all teams.</li>
+ *   <li><b>Viewer's own points</b> always shown, regardless of team.</li>
+ * </ul>
  */
 public class ScoreboardManager {
 
-    /** Minecraft hard limit on visible sidebar lines. */
-    private static final int MAX_SIDEBAR_LINES = 15;
+    private static final int  MAX_SIDEBAR_LINES = 15;
+    private static final int  TOP_TEAM_COUNT    = 5;
 
     private final KMCCore plugin;
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
+    /** Tracks which buffer ("a" or "b") is currently visible per player. */
+    private final Map<UUID, String> activeBuffer = new HashMap<>();
     private BukkitTask updateTask;
 
     public ScoreboardManager(KMCCore plugin) {
@@ -44,8 +47,6 @@ public class ScoreboardManager {
     }
 
     private void tickAll() {
-        // CRITICAL: if a minigame owns the scoreboard, do NOTHING.
-        // This prevents the flicker between the lobby sidebar and minigame sidebar.
         if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
 
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -60,7 +61,6 @@ public class ScoreboardManager {
 
     public void refreshAll() { tickAll(); }
 
-    /** Force an immediate refresh for one player, ignoring ownership. */
     public void forceRefreshPlayer(Player player) {
         try { updatePlayer(player); }
         catch (Exception e) { plugin.getLogger().log(Level.WARNING, "Forced refresh failed", e); }
@@ -82,14 +82,17 @@ public class ScoreboardManager {
             plugin.getTabListManager().registerPersonalBoard(player.getUniqueId(), board);
         }
 
-        Objective existing = board.getObjective("kmc_sidebar");
-        if (existing != null) {
-            try { existing.unregister(); } catch (Exception ignored) {}
-        }
+        // Determine which buffer is currently shown vs hidden
+        String currentName = activeBuffer.getOrDefault(player.getUniqueId(), "kmc_b");
+        String nextName    = currentName.equals("kmc_a") ? "kmc_b" : "kmc_a";
 
-        Objective sidebar = board.registerNewObjective("kmc_sidebar", Criteria.DUMMY,
+        // Wipe + rebuild the hidden buffer
+        Objective next = board.getObjective(nextName);
+        if (next != null) {
+            try { next.unregister(); } catch (Exception ignored) {}
+        }
+        next = board.registerNewObjective(nextName, Criteria.DUMMY,
                 MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC")));
-        sidebar.setDisplaySlot(DisplaySlot.SIDEBAR);
 
         List<String> lines = buildLines(player);
         if (lines.size() > MAX_SIDEBAR_LINES) {
@@ -101,12 +104,22 @@ public class ScoreboardManager {
         for (String text : lines) {
             String entry = uniqueEntry(text, usedEntries);
             usedEntries.add(entry);
-            sidebar.getScore(entry).setScore(score);
+            next.getScore(entry).setScore(score);
             score--;
         }
 
+        // ATOMIC SWAP: put the freshly-built buffer on the sidebar slot.
+        // The previously-shown buffer is now hidden but still alive — we'll
+        // overwrite it on the next tick. No gap, no flicker.
+        next.setDisplaySlot(DisplaySlot.SIDEBAR);
+        activeBuffer.put(player.getUniqueId(), nextName);
+
         player.setScoreboard(board);
     }
+
+    // ----------------------------------------------------------------
+    // Sidebar content
+    // ----------------------------------------------------------------
 
     private List<String> buildLines(Player player) {
         List<String> lines = new ArrayList<>();
@@ -121,9 +134,12 @@ public class ScoreboardManager {
 
         KMCTeam myTeam = plugin.getTeamManager().getTeamByPlayer(player.getUniqueId());
         PlayerData pd  = plugin.getPlayerDataManager().get(player.getUniqueId());
+        // If for some reason cache is empty, fall back to DB so points always show
+        if (pd == null) pd = plugin.getDatabaseManager().loadPlayer(player.getUniqueId());
 
         List<KMCTeam> allTeams = plugin.getTeamManager().getTeamsSortedByPoints();
 
+        // --- Status section ---
         if (active) {
             lines.add("&7Ronde: &e" + round + " &8(&e×" + mul + "&8)");
         } else {
@@ -133,13 +149,11 @@ public class ScoreboardManager {
 
         lines.add("&r");
 
-        int reserved = 3 + 2;
-        int available = MAX_SIDEBAR_LINES - lines.size() - reserved;
-        int teamLinesToShow = Math.min(allTeams.size() + 1, Math.max(1, available));
-        if (teamLinesToShow > 1) {
+        // --- Top 5 teams ---
+        if (!allTeams.isEmpty()) {
             lines.add("&6&lTop Teams:");
-            int teamsLeft = teamLinesToShow - 1;
-            for (int i = 0; i < Math.min(teamsLeft, allTeams.size()); i++) {
+            int show = Math.min(TOP_TEAM_COUNT, allTeams.size());
+            for (int i = 0; i < show; i++) {
                 KMCTeam t = allTeams.get(i);
                 String rank;
                 if      (i == 0) rank = "&6#1";
@@ -152,15 +166,16 @@ public class ScoreboardManager {
 
         lines.add("&r ");
 
+        // --- Your team (if any) ---
         if (myTeam != null) {
             lines.add("&e&lJouw Team:");
             lines.add(myTeam.getColor() + myTeam.getDisplayName()
-                    + " &8- &e" + myTeam.getPoints() + " pt");
+                    + " &8- &e" + myTeam.getPoints() + "p");
         }
 
+        // --- Always show your personal points ---
         lines.add("&r  ");
-        lines.add("&b&lJij:");
-        lines.add("&7Punten: &e" + (pd != null ? pd.getPoints() : 0));
+        lines.add("&b&lJouw Punten: &e" + (pd != null ? pd.getPoints() : 0));
 
         return lines;
     }
@@ -190,11 +205,13 @@ public class ScoreboardManager {
 
     public void onPlayerQuit(Player player) {
         boards.remove(player.getUniqueId());
+        activeBuffer.remove(player.getUniqueId());
         plugin.getTabListManager().unregisterPersonalBoard(player.getUniqueId());
     }
 
     public void cleanup() {
         if (updateTask != null) updateTask.cancel();
         boards.clear();
+        activeBuffer.clear();
     }
 }

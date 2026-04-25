@@ -7,11 +7,8 @@ import java.util.UUID;
 /**
  * Stores all persistent statistics for a single player.
  *
- * Basic stats:      points, kills, wins
- * Extended stats:   gamesPlayed, totalPlayTimeMinutes,
- *                   winStreak, bestWinStreak, winsPerGame
- *
- * Coins have been REMOVED from the system — only points exist.
+ * <p>NEW: deaths counter. Tracked per tournament; reset on soft reset
+ * along with kills/points/wins. Used in the post-event signed book.
  */
 public class PlayerData {
 
@@ -23,6 +20,7 @@ public class PlayerData {
     private int  points;
     private int  kills;
     private int  wins;
+    private int  deaths;
 
     // ---- Extended / lifetime stats ---------------------------------
     private int  gamesPlayed;
@@ -30,10 +28,7 @@ public class PlayerData {
     private int  winStreak;
     private int  bestWinStreak;
 
-    /** Per-game win tally. Key = game ID, value = wins. */
     private Map<String, Integer> winsPerGame = new HashMap<>();
-
-    /** Server-time millis when player last entered an active game (not persisted). */
     private transient long gameSessionStart = -1;
 
     private boolean teamChatEnabled;
@@ -49,16 +44,19 @@ public class PlayerData {
     public void addPoints(int v)    { this.points = Math.max(0, this.points + v); }
     public void removePoints(int v) { this.points = Math.max(0, this.points - v); }
 
-    // ---- Kills -----------------------------------------------------
+    // ---- Kills / Deaths --------------------------------------------
     public int  getKills()      { return kills; }
     public void setKills(int v) { this.kills = Math.max(0, v); }
     public void addKill()       { this.kills++; }
+
+    public int  getDeaths()      { return deaths; }
+    public void setDeaths(int v) { this.deaths = Math.max(0, v); }
+    public void addDeath()       { this.deaths++; }
 
     // ---- Wins ------------------------------------------------------
     public int  getWins()       { return wins; }
     public void setWins(int v)  { this.wins = Math.max(0, v); }
 
-    /** Records a win, updates streak, increments per-game counter. */
     public void addWin(String gameId) {
         this.wins++;
         this.winStreak++;

@@ -3,6 +3,7 @@ package nl.kmc.kmccore.database;
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.models.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
+import nl.kmc.kmccore.models.PointAward;
 import org.bukkit.ChatColor;
 
 import java.io.File;
@@ -16,9 +17,13 @@ import java.util.logging.Level;
  * <p>Schema:
  * <pre>
  *   players           (uuid, name, team_id, points, kills, wins, games_played,
- *                      play_time_minutes, win_streak, best_win_streak, wins_per_game)
+ *                      play_time_minutes, win_streak, best_win_streak, wins_per_game,
+ *                      deaths)
  *   teams             (id, display_name, color, tag_color, points, wins)
- *   tournament_state  (key, value)
+ *   tournament_state  (key, value)         ← also stores 'event_number'
+ *   point_awards      (id, player_uuid, team_id, reason, game_id, amount, round, timestamp)
+ *                       NEW — every point award is logged here for the
+ *                       end-of-event breakdown book.
  * </pre>
  */
 public class DatabaseManager {
@@ -39,6 +44,7 @@ public class DatabaseManager {
                 st.execute("PRAGMA foreign_keys=ON;");
             }
             createTables();
+            migrateAddDeathsColumn();
             plugin.getLogger().info("Database connected.");
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "DB connect failed", e);
@@ -65,7 +71,8 @@ public class DatabaseManager {
                 play_time_minutes  INTEGER DEFAULT 0,
                 win_streak         INTEGER DEFAULT 0,
                 best_win_streak    INTEGER DEFAULT 0,
-                wins_per_game      TEXT DEFAULT ''
+                wins_per_game      TEXT DEFAULT '',
+                deaths             INTEGER DEFAULT 0
             );""";
         String teams = """
             CREATE TABLE IF NOT EXISTS teams (
@@ -81,11 +88,44 @@ public class DatabaseManager {
                 key   TEXT PRIMARY KEY,
                 value TEXT
             );""";
+        String pointAwards = """
+            CREATE TABLE IF NOT EXISTS point_awards (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                player_uuid  TEXT NOT NULL,
+                team_id      TEXT,
+                reason       TEXT NOT NULL,
+                game_id      TEXT,
+                amount       INTEGER NOT NULL,
+                round        INTEGER DEFAULT 1,
+                timestamp    INTEGER NOT NULL
+            );""";
+        String idx = "CREATE INDEX IF NOT EXISTS idx_awards_player ON point_awards(player_uuid);";
 
         try (Statement st = connection.createStatement()) {
             st.execute(players);
             st.execute(teams);
             st.execute(tournament);
+            st.execute(pointAwards);
+            st.execute(idx);
+        }
+    }
+
+    /** Migrate older DBs that don't have the deaths column yet. */
+    private void migrateAddDeathsColumn() {
+        try (Statement st = connection.createStatement();
+             ResultSet rs = st.executeQuery("PRAGMA table_info(players)")) {
+            boolean hasDeaths = false;
+            while (rs.next()) {
+                if ("deaths".equalsIgnoreCase(rs.getString("name"))) { hasDeaths = true; break; }
+            }
+            if (!hasDeaths) {
+                try (Statement add = connection.createStatement()) {
+                    add.execute("ALTER TABLE players ADD COLUMN deaths INTEGER DEFAULT 0");
+                }
+                plugin.getLogger().info("Added 'deaths' column to players table.");
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Migration check failed", e);
         }
     }
 
@@ -98,23 +138,27 @@ public class DatabaseManager {
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, uuid.toString());
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                PlayerData pd = new PlayerData(uuid, rs.getString("name"));
-                pd.setTeamId(rs.getString("team_id"));
-                pd.setPoints(rs.getInt("points"));
-                pd.setKills(rs.getInt("kills"));
-                pd.setWins(rs.getInt("wins"));
-                pd.setGamesPlayed(safeInt(rs, "games_played"));
-                pd.setTotalPlayTimeMinutes(safeInt(rs, "play_time_minutes"));
-                pd.setWinStreak(safeInt(rs, "win_streak"));
-                pd.setBestWinStreak(safeInt(rs, "best_win_streak"));
-                pd.setWinsPerGame(deserializeWinsPerGame(safeStr(rs, "wins_per_game")));
-                return pd;
-            }
+            if (rs.next()) return readPlayerRow(rs);
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Load player failed", e);
         }
         return null;
+    }
+
+    private PlayerData readPlayerRow(ResultSet rs) throws SQLException {
+        UUID uuid = UUID.fromString(rs.getString("uuid"));
+        PlayerData pd = new PlayerData(uuid, rs.getString("name"));
+        pd.setTeamId(rs.getString("team_id"));
+        pd.setPoints(rs.getInt("points"));
+        pd.setKills(rs.getInt("kills"));
+        pd.setWins(rs.getInt("wins"));
+        pd.setGamesPlayed(safeInt(rs, "games_played"));
+        pd.setTotalPlayTimeMinutes(safeInt(rs, "play_time_minutes"));
+        pd.setWinStreak(safeInt(rs, "win_streak"));
+        pd.setBestWinStreak(safeInt(rs, "best_win_streak"));
+        pd.setWinsPerGame(deserializeWinsPerGame(safeStr(rs, "wins_per_game")));
+        pd.setDeaths(safeInt(rs, "deaths"));
+        return pd;
     }
 
     private int safeInt(ResultSet rs, String col) {
@@ -127,8 +171,8 @@ public class DatabaseManager {
     public void savePlayer(PlayerData pd) {
         String sql = """
             INSERT INTO players (uuid, name, team_id, points, kills, wins,
-                games_played, play_time_minutes, win_streak, best_win_streak, wins_per_game)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                games_played, play_time_minutes, win_streak, best_win_streak, wins_per_game, deaths)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(uuid) DO UPDATE SET
                 name               = excluded.name,
                 team_id            = excluded.team_id,
@@ -139,7 +183,8 @@ public class DatabaseManager {
                 play_time_minutes  = excluded.play_time_minutes,
                 win_streak         = excluded.win_streak,
                 best_win_streak    = excluded.best_win_streak,
-                wins_per_game      = excluded.wins_per_game;
+                wins_per_game      = excluded.wins_per_game,
+                deaths             = excluded.deaths;
             """;
         try (PreparedStatement ps = connection.prepareStatement(sql)) {
             ps.setString(1, pd.getUuid().toString());
@@ -153,6 +198,7 @@ public class DatabaseManager {
             ps.setInt(9,    pd.getWinStreak());
             ps.setInt(10,   pd.getBestWinStreak());
             ps.setString(11, serializeWinsPerGame(pd.getWinsPerGame()));
+            ps.setInt(12,   pd.getDeaths());
             ps.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Save player failed", e);
@@ -163,20 +209,7 @@ public class DatabaseManager {
         List<PlayerData> list = new ArrayList<>();
         try (Statement st = connection.createStatement();
              ResultSet rs = st.executeQuery("SELECT * FROM players ORDER BY points DESC")) {
-            while (rs.next()) {
-                UUID uuid = UUID.fromString(rs.getString("uuid"));
-                PlayerData pd = new PlayerData(uuid, rs.getString("name"));
-                pd.setTeamId(rs.getString("team_id"));
-                pd.setPoints(rs.getInt("points"));
-                pd.setKills(rs.getInt("kills"));
-                pd.setWins(rs.getInt("wins"));
-                pd.setGamesPlayed(safeInt(rs, "games_played"));
-                pd.setTotalPlayTimeMinutes(safeInt(rs, "play_time_minutes"));
-                pd.setWinStreak(safeInt(rs, "win_streak"));
-                pd.setBestWinStreak(safeInt(rs, "best_win_streak"));
-                pd.setWinsPerGame(deserializeWinsPerGame(safeStr(rs, "wins_per_game")));
-                list.add(pd);
-            }
+            while (rs.next()) list.add(readPlayerRow(rs));
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Load all players failed", e);
         }
@@ -210,22 +243,11 @@ public class DatabaseManager {
         }
     }
 
-    /**
-     * Deletes a single team from the database.
-     * Called by TeamManager.deleteTeam(id) for the /kmcteam delete command.
-     *
-     * @param teamId the id of the team to remove (case-sensitive)
-     */
     public void deleteTeam(String teamId) {
         if (teamId == null) return;
-        String sql = "DELETE FROM teams WHERE id = ?";
-        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+        try (PreparedStatement ps = connection.prepareStatement("DELETE FROM teams WHERE id = ?")) {
             ps.setString(1, teamId);
-            int rows = ps.executeUpdate();
-            if (rows > 0) {
-                plugin.getLogger().info("Deleted team '" + teamId + "' from database.");
-            }
-            // Also clear team assignments on any players that referenced this team
+            ps.executeUpdate();
             try (PreparedStatement ps2 = connection.prepareStatement(
                     "UPDATE players SET team_id = NULL WHERE team_id = ?")) {
                 ps2.setString(1, teamId);
@@ -255,6 +277,76 @@ public class DatabaseManager {
     }
 
     // ----------------------------------------------------------------
+    // Point awards (NEW)
+    // ----------------------------------------------------------------
+
+    public void recordPointAward(PointAward award) {
+        if (award == null) return;
+        String sql = """
+            INSERT INTO point_awards (player_uuid, team_id, reason, game_id, amount, round, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)""";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, award.getPlayerUuid().toString());
+            ps.setString(2, award.getTeamId());
+            ps.setString(3, award.getReason());
+            ps.setString(4, award.getGameId());
+            ps.setInt(5,    award.getAmount());
+            ps.setInt(6,    award.getRound());
+            ps.setLong(7,   award.getTimestamp());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Record point award failed", e);
+        }
+    }
+
+    /** Returns all point awards for a player, ordered oldest → newest. */
+    public List<PointAward> loadAwardsForPlayer(UUID uuid) {
+        List<PointAward> list = new ArrayList<>();
+        String sql = "SELECT * FROM point_awards WHERE player_uuid = ? ORDER BY timestamp ASC";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, uuid.toString());
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(readAwardRow(rs));
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Load player awards failed", e);
+        }
+        return list;
+    }
+
+    /** Returns all point awards for a team's members, ordered oldest → newest. */
+    public List<PointAward> loadAwardsForTeam(String teamId) {
+        List<PointAward> list = new ArrayList<>();
+        String sql = "SELECT * FROM point_awards WHERE team_id = ? ORDER BY timestamp ASC";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, teamId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) list.add(readAwardRow(rs));
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Load team awards failed", e);
+        }
+        return list;
+    }
+
+    private PointAward readAwardRow(ResultSet rs) throws SQLException {
+        return new PointAward(
+                UUID.fromString(rs.getString("player_uuid")),
+                rs.getString("team_id"),
+                rs.getString("reason"),
+                rs.getString("game_id"),
+                rs.getInt("amount"),
+                rs.getInt("round"),
+                rs.getLong("timestamp"));
+    }
+
+    public void clearAllAwards() {
+        try (Statement st = connection.createStatement()) {
+            st.execute("DELETE FROM point_awards");
+        } catch (SQLException e) {
+            plugin.getLogger().log(Level.WARNING, "Clear awards failed", e);
+        }
+    }
+
+    // ----------------------------------------------------------------
     // Tournament state
     // ----------------------------------------------------------------
 
@@ -277,13 +369,6 @@ public class DatabaseManager {
         return def;
     }
 
-    /**
-     * Full reset — called by the tournament-end reset.
-     * Wipes points, kills, wins, streaks, games played, and play time.
-     * Preserves lifetime "bestWinStreak" and "winsPerGame" if configured.
-     *
-     * @param fullWipe if true, wipes EVERYTHING. Otherwise keeps lifetime stats.
-     */
     public void resetAll(boolean fullWipe) {
         try (Statement st = connection.createStatement()) {
             if (fullWipe) {
@@ -291,16 +376,18 @@ public class DatabaseManager {
                 st.execute("DELETE FROM tournament_state");
             } else {
                 st.execute("UPDATE players SET points = 0, kills = 0, wins = 0, " +
-                           "win_streak = 0, games_played = 0");
-                st.execute("DELETE FROM tournament_state");
+                           "win_streak = 0, games_played = 0, deaths = 0");
+                // Don't wipe tournament_state on soft reset — we need event_number
+                // Just delete state keys that should reset, leaving event_number alone
+                st.execute("DELETE FROM tournament_state WHERE key NOT IN ('event_number')");
             }
             st.execute("UPDATE teams SET points = 0, wins = 0");
+            st.execute("DELETE FROM point_awards");
         } catch (SQLException e) {
             plugin.getLogger().log(Level.WARNING, "Reset failed", e);
         }
     }
 
-    /** Legacy alias — calls resetAll(true). */
     public void resetAll() { resetAll(true); }
 
     // ----------------------------------------------------------------
