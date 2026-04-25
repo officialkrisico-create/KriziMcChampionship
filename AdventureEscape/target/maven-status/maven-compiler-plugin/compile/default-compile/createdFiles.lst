@@ -1,11 +1,13 @@
 nl\kmc\adventure\managers\RaceManager$State.class
 nl\kmc\adventure\listeners\BlockStepListener.class
+nl\kmc\adventure\models\Checkpoint.class
 nl\kmc\adventure\managers\ArenaManager.class
 nl\kmc\adventure\commands\AdventureCommand.class
 nl\kmc\adventure\managers\EffectBlockManager.class
-nl\kmc\adventure\listeners\RacePvpListener.class
+nl\kmc\adventure\listeners\LineCrossListener$1.class
 nl\kmc\adventure\models\EffectBlock.class
 nl\kmc\adventure\managers\RaceManager.class
+nl\kmc\adventure\models\RacerData$CheckpointResult.class
 nl\kmc\adventure\AdventureEscapePlugin.class
 nl\kmc\adventure\listeners\LineCrossListener.class
 nl\kmc\adventure\managers\RaceScoreboard.class

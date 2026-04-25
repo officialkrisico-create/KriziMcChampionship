@@ -16,6 +16,7 @@ C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\comman
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\database\DatabaseManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\KMCCore.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\ChatListener.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\DeathListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\LobbyProtectionListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\PlayerJoinQuitListener.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\listeners\PlayerKillListener.java
@@ -33,8 +34,10 @@ C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\manage
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\KMCGame.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\KMCTeam.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\PlayerData.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\models\PointAward.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\npc\NPCManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\scoreboard\ScoreboardManager.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\util\AnnouncementUtil.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\util\ClickableVoteMessage.java
+C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\util\EventStatsBookBuilder.java
 C:\Users\krish\Videos\kmc-tournament\KMCCore\src\main\java\nl\kmc\kmccore\util\MessageUtil.java

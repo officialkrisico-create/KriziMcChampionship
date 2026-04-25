@@ -11,9 +11,11 @@ nl\kmc\kmccore\listeners\PlayerJoinQuitListener.class
 nl\kmc\kmccore\managers\AutomationManager$State.class
 nl\kmc\kmccore\managers\SchematicManager.class
 nl\kmc\kmccore\commands\LeaderboardCommand.class
+nl\kmc\kmccore\util\EventStatsBookBuilder.class
 nl\kmc\kmccore\listeners\PlayerKillListener.class
 nl\kmc\kmccore\managers\TeamManager$AddResult.class
 nl\kmc\kmccore\npc\NPCManager$NpcType.class
+nl\kmc\kmccore\models\PointAward.class
 nl\kmc\kmccore\commands\StatsCommand.class
 nl\kmc\kmccore\commands\ArenaCommand.class
 nl\kmc\kmccore\listeners\VoteGuiListener.class
@@ -26,6 +28,7 @@ nl\kmc\kmccore\commands\NPCCommand.class
 nl\kmc\kmccore\commands\VoteCommand.class
 nl\kmc\kmccore\commands\TeamCommand$1.class
 nl\kmc\kmccore\util\AnnouncementUtil.class
+nl\kmc\kmccore\listeners\DeathListener.class
 nl\kmc\kmccore\api\KMCApi.class
 nl\kmc\kmccore\managers\PlayerDataManager.class
 nl\kmc\kmccore\managers\TeamManager.class

@@ -127,9 +127,16 @@ public final class EventStatsBookBuilder {
             boolean isViewer = pd.getUuid().equals(viewer.getUniqueId());
 
             var color = isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY;
+
             b.append(Component.text((i + 1) + ". ", NamedTextColor.GRAY));
-            b.append(Component.text(pd.getName(), color,
-                    isViewer ? TextDecoration.BOLD : TextDecoration.UNDERLINED.withState(false)));
+
+            Component nameComp = Component.text(pd.getName(), color);
+
+            if (isViewer) {
+                nameComp = nameComp.decorate(TextDecoration.BOLD);
+            }
+
+            b.append(nameComp);
             b.append(Component.text(" — " + pd.getPoints() + "\n", NamedTextColor.DARK_GRAY));
         }
 
@@ -186,9 +193,17 @@ public final class EventStatsBookBuilder {
 
         for (PlayerData pd : members) {
             boolean isViewer = pd.getUuid().equals(viewer.getUniqueId());
-            b.append(Component.text(pd.getName(),
-                    isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY,
-                    isViewer ? TextDecoration.BOLD : TextDecoration.UNDERLINED.withState(false)));
+
+            Component nameComp = Component.text(
+                    pd.getName(),
+                    isViewer ? NamedTextColor.GOLD : NamedTextColor.DARK_GRAY
+            );
+
+            if (isViewer) {
+                nameComp = nameComp.decorate(TextDecoration.BOLD);
+            }
+
+            b.append(nameComp);
             b.append(Component.text(" — " + pd.getPoints() + "\n", NamedTextColor.DARK_GRAY));
         }
 
