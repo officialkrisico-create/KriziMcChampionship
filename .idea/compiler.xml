@@ -14,6 +14,7 @@
         <module name="LuckyBlock" />
         <module name="KMCCore" />
         <module name="Spleef" />
+        <module name="TNTTag" />
         <module name="ParkourWarrior" />
         <module name="Bingo" />
         <module name="ElytraEndrium" />
