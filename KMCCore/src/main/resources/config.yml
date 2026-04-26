@@ -198,6 +198,11 @@ games:
       icon: TNT
       min-players: 2
 
+    lucky_block:
+      display-name: "LUCKY BLOCK"
+      icon: SPONGE
+      min-players: 2
+
 # -----------------------------------------------------------------------
 # Points
 # -----------------------------------------------------------------------
