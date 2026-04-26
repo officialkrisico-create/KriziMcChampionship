@@ -4,11 +4,15 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" filepath="$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" />
       <module fileurl="file://$PROJECT_DIR$/bingo/Bingo.iml" filepath="$PROJECT_DIR$/bingo/Bingo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" filepath="$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" />
       <module fileurl="file://$PROJECT_DIR$/KMCCore/KMCCore.iml" filepath="$PROJECT_DIR$/KMCCore/KMCCore.iml" />
       <module fileurl="file://$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" filepath="$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" />
       <module fileurl="file://$PROJECT_DIR$/MobMayhem/MobMayhem.iml" filepath="$PROJECT_DIR$/MobMayhem/MobMayhem.iml" />
       <module fileurl="file://$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" filepath="$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" />
       <module fileurl="file://$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" filepath="$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Spleef/Spleef.iml" filepath="$PROJECT_DIR$/Spleef/Spleef.iml" />
+      <module fileurl="file://$PROJECT_DIR$/TGTTOS/TGTTOS.iml" filepath="$PROJECT_DIR$/TGTTOS/TGTTOS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/TheBridge/TheBridge.iml" filepath="$PROJECT_DIR$/TheBridge/TheBridge.iml" />
     </modules>
   </component>
 </project>

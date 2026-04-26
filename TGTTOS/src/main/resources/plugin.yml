@@ -1,0 +1,19 @@
+name: TGTTOS
+version: 1.0.0
+main: nl.kmc.tgttos.TGTTOSPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore]
+description: TGTTOS minigame for KMC tournaments
+
+commands:
+  tgttos:
+    description: TGTTOS control + setup
+    aliases: [tg, ttos]
+    usage: /tgttos <start|stop|createmap|editmap|...>
+    permission: tgttos.admin
+
+permissions:
+  tgttos.admin:
+    description: TGTTOS admin commands
+    default: op

@@ -6,13 +6,17 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="TGTTOS" />
+        <module name="TheBridge" />
         <module name="AdventureEscape" />
         <module name="MobMayhem" />
         <module name="QuakeCraft" />
         <module name="LuckyBlock" />
         <module name="KMCCore" />
+        <module name="Spleef" />
         <module name="ParkourWarrior" />
         <module name="Bingo" />
+        <module name="ElytraEndrium" />
       </profile>
     </annotationProcessing>
   </component>
