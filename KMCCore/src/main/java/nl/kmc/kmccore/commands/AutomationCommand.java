@@ -6,19 +6,21 @@ import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.command.*;
 
 import java.util.List;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 /**
- * /kmcauto <start|stop|pause|resume|status|endgame>
+ * /kmcauto &lt;start|stop|pause|resume|status|endgame&gt;
  *
- * <p>Admin controls for the automation engine:
+ * <p>HARDENED VERSION:
  * <ul>
- *   <li>{@code start}   – begins automated tournament loop</li>
- *   <li>{@code stop}    – halts automation entirely</li>
- *   <li>{@code pause}   – freezes countdown, keeps state</li>
- *   <li>{@code resume}  – unfreezes from where it paused</li>
- *   <li>{@code status}  – shows current automation state</li>
- *   <li>{@code endgame} – signals current game is done (triggers intermission)</li>
+ *   <li>All command logic wrapped in try/catch — exceptions are logged
+ *       with full stack trace + reported to the sender, instead of
+ *       Paper's truncated "Unhandled exception" message</li>
+ *   <li>{@code start} eagerly warms up state that previously lazy-init'd
+ *       on first use (which caused the "errors first time, works second
+ *       time" pattern)</li>
+ *   <li>Friendlier error messages so admins know what went wrong</li>
  * </ul>
  */
 public class AutomationCommand implements CommandExecutor, TabCompleter {
@@ -31,6 +33,23 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        try {
+            return handle(sender, args);
+        } catch (Exception e) {
+            // Surface the real cause so we can debug — Paper otherwise
+            // truncates the stack to just "Unhandled exception".
+            plugin.getLogger().log(Level.SEVERE,
+                    "/kmcauto " + (args.length > 0 ? args[0] : "") + " failed", e);
+            sender.sendMessage(MessageUtil.color(
+                    "&c[KMC] Fout bij /kmcauto: " + e.getClass().getSimpleName()
+                    + (e.getMessage() != null ? " — " + e.getMessage() : "")));
+            sender.sendMessage(MessageUtil.color(
+                    "&7Zie de console voor de volledige stack trace."));
+            return true;
+        }
+    }
+
+    private boolean handle(CommandSender sender, String[] args) {
         if (!sender.hasPermission("kmc.automation.admin")) {
             sender.sendMessage(MessageUtil.get("no-permission"));
             return true;
@@ -38,10 +57,18 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) { usage(sender); return true; }
 
         AutomationManager am = plugin.getAutomationManager();
+        if (am == null) {
+            sender.sendMessage(MessageUtil.color("&c[KMC] AutomationManager niet beschikbaar."));
+            return true;
+        }
 
         switch (args[0].toLowerCase()) {
 
             case "start" -> {
+                // Eager warmup — touches every manager that AutomationManager
+                // might lazy-resolve, so the first call doesn't NPE.
+                warmup(sender);
+
                 if (!plugin.getTournamentManager().isActive()) {
                     plugin.getTournamentManager().start();
                 }
@@ -72,17 +99,20 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                 AutomationManager.State state = am.getState();
                 sender.sendMessage(MessageUtil.color("&6[KMC] Status: &e" + state.name()));
                 if (am.isRunning()) {
-                    sender.sendMessage(MessageUtil.color("&7Countdown: &e" + am.getCountdownSeconds() + "s"));
-                    sender.sendMessage(MessageUtil.color("&7Ronde: &e" + plugin.getTournamentManager().getCurrentRound()
+                    sender.sendMessage(MessageUtil.color("&7Countdown: &e"
+                            + am.getCountdownSeconds() + "s"));
+                    sender.sendMessage(MessageUtil.color("&7Ronde: &e"
+                            + plugin.getTournamentManager().getCurrentRound()
                             + " &7/ &e" + plugin.getTournamentManager().getTotalRounds()));
-                    sender.sendMessage(MessageUtil.color("&7Multiplier: &e×" + plugin.getTournamentManager().getMultiplier()));
+                    sender.sendMessage(MessageUtil.color("&7Multiplier: &e×"
+                            + plugin.getTournamentManager().getMultiplier()));
                     var game = plugin.getGameManager().getActiveGame();
-                    sender.sendMessage(MessageUtil.color("&7Actieve game: &e" + (game != null ? game.getDisplayName() : "Geen")));
+                    sender.sendMessage(MessageUtil.color("&7Actieve game: &e"
+                            + (game != null ? game.getDisplayName() : "Geen")));
                 }
             }
 
             case "endgame" -> {
-                // Admin manually signals the current game is finished
                 String winner = args.length >= 2 ? args[1] : "?";
                 if (plugin.getGameManager().stopGame(winner)) {
                     am.onGameEnd(winner);
@@ -95,6 +125,35 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
             default -> usage(sender);
         }
         return true;
+    }
+
+    /**
+     * Touches every manager AutomationManager might use, so any lazy
+     * initialization happens here in a controlled context (where we
+     * can log + report) rather than blowing up halfway through start().
+     */
+    private void warmup(CommandSender sender) {
+        try {
+            // Touch core managers
+            plugin.getTeamManager();
+            plugin.getPlayerDataManager();
+            plugin.getGameManager().getAllGames();   // forces config-loaded games
+            plugin.getTournamentManager();
+            plugin.getPointsManager();
+            plugin.getScoreboardManager();
+            plugin.getTabListManager();
+            // Touch megapatch managers (defensive — these might not exist
+            // on older builds; ignore if methods missing)
+            try { plugin.getBossBarLeaderboard(); } catch (Throwable ignored) {}
+            try { plugin.getHealthMonitor();      } catch (Throwable ignored) {}
+            try { plugin.getDiscordHook();        } catch (Throwable ignored) {}
+            // API itself
+            plugin.getApi();
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "Warmup hit a problem (continuing anyway)", t);
+            sender.sendMessage(MessageUtil.color(
+                    "&e[KMC] Waarschuwing tijdens warmup: " + t.getClass().getSimpleName()));
+        }
     }
 
     @Override

@@ -100,7 +100,7 @@ public class AdminCommands {
                     var e = events.get(i);
                     ChatColor color = e.severity() == HealthMonitor.Severity.CRITICAL ? ChatColor.RED
                             : e.severity() == HealthMonitor.Severity.WARNING ? ChatColor.YELLOW
-                            : ChatColor.GRAY;
+                              : ChatColor.GRAY;
                     long secAgo = (System.currentTimeMillis() - e.timestamp()) / 1000;
                     sender.sendMessage(color + "[" + e.severity() + "] "
                             + ChatColor.GRAY + secAgo + "s ago "
@@ -149,7 +149,7 @@ public class AdminCommands {
                 case "status" -> {
                     sender.sendMessage(ChatColor.GOLD + "Ready check active: "
                             + (plugin.getReadyUpManager().isActive() ? ChatColor.GREEN + "yes"
-                                    : ChatColor.GRAY + "no"));
+                            : ChatColor.GRAY + "no"));
                 }
                 default -> sender.sendMessage(ChatColor.RED + "Unknown subcommand.");
             }

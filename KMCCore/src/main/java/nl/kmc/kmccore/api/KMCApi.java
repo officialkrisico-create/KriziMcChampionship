@@ -54,11 +54,11 @@ public class KMCApi {
 
     public String getActiveGameName() {
         return plugin.getGameManager().getActiveGame() != null
-                ? plugin.getGameManager().getActiveGame().getDisplayName() : null;
+               ? plugin.getGameManager().getActiveGame().getDisplayName() : null;
     }
     public String getActiveGameId() {
         return plugin.getGameManager().getActiveGame() != null
-                ? plugin.getGameManager().getActiveGame().getId() : null;
+               ? plugin.getGameManager().getActiveGame().getId() : null;
     }
 
     public double  getCurrentMultiplier() { return plugin.getTournamentManager().getMultiplier(); }
@@ -167,10 +167,16 @@ public class KMCApi {
     // ----------------------------------------------------------------
 
     public void fireGameStart(String gameId) {
-        for (var h : gameStartHooks) {
-            try { h.accept(gameId); }
-            catch (Exception e) { plugin.getLogger().warning("gameStart hook error: " + e.getMessage()); }
-        }
+        // Pre-game announcer: title-card + teleport countdown, THEN dispatch
+        // to registered minigame hooks. Hooks behave identically to before
+        // — they just see the start signal a few seconds later.
+        nl.kmc.kmccore.announce.PreGameAnnouncer.announceAndDispatch(
+                plugin, gameId, () -> {
+                    for (var h : gameStartHooks) {
+                        try { h.accept(gameId); }
+                        catch (Exception e) { plugin.getLogger().warning("gameStart hook error: " + e.getMessage()); }
+                    }
+                });
     }
     public void fireGameEnd(String gameName, String winner) {
         for (var h : gameEndHooks) {

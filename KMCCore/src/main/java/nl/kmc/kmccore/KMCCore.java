@@ -1,7 +1,7 @@
 package nl.kmc.kmccore;
 
+import nl.kmc.kmccore.announce.WelcomeBroadcaster;
 import nl.kmc.kmccore.api.KMCApi;
-import nl.kmc.kmccore.audio.AudioManager;
 import nl.kmc.kmccore.commands.*;
 import nl.kmc.kmccore.database.DatabaseManager;
 import nl.kmc.kmccore.discord.DiscordWebhook;
@@ -44,7 +44,6 @@ public final class KMCCore extends JavaPlugin {
     // --- megapatch managers ---
     private SpectatorManager           spectatorManager;
     private LobbyNPCManager            lobbyNPCManager;
-    private AudioManager               audioManager;
     private BossBarLeaderboardManager  bossBarLeaderboard;
     private ReadyUpManager             readyUpManager;
     private PlayerPreferencesManager   playerPreferences;
@@ -87,7 +86,6 @@ public final class KMCCore extends JavaPlugin {
         mapRotation         = new MapRotationManager(this);
         spectatorManager    = new SpectatorManager(this);
         lobbyNPCManager     = new LobbyNPCManager(this);
-        audioManager        = new AudioManager(this);
         bossBarLeaderboard  = new BossBarLeaderboardManager(this);
         readyUpManager      = new ReadyUpManager(this);
         healthMonitor       = new HealthMonitor(this);
@@ -99,10 +97,11 @@ public final class KMCCore extends JavaPlugin {
         if (getConfig().getBoolean("leaderboard-bar.enabled", true)) {
             bossBarLeaderboard.start();
         }
-        if (getConfig().getBoolean("audio.lobby-ambient", true)) {
-            audioManager.startLobbyAmbient();
-        }
         healthMonitor.start();
+
+        // Welcome message — fires once when /kmctournament start runs
+        WelcomeBroadcaster welcome = new WelcomeBroadcaster(this);
+        api.onTournamentStart(welcome::broadcast);
 
         getLogger().info("KMCCore v" + getDescription().getVersion() + " enabled!");
     }
@@ -110,7 +109,6 @@ public final class KMCCore extends JavaPlugin {
     @Override
     public void onDisable() {
         // ---- Megapatch shutdown (BEFORE existing shutdown so saves succeed) ----
-        if (audioManager       != null) audioManager.shutdown();
         if (bossBarLeaderboard != null) bossBarLeaderboard.stop();
         if (healthMonitor      != null) healthMonitor.stop();
         if (lobbyNPCManager    != null) lobbyNPCManager.despawnAll();
@@ -202,7 +200,6 @@ public final class KMCCore extends JavaPlugin {
     // ---- Megapatch getters ----
     public SpectatorManager          getSpectatorManager()       { return spectatorManager; }
     public LobbyNPCManager           getLobbyNPCManager()        { return lobbyNPCManager; }
-    public AudioManager              getAudioManager()           { return audioManager; }
     public BossBarLeaderboardManager getBossBarLeaderboard()     { return bossBarLeaderboard; }
     public ReadyUpManager            getReadyUpManager()         { return readyUpManager; }
     public PlayerPreferencesManager  getPlayerPreferences()      { return playerPreferences; }
