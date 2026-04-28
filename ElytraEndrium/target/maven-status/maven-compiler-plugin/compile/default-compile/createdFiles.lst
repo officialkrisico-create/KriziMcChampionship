@@ -1,0 +1,11 @@
+nl\kmc\elytra\managers\CourseManager$PartialCheckpoint.class
+nl\kmc\elytra\models\Checkpoint.class
+nl\kmc\elytra\ElytraEndriumPlugin.class
+nl\kmc\elytra\managers\CourseManager.class
+nl\kmc\elytra\managers\CourseManager$PartialBoost.class
+nl\kmc\elytra\managers\GameManager.class
+nl\kmc\elytra\models\BoostHoop.class
+nl\kmc\elytra\commands\ElytraCommand.class
+nl\kmc\elytra\managers\GameManager$State.class
+nl\kmc\elytra\models\RunnerState.class
+nl\kmc\elytra\listeners\MovementListener.class

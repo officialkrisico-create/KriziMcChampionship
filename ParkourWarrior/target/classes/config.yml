@@ -1,0 +1,68 @@
+# ================================================================
+# Parkour Warrior — Configuration
+# ================================================================
+
+game:
+  # Game duration (seconds) — your spec said 8-12 minutes
+  max-duration-seconds: 720    # 12 minutes
+  
+  # Pre-game countdown
+  countdown-seconds: 15
+  
+  # Should the game end immediately when the first player finishes?
+  # false = game runs until timer; players who finish wait in spectator
+  end-on-first-finish: false
+
+  # Bonus points for completing the entire course
+  finish-bonus: 100
+  
+  # Speed effect for all players (Speed I), helps movement feel fluid
+  base-speed: true
+
+# ================================================================
+# Skip mechanic — admin-decided, see questions in patch notes
+# Defaults below assume "3 fails → /pkw skip available, 0 points for skip"
+# ================================================================
+
+skip:
+  enabled: true
+  fails-required: 3      # number of times you must die on the same stage
+  cooldown-seconds: 5    # cooldown after using skip before you can again
+
+# ================================================================
+# Detection — pressure plate or region (or both)
+# ================================================================
+
+detection:
+  # Use pressure plates as checkpoint triggers? When a player steps on
+  # a plate inside a checkpoint region, it counts.
+  pressure-plates: false
+  
+  # Use region-box detection? (PlayerMoveEvent in trigger box)
+  region-boxes: true
+
+# ================================================================
+# Scoring (awarded via KMCCore PointsManager)
+# ================================================================
+
+points:
+  # Per-checkpoint points are configured per checkpoint in course.checkpoints
+  # See defaults below or use /pkw addcheckpoint <name> points <n>
+  
+  # Default checkpoint point value if not specified
+  default-checkpoint-points: 10
+  
+  # Per-placement bonuses
+  first-place: 200
+  second-place: 125
+  third-place: 75
+  participation: 25
+
+# ================================================================
+# Course definition (set via /pkw commands)
+# ================================================================
+
+course:
+  world: ""
+  start-spawn: null
+  checkpoints: {}

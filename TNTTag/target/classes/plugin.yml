@@ -1,0 +1,19 @@
+name: TNTTag
+version: 1.0.0
+main: nl.kmc.tnttag.TNTTagPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore]
+description: TNT Tag minigame for KMC tournaments
+
+commands:
+  tnttag:
+    description: TNT Tag control + setup
+    aliases: [tt, tag]
+    usage: /tnttag <start|stop|setworld|addspawn|...>
+    permission: tnttag.admin
+
+permissions:
+  tnttag.admin:
+    description: TNT Tag admin commands
+    default: op

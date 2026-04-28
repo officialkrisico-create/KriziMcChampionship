@@ -1,0 +1,19 @@
+name: SurvivalGames
+version: 1.0.0
+main: nl.kmc.sg.SurvivalGamesPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore]
+description: Survival Games (Hunger Games) minigame for KMC tournaments
+
+commands:
+  survivalgames:
+    description: Survival Games control + setup
+    aliases: [sg, hungergames, hg]
+    usage: /sg <start|stop|setworld|...>
+    permission: sg.admin
+
+permissions:
+  sg.admin:
+    description: Survival Games admin commands
+    default: op

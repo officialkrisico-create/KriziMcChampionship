@@ -1,0 +1,11 @@
+nl\kmc\sg\managers\ArenaManager.class
+nl\kmc\sg\models\PlayerStats.class
+nl\kmc\sg\managers\GameManager.class
+nl\kmc\sg\commands\SGCommand.class
+nl\kmc\sg\managers\ChestStocker$Tier.class
+nl\kmc\sg\listeners\SGListener.class
+nl\kmc\sg\models\Arena.class
+nl\kmc\sg\managers\ChestStocker.class
+nl\kmc\sg\managers\ChestStocker$LootEntry.class
+nl\kmc\sg\managers\GameManager$State.class
+nl\kmc\sg\SurvivalGamesPlugin.class

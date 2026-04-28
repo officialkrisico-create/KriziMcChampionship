@@ -1,0 +1,9 @@
+nl\kmc\tgttos\managers\GameManager.class
+nl\kmc\tgttos\TGTTOSPlugin.class
+nl\kmc\tgttos\managers\MapManager$PartialMap.class
+nl\kmc\tgttos\managers\GameManager$State.class
+nl\kmc\tgttos\models\Map.class
+nl\kmc\tgttos\commands\TGTTOSCommand.class
+nl\kmc\tgttos\listeners\MovementListener.class
+nl\kmc\tgttos\managers\MapManager.class
+nl\kmc\tgttos\models\RunnerState.class
