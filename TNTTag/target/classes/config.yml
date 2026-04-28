@@ -1,0 +1,46 @@
+# ================================================================
+# TNT Tag — Configuration
+# ================================================================
+
+game:
+  # Pre-game countdown (seconds)
+  countdown-seconds: 10
+  
+  # Per-round duration (seconds). When this hits 0, all current "it"
+  # players explode + are eliminated.
+  round-seconds: 30
+  
+  # Time between rounds (seconds)
+  intermission-seconds: 5
+  
+  # 1 "it" player per N alive players. So with ratio 5: 5 players = 1 it,
+  # 10 players = 2 it, 15 = 3, etc. Capped so survivors > "it".
+  it-ratio: 5
+  
+  # Tag-pass cooldown (ms). Prevents bomb-flickering between two adjacent
+  # players. Both giver AND receiver have to be off cooldown for a tag
+  # to pass.
+  tag-cooldown-ms: 1500
+  
+  # Range (blocks) within which "it" players auto-tag others
+  tag-range: 1.5
+  
+  # Visuals on "it" players
+  tnt-helmet: true
+  glowing: true
+
+points:
+  # Per round survived (alive at end of round, not "it" when bomb went off)
+  round-survive: 25
+  
+  # Final placement bonuses
+  first-place: 250
+  second-place: 150
+  third-place: 100
+  participation: 25
+
+# Arena (set via /tnttag commands)
+arena:
+  world: ""
+  spawns: []
+  void-y: 0

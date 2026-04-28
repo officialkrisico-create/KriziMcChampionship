@@ -1,0 +1,19 @@
+name: MobMayhem
+version: 1.0.0
+main: nl.kmc.mayhem.MobMayhemPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore]
+description: Wave-based survival minigame for KMC tournaments
+
+commands:
+  mobmayhem:
+    description: Mob Mayhem control + setup
+    aliases: [mm, mayhem]
+    usage: /mm <start|stop|setarena|setspawn|addmobspawn|status>
+    permission: mayhem.admin
+
+permissions:
+  mayhem.admin:
+    description: Mob Mayhem admin commands
+    default: op

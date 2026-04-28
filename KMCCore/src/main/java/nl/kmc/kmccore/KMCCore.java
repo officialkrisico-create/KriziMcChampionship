@@ -23,7 +23,7 @@ public final class KMCCore extends JavaPlugin {
 
     private static KMCCore instance;
 
-    // --- existing managers ---
+    // --- existing managers (patch 8 baseline) ---
     private DatabaseManager    databaseManager;
     private TeamManager        teamManager;
     private PlayerDataManager  playerDataManager;
@@ -36,6 +36,7 @@ public final class KMCCore extends JavaPlugin {
     private TabListManager     tabListManager;
     private ArenaManager       arenaManager;
     private SchematicManager   schematicManager;
+    private HallOfFameManager  hallOfFameManager;
     private VoteGuiListener    voteGuiListener;
 
     private KMCApi api;
@@ -66,6 +67,7 @@ public final class KMCCore extends JavaPlugin {
         teamManager       = new TeamManager(this);
         playerDataManager = new PlayerDataManager(this);
         pointsManager     = new PointsManager(this);
+        api               = new KMCApi(this);
         tournamentManager = new TournamentManager(this);
         gameManager       = new GameManager(this);
         schematicManager  = new SchematicManager(this);
@@ -73,6 +75,7 @@ public final class KMCCore extends JavaPlugin {
         tabListManager    = new TabListManager(this);
         scoreboardManager = new ScoreboardManager(this);
         npcManager        = new NPCManager(this);
+        hallOfFameManager = new HallOfFameManager(this);
         automationManager = new AutomationManager(this);
 
         voteGuiListener = new VoteGuiListener(this);
@@ -91,8 +94,6 @@ public final class KMCCore extends JavaPlugin {
 
         registerCommands();
         registerListeners();
-
-        api = new KMCApi(this);
 
         // Start background services that depend on api/managers being ready
         if (getConfig().getBoolean("leaderboard-bar.enabled", true)) {
@@ -131,53 +132,53 @@ public final class KMCCore extends JavaPlugin {
     }
 
     private void registerCommands() {
-        getCommand("kmcteam").setExecutor(new TeamCommand(this));
-        getCommand("kmcteam").setTabCompleter(new TeamCommand(this));
-        getCommand("kmcstats").setExecutor(new StatsCommand(this));
-        getCommand("kmctournament").setExecutor(new TournamentCommand(this));
-        getCommand("kmcgame").setExecutor(new GameCommand(this));
-        getCommand("kmcgame").setTabCompleter(new GameCommand(this));
-        getCommand("kmclb").setExecutor(new LeaderboardCommand(this));
-        getCommand("kmcnpc").setExecutor(new NPCCommand(this));
-        getCommand("kmcround").setExecutor(new RoundCommand(this));
-        getCommand("kmcpoints").setExecutor(new PointsCommand(this));
-        getCommand("kmcpoints").setTabCompleter(new PointsCommand(this));
-        getCommand("tc").setExecutor(new TeamChatCommand(this));
-        getCommand("kmcvote").setExecutor(new VoteCommand(this));
-        getCommand("kmcauto").setExecutor(new AutomationCommand(this));
-        getCommand("kmcauto").setTabCompleter(new AutomationCommand(this));
-        getCommand("kmcarena").setExecutor(new ArenaCommand(this));
-        getCommand("kmcarena").setTabCompleter(new ArenaCommand(this));
-        getCommand("kmclobby").setExecutor(new LobbyCommand(this));
-        getCommand("kmcrandomteams").setExecutor(new RandomTeamsCommand(this));
+        setCmd("kmcteam",        new TeamCommand(this));
+        setCmd("kmcstats",       new StatsCommand(this));
+        setCmd("kmctournament",  new TournamentCommand(this));
+        setCmd("kmcgame",        new GameCommand(this));
+        setCmd("kmclb",          new LeaderboardCommand(this));
+        setCmd("kmcnpc",         new NPCCommand(this));
+        setCmd("kmcround",       new RoundCommand(this));
+        setCmd("kmcpoints",      new PointsCommand(this));
+        setCmd("tc",             new TeamChatCommand(this));
+        setCmd("kmcvote",        new VoteCommand(this));
+        setCmd("kmcauto",        new AutomationCommand(this));
+        setCmd("kmcarena",       new ArenaCommand(this));
+        setCmd("kmclobby",       new LobbyCommand(this));
+        setCmd("kmcrandomteams", new RandomTeamsCommand(this));
+        setCmd("kmchof",         new HoFCommand(this));
 
-        // ---- Megapatch commands (require entries in plugin.yml) ----
-        // Each guarded with a null check so KMCCore boots even if the user
-        // hasn't added the command entries to plugin.yml yet.
-        registerIfPresent("kmcprefs",    new AdminCommands.PreferencesCommand(this));
-        registerIfPresent("kmchealth",   new AdminCommands.HealthCommand(this));
-        registerIfPresent("kmcready",    new AdminCommands.ReadyCommand(this));
-        registerIfPresent("kmcmap",      new AdminCommands.MapCommand(this));
-        registerIfPresent("kmclobbynpc", new AdminCommands.LobbyNPCCommand(this));
+        // ---- Megapatch commands (entries should be in plugin.yml) ----
+        // setCmd already warns when a command is missing — KMCCore boots either way.
+        setCmd("kmcprefs",    new AdminCommands.PreferencesCommand(this));
+        setCmd("kmchealth",   new AdminCommands.HealthCommand(this));
+        setCmd("kmcready",    new AdminCommands.ReadyCommand(this));
+        setCmd("kmcmap",      new AdminCommands.MapCommand(this));
+        setCmd("kmclobbynpc", new AdminCommands.LobbyNPCCommand(this));
     }
 
-    private void registerIfPresent(String name, org.bukkit.command.CommandExecutor exec) {
+    @SuppressWarnings("unchecked")
+    private void setCmd(String name, Object executor) {
         var cmd = getCommand(name);
-        if (cmd != null) {
-            cmd.setExecutor(exec);
-        } else {
-            getLogger().warning("Command /" + name + " not found in plugin.yml — "
-                    + "add it to enable that megapatch admin command.");
+        if (cmd == null) {
+            getLogger().warning("Command '" + name + "' not found in plugin.yml!");
+            return;
         }
+        cmd.setExecutor((org.bukkit.command.CommandExecutor) executor);
+        if (executor instanceof org.bukkit.command.TabCompleter tc)
+            cmd.setTabCompleter(tc);
     }
 
     private void registerListeners() {
-        getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
-        getServer().getPluginManager().registerEvents(new ChatListener(this),            this);
-        getServer().getPluginManager().registerEvents(new PlayerKillListener(this),      this);
-        getServer().getPluginManager().registerEvents(new VoteListener(this),            this);
-        getServer().getPluginManager().registerEvents(voteGuiListener,                    this);
-        getServer().getPluginManager().registerEvents(new LobbyProtectionListener(this), this);
+        var pm = getServer().getPluginManager();
+        pm.registerEvents(new PlayerJoinQuitListener(this),  this);
+        pm.registerEvents(new ChatListener(this),            this);
+        pm.registerEvents(new PlayerKillListener(this),      this);
+        pm.registerEvents(new VoteListener(this),            this);
+        pm.registerEvents(voteGuiListener,                    this);
+        pm.registerEvents(new LobbyProtectionListener(this), this);
+        pm.registerEvents(new DeathListener(this),           this);
+        pm.registerEvents(new GlobalPvPListener(this),       this);
     }
 
     // ---- Existing getters ----
@@ -194,6 +195,7 @@ public final class KMCCore extends JavaPlugin {
     public TabListManager     getTabListManager()    { return tabListManager; }
     public ArenaManager       getArenaManager()      { return arenaManager; }
     public SchematicManager   getSchematicManager()  { return schematicManager; }
+    public HallOfFameManager  getHallOfFameManager() { return hallOfFameManager; }
     public VoteGuiListener    getVoteGuiListener()   { return voteGuiListener; }
     public KMCApi             getApi()               { return api; }
 
