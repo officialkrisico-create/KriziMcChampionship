@@ -46,6 +46,15 @@ public class HealthMonitor {
     private long lastGameEndMs = System.currentTimeMillis();
     private long lastTpsLowMs = -1;
 
+    /**
+     * Tracks whether any game has actually finished since automation
+     * last started. The "automation hang" check skips while this is
+     * false — otherwise the very first /kmcauto start triggers a false
+     * positive recovery (because lastGameEndMs reflects plugin enable
+     * time, not tournament time).
+     */
+    private boolean anyGameEndedSinceStart = false;
+
     public HealthMonitor(KMCCore plugin) {
         this.plugin = plugin;
     }
@@ -72,8 +81,19 @@ public class HealthMonitor {
     public void notifyGameEnd(String gameId, String winner) {
         currentGameStartMs = -1;
         lastGameEndMs = System.currentTimeMillis();
+        anyGameEndedSinceStart = true;
         log(Severity.INFO, "GAME_END", "Game ended: " + gameId
                 + (winner != null ? " (winner: " + winner + ")" : ""));
+    }
+
+    /**
+     * Called by KMCCore when /kmcauto start runs. Resets the hang-check
+     * baseline so we don't trigger a phantom "automation hang" recovery
+     * on the first tick of a fresh tournament.
+     */
+    public void notifyAutomationStarted() {
+        lastGameEndMs = System.currentTimeMillis();
+        anyGameEndedSinceStart = false;
     }
 
     public void notifyScoreboardAcquired(String owner) {
@@ -122,7 +142,7 @@ public class HealthMonitor {
                     ? plugin.getGameManager().getActiveGame().getId() : "unknown";
             log(Severity.CRITICAL, "STUCK_GAME",
                     "Game " + gameId + " running >"
-                    + (stuckGameMs / 1000) + "s. " + (autoRecover ? "Force-ending." : "Manual intervention required."));
+                            + (stuckGameMs / 1000) + "s. " + (autoRecover ? "Force-ending." : "Manual intervention required."));
             if (autoRecover) {
                 try {
                     Bukkit.getScheduler().runTask(plugin, () -> {
@@ -146,7 +166,7 @@ public class HealthMonitor {
             String owner = scoreboardOwner;
             log(Severity.WARNING, "STUCK_SCOREBOARD",
                     "Scoreboard lock held by '" + owner + "' >"
-                    + (stuckLockMs / 1000) + "s. " + (autoRecover ? "Releasing." : "Manual."));
+                            + (stuckLockMs / 1000) + "s. " + (autoRecover ? "Releasing." : "Manual."));
             if (autoRecover) {
                 plugin.getApi().releaseScoreboard(owner);
                 scoreboardAcquiredMs = -1;
@@ -154,14 +174,18 @@ public class HealthMonitor {
             }
         }
 
-        // 3. Automation hang?
+        // 3. Automation hang? (only if at least one game has finished
+        //    since automation started — otherwise the baseline timer is
+        //    just the time since plugin enable, which falsely trips the
+        //    check on the very first /kmcauto start)
         long automationGapMs = plugin.getConfig().getLong("health.automation-gap-seconds", 120) * 1000L;
-        if (plugin.getAutomationManager().isRunning()
+        if (anyGameEndedSinceStart
+                && plugin.getAutomationManager().isRunning()
                 && currentGameStartMs < 0
                 && (now - lastGameEndMs) > automationGapMs) {
             log(Severity.WARNING, "AUTOMATION_HANG",
                     "Automation idle >" + (automationGapMs / 1000) + "s without next game. "
-                    + (autoRecover ? "Triggering next." : "Manual."));
+                            + (autoRecover ? "Triggering next." : "Manual."));
             if (autoRecover) {
                 Bukkit.getScheduler().runTask(plugin,
                         () -> plugin.getAutomationManager().onGameEnd(null));

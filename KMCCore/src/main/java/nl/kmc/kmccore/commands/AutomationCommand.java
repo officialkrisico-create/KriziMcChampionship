@@ -42,7 +42,7 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                     "/kmcauto " + (args.length > 0 ? args[0] : "") + " failed", e);
             sender.sendMessage(MessageUtil.color(
                     "&c[KMC] Fout bij /kmcauto: " + e.getClass().getSimpleName()
-                    + (e.getMessage() != null ? " — " + e.getMessage() : "")));
+                            + (e.getMessage() != null ? " — " + e.getMessage() : "")));
             sender.sendMessage(MessageUtil.color(
                     "&7Zie de console voor de volledige stack trace."));
             return true;
@@ -77,6 +77,15 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 am.start();
+
+                // Reset HealthMonitor's hang-check baseline so it doesn't
+                // think the tournament is hung the moment it starts
+                try {
+                    if (plugin.getHealthMonitor() != null) {
+                        plugin.getHealthMonitor().notifyAutomationStarted();
+                    }
+                } catch (Throwable ignored) { /* older builds don't have the method */ }
+
                 sender.sendMessage(MessageUtil.color("&a[KMC] Automatisering gestart!"));
             }
 
