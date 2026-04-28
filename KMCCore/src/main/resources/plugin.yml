@@ -82,6 +82,36 @@ commands:
     usage: /kmcrandomteams [all|new] [confirm]
     permission: kmc.team.admin
 
+  kmchof:
+    description: View the KMC Hall of Fame (all-time best players)
+    usage: /kmchof [page]
+    permission: kmc.hof
+
+  kmcprefs:
+    description: Manage your personal preferences (sounds, particles, scoreboard, etc.)
+    usage: /kmcprefs <list|set|reset> [key] [value]
+    permission: kmc.prefs
+
+  kmchealth:
+    description: View KMC plugin health diagnostics (admin)
+    usage: /kmchealth [history|tps|now]
+    permission: kmc.health.admin
+
+  kmcready:
+    description: Mark yourself as ready for the next game
+    usage: /kmcready
+    permission: kmc.ready
+
+  kmcmap:
+    description: Manage map rotation for arenas (admin)
+    usage: /kmcmap <list|next|set|reload> [game] [mapName]
+    permission: kmc.map.admin
+
+  kmclobbynpc:
+    description: Manage decorative lobby NPCs (admin)
+    usage: /kmclobbynpc <create|remove|list> [type]
+    permission: kmc.lobbynpc.admin
+
 permissions:
   kmc.*:
     description: All KMC permissions
@@ -101,6 +131,12 @@ permissions:
       kmc.automation.admin: true
       kmc.arena.admin: true
       kmc.lobby.admin: true
+      kmc.hof: true
+      kmc.prefs: true
+      kmc.health.admin: true
+      kmc.ready: true
+      kmc.map.admin: true
+      kmc.lobbynpc.admin: true
 
   kmc.team:             { description: Basic team commands,    default: true }
   kmc.team.admin:       { description: Manage team assignments, default: op }
@@ -117,10 +153,9 @@ permissions:
   kmc.automation.admin: { description: Control automation,      default: op }
   kmc.arena.admin:      { description: Manage arenas,           default: op }
   kmc.lobby.admin:      { description: Set/move lobby,          default: op }
-  kmchof:
-    description: Hall of Fame management
-    usage: /kmchof <list|info|clear>
-    permission: kmc.hof.admin
-  kmc.hof.admin:
-    description: Hall of Fame admin commands
-    default: op
+  kmc.hof:              { description: View Hall of Fame,        default: true }
+  kmc.prefs:            { description: Manage own preferences,   default: true }
+  kmc.health.admin:     { description: View plugin diagnostics,  default: op }
+  kmc.ready:            { description: Use /kmcready,            default: true }
+  kmc.map.admin:        { description: Manage map rotation,      default: op }
+  kmc.lobbynpc.admin:   { description: Manage decorative NPCs,   default: op }
