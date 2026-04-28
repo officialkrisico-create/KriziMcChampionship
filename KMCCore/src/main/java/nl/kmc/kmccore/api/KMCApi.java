@@ -54,11 +54,11 @@ public class KMCApi {
 
     public String getActiveGameName() {
         return plugin.getGameManager().getActiveGame() != null
-               ? plugin.getGameManager().getActiveGame().getDisplayName() : null;
+                ? plugin.getGameManager().getActiveGame().getDisplayName() : null;
     }
     public String getActiveGameId() {
         return plugin.getGameManager().getActiveGame() != null
-               ? plugin.getGameManager().getActiveGame().getId() : null;
+                ? plugin.getGameManager().getActiveGame().getId() : null;
     }
 
     public double  getCurrentMultiplier() { return plugin.getTournamentManager().getMultiplier(); }
@@ -69,13 +69,43 @@ public class KMCApi {
     // Point & placement mutations (route through PointsManager)
     // ----------------------------------------------------------------
 
+    /**
+     * Awards points to a player, with the current round's multiplier
+     * applied automatically. The same multiplied amount is also added
+     * to the player's team if they have one.
+     *
+     * <p>This is the universal entry point for ALL point gains in
+     * minigames — checkpoint hits, finishes, kills (when not routed
+     * through awardKill), bonuses, anything. The round multiplier
+     * (×1.0 round 1, ×1.5 round 2, ×2.0 round 3, etc., per
+     * {@code points.yml > tournament.multipliers}) is applied here
+     * once and only once.
+     *
+     * <p>Implementation note: kills routed through
+     * {@link nl.kmc.kmccore.managers.PointsManager#awardKill(UUID)}
+     * apply the multiplier internally, so they should NOT also be
+     * routed through this method (would double-multiply).
+     *
+     * @return actual points awarded after multiplier
+     */
     public int givePoints(UUID uuid, int amount) {
-        return plugin.getPointsManager().awardPlayerPoints(uuid, amount);
+        if (amount <= 0) return 0;
+        int scaled = applyMultiplier(amount);
+        return plugin.getPointsManager().awardPlayerPoints(uuid, scaled);
     }
+
+    /**
+     * Awards team-only points (no individual player credit). The
+     * current round's multiplier IS applied — teams get the same
+     * scaling treatment as players.
+     */
     public int giveTeamPoints(String teamId, int amount) {
-        plugin.getPointsManager().addTeamPoints(teamId, amount);
-        return amount;
+        if (amount <= 0) return 0;
+        int scaled = applyMultiplier(amount);
+        plugin.getPointsManager().addTeamPoints(teamId, scaled);
+        return scaled;
     }
+
     public int awardPlayerPlacement(UUID uuid, int position) {
         return plugin.getPointsManager().awardPlayerPlacement(uuid, position);
     }
@@ -91,6 +121,18 @@ public class KMCApi {
     @Deprecated
     public void giveCoins(UUID uuid, int amount) {
         // no-op — coins removed from system
+    }
+
+    /**
+     * Helper — applies the current round's multiplier to a base amount.
+     * Public so minigames can use it for display purposes (e.g. showing
+     * "+50 (×2.0 = 100)" in UI before actually awarding).
+     */
+    public int applyMultiplier(int baseAmount) {
+        if (baseAmount <= 0) return 0;
+        double mul = getCurrentMultiplier();
+        if (mul <= 0) mul = 1.0;
+        return (int) Math.round(baseAmount * mul);
     }
 
     // ----------------------------------------------------------------

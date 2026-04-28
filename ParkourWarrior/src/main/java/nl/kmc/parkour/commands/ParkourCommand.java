@@ -100,12 +100,24 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(ChatColor.GRAY + "Geen checkpoints.");
                     return true;
                 }
-                sender.sendMessage(ChatColor.GOLD + "=== Checkpoints (" + cps.size() + ") ===");
+                sender.sendMessage(ChatColor.GOLD + "=== Checkpoints (" + cps.size()
+                        + " across " + plugin.getCourseManager().getStageCount() + " stages) ===");
+                int currentStage = -1;
                 for (Checkpoint cp : cps) {
+                    if (cp.getStage() != currentStage) {
+                        currentStage = cp.getStage();
+                        sender.sendMessage(ChatColor.GOLD + "─ Stage " + currentStage + " ─");
+                    }
                     var p1 = cp.getPos1();
-                    sender.sendMessage(ChatColor.YELLOW + "#" + cp.getIndex() + " " + cp.getDisplayName()
-                            + ChatColor.GRAY + " — " + cp.getPoints() + " pts @ "
-                            + p1.getBlockX() + "," + p1.getBlockY() + "," + p1.getBlockZ());
+                    String diffTag = cp.getDifficulty() != nl.kmc.parkour.models.Difficulty.MAIN
+                            ? " [" + cp.getDifficulty().formatted() + ChatColor.GRAY + "]"
+                            : "";
+                    sender.sendMessage(ChatColor.YELLOW + "  #" + cp.getIndex() + " " + cp.getDisplayName()
+                            + diffTag + ChatColor.GRAY + " — " + cp.getPoints() + " pts"
+                            + (cp.getDifficulty() != nl.kmc.parkour.models.Difficulty.MAIN
+                               ? " (×" + cp.getDifficulty().getMultiplier() + " = "
+                                 + cp.getAwardedPoints() + ")" : "")
+                            + " @ " + p1.getBlockX() + "," + p1.getBlockY() + "," + p1.getBlockZ());
                 }
             }
             case "powerup", "pu" -> handlePowerupCommand(sender, args);
@@ -169,11 +181,13 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
         CourseManager.PartialCheckpoint partial = plugin.getCourseManager().getPartial(index);
         Checkpoint existing = plugin.getCourseManager().getCheckpoint(index);
         if (existing != null) {
-            if (partial.name == null)    partial.name    = existing.getDisplayName();
-            if (partial.pos1 == null)    partial.pos1    = existing.getPos1();
-            if (partial.pos2 == null)    partial.pos2    = existing.getPos2();
-            if (partial.respawn == null) partial.respawn = existing.getRespawn();
-            if (partial.points == null)  partial.points  = existing.getPoints();
+            if (partial.name == null)       partial.name       = existing.getDisplayName();
+            if (partial.pos1 == null)       partial.pos1       = existing.getPos1();
+            if (partial.pos2 == null)       partial.pos2       = existing.getPos2();
+            if (partial.respawn == null)    partial.respawn    = existing.getRespawn();
+            if (partial.points == null)     partial.points     = existing.getPoints();
+            if (partial.stage == null)      partial.stage      = existing.getStage();
+            if (partial.difficulty == null) partial.difficulty = existing.getDifficulty();
         }
 
         String key = args[2].toLowerCase();
@@ -205,27 +219,56 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
                     return;
                 }
             }
+            case "stage" -> {
+                if (args.length < 4) { sender.sendMessage(ChatColor.RED + "Gebruik: /pkw cp " + index + " stage <n>"); return; }
+                try {
+                    partial.stage = Integer.parseInt(args[3]);
+                    sender.sendMessage(ChatColor.GREEN + "Stage: " + partial.stage);
+                } catch (NumberFormatException e) {
+                    sender.sendMessage(ChatColor.RED + "Ongeldig nummer.");
+                    return;
+                }
+            }
+            case "difficulty", "diff" -> {
+                if (args.length < 4) {
+                    sender.sendMessage(ChatColor.RED + "Gebruik: /pkw cp " + index + " difficulty <main|easy|medium|hard>");
+                    return;
+                }
+                nl.kmc.parkour.models.Difficulty d = nl.kmc.parkour.models.Difficulty.parse(args[3]);
+                partial.difficulty = d;
+                sender.sendMessage(ChatColor.GREEN + "Difficulty: " + d.formatted()
+                        + ChatColor.GRAY + " (×" + d.getMultiplier() + " punten)");
+            }
             default -> {
-                sender.sendMessage(ChatColor.RED + "Onbekend veld. Gebruik: name, pos1, pos2, respawn, points");
+                sender.sendMessage(ChatColor.RED + "Onbekend veld. Gebruik: name, pos1, pos2, respawn, points, stage, difficulty");
                 return;
             }
         }
 
         if (partial.isComplete()) {
-            plugin.getCourseManager().addOrUpdateCheckpoint(index, partial.name,
-                    partial.pos1, partial.pos2, partial.respawn, partial.points);
+            int stage = partial.stage != null ? partial.stage : index;
+            nl.kmc.parkour.models.Difficulty diff = partial.difficulty != null
+                    ? partial.difficulty : nl.kmc.parkour.models.Difficulty.MAIN;
+            plugin.getCourseManager().addOrUpdateCheckpoint(index, stage, diff,
+                    partial.name, partial.pos1, partial.pos2, partial.respawn, partial.points);
             plugin.getCourseManager().clearPartial(index);
-            sender.sendMessage(ChatColor.GOLD + "✔ Checkpoint #" + index + " (" + partial.name + ") opgeslagen!");
+            sender.sendMessage(ChatColor.GOLD + "✔ Checkpoint #" + index
+                    + " (" + partial.name + ") opgeslagen — stage " + stage
+                    + " " + diff.formatted() + ChatColor.GOLD + "!");
         } else {
             // Default points if missing
             if (partial.points == null && partial.name != null && partial.pos1 != null
                     && partial.pos2 != null && partial.respawn != null) {
                 partial.points = plugin.getConfig().getInt("points.default-checkpoint-points", 10);
-                plugin.getCourseManager().addOrUpdateCheckpoint(index, partial.name,
-                        partial.pos1, partial.pos2, partial.respawn, partial.points);
+                int stage = partial.stage != null ? partial.stage : index;
+                nl.kmc.parkour.models.Difficulty diff = partial.difficulty != null
+                        ? partial.difficulty : nl.kmc.parkour.models.Difficulty.MAIN;
+                plugin.getCourseManager().addOrUpdateCheckpoint(index, stage, diff,
+                        partial.name, partial.pos1, partial.pos2, partial.respawn, partial.points);
                 plugin.getCourseManager().clearPartial(index);
                 sender.sendMessage(ChatColor.GOLD + "✔ Checkpoint #" + index + " opgeslagen "
-                        + "(default " + partial.points + " punten).");
+                        + "(default " + partial.points + " punten, stage " + stage + ", "
+                        + diff.formatted() + ChatColor.GOLD + ").");
             }
         }
     }
@@ -332,8 +375,14 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
                     .collect(Collectors.toList());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("cp")) {
-            return List.of("name", "pos1", "pos2", "respawn", "points").stream()
+            return List.of("name", "pos1", "pos2", "respawn", "points", "stage", "difficulty").stream()
                     .filter(o -> o.startsWith(args[2].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        if (args.length == 4 && args[0].equalsIgnoreCase("cp")
+                && (args[2].equalsIgnoreCase("difficulty") || args[2].equalsIgnoreCase("diff"))) {
+            return List.of("main", "easy", "medium", "hard").stream()
+                    .filter(o -> o.startsWith(args[3].toLowerCase()))
                     .collect(Collectors.toList());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("powerup")) {

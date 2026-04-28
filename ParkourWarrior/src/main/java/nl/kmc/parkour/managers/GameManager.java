@@ -233,26 +233,29 @@ public class GameManager {
         RunnerState rs = runners.get(p.getUniqueId());
         if (rs == null || rs.isFinished()) return;
 
-        // Already passed?
-        if (cp.getIndex() <= rs.getHighestCheckpoint()) return;
+        // Already past this stage? Bail (but still update respawn target if this CP is later)
+        if (cp.getStage() <= rs.getHighestStage()) return;
 
-        // Out of order? Players may discover checkpoints in any order if the
-        // map allows it; we accept any forward jump but log the gap.
-        boolean newProgress = rs.reachCheckpoint(cp.getIndex(), cp.getPoints());
+        // Award stage progress
+        int awarded = cp.getAwardedPoints();
+        boolean newProgress = rs.reachCheckpoint(cp.getIndex(), cp.getStage(), awarded);
         if (!newProgress) return;
 
         // Award points immediately (logged to point_awards table)
-        plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), cp.getPoints());
+        plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), awarded);
 
-        // Is this the finish?
+        // Is this the finish? (highest stage in the course)
         Checkpoint finish = plugin.getCourseManager().getFinish();
-        boolean isFinish = finish != null && cp.getIndex() == finish.getIndex();
+        boolean isFinish = finish != null && cp.getStage() == finish.getStage();
 
         if (isFinish) {
             handleFinish(p, rs);
         } else {
-            String msg = ChatColor.AQUA + "✔ " + cp.getDisplayName()
-                    + ChatColor.GRAY + " (+" + cp.getPoints() + " pts)";
+            String diffTag = cp.getDifficulty() != nl.kmc.parkour.models.Difficulty.MAIN
+                    ? " " + cp.getDifficulty().formatted() + ChatColor.GRAY
+                    : "";
+            String msg = ChatColor.AQUA + "✔ " + cp.getDisplayName() + diffTag
+                    + ChatColor.GRAY + " (+" + awarded + " pts)";
             p.sendActionBar(net.kyori.adventure.text.Component.text(msg));
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.5f);
         }
@@ -336,10 +339,28 @@ public class GameManager {
     }
 
     private Location computeRespawnFor(RunnerState rs) {
-        int idx = rs.getHighestCheckpoint();
+        int idx = rs.getLastCheckpointIndex();
         if (idx <= 0) return plugin.getCourseManager().getStartSpawn();
         Checkpoint cp = plugin.getCourseManager().getCheckpoint(idx);
         return cp != null ? cp.getRespawn() : plugin.getCourseManager().getStartSpawn();
+    }
+
+    /**
+     * For a stage with multiple difficulty options, picks the easiest one
+     * for an automatic skip. Preference order: MAIN, EASY, MEDIUM, HARD.
+     */
+    private Checkpoint pickEasiestForSkip(java.util.List<Checkpoint> stageCps) {
+        if (stageCps.isEmpty()) return null;
+        nl.kmc.parkour.models.Difficulty[] order = {
+                nl.kmc.parkour.models.Difficulty.MAIN,
+                nl.kmc.parkour.models.Difficulty.EASY,
+                nl.kmc.parkour.models.Difficulty.MEDIUM,
+                nl.kmc.parkour.models.Difficulty.HARD
+        };
+        for (nl.kmc.parkour.models.Difficulty d : order) {
+            for (Checkpoint cp : stageCps) if (cp.getDifficulty() == d) return cp;
+        }
+        return stageCps.get(0);
     }
 
     // ----------------------------------------------------------------
@@ -361,22 +382,26 @@ public class GameManager {
             return "Je hebt nog " + remaining + " meer fail(s) nodig om te skippen.";
         }
 
-        int nextIdx = rs.getHighestCheckpoint() + 1;
-        Checkpoint next = plugin.getCourseManager().getCheckpoint(nextIdx);
+        // Find the next stage to skip into
+        int nextStage = rs.getHighestStage() + 1;
+        java.util.List<Checkpoint> stageCps = plugin.getCourseManager().getCheckpointsByStage(nextStage);
+        if (stageCps.isEmpty()) return "Geen volgend stage om te skippen.";
+
+        // For branching stages, skip lands on the EASIEST option (or MAIN if no branches)
+        Checkpoint next = pickEasiestForSkip(stageCps);
         if (next == null) return "Geen volgend checkpoint om te skippen.";
 
-        // Mark skipped — no points awarded
-        rs.skipCheckpoint(nextIdx);
+        // Mark stage skipped — no points awarded
+        rs.skipStage(nextStage);
         p.teleport(next.getRespawn());
         p.setFallDistance(0);
 
-        broadcast("&7" + p.getName() + " &8sloeg checkpoint &7" + next.getDisplayName()
-                + " &8over (geen punten)");
+        broadcast("&7" + p.getName() + " &8sloeg stage &7" + nextStage
+                + " &8(" + next.getDisplayName() + ") over (geen punten)");
 
-        // Did they skip the finish? Treat as a no-points finish
+        // Did they skip the finish stage? Treat as a no-points finish
         Checkpoint finish = plugin.getCourseManager().getFinish();
-        if (finish != null && nextIdx == finish.getIndex()) {
-            // Mark as finished but with skip flag
+        if (finish != null && nextStage == finish.getStage()) {
             int placement = finishOrder.size() + 1;
             rs.markFinished(placement);
             finishOrder.add(p.getUniqueId());
@@ -459,9 +484,6 @@ public class GameManager {
             else
                 bonus = plugin.getConfig().getInt("points.participation", 25);
             if (bonus > 0) api.givePoints(rs.getUuid(), bonus);
-
-            // Record per-player tournament stats
-            api.recordGameParticipation(rs.getUuid(), rs.getName(), GAME_ID, i == 0);
 
             if (i == 0) winnerName = rs.getName();
         }

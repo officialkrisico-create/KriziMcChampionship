@@ -1,32 +1,30 @@
 package nl.kmc.adventure.managers;
 
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import nl.kmc.adventure.AdventureEscapePlugin;
 import nl.kmc.adventure.models.RacerData;
 import nl.kmc.kmccore.api.KMCApi;
 import org.bukkit.*;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 
 /**
- * Adventure Escape race lifecycle.
+ * Controls an Adventure Escape race.
  *
- * <p>FIXES:
- * <ul>
- *   <li>Paper 1.21 PotionEffectType lookups via RegistryAccess
- *       (no more deprecated SLOW / JUMP fields).</li>
- *   <li>BossBar uses bigger / clearer titles for the lobby countdown.</li>
- *   <li>RaceScoreboard.start() called once at COUNTDOWN start so
- *       the lobby sidebar gets out of the way immediately.</li>
- * </ul>
+ * <p>Lifecycle:
+ * <pre>
+ *  IDLE → COUNTDOWN → ACTIVE → ENDED → IDLE
+ * </pre>
+ *
+ * <p>On COUNTDOWN: players teleported to spawns, frozen, countdown bossbar.
+ * On ACTIVE: players released; racers tracked via RacerData.
+ * On ENDED: placements awarded, arena reset to idle, return to IDLE after 5s.
+ *
+ * <p>A race is FIRST-PAST-THE-POST: first player to complete all configured
+ * laps is 1st. Others ranked by finish order; non-finishers after race
+ * timeout get "last-place" points.
  */
 public class RaceManager {
 
@@ -35,52 +33,41 @@ public class RaceManager {
     public static final String GAME_ID = "adventure_escape";
 
     private final AdventureEscapePlugin plugin;
-    private State state = State.IDLE;
+    private State                       state = State.IDLE;
 
+    /** Active racers keyed by UUID. */
     private final Map<UUID, RacerData> racers = new LinkedHashMap<>();
+
+    /** All players who started (alive + finished). */
     private final Set<UUID> allRacers = new LinkedHashSet<>();
+
+    /** Finish order — index 0 = 1st place. */
     private final List<UUID> finishOrder = new ArrayList<>();
 
     private BukkitTask countdownTask;
     private BukkitTask tickTask;
     private BukkitTask timeLimitTask;
+
     private int countdownSeconds;
-    private BossBar bossBar;
+
+    private org.bukkit.boss.BossBar bossBar;
 
     public RaceManager(AdventureEscapePlugin plugin) { this.plugin = plugin; }
-
-    // ----------------------------------------------------------------
-    // Helpers — Paper 1.21 compatible
-    // ----------------------------------------------------------------
-
-    private PotionEffectType slow() {
-        try {
-            return RegistryAccess.registryAccess()
-                    .getRegistry(RegistryKey.MOB_EFFECT)
-                    .get(NamespacedKey.minecraft("slowness"));
-        } catch (Exception e) { return null; }
-    }
-
-    private PotionEffectType jumpBoost() {
-        try {
-            return RegistryAccess.registryAccess()
-                    .getRegistry(RegistryKey.MOB_EFFECT)
-                    .get(NamespacedKey.minecraft("jump_boost"));
-        } catch (Exception e) { return null; }
-    }
 
     // ----------------------------------------------------------------
     // API
     // ----------------------------------------------------------------
 
+    /** @return error message or null on success */
     public String startCountdown() {
         if (state != State.IDLE) return "Er is al een race bezig.";
         if (!plugin.getArenaManager().isReady())
             return "Arena niet klaar:\n" + plugin.getArenaManager().getReadinessReport();
 
         state = State.COUNTDOWN;
-        countdownSeconds = plugin.getConfig().getInt("game.countdown-seconds", 30);
+        countdownSeconds = plugin.getConfig().getInt("game.countdown-seconds", 10);
 
+        // Enroll all online players
         racers.clear();
         allRacers.clear();
         finishOrder.clear();
@@ -89,60 +76,47 @@ public class RaceManager {
             allRacers.add(p.getUniqueId());
         }
 
-        // Acquire scoreboard lock IMMEDIATELY so KMCCore's lobby sidebar
-        // stops fighting during countdown.
-        plugin.getRaceScoreboard().start();
-
-        // Teleport everyone to the spawn grid + freeze them
+        // Teleport everyone to the race world and spawn grid
         List<Location> grid = plugin.getArenaManager().getShuffledSpawns();
         List<UUID> order = new ArrayList<>(racers.keySet());
-        PotionEffectType slowType = slow();
-        PotionEffectType jumpType = jumpBoost();
-
         for (int i = 0; i < order.size(); i++) {
             Player p = Bukkit.getPlayer(order.get(i));
             if (p == null) continue;
             Location spawn = grid.get(i % grid.size());
             p.teleport(spawn);
-            p.setGameMode(GameMode.ADVENTURE);
+            p.setGameMode(GameMode.ADVENTURE); // no breaking while racing
             p.getInventory().clear();
             p.setHealth(20);
             p.setFoodLevel(20);
 
-            // Freeze with slowness + negative jump boost
-            int ticks = countdownSeconds * 20;
-            if (slowType != null) {
-                p.addPotionEffect(new PotionEffect(slowType, ticks, 255, true, false, false));
-            }
-            if (jumpType != null) {
-                p.addPotionEffect(new PotionEffect(jumpType, ticks, 128, true, false, false));
-            }
+            // Team-colored boots so teammates can identify each other
+            try { nl.kmc.kmccore.util.TeamArmor.applyBoots(p); } catch (Throwable ignored) {}
+
+            // Freeze: give slowness IV + jump reduction during countdown
+            p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    PotionEffectType.SLOWNESS, countdownSeconds * 20, 255, true, false, false));
+            p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    PotionEffectType.JUMP_BOOST, countdownSeconds * 20, 128, true, false, false));
         }
 
-        // Lobby BossBar — big, blue, clear
-        bossBar = Bukkit.createBossBar(
-                ChatColor.YELLOW + "" + ChatColor.BOLD + "Race start over " + countdownSeconds + "s",
-                BarColor.YELLOW, BarStyle.SOLID);
+        // BossBar
+        bossBar = Bukkit.createBossBar("Race start over " + countdownSeconds + "s",
+                org.bukkit.boss.BarColor.YELLOW, org.bukkit.boss.BarStyle.SOLID);
         for (Player p : Bukkit.getOnlinePlayers()) bossBar.addPlayer(p);
 
         broadcast("&6[Adventure Escape] &eRace start over &6" + countdownSeconds + " &eseconden!");
 
-        // Per-second tick
+        // Countdown ticking
         countdownTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             countdownSeconds--;
             double progress = (double) countdownSeconds /
-                    plugin.getConfig().getInt("game.countdown-seconds", 30);
+                    plugin.getConfig().getInt("game.countdown-seconds", 10);
             bossBar.setProgress(Math.max(0, Math.min(1, progress)));
-            bossBar.setTitle(ChatColor.YELLOW + "" + ChatColor.BOLD
-                    + "Race start over " + countdownSeconds + "s");
+            bossBar.setTitle(ChatColor.YELLOW + "Race start over " + countdownSeconds + "s");
 
-            if (countdownSeconds <= 5 && countdownSeconds > 0) {
-                bossBar.setColor(BarColor.RED);
+            if (countdownSeconds <= 3 && countdownSeconds > 0) {
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    p.sendTitle(
-                            ChatColor.GOLD + "" + ChatColor.BOLD + "" + countdownSeconds,
-                            ChatColor.YELLOW + "Maak je klaar!",
-                            0, 25, 5);
+                    p.sendTitle(ChatColor.GOLD + "" + countdownSeconds, "", 0, 25, 5);
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 1f);
                 }
             }
@@ -158,39 +132,50 @@ public class RaceManager {
 
     private void launchRace() {
         state = State.ACTIVE;
-
-        // Already acquired scoreboard during COUNTDOWN — defensive re-acquire ok
-        plugin.getRaceScoreboard().start();
-
-        bossBar.setColor(BarColor.GREEN);
-        bossBar.setTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "🏁 RACE ACTIVE");
+        bossBar.setColor(org.bukkit.boss.BarColor.GREEN);
+        bossBar.setTitle(ChatColor.GREEN + "🏁 RACE ACTIVE");
 
         long now = System.currentTimeMillis();
-        PotionEffectType slowType = slow();
-        PotionEffectType jumpType = jumpBoost();
-
         for (RacerData rd : racers.values()) {
             rd.markRaceStart(now);
             rd.startFirstLap(now);
 
             Player p = Bukkit.getPlayer(rd.getUuid());
             if (p != null) {
-                if (slowType != null) p.removePotionEffect(slowType);
-                if (jumpType != null) p.removePotionEffect(jumpType);
-                p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
-                        ChatColor.YELLOW + "Race is live!", 0, 40, 10);
+                // Remove freeze effects
+                p.removePotionEffect(PotionEffectType.SLOWNESS);
+                p.removePotionEffect(PotionEffectType.JUMP_BOOST);
+                p.sendTitle(ChatColor.GREEN + "GO!", ChatColor.YELLOW + "Race is live!", 0, 40, 10);
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1.5f);
             }
         }
 
         broadcast("&a&l[Adventure Escape] &eGO! &7Wees de eerste over de finishlijn!");
 
+        // Wire up checkpoint/OOB/trial key features
+        if (plugin.getCheckpointManager() != null) {
+            plugin.getCheckpointManager().resetAllRacerState();
+        }
+        if (plugin.getTrialKeyManager() != null) {
+            plugin.getTrialKeyManager().onRaceStart(
+                    racers.keySet().stream()
+                            .map(Bukkit::getPlayer)
+                            .filter(Objects::nonNull)
+                            .toList());
+        }
+
+        // Live tick — updates lap timers + scoreboard + checkpoint detection
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long t = System.currentTimeMillis();
             for (RacerData rd : racers.values()) rd.tickUpdate(t);
             plugin.getRaceScoreboard().refresh();
-        }, 20L, 10L);
 
+            if (plugin.getCheckpointManager() != null) {
+                plugin.getCheckpointManager().tickCheckpointDetection(racers.keySet());
+            }
+        }, 20L, 10L); // 0.5s cadence on scoreboard
+
+        // Time limit
         int maxDuration = plugin.getConfig().getInt("game.max-duration-seconds", 600);
         if (maxDuration > 0) {
             timeLimitTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -202,6 +187,9 @@ public class RaceManager {
         }
     }
 
+    /**
+     * Called when a player crosses the finish line.
+     */
     public void onPlayerCrossFinish(Player player) {
         if (state != State.ACTIVE) return;
         RacerData rd = racers.get(player.getUniqueId());
@@ -213,6 +201,7 @@ public class RaceManager {
         int targetLaps = plugin.getArenaManager().getLaps();
 
         if (rd.getLapsCompleted() >= targetLaps) {
+            // Finished the race
             int placement = finishOrder.size() + 1;
             rd.markFinished(now, placement);
             finishOrder.add(rd.getUuid());
@@ -227,9 +216,13 @@ public class RaceManager {
                     + " &bfinisht als &6#" + placement
                     + " &7(" + RacerData.formatMs(rd.getTotalTimeMs()) + ")");
 
+            // Switch to spectator to watch the rest
             player.setGameMode(GameMode.SPECTATOR);
+
+            // End race if all finished
             if (finishOrder.size() >= racers.size()) endRace();
         } else {
+            // Lap completed
             String lapStr = ChatColor.AQUA + "Lap " + rd.getLapsCompleted()
                     + "/" + targetLaps + "  "
                     + ChatColor.YELLOW + RacerData.formatMs(lapTime);
@@ -238,10 +231,15 @@ public class RaceManager {
         }
     }
 
+    /**
+     * Called when a player crosses the start line for the first time.
+     * Starts their lap timer if they haven't started yet.
+     */
     public void onPlayerCrossStart(Player player) {
         if (state != State.ACTIVE) return;
         RacerData rd = racers.get(player.getUniqueId());
         if (rd == null || rd.hasStarted()) return;
+
         rd.startFirstLap(System.currentTimeMillis());
         player.sendTitle("", ChatColor.AQUA + "Lap 1 gestart!", 0, 30, 10);
     }
@@ -253,12 +251,21 @@ public class RaceManager {
         cancelTasks();
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
+        // Tear down checkpoint/trial-key state
+        if (plugin.getTrialKeyManager() != null) {
+            plugin.getTrialKeyManager().onRaceEnd();
+        }
+        if (plugin.getCheckpointManager() != null) {
+            plugin.getCheckpointManager().resetAllRacerState();
+        }
+
         KMCApi api = plugin.getKmcCore().getApi();
 
         broadcast("&6═══════════════════════════════════");
         broadcast("&6&lAdventure Escape — Uitslag");
         broadcast("&6═══════════════════════════════════");
 
+        // Award finish-order placements
         for (int i = 0; i < finishOrder.size(); i++) {
             UUID uuid = finishOrder.get(i);
             int placement = i + 1;
@@ -281,6 +288,7 @@ public class RaceManager {
             }
         }
 
+        // Non-finishers get last-place points
         int lastPlace = plugin.getConfig().getInt("points.last-place", 25);
         for (UUID uuid : allRacers) {
             if (finishOrder.contains(uuid)) continue;
@@ -293,11 +301,13 @@ public class RaceManager {
 
         broadcast("&6═══════════════════════════════════");
 
+        // Announce winner name + signal KMCCore automation
         String winnerName = !finishOrder.isEmpty()
                 ? Optional.ofNullable(Bukkit.getPlayer(finishOrder.get(0)))
                     .map(Player::getName).orElse("?")
                 : "Niemand";
 
+        // Reset world state + TP to lobby after 5s
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             plugin.getRaceScoreboard().cleanup();
             for (UUID uuid : allRacers) {
@@ -306,6 +316,7 @@ public class RaceManager {
                     p.setGameMode(GameMode.ADVENTURE);
                     p.getInventory().clear();
                     for (var eff : p.getActivePotionEffects()) p.removePotionEffect(eff.getType());
+                    // TP to KMCCore lobby
                     if (plugin.getKmcCore().getArenaManager().getLobby() != null) {
                         p.teleport(plugin.getKmcCore().getArenaManager().getLobby());
                     }
@@ -316,6 +327,7 @@ public class RaceManager {
             finishOrder.clear();
             state = State.IDLE;
 
+            // Notify KMCCore automation
             if (plugin.getKmcCore().getAutomationManager().isRunning()) {
                 plugin.getKmcCore().getAutomationManager().onGameEnd(winnerName);
             }
@@ -337,17 +349,36 @@ public class RaceManager {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
     }
 
+    // ---- Getters ---------------------------------------------------
     public State     getState()    { return state; }
     public boolean   isActive()    { return state == State.ACTIVE; }
     public Map<UUID, RacerData> getRacers() { return Collections.unmodifiableMap(racers); }
     public List<UUID> getFinishOrder()      { return Collections.unmodifiableList(finishOrder); }
 
+    // ----------------------------------------------------------------
+    // Helpers used by CheckpointManager / OutOfBoundsListener / TrialKeyManager
+    // ----------------------------------------------------------------
+
+    /** Set of UUIDs currently enrolled in the race (active or finished). */
+    public Set<UUID> getActiveRacerUuids() {
+        return racers.keySet();
+    }
+
+    /** True if the player has crossed the final finish line. */
+    public boolean hasFinished(UUID uuid) {
+        RacerData rd = racers.get(uuid);
+        return rd != null && rd.hasFinished();
+    }
+
+    /** Returns racers sorted by: finish order (finished first), then by laps+currentLap position. */
     public List<RacerData> getRankedRacers() {
         List<RacerData> list = new ArrayList<>(racers.values());
         list.sort((a, b) -> {
+            // Finished players ranked first by placement
             if (a.hasFinished() && b.hasFinished()) return Integer.compare(a.getPlacement(), b.getPlacement());
             if (a.hasFinished()) return -1;
             if (b.hasFinished()) return 1;
+            // Neither finished — compare by laps (more = better), then lap progress (less currentLapMs = better)
             int lapCmp = Integer.compare(b.getLapsCompleted(), a.getLapsCompleted());
             if (lapCmp != 0) return lapCmp;
             return Long.compare(a.getCurrentLapMs(), b.getCurrentLapMs());

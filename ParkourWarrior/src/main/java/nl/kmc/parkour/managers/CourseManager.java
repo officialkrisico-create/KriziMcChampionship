@@ -2,6 +2,7 @@ package nl.kmc.parkour.managers;
 
 import nl.kmc.parkour.ParkourWarriorPlugin;
 import nl.kmc.parkour.models.Checkpoint;
+import nl.kmc.parkour.models.Difficulty;
 import nl.kmc.parkour.models.Powerup;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -13,8 +14,13 @@ import java.util.*;
 /**
  * Manages the parkour course — checkpoints + powerups + start/world.
  *
- * <p>Checkpoints are 1-indexed in the API. Index 0 is reserved for
- * the START spawn (no points). The final checkpoint is the FINISH.
+ * <p>Checkpoints are 1-indexed in the API. Each checkpoint has a
+ * {@code stage} (defaulting to its index) and a {@code difficulty}
+ * (defaulting to MAIN). Stages with multiple checkpoints form
+ * difficulty branches — the player picks which one to attempt.
+ *
+ * <p>The final stage is the FINISH; all paths must converge to a final
+ * MAIN checkpoint.
  */
 public class CourseManager {
 
@@ -57,6 +63,7 @@ public class CourseManager {
                 Location respawn = cp.getLocation("respawn");
                 int      points  = cp.getInt("points", 10);
                 String   name    = cp.getString("name", "Checkpoint " + key);
+                Difficulty diff  = Difficulty.parse(cp.getString("difficulty", "MAIN"));
                 if (p1 == null || p2 == null || respawn == null) {
                     plugin.getLogger().warning("Skipping malformed checkpoint " + key);
                     continue;
@@ -64,7 +71,9 @@ public class CourseManager {
                 int idx;
                 try { idx = Integer.parseInt(key); }
                 catch (NumberFormatException e) { idx = checkpoints.size() + 1; }
-                checkpoints.add(new Checkpoint(idx, p1, p2, respawn, points, name));
+
+                int stage = cp.getInt("stage", idx);   // default = index for legacy
+                checkpoints.add(new Checkpoint(idx, stage, diff, p1, p2, respawn, points, name));
             }
         }
 
@@ -87,8 +96,8 @@ public class CourseManager {
             }
         }
 
-        plugin.getLogger().info("Loaded " + checkpoints.size() + " checkpoints, "
-                + powerups.size() + " powerups (world: "
+        plugin.getLogger().info("Loaded " + checkpoints.size() + " checkpoints across "
+                + getStageCount() + " stage(s), " + powerups.size() + " powerups (world: "
                 + (courseWorld != null ? courseWorld.getName() : "none") + ")");
     }
 
@@ -100,11 +109,13 @@ public class CourseManager {
         cfg.set("course.checkpoints", null);
         for (Checkpoint cp : checkpoints) {
             String path = "course.checkpoints." + cp.getIndex();
-            cfg.set(path + ".name",    cp.getDisplayName());
-            cfg.set(path + ".pos1",    cp.getPos1());
-            cfg.set(path + ".pos2",    cp.getPos2());
-            cfg.set(path + ".respawn", cp.getRespawn());
-            cfg.set(path + ".points",  cp.getPoints());
+            cfg.set(path + ".name",       cp.getDisplayName());
+            cfg.set(path + ".pos1",       cp.getPos1());
+            cfg.set(path + ".pos2",       cp.getPos2());
+            cfg.set(path + ".respawn",    cp.getRespawn());
+            cfg.set(path + ".points",     cp.getPoints());
+            cfg.set(path + ".stage",      cp.getStage());
+            cfg.set(path + ".difficulty", cp.getDifficulty().name());
         }
 
         cfg.set("course.powerups", null);
@@ -141,15 +152,58 @@ public class CourseManager {
 
     public int getCheckpointCount() { return checkpoints.size(); }
 
+    /** All distinct stage numbers in the course, sorted ascending. */
+    public List<Integer> getStages() {
+        Set<Integer> s = new TreeSet<>();
+        for (Checkpoint cp : checkpoints) s.add(cp.getStage());
+        return new ArrayList<>(s);
+    }
+
+    public int getStageCount() { return getStages().size(); }
+
+    /** All checkpoints belonging to the given stage. */
+    public List<Checkpoint> getCheckpointsByStage(int stage) {
+        List<Checkpoint> out = new ArrayList<>();
+        for (Checkpoint cp : checkpoints) if (cp.getStage() == stage) out.add(cp);
+        return out;
+    }
+
+    /** The final stage's MAIN checkpoint (or any CP if none is MAIN). */
     public Checkpoint getFinish() {
-        return checkpoints.isEmpty() ? null : checkpoints.get(checkpoints.size() - 1);
+        if (checkpoints.isEmpty()) return null;
+        int maxStage = 0;
+        for (Checkpoint cp : checkpoints) maxStage = Math.max(maxStage, cp.getStage());
+        // Prefer MAIN within the highest stage
+        Checkpoint fallback = null;
+        for (Checkpoint cp : checkpoints) {
+            if (cp.getStage() != maxStage) continue;
+            if (cp.getDifficulty() == Difficulty.MAIN) return cp;
+            fallback = cp;
+        }
+        return fallback;
+    }
+
+    /** Highest stage number used in the course. */
+    public int getMaxStage() {
+        int max = 0;
+        for (Checkpoint cp : checkpoints) max = Math.max(max, cp.getStage());
+        return max;
     }
 
     public void addOrUpdateCheckpoint(int index, String name, Location pos1, Location pos2,
                                       Location respawn, int points) {
+        addOrUpdateCheckpoint(index, index, Difficulty.MAIN, name, pos1, pos2, respawn, points);
+    }
+
+    public void addOrUpdateCheckpoint(int index, int stage, Difficulty difficulty,
+                                      String name, Location pos1, Location pos2,
+                                      Location respawn, int points) {
         checkpoints.removeIf(cp -> cp.getIndex() == index);
-        checkpoints.add(new Checkpoint(index, pos1, pos2, respawn, points, name));
-        checkpoints.sort(Comparator.comparingInt(Checkpoint::getIndex));
+        checkpoints.add(new Checkpoint(index, stage, difficulty, pos1, pos2, respawn, points, name));
+        checkpoints.sort(Comparator
+                .comparingInt(Checkpoint::getStage)
+                .thenComparing((Checkpoint c) -> c.getDifficulty().ordinal())
+                .thenComparingInt(Checkpoint::getIndex));
         save();
     }
 
@@ -197,11 +251,13 @@ public class CourseManager {
     public void clearPartial(int index) { partials.remove(String.valueOf(index)); }
 
     public static class PartialCheckpoint {
-        public String   name;
-        public Location pos1;
-        public Location pos2;
-        public Location respawn;
-        public Integer  points;
+        public String     name;
+        public Location   pos1;
+        public Location   pos2;
+        public Location   respawn;
+        public Integer    points;
+        public Integer    stage;
+        public Difficulty difficulty;
 
         public boolean isComplete() {
             return name != null && pos1 != null && pos2 != null && respawn != null && points != null;
@@ -223,15 +279,16 @@ public class CourseManager {
     // ---- Validity ------------------------------------------------
 
     public boolean isReady() {
-        return courseWorld != null && startSpawn != null && checkpoints.size() >= 2;
+        return courseWorld != null && startSpawn != null && getStageCount() >= 2;
     }
 
     public String getReadinessReport() {
         StringBuilder sb = new StringBuilder();
         sb.append("World:        ").append(courseWorld != null ? "✔ " + courseWorld.getName() : "✘").append("\n");
         sb.append("Start spawn:  ").append(startSpawn != null ? "✔" : "✘").append("\n");
-        sb.append("Checkpoints:  ").append(checkpoints.size())
-                .append(checkpoints.size() < 2 ? " &c(min 2: 1 stage + finish)" : "").append("\n");
+        sb.append("Stages:       ").append(getStageCount())
+                .append(getStageCount() < 2 ? " &c(min 2: 1 stage + finish)" : "").append("\n");
+        sb.append("Checkpoints:  ").append(checkpoints.size()).append("\n");
         sb.append("Powerups:     ").append(powerups.size())
                 .append(powerups.isEmpty() ? " &7(geen)" : "");
         return sb.toString();

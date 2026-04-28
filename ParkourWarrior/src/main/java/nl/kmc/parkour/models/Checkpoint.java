@@ -7,28 +7,41 @@ import org.bukkit.Location;
  *
  * <p>Each checkpoint has:
  * <ul>
- *   <li>An index (1-based — checkpoint 1 is first, 0 is the start spawn)</li>
- *   <li>A 2-corner region defining the trigger area (entering it activates the checkpoint)</li>
- *   <li>A respawn location (where the player TPs to on death/fail)</li>
- *   <li>A point value (harder checkpoints = more points)</li>
- *   <li>Optional display name for stage themes ("Jungle Vines", "Nether Lava")</li>
+ *   <li>An <b>index</b> — globally unique 1-based identifier (used in commands and config keys)</li>
+ *   <li>A <b>stage</b> — ordering group. Multiple checkpoints can share a stage as
+ *       difficulty alternatives. If unspecified, defaults to the index value (so
+ *       legacy linear courses still work).</li>
+ *   <li>A <b>difficulty</b> — MAIN (default for non-branching CPs), EASY, MEDIUM, HARD</li>
+ *   <li>A 2-corner trigger region</li>
+ *   <li>A respawn location</li>
+ *   <li>A base point value (multiplied by difficulty.multiplier on award)</li>
+ *   <li>An optional display name</li>
  * </ul>
- *
- * <p>The respawn location is usually a few blocks inside the trigger
- * region so players don't immediately retrigger after dying.
  */
 public class Checkpoint {
 
-    private final int      index;
-    private final Location pos1;
-    private final Location pos2;
-    private final Location respawn;
-    private final int      points;
-    private final String   displayName;
+    private final int        index;
+    private final int        stage;
+    private final Difficulty difficulty;
+    private final Location   pos1;
+    private final Location   pos2;
+    private final Location   respawn;
+    private final int        points;
+    private final String     displayName;
 
+    /** Legacy 6-arg constructor: stage = index, difficulty = MAIN. */
     public Checkpoint(int index, Location pos1, Location pos2, Location respawn,
                       int points, String displayName) {
+        this(index, index, Difficulty.MAIN, pos1, pos2, respawn, points, displayName);
+    }
+
+    /** Full constructor including stage + difficulty. */
+    public Checkpoint(int index, int stage, Difficulty difficulty,
+                      Location pos1, Location pos2, Location respawn,
+                      int points, String displayName) {
         this.index       = index;
+        this.stage       = stage;
+        this.difficulty  = difficulty != null ? difficulty : Difficulty.MAIN;
         this.pos1        = pos1;
         this.pos2        = pos2;
         this.respawn     = respawn;
@@ -36,12 +49,24 @@ public class Checkpoint {
         this.displayName = displayName;
     }
 
-    public int      getIndex()       { return index; }
-    public Location getPos1()        { return pos1; }
-    public Location getPos2()        { return pos2; }
-    public Location getRespawn()     { return respawn; }
-    public int      getPoints()      { return points; }
-    public String   getDisplayName() { return displayName; }
+    public int        getIndex()       { return index; }
+    public int        getStage()       { return stage; }
+    public Difficulty getDifficulty()  { return difficulty; }
+    public Location   getPos1()        { return pos1; }
+    public Location   getPos2()        { return pos2; }
+    public Location   getRespawn()     { return respawn; }
+    public int        getPoints()      { return points; }
+    public String     getDisplayName() { return displayName; }
+
+    /** Points actually awarded after the difficulty multiplier. */
+    public int getAwardedPoints() {
+        return (int) Math.round(points * difficulty.getMultiplier());
+    }
+
+    /** True if this CP is a difficulty-branch alternative (not MAIN). */
+    public boolean isBranchOption() {
+        return difficulty != Difficulty.MAIN;
+    }
 
     /** Is the given location inside this checkpoint's trigger box? */
     public boolean contains(Location loc) {
