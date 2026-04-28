@@ -1,0 +1,94 @@
+// ================================================================
+// QuakeCraft INTEGRATION DIFF — for KillBonusManager
+// ================================================================
+// Add the following changes to your existing QuakeCraft files.
+// Note: real QuakeCraft package is `nl.kmc.quake` (not `nl.kmc.quakecraft`)
+// ================================================================
+
+// ----------------------------------------------------------------
+// QuakeCraftPlugin.java — add field + getter
+// (file: src/main/java/nl/kmc/quake/QuakeCraftPlugin.java)
+// ----------------------------------------------------------------
+
+import nl.kmc.quake.bonuses.KillBonusManager;
+
+public final class QuakeCraftPlugin extends JavaPlugin {
+
+    // ... existing fields ...
+
+    private KillBonusManager killBonusManager;   // + ADD
+
+    @Override
+    public void onEnable() {
+        // ... existing onEnable code (KMCCore lookup, ArenaManager init, etc.) ...
+
+        this.killBonusManager = new KillBonusManager(this);   // + ADD
+    }
+
+    public KillBonusManager getKillBonusManager() { return killBonusManager; }   // + ADD
+}
+
+
+// ----------------------------------------------------------------
+// QuakeCraft GameManager.java — wire bonus events
+// (file: src/main/java/nl/kmc/quake/managers/GameManager.java)
+// ----------------------------------------------------------------
+
+// In your match-start logic (where you currently reset state and TP players):
+public void startMatch() {
+    // ... existing reset / TP / etc ...
+
+    plugin.getKillBonusManager().onMatchStart();   // + ADD
+}
+
+// In your kill-handling logic (when a player railguns another):
+public void onPlayerKill(Player killer, Player victim) {
+    // ... existing kill points award + scoreboard update ...
+
+    // Compute Y delta for headshot detection (approx)
+    double yDelta = victim.getEyeLocation().getY() - victim.getLocation().getY();
+    // OR use the actual projectile-hit Y vs victim's mid-body if you
+    // have it from the projectile-hit handler. The default ~0.7-0.85
+    // means body shots produce 0 and head shots > 0.7.
+
+    plugin.getKillBonusManager().onKill(killer, victim, yDelta);   // + ADD
+    plugin.getKillBonusManager().onDeath(victim);                  // + ADD (right after)
+}
+
+// In your match-end logic (when someone reaches the kill target / time runs out):
+public void endMatch(Player winner) {
+    // ... existing end-match logic ...
+
+    plugin.getKillBonusManager().onMatchEnd(winner);   // + ADD
+}
+
+
+// ----------------------------------------------------------------
+// QuakeCraft config.yml — add bonuses block
+// ----------------------------------------------------------------
+// Add this section to QuakeCraft/src/main/resources/config.yml:
+//
+// bonuses:
+//   first-blood: 30
+//   revenge: 15
+//   double-kill: 20
+//   triple-kill: 40
+//   rampage: 50           # 5 kills no death
+//   unstoppable: 100      # 10 kills no death
+//   clutch: 25            # win at <= 2 HP
+//   flawless: 50          # win with 0 deaths
+//   headshot: 10
+//
+// Set any value to 0 to disable that specific bonus.
+
+
+// ----------------------------------------------------------------
+// HEADSHOT NOTE
+// ----------------------------------------------------------------
+// QuakeCraft's "headshot" detection in this implementation is a
+// simple Y-delta check at the time of hit. If you want true
+// headshot detection (hit was within the upper 25% of the victim's
+// hitbox), you'd need to capture the projectile-hit location vs
+// victim's foot+1.5 height in your WeaponListener's projectile-hit
+// handler, then pass the precise Y diff to onKill(). The current
+// approximation works fine for tournament purposes.

@@ -1,0 +1,177 @@
+// ================================================================
+// KMCCore.java — INTEGRATION DIFF
+// ================================================================
+// Apply these changes to your existing KMCCore main class to wire in
+// the new managers. Don't replace your KMCCore.java wholesale — just
+// add the lines marked with "+" below.
+// ================================================================
+
+package nl.kmc.kmccore;
+
+// ... your existing imports ...
+
+// + ADD THESE IMPORTS:
+import nl.kmc.kmccore.spectator.SpectatorManager;
+import nl.kmc.kmccore.lobby.LobbyNPCManager;
+import nl.kmc.kmccore.audio.AudioManager;
+import nl.kmc.kmccore.leaderboard.BossBarLeaderboardManager;
+import nl.kmc.kmccore.readyup.ReadyUpManager;
+import nl.kmc.kmccore.preferences.PlayerPreferencesManager;
+import nl.kmc.kmccore.health.HealthMonitor;
+import nl.kmc.kmccore.discord.DiscordWebhook;
+import nl.kmc.kmccore.maps.MapRotationManager;
+
+public class KMCCore extends JavaPlugin {
+
+    // ... your existing fields (TeamManager, GameManager, etc.) ...
+
+    // + ADD THESE FIELDS:
+    private SpectatorManager           spectatorManager;
+    private LobbyNPCManager            lobbyNPCManager;
+    private AudioManager               audioManager;
+    private BossBarLeaderboardManager  bossBarLeaderboard;
+    private ReadyUpManager             readyUpManager;
+    private PlayerPreferencesManager   playerPreferences;
+    private HealthMonitor              healthMonitor;
+    private DiscordWebhook             discordHook;
+    private MapRotationManager         mapRotation;
+
+    @Override
+    public void onEnable() {
+        // ... your existing onEnable code ...
+        // (saveDefaultConfig, TeamManager, GameManager, etc.)
+
+        // + INITIALIZE NEW MANAGERS (after teamManager / playerDataManager etc. are ready):
+        this.discordHook         = new DiscordWebhook(this);              // construct first — others depend on it
+        this.playerPreferences   = new PlayerPreferencesManager(this);
+        this.mapRotation         = new MapRotationManager(this);
+        this.spectatorManager    = new SpectatorManager(this);
+        this.lobbyNPCManager     = new LobbyNPCManager(this);
+        this.audioManager        = new AudioManager(this);
+        this.bossBarLeaderboard  = new BossBarLeaderboardManager(this);
+        this.readyUpManager      = new ReadyUpManager(this);
+        this.healthMonitor       = new HealthMonitor(this);
+
+        // + START PERSISTENT BACKGROUND TASKS:
+        this.bossBarLeaderboard.start();
+        this.audioManager.startLobbyAmbient();
+        this.healthMonitor.start();
+
+        // + REGISTER NEW COMMANDS (also add to plugin.yml):
+        getCommand("kmcprefs").setExecutor(new nl.kmc.kmccore.commands.PreferencesCommand(this));
+        getCommand("kmchealth").setExecutor(new nl.kmc.kmccore.commands.HealthCommand(this));
+        getCommand("kmcready").setExecutor(new nl.kmc.kmccore.commands.ReadyCommand(this));
+        getCommand("kmcmap").setExecutor(new nl.kmc.kmccore.commands.MapCommand(this));
+        getCommand("kmclobbynpc").setExecutor(new nl.kmc.kmccore.commands.LobbyNPCCommand(this));
+    }
+
+    @Override
+    public void onDisable() {
+        // + CLEANUP (call BEFORE your existing shutdown logic so saves succeed):
+        if (audioManager       != null) audioManager.shutdown();
+        if (bossBarLeaderboard != null) bossBarLeaderboard.stop();
+        if (healthMonitor      != null) healthMonitor.stop();
+        if (lobbyNPCManager    != null) lobbyNPCManager.despawnAll();
+        if (readyUpManager     != null) readyUpManager.shutdown();
+        if (playerPreferences  != null) playerPreferences.shutdown();
+        if (spectatorManager   != null) spectatorManager.shutdown();
+        // mapRotation has nothing to clean up (saves on every change)
+
+        // ... your existing onDisable code ...
+    }
+
+    // + ADD THESE GETTERS:
+    public SpectatorManager          getSpectatorManager()       { return spectatorManager; }
+    public LobbyNPCManager           getLobbyNPCManager()        { return lobbyNPCManager; }
+    public AudioManager              getAudioManager()           { return audioManager; }
+    public BossBarLeaderboardManager getBossBarLeaderboard()     { return bossBarLeaderboard; }
+    public ReadyUpManager            getReadyUpManager()         { return readyUpManager; }
+    public PlayerPreferencesManager  getPlayerPreferences()      { return playerPreferences; }
+    public HealthMonitor             getHealthMonitor()          { return healthMonitor; }
+    public DiscordWebhook            getDiscordHook()            { return discordHook; }
+    public MapRotationManager        getMapRotation()            { return mapRotation; }
+}
+
+// ================================================================
+// KMCApi.java — ADD THESE METHODS
+// ================================================================
+//
+//     public SpectatorManager getSpectatorManager() {
+//         return plugin.getSpectatorManager();
+//     }
+//     public PlayerPreferencesManager getPlayerPreferences() {
+//         return plugin.getPlayerPreferences();
+//     }
+//     public AudioManager getAudio() {
+//         return plugin.getAudioManager();
+//     }
+//     public MapRotationManager getMapRotation() {
+//         return plugin.getMapRotation();
+//     }
+
+// ================================================================
+// AutomationManager.java — HOOK INTO THE NEW SYSTEMS
+// ================================================================
+// In your AutomationManager.launchGame() method, add these calls
+// (before/after the existing logic as commented):
+//
+//     public void launchGame(Game game) {
+//         // BEFORE launching: suppress boss bar leaderboard so the
+//         // game's own scoreboard takes focus
+//         plugin.getBossBarLeaderboard().suppress();
+//
+//         // Tell health monitor we're starting
+//         plugin.getHealthMonitor().notifyGameStart(game.getId());
+//
+//         // Push to Discord
+//         plugin.getDiscordHook().postGameStart(
+//                 game.getId(), game.getDisplayName(),
+//                 plugin.getTournamentManager().getCurrentRound());
+//
+//         // ... your existing launchGame logic ...
+//     }
+//
+//     public void onGameEnd(String winnerName) {
+//         // ... your existing onGameEnd logic that ends the round ...
+//
+//         // AFTER the round-end logic:
+//         plugin.getBossBarLeaderboard().unsuppress();
+//         plugin.getHealthMonitor().notifyGameEnd(
+//                 plugin.getGameManager().getActiveGame() != null
+//                         ? plugin.getGameManager().getActiveGame().getId() : "unknown",
+//                 winnerName);
+//         plugin.getDiscordHook().postGameEnd(
+//                 plugin.getGameManager().getActiveGame() != null
+//                         ? plugin.getGameManager().getActiveGame().getId() : "unknown",
+//                 plugin.getGameManager().getActiveGame() != null
+//                         ? plugin.getGameManager().getActiveGame().getDisplayName() : "Unknown",
+//                 winnerName);
+//         plugin.getAudioManager().playVictoryFanfare();
+//
+//         // Run a ready-check before next game (config-gated):
+//         if (plugin.getConfig().getBoolean("automation.use-ready-check", true)
+//                 && plugin.getTournamentManager().isActive()) {
+//             plugin.getReadyUpManager().beginReadyCheck(
+//                     plugin.getConfig().getInt("automation.ready-timeout-seconds", 60),
+//                     this::pickAndStartNextGame);  // ← your method that picks next game
+//         } else {
+//             pickAndStartNextGame();
+//         }
+//     }
+
+// ================================================================
+// KMCApi.java — SCOREBOARD LOCK INSTRUMENTATION
+// ================================================================
+// Update your existing acquireScoreboard / releaseScoreboard to
+// notify the health monitor:
+//
+//     public boolean acquireScoreboard(String owner) {
+//         // ... your existing lock logic ...
+//         plugin.getHealthMonitor().notifyScoreboardAcquired(owner);
+//         return true;
+//     }
+//
+//     public void releaseScoreboard(String owner) {
+//         // ... your existing release logic ...
+//         plugin.getHealthMonitor().notifyScoreboardReleased(owner);
+//     }

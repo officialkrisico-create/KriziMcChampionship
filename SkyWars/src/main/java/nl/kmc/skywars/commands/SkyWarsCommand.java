@@ -89,7 +89,7 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
             }
             case "stockchests" -> {
                 int n = plugin.getChestStocker().stockAll();
-                sender.sendMessage(ChatColor.GREEN + n + " chests gevuld.");
+                sender.sendMessage(ChatColor.GREEN + "" + n + " chests gevuld.");
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== SkyWars Status ===");
