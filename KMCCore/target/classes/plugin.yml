@@ -112,6 +112,11 @@ commands:
     usage: /kmclobbynpc <create|remove|list> [type]
     permission: kmc.lobbynpc.admin
 
+  event:
+    description: Tournament simulation and rollback tools
+    usage: /event <simulate|snapshot|rollback|listsnapshots> [args...]
+    permission: kmc.event.admin
+
 permissions:
   kmc.*:
     description: All KMC permissions
@@ -137,6 +142,7 @@ permissions:
       kmc.ready: true
       kmc.map.admin: true
       kmc.lobbynpc.admin: true
+      kmc.event.admin: true
 
   kmc.team:             { description: Basic team commands,    default: true }
   kmc.team.admin:       { description: Manage team assignments, default: op }
@@ -159,3 +165,4 @@ permissions:
   kmc.ready:            { description: Use /kmcready,            default: true }
   kmc.map.admin:        { description: Manage map rotation,      default: op }
   kmc.lobbynpc.admin:   { description: Manage decorative NPCs,   default: op }
+  kmc.event.admin:      { description: Run simulations and rollbacks, default: op }
