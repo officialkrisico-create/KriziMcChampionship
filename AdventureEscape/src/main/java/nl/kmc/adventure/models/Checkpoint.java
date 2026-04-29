@@ -2,62 +2,42 @@ package nl.kmc.adventure.models;
 
 import org.bukkit.Location;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * One checkpoint in an Adventure Escape race.
- *
- * <p>A checkpoint has:
- * <ul>
- *   <li>A unique name (used in commands and config keys)</li>
- *   <li>A respawn location (where players are sent back to)</li>
- *   <li>An optional trigger region — entering this region marks the
- *       checkpoint as reached (if null, players must be teleported here
- *       manually or via the Trial Key from a previous checkpoint)</li>
- *   <li>Zero or more out-of-bounds boxes — falling into any one of them
- *       teleports the player back to this checkpoint</li>
- * </ul>
+ * A checkpoint on the race track. Defined as a 2-corner box (like
+ * start/finish lines). Players must pass through ALL checkpoints in
+ * order before they can complete a lap — this is the anti-shortcut
+ * mechanism.
  */
 public class Checkpoint {
 
-    private final String name;
-    private final Location respawn;
-    private Location triggerPos1;
-    private Location triggerPos2;
-    private final List<OutOfBoundsBox> oobBoxes = new ArrayList<>();
+    /** 1-indexed checkpoint number (used for sort order + display). */
+    private final int      index;
+    private final Location pos1;
+    private final Location pos2;
 
-    public Checkpoint(String name, Location respawn) {
-        this.name = name;
-        this.respawn = respawn.clone();
+    public Checkpoint(int index, Location pos1, Location pos2) {
+        this.index = index;
+        this.pos1  = pos1;
+        this.pos2  = pos2;
     }
 
-    public String getName()           { return name; }
-    public Location getRespawn()      { return respawn.clone(); }
+    public int      getIndex() { return index; }
+    public Location getPos1()  { return pos1; }
+    public Location getPos2()  { return pos2; }
 
-    public Location getTriggerPos1()  { return triggerPos1 != null ? triggerPos1.clone() : null; }
-    public Location getTriggerPos2()  { return triggerPos2 != null ? triggerPos2.clone() : null; }
-    public boolean hasTrigger()       { return triggerPos1 != null && triggerPos2 != null; }
+    public boolean contains(Location loc) {
+        if (loc == null || pos1 == null || pos2 == null) return false;
+        if (!loc.getWorld().equals(pos1.getWorld())) return false;
 
-    public void setTrigger(Location p1, Location p2) {
-        this.triggerPos1 = p1.clone();
-        this.triggerPos2 = p2.clone();
-    }
+        double minX = Math.min(pos1.getX(), pos2.getX());
+        double maxX = Math.max(pos1.getX(), pos2.getX()) + 1;
+        double minY = Math.min(pos1.getY(), pos2.getY());
+        double maxY = Math.max(pos1.getY(), pos2.getY()) + 1;
+        double minZ = Math.min(pos1.getZ(), pos2.getZ());
+        double maxZ = Math.max(pos1.getZ(), pos2.getZ()) + 1;
 
-    public List<OutOfBoundsBox> getOobBoxes() { return oobBoxes; }
-
-    public void addOobBox(OutOfBoundsBox box) { oobBoxes.add(box); }
-
-    /** Removes an OOB box by name. @return true if removed. */
-    public boolean removeOobBox(String boxName) {
-        return oobBoxes.removeIf(b -> b.getName().equalsIgnoreCase(boxName));
-    }
-
-    /** @return the OOB box with this name, or null. */
-    public OutOfBoundsBox getOobBox(String boxName) {
-        for (OutOfBoundsBox b : oobBoxes) {
-            if (b.getName().equalsIgnoreCase(boxName)) return b;
-        }
-        return null;
+        return loc.getX() >= minX && loc.getX() <= maxX
+                && loc.getY() >= minY && loc.getY() <= maxY
+                && loc.getZ() >= minZ && loc.getZ() <= maxZ;
     }
 }
