@@ -17,6 +17,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
+import java.util.Objects;
 
 /**
  * Survival Games match orchestrator.
@@ -353,22 +354,59 @@ public class GameManager {
         victim.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Eliminated!",
                 ChatColor.YELLOW + reason, 10, 50, 10);
 
-        // Survival bonus — every still-alive player gets a small reward
-        // for outlasting the victim. Awarded BEFORE we recount alive,
-        // so the killer (still alive) also collects (in addition to
-        // their per-kill bonus above).
-        int survivalBonus = plugin.getConfig().getInt("points.survival-bonus", 15);
-        if (survivalBonus > 0) {
+        // Living-while-someone-dies: every still-alive player (except
+        // the dying one) gets this bonus. Replaces the old
+        // "survival-bonus" key — renamed for clarity.
+        int livingBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
+        if (livingBonus > 0) {
             KMCApi api = plugin.getKmcCore().getApi();
             for (PlayerStats other : stats.values()) {
                 if (!other.isAlive()) continue;
                 if (other.getUuid().equals(victim.getUniqueId())) continue;
-                api.givePoints(other.getUuid(), survivalBonus);
+                api.givePoints(other.getUuid(), livingBonus);
                 Player op = Bukkit.getPlayer(other.getUuid());
                 if (op != null) {
                     op.sendActionBar(net.kyori.adventure.text.Component.text(
-                            ChatColor.AQUA + "+" + survivalBonus + " survival bonus"));
+                            ChatColor.AQUA + "+" + livingBonus + " survivor bonus"));
                     op.playSound(op.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.5f);
+                }
+            }
+        }
+
+        // Living-while-team-dies: when the dying player was the LAST
+        // member of their team alive, every still-alive player on
+        // OTHER teams gets the team-elimination bonus.
+        var deadTeam = plugin.getKmcCore().getTeamManager()
+                .getTeamByPlayer(victim.getUniqueId());
+        if (deadTeam != null) {
+            boolean teamFullyDead = stats.values().stream()
+                    .filter(PlayerStats::isAlive)
+                    .map(alivePs -> plugin.getKmcCore().getTeamManager()
+                            .getTeamByPlayer(alivePs.getUuid()))
+                    .filter(Objects::nonNull)
+                    .noneMatch(t -> t.getId().equals(deadTeam.getId()));
+
+            if (teamFullyDead) {
+                int teamBonus = plugin.getConfig()
+                        .getInt("points.living-while-team-dies", 20);
+                if (teamBonus > 0) {
+                    KMCApi api = plugin.getKmcCore().getApi();
+                    broadcast("&c☠ &7Team &f" + deadTeam.getDisplayName()
+                            + " &7is volledig uitgeschakeld!");
+                    for (PlayerStats other : stats.values()) {
+                        if (!other.isAlive()) continue;
+                        var otherTeam = plugin.getKmcCore().getTeamManager()
+                                .getTeamByPlayer(other.getUuid());
+                        if (otherTeam != null && otherTeam.getId().equals(deadTeam.getId())) continue;
+                        api.givePoints(other.getUuid(), teamBonus);
+                        Player op = Bukkit.getPlayer(other.getUuid());
+                        if (op != null) {
+                            op.sendActionBar(net.kyori.adventure.text.Component.text(
+                                    ChatColor.GOLD + "+" + teamBonus + " team-elim bonus"));
+                            op.playSound(op.getLocation(),
+                                    Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.8f);
+                        }
+                    }
                 }
             }
         }
@@ -413,8 +451,15 @@ public class GameManager {
         broadcast("&6═══════════════════════════════════");
 
         KMCApi api = plugin.getKmcCore().getApi();
-        String[] placeKeys = {"first-place", "second-place", "third-place"};
         String winnerName = "Niemand";
+
+        // Win bonus to the last-alive player (rank 1, if alive)
+        if (!ranked.isEmpty() && ranked.get(0).isAlive()) {
+            int winBonus = plugin.getConfig().getInt("points.win", 200);
+            if (winBonus > 0) {
+                api.givePoints(ranked.get(0).getUuid(), winBonus);
+            }
+        }
 
         for (int i = 0; i < ranked.size(); i++) {
             PlayerStats ps = ranked.get(i);
@@ -426,11 +471,9 @@ public class GameManager {
             broadcast("  " + medal + " " + teamColor + ps.getName()
                     + aliveStr + " &8- &e" + ps.getKills() + " kills");
 
-            int placeBonus;
-            if (i < placeKeys.length)
-                placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
-            else
-                placeBonus = plugin.getConfig().getInt("points.participation", 25);
+            // Tiered placement: 250 for 1st, -10 each, floor 0.
+            int placement = i + 1;
+            int placeBonus = readPlacement("points.placement", placement);
             if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
 
             api.recordGameParticipation(ps.getUuid(), ps.getName(), GAME_ID, i == 0);
@@ -532,5 +575,16 @@ public class GameManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     * Returns 0 if neither exists.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

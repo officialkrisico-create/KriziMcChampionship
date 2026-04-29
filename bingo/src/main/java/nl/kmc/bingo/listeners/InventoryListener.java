@@ -11,6 +11,8 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 
+import java.util.UUID;
+
 /**
  * Recounts a team's bingo progress whenever items move in/out of any
  * member's inventory.
@@ -72,7 +74,8 @@ public class InventoryListener implements Listener {
         var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
         if (team == null) return;
         // Defer one tick so amounts have settled
+        UUID triggererId = p.getUniqueId();
         Bukkit.getScheduler().runTask(plugin,
-                () -> plugin.getGameManager().recountTeam(team.getId()));
+                () -> plugin.getGameManager().recountTeam(team.getId(), triggererId));
     }
 }
