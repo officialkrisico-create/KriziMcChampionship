@@ -9,7 +9,7 @@ import org.bukkit.util.Vector;
  * <p>Two types:
  * <ul>
  *   <li>FORWARD — kick in the direction the player is facing
- *       (good for straightaways and momentum)</li>
+ *       (good for straightaways and momentum). This is the default.</li>
  *   <li>UPWARD — kick upward + slightly forward (good for climbs)</li>
  * </ul>
  *
@@ -27,12 +27,24 @@ public class BoostHoop {
     private final Location pos2;
     private final double   strength;
 
+    /**
+     * Full constructor — explicit Type.
+     */
     public BoostHoop(String id, Type type, Location pos1, Location pos2, double strength) {
         this.id       = id;
-        this.type     = type;
+        this.type     = type != null ? type : Type.FORWARD;
         this.pos1     = pos1;
         this.pos2     = pos2;
         this.strength = strength;
+    }
+
+    /**
+     * Backwards-compatible constructor — defaults Type to FORWARD.
+     * Used by older CourseManager / ElytraCommand code that doesn't
+     * specify a type.
+     */
+    public BoostHoop(String id, Location pos1, Location pos2, double strength) {
+        this(id, Type.FORWARD, pos1, pos2, strength);
     }
 
     public String   getId()       { return id; }
@@ -51,13 +63,13 @@ public class BoostHoop {
         double minZ = Math.min(pos1.getZ(), pos2.getZ());
         double maxZ = Math.max(pos1.getZ(), pos2.getZ()) + 1;
         return loc.getX() >= minX && loc.getX() <= maxX
-            && loc.getY() >= minY && loc.getY() <= maxY
-            && loc.getZ() >= minZ && loc.getZ() <= maxZ;
+                && loc.getY() >= minY && loc.getY() <= maxY
+                && loc.getZ() >= minZ && loc.getZ() <= maxZ;
     }
 
     /**
      * Computes the velocity to apply, given the player's current
-     * facing direction.
+     * facing direction. Behavior depends on this hoop's Type.
      */
     public Vector computeBoostVelocity(Vector facing) {
         return switch (type) {
