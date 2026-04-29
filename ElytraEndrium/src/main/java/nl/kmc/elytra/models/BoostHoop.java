@@ -4,28 +4,39 @@ import org.bukkit.Location;
 import org.bukkit.util.Vector;
 
 /**
- * A boost hoop — flying through it gives the player a forward
- * velocity kick in their current facing direction (like a rocket
- * boost). Stacks with current momentum.
+ * A boost hoop — flying through it gives the player a velocity kick.
  *
- * <p>Boost hoops are NOT mandatory checkpoints — players choose
- * to fly through them (or skip them) for the speed bonus.
+ * <p>Two types:
+ * <ul>
+ *   <li>FORWARD — kick in the direction the player is facing
+ *       (good for straightaways and momentum)</li>
+ *   <li>UPWARD — kick upward + slightly forward (good for climbs)</li>
+ * </ul>
+ *
+ * <p>Boost hoops are NOT mandatory checkpoints — players can choose
+ * to fly through them or skip them. They award no points; the only
+ * reward is the speed/altitude boost itself.
  */
 public class BoostHoop {
 
+    public enum Type { FORWARD, UPWARD }
+
     private final String   id;
+    private final Type     type;
     private final Location pos1;
     private final Location pos2;
     private final double   strength;
 
-    public BoostHoop(String id, Location pos1, Location pos2, double strength) {
+    public BoostHoop(String id, Type type, Location pos1, Location pos2, double strength) {
         this.id       = id;
+        this.type     = type;
         this.pos1     = pos1;
         this.pos2     = pos2;
         this.strength = strength;
     }
 
     public String   getId()       { return id; }
+    public Type     getType()     { return type; }
     public Location getPos1()     { return pos1; }
     public Location getPos2()     { return pos2; }
     public double   getStrength() { return strength; }
@@ -44,8 +55,18 @@ public class BoostHoop {
             && loc.getZ() >= minZ && loc.getZ() <= maxZ;
     }
 
-    /** Forward velocity kick in the player's facing direction. */
+    /**
+     * Computes the velocity to apply, given the player's current
+     * facing direction.
+     */
     public Vector computeBoostVelocity(Vector facing) {
-        return facing.clone().normalize().multiply(strength);
+        return switch (type) {
+            case FORWARD -> facing.clone().normalize().multiply(strength);
+            case UPWARD  -> {
+                Vector v = facing.clone().normalize().multiply(strength * 0.4);
+                v.setY(strength * 0.9);
+                yield v;
+            }
+        };
     }
 }

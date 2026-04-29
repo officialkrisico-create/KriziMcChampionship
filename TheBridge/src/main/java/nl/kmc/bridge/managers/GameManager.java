@@ -192,6 +192,11 @@ public class GameManager {
                 if (p == null) continue;
                 if (slowType != null) p.removePotionEffect(slowType);
                 plugin.getKitManager().giveKit(p, team);
+                // Override the kit's iron armor with team-colored leather (no helmet)
+                try {
+                    nl.kmc.kmccore.util.TeamArmor.applyChestLegsBoots(p);
+                    p.getInventory().setHelmet(null);  // face stays visible
+                } catch (Throwable ignored) {}
                 p.sendTitle(team.getChatColor() + "" + ChatColor.BOLD + "GO!",
                         ChatColor.YELLOW + "Score in tegenstander's hole!", 0, 30, 10);
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1.5f);
@@ -280,6 +285,11 @@ public class GameManager {
         p.teleport(team.getSpawn());
         p.setGameMode(GameMode.ADVENTURE);
         plugin.getKitManager().giveKit(p, team);
+        // Override iron armor with team-colored leather (consistent with launch())
+        try {
+            nl.kmc.kmccore.util.TeamArmor.applyChestLegsBoots(p);
+            p.getInventory().setHelmet(null);
+        } catch (Throwable ignored) {}
 
         // Brief invuln so spawncamping isn't instant-kill
         PotionEffectType regenType = regen();

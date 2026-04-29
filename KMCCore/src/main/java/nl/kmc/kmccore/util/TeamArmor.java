@@ -58,6 +58,19 @@ public final class TeamArmor {
     }
 
     /**
+     * Apply team-colored chestplate + leggings + boots (NO helmet).
+     * Used by The Bridge so player faces stay visible.
+     */
+    public static void applyChestLegsBoots(Player p) {
+        Color color = resolveColor(p);
+        KMCCore core = p.getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore c ? c : null;
+        PlayerInventory inv = p.getInventory();
+        inv.setBoots(buildPiece(core,       Material.LEATHER_BOOTS,      color));
+        inv.setLeggings(buildPiece(core,    Material.LEATHER_LEGGINGS,   color));
+        inv.setChestplate(buildPiece(core,  Material.LEATHER_CHESTPLATE, color));
+    }
+
+    /**
      * Apply full team-colored leather armor set (helmet, chest, legs, boots).
      * Use this for The Bridge or other games where armor IS combat-relevant.
      */

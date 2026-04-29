@@ -129,6 +129,8 @@ public class GameManager {
             p.setFoodLevel(20);
             p.getInventory().clear();
             equipElytra(p);
+            // Team-colored boots (chest is occupied by elytra, no helmet/legs by design)
+            try { nl.kmc.kmccore.util.TeamArmor.applyBoots(p); } catch (Throwable ignored) {}
             int ticks = countdownSeconds * 20;
             if (slowType != null) p.addPotionEffect(new PotionEffect(slowType, ticks, 255, true, false, false));
             if (jumpType != null) p.addPotionEffect(new PotionEffect(jumpType, ticks, 128, true, false, false));
@@ -373,7 +375,8 @@ public class GameManager {
                 0.5, 0.5, 0.5, 0.2);
         p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1f, 1.5f);
         p.sendActionBar(net.kyori.adventure.text.Component.text(
-                ChatColor.GOLD + "✦ Boost!"));
+                ChatColor.GOLD + "✦ " + (hoop.getType() == BoostHoop.Type.FORWARD
+                        ? "Boost!" : "Lift!")));
     }
 
     private void handleFinish(Player p, RunnerState rs) {

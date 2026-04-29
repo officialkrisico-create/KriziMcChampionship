@@ -120,6 +120,8 @@ public class GameManager {
             p.getInventory().clear();
             p.setHealth(20);
             p.setFoodLevel(20);
+            // Team-colored boots so teammates can identify each other
+            try { nl.kmc.kmccore.util.TeamArmor.applyBoots(p); } catch (Throwable ignored) {}
             int ticks = countdownSeconds * 20;
             if (slowType != null) p.addPotionEffect(new PotionEffect(slowType, ticks, 255, true, false, false));
             i++;
