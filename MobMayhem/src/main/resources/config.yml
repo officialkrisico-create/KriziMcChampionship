@@ -1,70 +1,103 @@
 # ================================================================
-# Mob Mayhem — Configuration
+# Parkour Warrior — Configuration
 # ================================================================
-
-# Template world to clone per game (one clone per team)
-world:
-  template-name: "mm_template"
 
 game:
-  # Time between waves (seconds) — break for players to regroup
-  intermission-seconds: 15
+  # Game duration (seconds) — your spec said 8-12 minutes
+  max-duration-seconds: 720    # 12 minutes
   
-  # Pre-game countdown before wave 1
+  # Pre-game countdown
   countdown-seconds: 15
   
-  # If a wave's timer expires, force-kill remaining mobs and continue?
-  force-end-wave-on-timeout: true
+  # Should the game end immediately when the first player finishes?
+  # false = game runs until timer; players who finish wait in spectator
+  end-on-first-finish: false
+
+  # Bonus points for completing the entire course
+  finish-bonus: 100
   
-  # PvP enabled inside arenas (probably no for survival, yes for chaos)
-  pvp-enabled: false
-  
-  # Keep inventory on player death? (player is eliminated regardless)
-  keep-inventory: false
+  # Speed effect for all players (Speed I), helps movement feel fluid
+  base-speed: true
 
 # ================================================================
-# Modifiers — random buffs picked per wave
+# Skip mechanic — admin-decided, see questions in patch notes
+# Defaults below assume "3 fails → /pkw skip available, 0 points for skip"
 # ================================================================
 
-modifiers:
-  # Chance per wave that ANY modifier rolls (0.0 = never, 1.0 = always)
-  chance: 0.4
-  
-  # If a modifier rolls, chance for a 2nd one to also stack
-  second-chance: 0.15
-  
-  # Which modifiers are eligible to roll (omit to disable)
-  enabled:
-    - DOUBLE_MOBS
-    - SPEED_MOBS
-    - LOW_VISIBILITY
-    - EXPLOSIVE_MOBS
-    - HEALTHY_MOBS
-    - POISON_TOUCH
+skip:
+  enabled: true
+  fails-required: 3      # number of times you must die on the same stage
+  cooldown-seconds: 5    # cooldown after using skip before you can again
 
 # ================================================================
-# Scoring
+# Detection — pressure plate or region (or both)
+# ================================================================
+
+detection:
+  # Use pressure plates as checkpoint triggers? When a player steps on
+  # a plate inside a checkpoint region, it counts.
+  pressure-plates: false
+  
+  # Use region-box detection? (PlayerMoveEvent in trigger box)
+  region-boxes: true
+
+# ================================================================
+# Scoring (awarded via KMCCore PointsManager)
 # ================================================================
 
 points:
-  # Per-mob points (overridden by WaveLibrary if present)
-  per-mob-default: 2
-  per-boss-mob: 50
-  
-  # Bonus for completing a wave (alive at the end)
-  wave-survived-bonus: 25
-  wave-survived-bonus-boss: 100
-  
-  # Final placement (team that survived longest)
-  team-first-place: 250
-  team-second-place: 150
-  team-third-place: 100
-  team-participation: 25
+  # Per-checkpoint by difficulty (overrides cp.getAwardedPoints() multiplier)
+  by-difficulty:
+    EASY:    8
+    MEDIUM: 12
+    HARD:   15
+    MAIN:   10
+
+  # Bonus when a player completes a SECTION (any non-finish CP).
+  # Awarded ON TOP of the checkpoint's own points.
+  section-complete: 15
+
+  # Per-finish placement: 1st=250, -10/place, floor 25.
+  placement:
+    1:  250
+    2:  240
+    3:  230
+    4:  220
+    5:  210
+    6:  200
+    7:  190
+    8:  180
+    9:  170
+    10: 160
+    11: 150
+    12: 140
+    13: 130
+    14: 120
+    15: 110
+    16: 100
+    17:  90
+    18:  80
+    19:  70
+    20:  60
+    21:  50
+    22:  40
+    23:  30
+    "default": 25      # 24th and beyond all get 25 (floor)
+
+  # Legacy fallback for CPs without difficulty tag (shouldn't happen now)
+  default-checkpoint-points: 10
+
+  # Final tournament placement bonuses (kept for compatibility)
+  first-place: 200
+  second-place: 125
+  third-place: 75
+  participation: 25
 
 # ================================================================
-# Arena (set via /mm setspawn / /mm addmobspawn)
+# Course definition (set via /pkw commands)
 # ================================================================
 
-arena:
-  player-spawn: {}
-  mob-spawns: []
+course:
+  world: ""
+  start-spawn: null
+  checkpoints: {}

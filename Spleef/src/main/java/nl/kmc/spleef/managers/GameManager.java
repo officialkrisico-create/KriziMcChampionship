@@ -46,6 +46,10 @@ public class GameManager {
     private final Map<UUID, PlayerState> players = new LinkedHashMap<>();
     private int eliminationCounter;
 
+    /** Tracks most recent block-breaker under each player's column for kill credit. */
+    private final Map<UUID, UUID> lastBreakerNearVictim = new HashMap<>();
+    private final Map<UUID, Long> lastBreakerTimeMs = new HashMap<>();
+
     private BukkitTask countdownTask;
     private BukkitTask gameTimerTask;
     private BukkitTask voidCheckTask;
@@ -243,6 +247,46 @@ public class GameManager {
         broadcast("&c☠ &7" + p.getName() + " &7" + reason
                 + " &8(" + ps.getBlocksBroken() + " blokken kapot)");
 
+        // Per-elimination kill credit: if a player broke a block under
+        // this victim within the last 2 seconds, they get the kill.
+        UUID killerUuid = lastBreakerNearVictim.get(p.getUniqueId());
+        Long breakMs = lastBreakerTimeMs.get(p.getUniqueId());
+        if (killerUuid != null && breakMs != null
+                && (System.currentTimeMillis() - breakMs) < 2000
+                && !killerUuid.equals(p.getUniqueId())) {
+            int elimPts = plugin.getConfig().getInt("points.per-elimination", 35);
+            if (elimPts > 0) {
+                plugin.getKmcCore().getApi().givePoints(killerUuid, elimPts);
+                Player killer = Bukkit.getPlayer(killerUuid);
+                if (killer != null) {
+                    killer.sendActionBar(net.kyori.adventure.text.Component.text(
+                            ChatColor.GREEN + "+" + elimPts + " elimination!"));
+                    killer.playSound(killer.getLocation(),
+                            Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
+                }
+            }
+        }
+        // Clear the tracker for this victim
+        lastBreakerNearVictim.remove(p.getUniqueId());
+        lastBreakerTimeMs.remove(p.getUniqueId());
+
+        // Living-while-someone-dies — every still-alive player gets a small bonus
+        int livingBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
+        if (livingBonus > 0) {
+            KMCApi api = plugin.getKmcCore().getApi();
+            for (PlayerState other : players.values()) {
+                if (!other.isAlive()) continue;
+                if (other.getUuid().equals(p.getUniqueId())) continue;
+                api.givePoints(other.getUuid(), livingBonus);
+                Player op = Bukkit.getPlayer(other.getUuid());
+                if (op != null) {
+                    op.sendActionBar(net.kyori.adventure.text.Component.text(
+                            ChatColor.AQUA + "+" + livingBonus + " survivor bonus"));
+                    op.playSound(op.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.5f);
+                }
+            }
+        }
+
         // Spectator
         p.setGameMode(GameMode.SPECTATOR);
         p.getInventory().clear();
@@ -253,6 +297,29 @@ public class GameManager {
 
         checkWinCondition();
         updateBossBar();
+    }
+
+    /**
+     * Called by SpleefListener whenever a player breaks a floor block.
+     * Records the breaker → so if any player falls into the void shortly
+     * after, the breaker gets the elimination credit.
+     */
+    public void recordBlockBreakNearby(Player breaker, org.bukkit.block.Block block) {
+        // For each currently-alive player, check if they're directly above
+        // the broken block (within 4 blocks vertically).
+        for (PlayerState ps : players.values()) {
+            if (!ps.isAlive()) continue;
+            Player p = Bukkit.getPlayer(ps.getUuid());
+            if (p == null) continue;
+            if (p.getUniqueId().equals(breaker.getUniqueId())) continue;
+            org.bukkit.Location pl = p.getLocation();
+            if (pl.getWorld() != block.getWorld()) continue;
+            if (pl.getBlockX() == block.getX() && pl.getBlockZ() == block.getZ()
+                    && pl.getY() > block.getY() && pl.getY() - block.getY() < 5) {
+                lastBreakerNearVictim.put(p.getUniqueId(), breaker.getUniqueId());
+                lastBreakerTimeMs.put(p.getUniqueId(), System.currentTimeMillis());
+            }
+        }
     }
 
     /** Called by listener when a player breaks a floor block. */
@@ -320,12 +387,15 @@ public class GameManager {
         broadcast("&6═══════════════════════════════════");
 
         KMCApi api = plugin.getKmcCore().getApi();
-        String[] placeKeys = {"first-place", "second-place", "third-place"};
         String winnerName = "Niemand";
 
-        // Per-elimination kill points are awarded inline via SnowballListener;
-        // here we award placement bonuses + record stats.
-        int blocksPerPoint = plugin.getConfig().getInt("points.per-block-broken", 0);
+        // Win bonus to the last alive player (rank 1, if alive)
+        if (!ranked.isEmpty() && ranked.get(0).isAlive()) {
+            int winBonus = plugin.getConfig().getInt("points.win", 200);
+            if (winBonus > 0) {
+                api.givePoints(ranked.get(0).getUuid(), winBonus);
+            }
+        }
 
         for (int i = 0; i < ranked.size(); i++) {
             PlayerState ps = ranked.get(i);
@@ -337,18 +407,9 @@ public class GameManager {
             broadcast("  " + medal + " " + teamColor + ps.getName()
                     + aliveStr + " &8- &e" + ps.getBlocksBroken() + " blokken");
 
-            // Block-break points (per block)
-            if (blocksPerPoint > 0) {
-                int blockPts = ps.getBlocksBroken() * blocksPerPoint;
-                if (blockPts > 0) api.givePoints(ps.getUuid(), blockPts);
-            }
-
-            // Placement bonus
-            int placeBonus;
-            if (i < placeKeys.length)
-                placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
-            else
-                placeBonus = plugin.getConfig().getInt("points.participation", 25);
+            // Tiered personal placement: 250 for 1st, -10 each, floor 0.
+            int placement = i + 1;
+            int placeBonus = readPlacement("points.placement", placement);
             if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
 
             // Standardized end-of-game stats
@@ -414,6 +475,8 @@ public class GameManager {
                 () -> { /* done */ });
 
         players.clear();
+        lastBreakerNearVictim.clear();
+        lastBreakerTimeMs.clear();
         state = State.IDLE;
 
         if (plugin.getKmcCore().getAutomationManager().isRunning()) {
@@ -454,5 +517,15 @@ public class GameManager {
     private static Material parseMaterial(String name, Material fallback) {
         try { return Material.valueOf(name.toUpperCase()); }
         catch (Exception e) { return fallback; }
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

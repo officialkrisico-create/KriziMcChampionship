@@ -3,6 +3,7 @@ package nl.kmc.bridge;
 import nl.kmc.bridge.commands.BridgeCommand;
 import nl.kmc.bridge.listeners.BridgeListener;
 import nl.kmc.bridge.managers.ArenaManager;
+import nl.kmc.bridge.managers.AssistManager;
 import nl.kmc.bridge.managers.BlockTracker;
 import nl.kmc.bridge.managers.GameManager;
 import nl.kmc.bridge.managers.KitManager;
@@ -29,6 +30,7 @@ public final class TheBridgePlugin extends JavaPlugin {
     private KitManager    kitManager;
     private BlockTracker  blockTracker;
     private GameManager   gameManager;
+    private AssistManager assistManager;
 
     @Override
     public void onEnable() {
@@ -46,6 +48,8 @@ public final class TheBridgePlugin extends JavaPlugin {
         kitManager   = new KitManager(this);
         blockTracker = new BlockTracker(this);
         gameManager  = new GameManager(this);
+        assistManager = new AssistManager();
+
 
         var cmd = new BridgeCommand(this);
         var bukkitCmd = getCommand("bridge");
@@ -54,7 +58,9 @@ public final class TheBridgePlugin extends JavaPlugin {
             bukkitCmd.setTabCompleter(cmd);
         }
 
+
         getServer().getPluginManager().registerEvents(new BridgeListener(this), this);
+        getServer().getPluginManager().registerEvents(assistManager, this);
 
         kmcCore.getApi().onGameStart(gameId -> {
             if (!GAME_ID.equals(gameId)) return;
@@ -86,4 +92,5 @@ public final class TheBridgePlugin extends JavaPlugin {
     public KitManager   getKitManager()   { return kitManager; }
     public BlockTracker getBlockTracker() { return blockTracker; }
     public GameManager  getGameManager()  { return gameManager; }
+    public AssistManager getAssistManager() { return assistManager; }
 }

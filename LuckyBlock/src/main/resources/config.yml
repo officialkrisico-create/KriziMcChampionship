@@ -19,10 +19,13 @@ game:
 
 # Points awarded for surviving (position → points, before KMC multiplier)
 points:
-  1: 100
-  2: 75
-  3: 50
-  4: 25
+  # Per-kill (overrides KMCCore/points.yml kill value for this game)
+  per-kill: 20
+
+  # Winner = last team alive OR most kills if time runs out
+  win: 200
+
+  # No placement bonuses by default. Add e.g. "2: 75" if you want them.
 
 # Kill points are now configured in KMCCore/points.yml
 

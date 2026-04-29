@@ -18,14 +18,27 @@ game:
   intermission-seconds: 8
 
 points:
-  # Per-round placement
-  round-first: 50
-  round-second: 35
-  round-third: 25
-  round-finished: 10
-  round-dnf: 0
-  
-  # Final placement bonuses (sum of round points + these)
+  # Per-round placement (top 5 explicitly specified; 6th+ get 0)
+  round-placement:
+    1: 80
+    2: 70
+    3: 65
+    4: 60
+    5: 55
+    "default": 0
+
+  # When a TEAM finishes (all members done in a round), team gets a bonus.
+  # +25 per member for first team, -5 per team rank, floor 0.
+  # 1st team = 25 each, 2nd team = 20, 3rd = 15, 4th = 10, 5th = 5, 6+ = 0.
+  team-finish-bonus:
+    1: 25
+    2: 20
+    3: 15
+    4: 10
+    5:  5
+    "default": 0
+
+  # Final per-game placement bonuses (kept for tournament integration).
   first-place: 250
   second-place: 150
   third-place: 100

@@ -28,16 +28,50 @@ game:
   columns-per-tick: 16
 
 points:
-  per-kill: 50
-  # Bonus awarded to every still-alive player each time someone is
-  # eliminated. Rewards "outlasting" — careful play that survives past
-  # other deaths, even if you didn't get the kill yourself.
-  # Set to 0 to disable.
-  survival-bonus: 15
-  first-place: 500
-  second-place: 300
-  third-place: 200
-  participation: 50
+  # Per-kill
+  per-kill: 35
+
+  # Bonus when ANY player dies — every still-alive player gets this.
+  # Replaces the old "survival-bonus" key.
+  living-while-someone-dies: 5
+
+  # Bonus when a WHOLE TEAM is eliminated — every still-alive
+  # individual player gets this (regardless of which team they're on).
+  living-while-team-dies: 20
+
+  # Winner (last alive)
+  win: 200
+
+  # Final personal placement bonuses (mirrors SkyWars curve).
+  # 1st = 250, then -10 per place, floor 0.
+  placement:
+    1:  250
+    2:  240
+    3:  230
+    4:  220
+    5:  210
+    6:  200
+    7:  190
+    8:  180
+    9:  170
+    10: 160
+    11: 150
+    12: 140
+    13: 130
+    14: 120
+    15: 110
+    16: 100
+    17:  90
+    18:  80
+    19:  70
+    20:  60
+    21:  50
+    22:  40
+    23:  30
+    24:  20
+    25:  10
+    "default": 0     # 26th and beyond get 0
+
 
 # ================================================================
 # Loot tables

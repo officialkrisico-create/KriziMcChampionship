@@ -416,6 +416,24 @@ public class GameManager {
         victim.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Eliminated!",
                 ChatColor.YELLOW + reason, 10, 50, 10);
 
+        // Living-while-someone-dies — every still-alive player (other
+        // than the victim) gets a small bonus for outlasting this death.
+        int livingBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
+        if (livingBonus > 0) {
+            KMCApi api = plugin.getKmcCore().getApi();
+            for (PlayerStats other : stats.values()) {
+                if (!other.isAlive()) continue;
+                if (other.getUuid().equals(victim.getUniqueId())) continue;
+                api.givePoints(other.getUuid(), livingBonus);
+                Player op = Bukkit.getPlayer(other.getUuid());
+                if (op != null) {
+                    op.sendActionBar(net.kyori.adventure.text.Component.text(
+                            ChatColor.AQUA + "+" + livingBonus + " survivor bonus"));
+                    op.playSound(op.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.5f);
+                }
+            }
+        }
+
         checkWinCondition();
         updateBossBar();
     }
@@ -465,31 +483,40 @@ public class GameManager {
         broadcast("&6═══════════════════════════════════");
 
         KMCApi api = plugin.getKmcCore().getApi();
-        String[] placeKeys = {"team-first-place", "team-second-place", "team-third-place"};
         String winnerName = "Niemand";
 
+        // Informational broadcast: show team standings (no points awarded
+        // here — points are personal-tiered now, awarded below).
         for (int i = 0; i < teamList.size(); i++) {
             Team team = teamList.get(i);
             String medal = i == 0 ? "&6🥇" : i == 1 ? "&7🥈" : i == 2 ? "&c🥉" : "&7#" + (i + 1);
             broadcast("  " + medal + " " + team.getChatColor() + team.getDisplayName()
                     + " &8- &e" + countAlive(team) + " alive &7(" + teamKills(team) + " kills)");
-
-            int placeBonus;
-            if (i < placeKeys.length)
-                placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
-            else
-                placeBonus = plugin.getConfig().getInt("points.team-participation", 25);
-
-            for (UUID uuid : team.getMembers()) {
-                if (placeBonus > 0) api.givePoints(uuid, placeBonus);
-                PlayerStats ps = stats.get(uuid);
-                String name = ps != null ? ps.getName() : uuid.toString();
-                api.recordGameParticipation(uuid, name, GAME_ID, i == 0);
-            }
-
             if (i == 0) winnerName = team.getChatColor() + team.getDisplayName();
         }
         broadcast("&6═══════════════════════════════════");
+
+        // Personal tiered placement.
+        // Rank players: alive first (later elimination = better), then
+        // by kills DESC as tiebreaker.
+        List<PlayerStats> rankedPlayers = new ArrayList<>(stats.values());
+        rankedPlayers.sort((a, b) -> {
+            if (a.isAlive() != b.isAlive()) return a.isAlive() ? -1 : 1;
+            if (a.getEliminationOrder() != b.getEliminationOrder())
+                return Integer.compare(b.getEliminationOrder(), a.getEliminationOrder());
+            return Integer.compare(b.getKills(), a.getKills());
+        });
+
+        for (int i = 0; i < rankedPlayers.size(); i++) {
+            PlayerStats ps = rankedPlayers.get(i);
+            int placement = i + 1;
+            int placeBonus = readPlacement("points.placement", placement);
+            if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
+
+            // Tournament integration — record participation. The "won"
+            // flag is true only for rank 1.
+            api.recordGameParticipation(ps.getUuid(), ps.getName(), GAME_ID, i == 0);
+        }
 
         // Top killers footer
         broadcast("&6Top kills:");
@@ -613,5 +640,16 @@ public class GameManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     * Returns 0 if neither exists.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

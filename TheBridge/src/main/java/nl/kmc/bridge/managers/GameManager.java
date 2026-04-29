@@ -246,8 +246,20 @@ public class GameManager {
         scoringTeam.addGoal();
         ps.addGoal();
 
-        int goalPoints = plugin.getConfig().getInt("points.per-goal", 25);
+        int goalPoints = plugin.getConfig().getInt("points.per-goal", 50);
         plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), goalPoints);
+
+        // Per-round-win: each goal counts as a "round win" — every member
+        // of the scoring team gets a small bonus.
+        int roundWinBonus = plugin.getConfig().getInt("points.per-round-win", 10);
+        if (roundWinBonus > 0) {
+            for (UUID memberId : scoringTeam.getMembers()) {
+                if (memberId.equals(p.getUniqueId())) continue;  // scorer already got per-goal
+                plugin.getKmcCore().getApi().givePoints(memberId, roundWinBonus);
+            }
+            // Scorer also gets the round-win bonus on top of per-goal
+            plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), roundWinBonus);
+        }
 
         broadcast("&6⚽ " + scoringTeam.getChatColor() + p.getName()
                 + " &fscoorde voor &6" + scoringTeam.getChatColor() + scoringTeam.getDisplayName()
@@ -331,17 +343,45 @@ public class GameManager {
         if (team == null) return;
 
         ps.addDeath();
+
         if (killer != null) {
             PlayerStats killerStats = stats.get(killer.getUniqueId());
             if (killerStats != null) {
                 killerStats.addKill();
-                int killPoints = plugin.getConfig().getInt("points.per-kill", 5);
+                int killPoints = plugin.getConfig().getInt("points.per-kill", 8);
                 plugin.getKmcCore().getApi().givePoints(killer.getUniqueId(), killPoints);
                 plugin.getKmcCore().getHallOfFameManager().recordKill(killer);
             }
+
+            // Assist credit: if someone else hit the victim recently
+            // (and isn't the killer), they get assist points.
+            AssistManager am = plugin.getAssistManager();
+            if (am != null) {
+                long windowMs = plugin.getConfig().getLong("points.assist-window-seconds", 8) * 1000L;
+                UUID assistUuid = am.consumeAssist(p.getUniqueId(), killer.getUniqueId(), windowMs);
+                if (assistUuid != null) {
+                    int assistPts = plugin.getConfig().getInt("points.per-assist", 20);
+                    if (assistPts > 0) {
+                        plugin.getKmcCore().getApi().givePoints(assistUuid, assistPts);
+                        Player assister = Bukkit.getPlayer(assistUuid);
+                        if (assister != null) {
+                            assister.sendActionBar(net.kyori.adventure.text.Component.text(
+                                    ChatColor.AQUA + "✦ Assist! +" + assistPts));
+                            assister.playSound(assister.getLocation(),
+                                    Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.5f);
+                        }
+                    }
+                }
+            }
+
             broadcast("&c☠ &7" + p.getName() + " &8← &e" + killer.getName());
         } else {
             broadcast("&c☠ &7" + p.getName() + " &8viel in de void");
+            // Void death — also clear assist tracking so a stale hit doesn't
+            // get awarded incorrectly later.
+            if (plugin.getAssistManager() != null) {
+                plugin.getAssistManager().clearVictim(p.getUniqueId());
+            }
         }
 
         respawnPlayer(p, team, true);
@@ -445,6 +485,8 @@ public class GameManager {
         return total;
     }
 
+
+
     private void cleanup(String winnerName) {
         plugin.getKmcCore().getApi().releaseScoreboard("bridge");
         if (bossBar != null) {
@@ -518,6 +560,7 @@ public class GameManager {
             bossBar.setProgress(Math.max(0, Math.min(1, (double) remainingSeconds / totalSec)));
         }
     }
+
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));

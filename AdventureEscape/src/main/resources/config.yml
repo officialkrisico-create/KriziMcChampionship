@@ -38,16 +38,51 @@ game:
 
 # Points awarded by finish position (before KMC multiplier)
 points:
-  1: 500
-  2: 350
-  3: 250
-  4: 175
-  5: 125
-  6: 100
-  7: 75
-  8: 50
-  # Positions beyond this fall back to "last-place"
-  last-place: 25
+  # Per-finish placement (1st=320, -10/place, default=0)
+  placement:
+    1:  320
+    2:  310
+    3:  300
+    4:  290
+    5:  280
+    6:  270
+    7:  260
+    8:  250
+    9:  240
+    10: 230
+    11: 220
+    12: 210
+    13: 200
+    14: 190
+    15: 180
+    16: 170
+    17: 160
+    18: 150
+    19: 140
+    20: 130
+    21: 120
+    22: 110
+    23: 100
+    24:  90
+    25:  80
+    26:  70
+    27:  60
+    28:  50
+    29:  40
+    30:  30
+    31:  20
+    32:  10
+    "default": 0
+
+  # Bonus for the player who set the fastest single lap
+  fastest-lap-bonus: 25
+
+  # Team placement bonus — based on AVERAGE finish position of team members.
+  team-avg-placement:
+    1: 20
+    2: 15
+    3: 10
+    "default": 0
 
 # ============================================================
 #   EFFECT BLOCKS

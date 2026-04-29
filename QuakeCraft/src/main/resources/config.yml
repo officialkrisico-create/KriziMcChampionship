@@ -132,11 +132,31 @@ killstreaks:
 # ================================================================
 
 points:
-  per-kill: 10
-  first-place: 250
-  second-place: 150
-  third-place: 100
-  participation: 25
+  # Per kill
+  per-kill: 12
+
+  # Win-game bonus — the individual player with the most kills at
+  # game end (1st place ranked by kills) gets this.
+  win-game: 50
+
+  # Revenge kill bonus — when you kill the player who killed you
+  # within revenge-window-ms milliseconds.
+  revenge-kill-bonus: 25
+  revenge-window-ms: 10000
+
+  # Final team placement bonuses (kept as-is for tournament integration).
+  # These flow through KMCCore at tournament end, not per-game.
+  team-first-place: 250
+  team-second-place: 150
+  team-third-place: 100
+  team-participation: 25
+
+  # Per-individual placement (used by endGame()) — kept simple,
+  # only top 3 awarded explicitly. Ties broken by deaths (asc).
+  first-place: 0      # was 250 — now 0 because win-game replaces it
+  second-place: 0
+  third-place: 0
+  participation: 0
 
 # ================================================================
 # Arena (set via /qc commands)

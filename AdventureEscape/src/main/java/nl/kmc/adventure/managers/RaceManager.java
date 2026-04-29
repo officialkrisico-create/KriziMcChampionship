@@ -265,13 +265,12 @@ public class RaceManager {
         broadcast("&6&lAdventure Escape — Uitslag");
         broadcast("&6═══════════════════════════════════");
 
-        // Award finish-order placements
+        // Award finish-order placements (tiered: 1st=320, -10/place, default=0)
         for (int i = 0; i < finishOrder.size(); i++) {
             UUID uuid = finishOrder.get(i);
             int placement = i + 1;
-            int base = plugin.getConfig().getInt("points." + placement, 0);
-            if (base == 0) base = plugin.getConfig().getInt("points.last-place", 25);
-            int awarded = api.givePoints(uuid, base);
+            int base = readPlacement("points.placement", placement);
+            int awarded = base > 0 ? api.givePoints(uuid, base) : 0;
 
             RacerData rd = racers.get(uuid);
             Player p = Bukkit.getPlayer(uuid);
@@ -288,15 +287,74 @@ public class RaceManager {
             }
         }
 
-        // Non-finishers get last-place points
-        int lastPlace = plugin.getConfig().getInt("points.last-place", 25);
+        // Non-finishers get the placement default (0 by default)
+        int dnfPoints = plugin.getConfig().getInt("points.placement.default", 0);
         for (UUID uuid : allRacers) {
             if (finishOrder.contains(uuid)) continue;
-            api.givePoints(uuid, lastPlace);
+            if (dnfPoints > 0) api.givePoints(uuid, dnfPoints);
             RacerData rd = racers.get(uuid);
             Player p = Bukkit.getPlayer(uuid);
             String name = p != null ? p.getName() : rd != null ? rd.getName() : "?";
-            broadcast("  &7DNF &f" + name + " &8- &e" + lastPlace + " punten");
+            broadcast("  &7DNF &f" + name + " &8- &e" + dnfPoints + " punten");
+        }
+
+        // ===== FASTEST LAP BONUS =====
+        UUID fastestUuid = null;
+        long fastestMs = Long.MAX_VALUE;
+        for (RacerData rd : racers.values()) {
+            long bl = rd.getBestLapMs();
+            if (bl > 0 && bl < fastestMs) {
+                fastestMs = bl;
+                fastestUuid = rd.getUuid();
+            }
+        }
+        if (fastestUuid != null) {
+            int fastestBonus = plugin.getConfig().getInt("points.fastest-lap-bonus", 25);
+            if (fastestBonus > 0) {
+                api.givePoints(fastestUuid, fastestBonus);
+                RacerData rd = racers.get(fastestUuid);
+                String fastestName = rd != null ? rd.getName() : "?";
+                broadcast("&6&l⏱ Snelste ronde: &e" + fastestName
+                        + " &7(" + RacerData.formatMs(fastestMs)
+                        + ", +" + fastestBonus + " bonus)");
+            }
+        }
+
+        // ===== TEAM AVERAGE PLACEMENT BONUS =====
+        // Build map: teamId → list of placements (using finishOrder; DNFs counted as size+1)
+        Map<String, List<Integer>> teamPlacements = new HashMap<>();
+        Map<String, nl.kmc.kmccore.models.KMCTeam> teamLookup = new HashMap<>();
+        int totalRacerCount = allRacers.size();
+        for (UUID uuid : allRacers) {
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(uuid);
+            if (team == null) continue;
+            int idx = finishOrder.indexOf(uuid);
+            int placement = (idx >= 0) ? (idx + 1) : (totalRacerCount + 1);  // DNF after last
+            teamPlacements.computeIfAbsent(team.getId(), k -> new ArrayList<>()).add(placement);
+            teamLookup.put(team.getId(), team);
+        }
+        // Compute averages, sort ascending (lower avg = better)
+        List<Map.Entry<String, Double>> teamAverages = new ArrayList<>();
+        for (var e : teamPlacements.entrySet()) {
+            double avg = e.getValue().stream().mapToInt(Integer::intValue).average().orElse(999);
+            teamAverages.add(Map.entry(e.getKey(), avg));
+        }
+        teamAverages.sort(Map.Entry.comparingByValue());
+        // Award bonuses to each team's members based on team rank
+        for (int i = 0; i < teamAverages.size(); i++) {
+            int teamRank = i + 1;
+            int bonusEach = readPlacement("points.team-avg-placement", teamRank);
+            if (bonusEach <= 0) continue;
+            String teamId = teamAverages.get(i).getKey();
+            var team = teamLookup.get(teamId);
+            if (team == null) continue;
+            for (UUID memberId : team.getMembers()) {
+                api.givePoints(memberId, bonusEach);
+            }
+            broadcast("&6&l✦ Team " + team.getDisplayName()
+                    + " &7team-avg #" + teamRank
+                    + " &8(" + String.format("%.1f", teamAverages.get(i).getValue())
+                    + " avg) &e+" + bonusEach + " elk");
         }
 
         broadcast("&6═══════════════════════════════════");
@@ -384,5 +442,15 @@ public class RaceManager {
             return Long.compare(a.getCurrentLapMs(), b.getCurrentLapMs());
         });
         return list;
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

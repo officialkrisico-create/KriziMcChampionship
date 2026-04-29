@@ -53,6 +53,9 @@ public class GameManager {
     private final Map<UUID, Long>        cpCooldown    = new HashMap<>();
     private final List<UUID>             finishOrder   = new ArrayList<>();
 
+    /** First team to fully finish — only awarded once per game. */
+    private String firstTeamFinishedId = null;
+
     private BukkitTask countdownTask;
     private BukkitTask gameTimerTask;
     private BukkitTask crashCheckTask;
@@ -104,6 +107,7 @@ public class GameManager {
 
         runners.clear();
         finishOrder.clear();
+        firstTeamFinishedId = null;
         groundedAt.clear();
         boostCooldown.clear();
         cpCooldown.clear();
@@ -384,18 +388,42 @@ public class GameManager {
         rs.markFinished(placement);
         finishOrder.add(p.getUniqueId());
 
-        int finishBonus = plugin.getConfig().getInt("game.finish-bonus", 100);
+        // Per-placement bonus — 1st = 320, -10 per place, floor 0.
+        int finishBonus = readPlacement("points.placement", placement);
         if (finishBonus > 0) plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), finishBonus);
 
         long elapsedMs = System.currentTimeMillis() - gameStartMs;
         String time = formatMs(elapsedMs);
 
         broadcast("&6[Elytra Endrium] &e" + p.getName()
-                + " &bfinisht als &6#" + placement + " &7(" + time + ")");
+                + " &bfinisht als &6#" + placement + " &7(" + time + ", +" + finishBonus + ")");
         p.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "#" + placement,
                 ChatColor.YELLOW + "Tijd: " + time, 10, 60, 20);
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         p.setGameMode(GameMode.SPECTATOR);
+
+        // First-team-finish bonus: did this finish complete a team?
+        if (firstTeamFinishedId == null) {
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
+            if (team != null) {
+                boolean teamDone = true;
+                for (UUID memberId : team.getMembers()) {
+                    if (!runners.containsKey(memberId)) continue;  // not in game
+                    if (!finishOrder.contains(memberId)) { teamDone = false; break; }
+                }
+                if (teamDone && !team.getMembers().isEmpty()) {
+                    firstTeamFinishedId = team.getId();
+                    int bonus = plugin.getConfig().getInt("points.first-team-finish-bonus", 10);
+                    if (bonus > 0) {
+                        for (UUID memberId : team.getMembers()) {
+                            plugin.getKmcCore().getApi().givePoints(memberId, bonus);
+                        }
+                        broadcast("&6&l✦ Team " + team.getDisplayName()
+                                + " &eis het eerste team dat finished! &7(+" + bonus + " elk)");
+                    }
+                }
+            }
+        }
 
         if (plugin.getConfig().getBoolean("game.end-on-first-finish", false)) {
             endGame("first_finish"); return;
@@ -559,5 +587,16 @@ public class GameManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     * Special "dnf" key for didn't-finish, otherwise default = 0.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

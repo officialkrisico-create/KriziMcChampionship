@@ -351,6 +351,12 @@ public class GameManager {
         to.setIt(true);
         to.recordTagPass();
 
+        // Award per-tag bonus to the player who just tagged someone
+        int tagPts = plugin.getConfig().getInt("points.per-tag", 10);
+        if (tagPts > 0) {
+            plugin.getKmcCore().getApi().givePoints(from.getUuid(), tagPts);
+        }
+
         Player fromPlayer = Bukkit.getPlayer(from.getUuid());
         Player toPlayer   = Bukkit.getPlayer(to.getUuid());
 
@@ -466,6 +472,20 @@ public class GameManager {
 
         broadcast("&c☠ &7" + p.getName() + " &7" + reason
                 + " &8(round " + currentRound + ", " + ps.getRoundsSurvived() + " survived)");
+
+        // Living-while-someone-dies bonus
+        int livingBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
+        if (livingBonus > 0) {
+            UUID deadId = ps.getUuid();
+            List<UUID> stillAlive = new ArrayList<>();
+            for (PlayerState other : players.values()) {
+                if (other.isAlive() && !other.getUuid().equals(deadId)) {
+                    stillAlive.add(other.getUuid());
+                }
+            }
+            nl.kmc.kmccore.util.SurvivorBonusHelper.award(
+                    plugin.getKmcCore(), stillAlive, livingBonus);
+        }
     }
 
     // ----------------------------------------------------------------
@@ -495,8 +515,17 @@ public class GameManager {
         broadcast("&6═══════════════════════════════════");
 
         KMCApi api = plugin.getKmcCore().getApi();
-        String[] placeKeys = {"first-place", "second-place", "third-place"};
         String winnerName = "Niemand";
+
+        // Last-alive bonus to the player(s) still alive at game end
+        int lastAliveBonus = plugin.getConfig().getInt("points.last-alive-bonus", 50);
+        if (lastAliveBonus > 0) {
+            for (PlayerState ps : ranked) {
+                if (ps.isAlive()) {
+                    api.givePoints(ps.getUuid(), lastAliveBonus);
+                }
+            }
+        }
 
         for (int i = 0; i < ranked.size(); i++) {
             PlayerState ps = ranked.get(i);
@@ -509,11 +538,9 @@ public class GameManager {
                     + aliveStr + " &8- &e" + ps.getRoundsSurvived() + " survived"
                     + " &7(" + ps.getTagsLanded() + " tags)");
 
-            int placeBonus;
-            if (i < placeKeys.length)
-                placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
-            else
-                placeBonus = plugin.getConfig().getInt("points.participation", 25);
+            // Tiered personal placement (250/240/230... -10, floor 0)
+            int placement = i + 1;
+            int placeBonus = readPlacement("points.placement", placement);
             if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
 
             api.recordGameParticipation(ps.getUuid(), ps.getName(), GAME_ID, i == 0);
@@ -613,5 +640,15 @@ public class GameManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

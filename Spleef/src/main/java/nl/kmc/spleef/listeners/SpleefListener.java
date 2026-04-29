@@ -79,6 +79,9 @@ public class SpleefListener implements Listener {
         plugin.getFloorManager().unregisterBlock(event.getBlock());
         plugin.getGameManager().onFloorBlockBroken(p);
 
+        // Track this break for kill-credit attribution
+        plugin.getGameManager().recordBlockBreakNearby(p, event.getBlock());
+
         // Subtle visual at the broken block
         event.getBlock().getWorld().spawnParticle(Particle.SNOWFLAKE,
                 event.getBlock().getLocation().add(0.5, 0.5, 0.5), 6, 0.3, 0.3, 0.3, 0.02);

@@ -20,13 +20,22 @@ kit:
   wool-count: 64
 
 points:
-  # Per-goal — awarded immediately to the scorer
-  per-goal: 25
-  
-  # Per-kill — awarded immediately to the killer
-  per-kill: 5
-  
-  # Final team placement bonuses
+  # Per goal scored — to the scoring player
+  per-goal: 50
+
+  # Per assist — to the player who hit/aided the scorer's path.
+  # An assist is credited to the most recent player who damaged the
+  # scorer's most-recent enemy kill within ASSIST-WINDOW-SECONDS.
+  per-assist: 20
+  assist-window-seconds: 8
+
+  # Per kill
+  per-kill: 8
+
+  # Per round won — every member of the winning team gets this.
+  per-round-win: 10
+
+  # Final placement bonuses (kept for tournament integration)
   team-first-place: 250
   team-second-place: 150
   team-third-place: 100

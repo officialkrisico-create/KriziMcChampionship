@@ -48,14 +48,46 @@ powerups:
 # ================================================================
 
 points:
-  # Per block broken (small bonus to encourage active play, not camping)
-  per-block-broken: 1
-  
-  # Placement bonuses (1st = winner, 2nd = last to die, etc.)
-  first-place: 250
-  second-place: 150
-  third-place: 100
-  participation: 25
+  # Awarded per elimination — when you knock someone into the void
+  # by breaking blocks under them.
+  per-elimination: 35
+
+  # Living-while-someone-dies — every still-alive player gets this
+  # each time someone falls.
+  living-while-someone-dies: 5
+
+  # Winner (last standing)
+  win: 200
+
+  # Personal placement bonuses (1st = last alive, descending).
+  placement:
+    1:  250
+    2:  240
+    3:  230
+    4:  220
+    5:  210
+    6:  200
+    7:  190
+    8:  180
+    9:  170
+    10: 160
+    11: 150
+    12: 140
+    13: 130
+    14: 120
+    15: 110
+    16: 100
+    17:  90
+    18:  80
+    19:  70
+    20:  60
+    21:  50
+    22:  40
+    23:  30
+    24:  20
+    25:  10
+    "default": 0
+
 
 # ================================================================
 # Arena (set via /spleef commands)

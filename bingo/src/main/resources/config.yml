@@ -89,9 +89,23 @@ card:
 # ================================================================
 
 points:
-  per-square: 8
-  per-line: 50
-  full-card: 200
+  # Per-craft event scoring.
+  # When a player crafts/collects an item that's on their team's bingo card,
+  # the order in which TEAMS first complete that item determines the
+  # points. Only the player who actually performs the craft gets the
+  # points (not their teammates).
+  per-craft-by-team-rank:
+    1: 40
+    2: 30
+    3: 20
+    "default": 10     # 4th and beyond
+
+  # Completion bonus: at game end, the team with the MOST squares gets a
+  # 100-point pool split equally among its members.
+  # 4-member team → each gets 25; 2-member team → each gets 50.
+  completion-bonus-pool: 100
+
+  # Final tournament placement bonuses (kept for compatibility)
   team-first-place: 250
   team-second-place: 150
   team-third-place: 100

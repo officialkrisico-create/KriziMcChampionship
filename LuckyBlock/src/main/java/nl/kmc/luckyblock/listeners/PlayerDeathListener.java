@@ -29,10 +29,16 @@ public class PlayerDeathListener implements Listener {
         event.getDrops().clear();
         event.setKeepInventory(false);
 
-        // Award kill points (reads from KMCCore points.yml — no hardcoded value)
+        // Award kill points using Lucky Block's per-game value (20 by default).
+        // Goes through KMCApi.givePoints so the round multiplier still applies.
         if (killer != null && !killer.equals(dead)) {
-            int awarded = plugin.getKmcCore().getPointsManager().awardKill(killer.getUniqueId());
-            killer.sendMessage("§6+" + awarded + " punten voor de kill!");
+            int killPts = plugin.getConfig().getInt("points.per-kill", 20);
+            if (killPts > 0) {
+                plugin.getKmcCore().getApi().givePoints(killer.getUniqueId(), killPts);
+                killer.sendMessage("§6+" + killPts + " punten voor de kill!");
+            }
+            // Track the kill in HoF + per-player stats (not the points)
+            plugin.getKmcCore().getHallOfFameManager().recordKill(killer);
         }
 
         // Eliminate from game (teleport to waiting room etc.)

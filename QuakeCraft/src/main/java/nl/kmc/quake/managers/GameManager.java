@@ -58,6 +58,10 @@ public class GameManager {
     private World    arenaWorld;
     private boolean  arenaWorldPreviousPvp;
 
+    /** For revenge tracking: victim → (killer, timestamp ms). Cleared per game. */
+    private final Map<UUID, UUID> lastKilledBy = new HashMap<>();
+    private final Map<UUID, Long> lastKilledAt = new HashMap<>();
+
     public GameManager(QuakeCraftPlugin plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
@@ -279,13 +283,43 @@ public class GameManager {
             if (sTeam != null && tTeam != null && sTeam.getId().equals(tTeam.getId())) return;
         }
 
+        // Revenge check — BEFORE recording this kill, check if shooter
+        // is killing the player who last killed them.
+        long revengeWindowMs = plugin.getConfig().getLong("points.revenge-window-ms", 10000);
+        UUID prevKiller = lastKilledBy.get(shooter.getUniqueId());
+        Long prevKilledAt = lastKilledAt.get(shooter.getUniqueId());
+        boolean isRevenge = prevKiller != null
+                && prevKiller.equals(target.getUniqueId())
+                && prevKilledAt != null
+                && (System.currentTimeMillis() - prevKilledAt) <= revengeWindowMs;
+        if (isRevenge) {
+            // Consume so the same revenge can't be re-triggered
+            lastKilledBy.remove(shooter.getUniqueId());
+            lastKilledAt.remove(shooter.getUniqueId());
+        }
+
         // Track stats
         shooterState.addKill();
         targetState.addDeath();
 
+        // Record this kill for FUTURE revenge detection by the target
+        lastKilledBy.put(target.getUniqueId(), shooter.getUniqueId());
+        lastKilledAt.put(target.getUniqueId(), System.currentTimeMillis());
+
         // Award points
         int perKill = plugin.getConfig().getInt("points.per-kill", 10);
         plugin.getKmcCore().getApi().givePoints(shooter.getUniqueId(), perKill);
+
+        // Revenge bonus
+        if (isRevenge) {
+            int revengeBonus = plugin.getConfig().getInt("points.revenge-kill-bonus", 25);
+            if (revengeBonus > 0) {
+                plugin.getKmcCore().getApi().givePoints(shooter.getUniqueId(), revengeBonus);
+            }
+            broadcast("&d⚡ REVENGE! &7" + shooter.getName()
+                    + " &epakte wraak op &7" + target.getName() + "&e! &8(+" + revengeBonus + ")");
+            shooter.playSound(shooter.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.8f);
+        }
 
         // HoF
         plugin.getKmcCore().getHallOfFameManager().recordKill(shooter);
@@ -456,6 +490,21 @@ public class GameManager {
         String[] placeKeys = {"first-place", "second-place", "third-place"};
         String winnerName = "Niemand";
 
+        // Win-game bonus — award to player(s) tied for 1st in kills.
+        // Ties resolved by deaths ASC. ranked is already sorted that way.
+        int winGameBonus = plugin.getConfig().getInt("points.win-game", 50);
+        if (!ranked.isEmpty() && winGameBonus > 0) {
+            int topKills = ranked.get(0).getKills();
+            int topDeaths = ranked.get(0).getDeaths();
+            for (PlayerState ps : ranked) {
+                if (ps.getKills() == topKills && ps.getDeaths() == topDeaths) {
+                    api.givePoints(ps.getUuid(), winGameBonus);
+                } else {
+                    break;  // sorted; first non-tie ends the loop
+                }
+            }
+        }
+
         for (int i = 0; i < ranked.size(); i++) {
             PlayerState ps = ranked.get(i);
             var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(ps.getUuid());
@@ -470,7 +519,7 @@ public class GameManager {
             if (i < placeKeys.length)
                 placeBonus = plugin.getConfig().getInt("points." + placeKeys[i], 0);
             else
-                placeBonus = plugin.getConfig().getInt("points.participation", 25);
+                placeBonus = plugin.getConfig().getInt("points.participation", 0);
 
             if (placeBonus > 0) api.givePoints(ps.getUuid(), placeBonus);
 
@@ -517,6 +566,10 @@ public class GameManager {
             bossBar.removeAll();
             bossBar = null;
         }
+
+        // Clear cross-game state
+        lastKilledBy.clear();
+        lastKilledAt.clear();
 
         // Restore arena world's previous PvP setting
         if (arenaWorld != null) {

@@ -53,6 +53,9 @@ public class GameManager {
     private long roundStartMs;
     private int  remainingRoundSeconds;
 
+    /** Tracks which teams have fully finished this round (in order). */
+    private final List<String> teamFinishOrderThisRound = new ArrayList<>();
+
     private BukkitTask countdownTask;
     private BukkitTask roundTimerTask;
     private BukkitTask voidCheckTask;
@@ -148,6 +151,7 @@ public class GameManager {
         state = State.COUNTDOWN;
         countdownSeconds = plugin.getConfig().getInt("game.countdown-seconds", 10);
         roundFinishCounter = 0;
+        teamFinishOrderThisRound.clear();
 
         // Reset per-round state
         for (RunnerState rs : runners.values()) rs.startRound();
@@ -310,6 +314,31 @@ public class GameManager {
         // Spectator until round ends
         p.setGameMode(GameMode.SPECTATOR);
 
+        // Team-finish bonus: did this finish complete a TEAM?
+        var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
+        if (team != null && !teamFinishOrderThisRound.contains(team.getId())) {
+            // Check if all members of this team have finished the current round
+            boolean teamDone = true;
+            for (UUID memberId : team.getMembers()) {
+                RunnerState mrs = runners.get(memberId);
+                if (mrs == null) continue;  // member not in game
+                if (!mrs.isCurrentRoundFinished()) { teamDone = false; break; }
+            }
+            if (teamDone && !team.getMembers().isEmpty()) {
+                teamFinishOrderThisRound.add(team.getId());
+                int teamRank = teamFinishOrderThisRound.size();
+                int bonusEach = readPlacement("points.team-finish-bonus", teamRank);
+                if (bonusEach > 0) {
+                    for (UUID memberId : team.getMembers()) {
+                        plugin.getKmcCore().getApi().givePoints(memberId, bonusEach);
+                    }
+                    broadcast("&6&l✦ Team " + team.getDisplayName()
+                            + " &eis finish-team #" + teamRank
+                            + " &7(+" + bonusEach + " elk)");
+                }
+            }
+        }
+
         // All finished?
         long stillRacing = runners.values().stream()
                 .filter(r -> !r.isCurrentRoundFinished())
@@ -321,12 +350,10 @@ public class GameManager {
 
     private int pointsForPlacement(int placement) {
         var cfg = plugin.getConfig();
-        return switch (placement) {
-            case 1 -> cfg.getInt("points.round-first", 50);
-            case 2 -> cfg.getInt("points.round-second", 35);
-            case 3 -> cfg.getInt("points.round-third", 25);
-            default -> cfg.getInt("points.round-finished", 10);
-        };
+        // New: explicit per-placement values (1=80, 2=70, 3=65, 4=60, 5=55, default=0)
+        int explicit = cfg.getInt("points.round-placement." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return cfg.getInt("points.round-placement.default", 0);
     }
 
     // ----------------------------------------------------------------
@@ -508,5 +535,15 @@ public class GameManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&', msg));
+    }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
     }
 }

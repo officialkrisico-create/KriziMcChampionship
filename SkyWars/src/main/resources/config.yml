@@ -25,11 +25,42 @@ game:
   deathmatch-ring-shrink-per-sec: 0.5
 
 points:
+  # Per kill — unchanged from previous config
   per-kill: 25
-  team-first-place: 500
-  team-second-place: 300
-  team-third-place: 150
-  team-participation: 50
+
+  # Living-while-someone-dies — every still-alive player gets this
+  # each time someone is eliminated.
+  living-while-someone-dies: 5
+
+  # Personal placement (1st = winner, then descending)
+  # 1st = 250, -10 per place, floor 0.
+  placement:
+    1:  250
+    2:  240
+    3:  230
+    4:  220
+    5:  210
+    6:  200
+    7:  190
+    8:  180
+    9:  170
+    10: 160
+    11: 150
+    12: 140
+    13: 130
+    14: 120
+    15: 110
+    16: 100
+    17:  90
+    18:  80
+    19:  70
+    20:  60
+    21:  50
+    22:  40
+    23:  30
+    24:  20
+    25:  10
+    "default": 0
 
 # ================================================================
 # Loot tables

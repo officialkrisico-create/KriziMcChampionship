@@ -43,6 +43,13 @@ public class GameManager {
 
     private BingoCard                  currentCard;
     private final Map<String, TeamCardState> teamStates = new LinkedHashMap<>();
+
+    /**
+     * Tracks the order in which TEAMS first complete each square.
+     * Key: square index. Value: list of teamIds in order completed.
+     * Each team appears at most once per square.
+     */
+    private final Map<Integer, List<String>> craftRace = new HashMap<>();
     private final Set<UUID>            participants = new HashSet<>();
 
     private BukkitTask countdownTask;
@@ -118,6 +125,7 @@ public class GameManager {
 
         // Init per-team state
         teamStates.clear();
+        craftRace.clear();
         participants.clear();
         for (KMCTeam team : plugin.getKmcCore().getTeamManager().getAllTeams()) {
             if (team.getMembers().isEmpty()) continue;
@@ -244,8 +252,13 @@ public class GameManager {
      * Recounts a team's progress on all CollectObjective squares by
      * tallying items across all team-member inventories. Idempotent —
      * safe to call frequently.
+     *
+     * @param triggeredBy the player whose inventory just changed (used
+     *                    to credit per-craft points). May be null if
+     *                    unknown — credit will go to the team captain in
+     *                    that case (or first member, fallback).
      */
-    public void recountTeam(String teamId) {
+    public void recountTeam(String teamId, UUID triggeredBy) {
         if (state != State.ACTIVE) return;
         TeamCardState ts = teamStates.get(teamId);
         if (ts == null) return;
@@ -272,16 +285,47 @@ public class GameManager {
             boolean wasComplete = ts.isCompleted(idx);
             ts.setProgress(idx, have);
             if (!wasComplete && ts.isCompleted(idx)) {
-                onSquareCompleted(team, idx);
+                onSquareCompleted(team, idx, triggeredBy);
             }
         }
     }
 
-    private void onSquareCompleted(KMCTeam team, int squareIdx) {
+    /** Backwards-compat overload — calls the full version with no triggerer. */
+    public void recountTeam(String teamId) {
+        recountTeam(teamId, null);
+    }
+
+    private void onSquareCompleted(KMCTeam team, int squareIdx, UUID triggeredBy) {
         var obj = currentCard.get(squareIdx);
         broadcast("&a✔ " + team.getColor() + team.getDisplayName()
                 + " &7heeft &f" + plainName(obj.getDisplayName())
                 + " &7verzameld!");
+
+        // Per-craft race: which team-rank is this completion?
+        List<String> race = craftRace.computeIfAbsent(squareIdx, k -> new ArrayList<>());
+        if (!race.contains(team.getId())) {
+            race.add(team.getId());
+            int teamRank = race.size();   // 1, 2, 3, 4, 5, ...
+            int pts = readPlacement("points.per-craft-by-team-rank", teamRank);
+            if (pts > 0) {
+                // Credit goes to the player who triggered (crafted/collected) it,
+                // OR to a fallback team member if we don't know who.
+                UUID creditTo = triggeredBy;
+                if (creditTo == null && !team.getMembers().isEmpty()) {
+                    creditTo = team.getMembers().iterator().next();
+                }
+                if (creditTo != null) {
+                    plugin.getKmcCore().getApi().givePoints(creditTo, pts);
+                    Player crafter = Bukkit.getPlayer(creditTo);
+                    if (crafter != null) {
+                        crafter.sendActionBar(net.kyori.adventure.text.Component.text(
+                                ChatColor.GOLD + "+" + pts + " bingo craft (#" + teamRank + ")"));
+                        crafter.playSound(crafter.getLocation(),
+                                Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
+                    }
+                }
+            }
+        }
 
         // Did this square complete a line?
         TeamCardState ts = teamStates.get(team.getId());
@@ -293,9 +337,6 @@ public class GameManager {
             for (int i : indices) if (i == squareIdx) { inLine = true; break; }
             if (!inLine) continue;
             if (!ts.isLineCompleted(line)) continue;
-            // We don't know if it was already complete pre-square; but checkLines
-            // sets the bit only on transition, so seeing it set right after the
-            // square triggered means this square completed it.
             broadcast("&6&l✦ BINGO! " + team.getColor() + team.getDisplayName()
                     + " &7heeft " + BingoCard.lineDescription(line) + " voltooid!");
             for (UUID m : team.getMembers()) {
@@ -347,11 +388,26 @@ public class GameManager {
         broadcast("&6═══════════════════════════════════");
 
         KMCApi api = plugin.getKmcCore().getApi();
-        int perSquare = plugin.getConfig().getInt("points.per-square", 8);
-        int perLine   = plugin.getConfig().getInt("points.per-line", 50);
-        int fullCard  = plugin.getConfig().getInt("points.full-card", 200);
-        String[] placePts = {"team-first-place", "team-second-place", "team-third-place"};
         String winnerName = "Niemand";
+
+        // Completion bonus: team with the MOST squares gets a 100-point pool
+        // split equally among its members. (4-member team → each gets 25;
+        // 2-member team → each gets 50.)
+        int completionPool = plugin.getConfig().getInt("points.completion-bonus-pool", 100);
+        if (completionPool > 0 && !ranked.isEmpty()) {
+            TeamScore winner = ranked.get(0);
+            KMCTeam winnerTeam = plugin.getKmcCore().getTeamManager().getTeam(winner.teamId);
+            if (winnerTeam != null && !winnerTeam.getMembers().isEmpty()) {
+                int perMember = completionPool / winnerTeam.getMembers().size();
+                if (perMember > 0) {
+                    for (UUID memberId : winnerTeam.getMembers()) {
+                        api.givePoints(memberId, perMember);
+                    }
+                    broadcast("&6&l🏆 Completion bonus: " + winnerTeam.getColor()
+                            + winnerTeam.getDisplayName() + " &7(+" + perMember + " elk)");
+                }
+            }
+        }
 
         for (int i = 0; i < ranked.size(); i++) {
             TeamScore ts = ranked.get(i);
@@ -363,22 +419,18 @@ public class GameManager {
                     + " &8- &e" + ts.squares + " vakjes &7(" + ts.lines + " lijnen"
                     + (ts.fullCard ? " &6&l+VOLLE CARD" : "") + "&7)");
 
-            // Award per-objective points (per-square, per-line, full-card)
-            int squarePts = ts.squares * perSquare;
-            int linePts   = ts.lines   * perLine;
-            int fullPts   = ts.fullCard ? fullCard : 0;
-            int placePts2;
+            // Final tournament placement bonus (kept for compatibility)
+            String[] placePts = {"team-first-place", "team-second-place", "team-third-place"};
+            int placePts2 = 0;
             if (i < placePts.length)
                 placePts2 = plugin.getConfig().getInt("points." + placePts[i], 0);
             else
-                placePts2 = plugin.getConfig().getInt("points.team-participation", 25);
+                placePts2 = plugin.getConfig().getInt("points.team-participation", 0);
 
-            int total = squarePts + linePts + fullPts + placePts2;
             for (UUID memberId : team.getMembers()) {
-                if (total > 0) api.givePoints(memberId, total);
+                if (placePts2 > 0) api.givePoints(memberId, placePts2);
 
-                // Record per-player tournament stats — every member of the
-                // winning team gets a win, others get a streak reset.
+                // Record per-player tournament stats
                 Player member = Bukkit.getPlayer(memberId);
                 String memberName = member != null ? member.getName() : memberId.toString();
                 api.recordGameParticipation(memberId, memberName, GAME_ID, i == 0);
@@ -481,4 +533,14 @@ public class GameManager {
     public TeamCardState               getTeamState(String t) { return teamStates.get(t); }
     public Map<String, TeamCardState>  getAllTeamStates()     { return Collections.unmodifiableMap(teamStates); }
     public Set<UUID>                   getParticipants()      { return Collections.unmodifiableSet(participants); }
+
+    /**
+     * Reads a tiered placement value from config. Falls back to
+     * "{section}.default" if the specific placement key is absent.
+     */
+    private int readPlacement(String section, int placement) {
+        int explicit = plugin.getConfig().getInt(section + "." + placement, -1);
+        if (explicit >= 0) return explicit;
+        return plugin.getConfig().getInt(section + ".default", 0);
+    }
 }

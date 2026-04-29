@@ -83,7 +83,7 @@ public class GameManager {
             return "Arena niet klaar:\n" + plugin.getArenaManager().getReadinessReport();
         if (!plugin.getWorldCloner().templateExists())
             return "Template world '" + plugin.getWorldCloner().getTemplateWorldName()
-                + "' bestaat niet!";
+                    + "' bestaat niet!";
 
         // Pick teams that have at least 1 online member
         List<KMCTeam> playingTeams = new ArrayList<>();
@@ -313,6 +313,21 @@ public class GameManager {
         ts.eliminatePlayer(p.getUniqueId());
         p.setGameMode(GameMode.SPECTATOR);
         broadcast("&c☠ &7" + p.getName() + " &8is uitgeschakeld op wave " + ts.getCurrentWave());
+
+        // Living-while-someone-dies bonus — every still-alive player on
+        // ANY team gets a small reward for outlasting this death.
+        int livingBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
+        if (livingBonus > 0) {
+            UUID deadId = p.getUniqueId();
+            List<UUID> stillAlive = new ArrayList<>();
+            for (TeamGameState other : teamStates.values()) {
+                for (UUID uuid : other.getAlivePlayers()) {
+                    if (!uuid.equals(deadId)) stillAlive.add(uuid);
+                }
+            }
+            nl.kmc.kmccore.util.SurvivorBonusHelper.award(
+                    plugin.getKmcCore(), stillAlive, livingBonus);
+        }
 
         if (ts.getAlivePlayers().isEmpty()) {
             // Team out — kill their wave executor

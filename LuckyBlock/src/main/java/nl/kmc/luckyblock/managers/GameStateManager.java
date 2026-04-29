@@ -181,7 +181,7 @@ public class GameStateManager {
             // Award winner
             var winnerTeam = plugin.getKmcCore().getTeamManager().getTeamByPlayer(winnerUuid);
             if (winnerTeam != null) api.awardTeamPlacement(winnerTeam.getId(), 1);
-            api.givePoints(winnerUuid, plugin.getConfig().getInt("points.1", 100));
+            api.givePoints(winnerUuid, plugin.getConfig().getInt("points.win", 200));
 
             var pd = plugin.getKmcCore().getPlayerDataManager()
                     .getOrCreate(winnerUuid, winnerName);
