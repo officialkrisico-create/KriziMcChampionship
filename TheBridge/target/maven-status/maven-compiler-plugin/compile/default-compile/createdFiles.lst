@@ -1,0 +1,13 @@
+nl\kmc\bridge\TheBridgePlugin.class
+nl\kmc\bridge\models\BridgeTeam.class
+nl\kmc\bridge\managers\AssistManager.class
+nl\kmc\bridge\managers\GameManager$State.class
+nl\kmc\bridge\commands\BridgeCommand.class
+nl\kmc\bridge\managers\BlockTracker.class
+nl\kmc\bridge\managers\GameManager.class
+nl\kmc\bridge\listeners\BridgeListener.class
+nl\kmc\bridge\models\PlayerStats.class
+nl\kmc\bridge\managers\ArenaManager$PartialTeam.class
+nl\kmc\bridge\managers\AssistManager$Hit.class
+nl\kmc\bridge\managers\KitManager.class
+nl\kmc\bridge\managers\ArenaManager.class

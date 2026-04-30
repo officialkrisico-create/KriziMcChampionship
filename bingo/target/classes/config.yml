@@ -1,0 +1,130 @@
+# ================================================================
+# Bingo — Configuration
+# ================================================================
+#
+# How worlds work in this plugin:
+#
+# 1. ONCE — admin pre-builds a "template" world with /bingo savetemplate
+#    Template should be a fresh, untouched survival world.
+#
+# 2. EACH GAME — plugin file-system-copies the template into a temp
+#    world (e.g. "bingo_game_1729877234"), loads it, plays the game,
+#    then unloads + deletes it on cleanup.
+#
+# This avoids slow chunk generation per game and gives every game a
+# pristine world without affecting the main server world.
+# ================================================================
+
+game:
+  # Game duration in seconds — 15 minutes
+  max-duration-seconds: 900
+  
+  # Pre-game countdown
+  countdown-seconds: 15
+  
+  # KEEP_INVENTORY on death
+  keep-inventory: true
+  
+  # PvP enabled? (false = teams race independently, no fighting)
+  pvp-enabled: false
+  
+  # Items every player starts with: "MATERIAL:amount"
+  starter-kit:
+    - "COOKED_BEEF:64"
+
+# ================================================================
+# Card composition — items-only, ~40 entries, RNG picks 25
+# ================================================================
+
+card:
+  collect-pool:
+    - "EMERALD:1"
+    - "DIAMOND:1"
+    - "GOLD_INGOT:4"
+    - "IRON_INGOT:8"
+    - "COAL:16"
+    - "OAK_LOG:32"
+    - "WHEAT:16"
+    - "APPLE:4"
+    - "BREAD:8"
+    - "CARROT:8"
+    - "POTATO:8"
+    - "BEETROOT:4"
+    - "PUMPKIN:1"
+    - "MELON_SLICE:8"
+    - "SUGAR_CANE:8"
+    - "BONE:4"
+    - "STRING:8"
+    - "FEATHER:4"
+    - "LEATHER:4"
+    - "GUNPOWDER:2"
+    - "REDSTONE:8"
+    - "LAPIS_LAZULI:8"
+    - "FLINT:4"
+    - "QUARTZ:4"
+    - "BLAZE_ROD:1"
+    - "ENDER_PEARL:1"
+    - "GHAST_TEAR:1"
+    - "MAGMA_CREAM:1"
+    - "SLIME_BALL:4"
+    - "GLASS:8"
+    - "BRICK:4"
+    - "CLAY_BALL:4"
+    - "EGG:4"
+    - "MILK_BUCKET:1"
+    - "WATER_BUCKET:1"
+    - "LAVA_BUCKET:1"
+    - "BOOK:1"
+    - "PAPER:8"
+    - "CACTUS:4"
+    - "BAMBOO:8"
+    - "OBSIDIAN:1"
+    - "WHITE_WOOL:8"
+    - "MUSHROOM_STEW:1"
+    - "ARROW:8"
+    - "PORKCHOP:8"
+
+# ================================================================
+# Scoring — awarded via KMCCore at game end
+# ================================================================
+
+points:
+  # Per-craft event scoring.
+  # When a player crafts/collects an item that's on their team's bingo card,
+  # the order in which TEAMS first complete that item determines the
+  # points. Only the player who actually performs the craft gets the
+  # points (not their teammates).
+  per-craft-by-team-rank:
+    1: 40
+    2: 30
+    3: 20
+    "default": 10     # 4th and beyond
+
+  # Completion bonus: at game end, the team with the MOST squares gets a
+  # 100-point pool split equally among its members.
+  # 4-member team → each gets 25; 2-member team → each gets 50.
+  completion-bonus-pool: 100
+
+  # Final tournament placement bonuses (kept for compatibility)
+  team-first-place: 250
+  team-second-place: 150
+  team-third-place: 100
+  team-participation: 25
+
+# ================================================================
+# World template
+# ================================================================
+
+world:
+  # Name of the template world to clone from (set by /bingo savetemplate)
+  template-name: "bingo_template"
+  
+  # Where players spawn in the cloned world (set by /bingo setspawn after loading template)
+  # All players spawn here — for now everyone in the same place.
+  # Future: per-team spawns to spread teams out.
+  default-spawn:
+    x: 0
+    y: 65
+    z: 0
+    yaw: 0
+    pitch: 0
