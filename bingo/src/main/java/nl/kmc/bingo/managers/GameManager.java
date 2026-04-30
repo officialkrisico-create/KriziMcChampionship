@@ -137,14 +137,47 @@ public class GameManager {
         plugin.getKmcCore().getApi().acquireScoreboard("bingo");
 
         // Teleport, freeze, kit
-        Location spawn = plugin.getWorldManager().getDefaultSpawn();
+        // Each team gets an anchor 20 blocks from other teams; teammates
+        // spawn 4+ blocks apart from each other near their anchor.
+        Location baseSpawn = plugin.getWorldManager().getDefaultSpawn();
+
+        List<KMCTeam> activeTeams = new ArrayList<>();
+        for (KMCTeam team : plugin.getKmcCore().getTeamManager().getAllTeams()) {
+            if (team.getMembers().isEmpty()) continue;
+            // Skip teams with no online members
+            boolean anyOnline = team.getMembers().stream()
+                    .anyMatch(uuid -> Bukkit.getPlayer(uuid) != null);
+            if (anyOnline) activeTeams.add(team);
+        }
+
+        List<Location> teamAnchors = nl.kmc.bingo.util.SafeSpawnHelper
+                .findTeamSpawns(baseSpawn, activeTeams.size());
+
+        Map<UUID, Location> playerSpawns = new HashMap<>();
+        for (int i = 0; i < activeTeams.size(); i++) {
+            KMCTeam team = activeTeams.get(i);
+            Location anchor = (i < teamAnchors.size()) ? teamAnchors.get(i) : baseSpawn;
+            // Online member count
+            List<UUID> onlineMembers = new ArrayList<>();
+            for (UUID uuid : team.getMembers()) {
+                if (Bukkit.getPlayer(uuid) != null) onlineMembers.add(uuid);
+            }
+            List<Location> memberSpawns = nl.kmc.bingo.util.SafeSpawnHelper
+                    .findPlayerSpawnsNearAnchor(anchor, onlineMembers.size());
+            for (int m = 0; m < onlineMembers.size(); m++) {
+                Location spot = (m < memberSpawns.size()) ? memberSpawns.get(m) : anchor;
+                playerSpawns.put(onlineMembers.get(m), spot);
+            }
+        }
+
         PotionEffectType slowType = slow();
         PotionEffectType jumpType = jumpBoost();
 
         for (UUID uuid : participants) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            p.teleport(spawn);
+            Location spot = playerSpawns.getOrDefault(uuid, baseSpawn);
+            p.teleport(spot);
             p.setGameMode(GameMode.SURVIVAL);
             p.getInventory().clear();
             p.setHealth(20);

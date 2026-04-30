@@ -36,6 +36,12 @@ public class ArenaManager {
     private Location middleSpawn;
     private int      middleRadius = 6;
     private final Map<String, Island> islands = new LinkedHashMap<>();
+    /**
+     * Mid-ring islands — small intermediate islands between team islands
+     * and the middle. Hold "tier 2" loot (better than team islands, worse
+     * than middle). Identified by an id; no team association.
+     */
+    private final Map<String, Island> midRingIslands = new LinkedHashMap<>();
 
     public ArenaManager(SkyWarsPlugin plugin) {
         this.plugin = plugin;
@@ -63,8 +69,22 @@ public class ArenaManager {
             }
         }
 
+        midRingIslands.clear();
+        ConfigurationSection mr = cfg.getConfigurationSection("arena.mid-ring-islands");
+        if (mr != null && world != null) {
+            for (String id : mr.getKeys(false)) {
+                ConfigurationSection s = mr.getConfigurationSection(id);
+                if (s == null) continue;
+                Location spawn = readLoc(s, "spawn", world);
+                if (spawn == null) continue;
+                int radius = s.getInt("radius", 6);
+                midRingIslands.put(id, new Island(id, spawn, radius));
+            }
+        }
+
         plugin.getLogger().info("SkyWars arena loaded: " + islands.size()
-                + " islands, world=" + (world != null ? world.getName() : "none"));
+                + " islands, " + midRingIslands.size() + " mid-ring islands, world="
+                + (world != null ? world.getName() : "none"));
     }
 
     public void save() {
@@ -82,6 +102,13 @@ public class ArenaManager {
         cfg.set("arena.islands", null);
         for (Island i : islands.values()) {
             String path = "arena.islands." + i.getId();
+            writeLoc(cfg, path + ".spawn", i.getSpawn());
+            cfg.set(path + ".radius", i.getChestSearchRadius());
+        }
+
+        cfg.set("arena.mid-ring-islands", null);
+        for (Island i : midRingIslands.values()) {
+            String path = "arena.mid-ring-islands." + i.getId();
             writeLoc(cfg, path + ".spawn", i.getSpawn());
             cfg.set(path + ".radius", i.getChestSearchRadius());
         }
@@ -134,6 +161,21 @@ public class ArenaManager {
 
     public void removeIsland(String id) {
         islands.remove(id);
+        save();
+    }
+
+    // ---- Mid-ring islands ----
+
+    public Map<String, Island> getMidRingIslands() { return Collections.unmodifiableMap(midRingIslands); }
+    public Island getMidRingIsland(String id) { return midRingIslands.get(id); }
+
+    public void addMidRingIsland(String id, Location spawn, int radius) {
+        midRingIslands.put(id, new Island(id, spawn, radius));
+        save();
+    }
+
+    public void removeMidRingIsland(String id) {
+        midRingIslands.remove(id);
         save();
     }
 

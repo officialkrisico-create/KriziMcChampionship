@@ -3,15 +3,21 @@ package nl.kmc.skywars.listeners;
 import nl.kmc.skywars.SkyWarsPlugin;
 import nl.kmc.skywars.models.PlayerStats;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.entity.TNTPrimed;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.inventory.ItemStack;
 
 /**
  * SkyWars listeners.
@@ -128,5 +134,41 @@ public class SkyWarsListener implements Listener {
         if (event.getPlayer().getGameMode() == GameMode.SPECTATOR) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * TNT auto-prime: when a player places TNT during an active game,
+     * the block is replaced with a primed TNT entity instead of sitting
+     * inert. Means players don't need flint and steel to fight with TNT.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onTntPlace(BlockPlaceEvent event) {
+        if (!plugin.getGameManager().isPvpAllowed()) return;
+        if (event.getBlock().getType() != Material.TNT) return;
+
+        Player placer = event.getPlayer();
+        if (plugin.getGameManager().get(placer.getUniqueId()) == null) return;
+        if (placer.getGameMode() == GameMode.SPECTATOR) return;
+
+        // Cancel the placement, spawn a primed TNT entity at that location,
+        // attribute it to the placer (so kill credit works correctly).
+        event.setCancelled(true);
+
+        Block block = event.getBlock();
+        // Consume one TNT from the player's hand
+        ItemStack hand = event.getItemInHand();
+        if (hand != null && hand.getType() == Material.TNT) {
+            int amt = hand.getAmount();
+            if (amt > 1) hand.setAmount(amt - 1);
+            else placer.getInventory().setItem(event.getHand(), null);
+        }
+
+        TNTPrimed tnt = block.getWorld().spawn(
+                block.getLocation().add(0.5, 0, 0.5), TNTPrimed.class);
+        tnt.setSource(placer);
+        tnt.setFuseTicks(80);  // 4 seconds — vanilla default
+
+        block.getWorld().playSound(block.getLocation(),
+                Sound.ENTITY_TNT_PRIMED, 1f, 1f);
     }
 }

@@ -43,6 +43,12 @@ public final class SafeSpawnHelper {
     /** Minimum distance between picked spawn points. */
     public static final int MIN_SPACING = 4;
 
+    /** Minimum distance between TEAM anchor points (so different teams spawn apart). */
+    public static final int TEAM_SPACING = 20;
+
+    /** Search radius when placing team anchors (larger to fit teams 20 blocks apart). */
+    public static final int TEAM_SEARCH_RADIUS = 64;
+
     /** Hard cap so a single search can't go pathological. */
     public static final int MAX_CANDIDATES_PER_PLAYER = 80;
 
@@ -211,6 +217,98 @@ public final class SafeSpawnHelper {
         if (bd instanceof Waterlogged wl && wl.isWaterlogged()) return false;
         // Anything else passable
         return !m.isSolid();
+    }
+
+    /**
+     * Picks N team-anchor locations, each spaced at least
+     * {@link #TEAM_SPACING} blocks from the others. Each anchor is on a
+     * safe block. Used for Bingo where each team should spawn 20 blocks
+     * apart from other teams (but teammates spawn near each other).
+     *
+     * <p>Pre-loads chunks across the larger {@link #TEAM_SEARCH_RADIUS}.
+     *
+     * <p>If {@code teamCount} anchors can't be found within radius, the
+     * remaining slots fall back to the base spawn.
+     */
+    public static List<Location> findTeamSpawns(Location base, int teamCount) {
+        if (base == null || base.getWorld() == null || teamCount <= 0) {
+            return Collections.emptyList();
+        }
+
+        World world = base.getWorld();
+        int baseX = base.getBlockX();
+        int baseY = base.getBlockY();
+        int baseZ = base.getBlockZ();
+
+        // Pre-load chunks across the larger radius
+        preloadTeamChunks(world, baseX, baseZ);
+
+        List<Location> anchors = new ArrayList<>(teamCount);
+
+        // First anchor — try base spawn itself
+        Location baseSafe = findSafeColumn(world, baseX, baseY, baseZ);
+        if (baseSafe != null) anchors.add(baseSafe);
+
+        // Spiral outward placing anchors at >= TEAM_SPACING from each other
+        // We use a coarser ring (every TEAM_SPACING blocks) so we don't
+        // search every column.
+        int maxAttempts = teamCount * 50;
+        int attempts = 0;
+        for (int r = TEAM_SPACING; r <= TEAM_SEARCH_RADIUS && anchors.size() < teamCount; r += TEAM_SPACING / 2) {
+            int samples = Math.max(8, (int) (2 * Math.PI * r / TEAM_SPACING));
+            for (int i = 0; i < samples && anchors.size() < teamCount; i++) {
+                if (++attempts > maxAttempts) break;
+
+                double angle = (2 * Math.PI * i) / samples;
+                int x = baseX + (int) Math.round(r * Math.cos(angle));
+                int z = baseZ + (int) Math.round(r * Math.sin(angle));
+
+                // Spacing check
+                if (tooCloseToAny(x, z, anchors, TEAM_SPACING)) continue;
+
+                Location safe = findSafeColumn(world, x, baseY, z);
+                if (safe != null) anchors.add(safe);
+            }
+        }
+
+        // Fallback: not enough safe team anchors found — duplicate base
+        while (anchors.size() < teamCount) {
+            anchors.add(baseSafe != null ? baseSafe.clone() : base.clone());
+        }
+
+        return anchors;
+    }
+
+    /**
+     * Picks {@code count} player-spawn locations near a team's anchor.
+     * Spaces them apart by {@link #MIN_SPACING}. Used for placing all
+     * members of a single team near their team anchor.
+     */
+    public static List<Location> findPlayerSpawnsNearAnchor(Location anchor, int count) {
+        // Reuse the existing findSpawns — its base/spiral pattern works
+        // perfectly when "base" is the team anchor.
+        return findSpawns(anchor, count);
+    }
+
+    private static boolean tooCloseToAny(int x, int z, List<Location> picked, int min) {
+        int min2 = min * min;
+        for (Location l : picked) {
+            int dx = x - l.getBlockX();
+            int dz = z - l.getBlockZ();
+            if (dx * dx + dz * dz < min2) return true;
+        }
+        return false;
+    }
+
+    private static void preloadTeamChunks(World world, int baseX, int baseZ) {
+        int chunkRadius = (TEAM_SEARCH_RADIUS >> 4) + 1;
+        int baseChunkX = baseX >> 4;
+        int baseChunkZ = baseZ >> 4;
+        for (int cx = baseChunkX - chunkRadius; cx <= baseChunkX + chunkRadius; cx++) {
+            for (int cz = baseChunkZ - chunkRadius; cz <= baseChunkZ + chunkRadius; cz++) {
+                world.getChunkAt(cx, cz);
+            }
+        }
     }
 
     private static long packXZ(int x, int z) {

@@ -32,7 +32,7 @@ public class ChestStocker {
     private final SkyWarsPlugin plugin;
 
     /** Tier of a chest — determines which loot table it draws from. */
-    public enum Tier { ISLAND, MIDDLE }
+    public enum Tier { ISLAND, MID_RING, MIDDLE }
 
     /** A single loot entry: material + amount range + chance + optional enchants. */
     public record LootEntry(Material material, int minAmount, int maxAmount,
@@ -50,14 +50,17 @@ public class ChestStocker {
 
     public void loadLootTables() {
         lootTables.put(Tier.ISLAND, new ArrayList<>());
+        lootTables.put(Tier.MID_RING, new ArrayList<>());
         lootTables.put(Tier.MIDDLE, new ArrayList<>());
         var cfg = plugin.getConfig();
 
         loadTier(cfg, "loot.island", Tier.ISLAND);
+        loadTier(cfg, "loot.mid-ring", Tier.MID_RING);
         loadTier(cfg, "loot.middle", Tier.MIDDLE);
 
         plugin.getLogger().info("Loaded loot tables: island="
-                + lootTables.get(Tier.ISLAND).size() + " entries, middle="
+                + lootTables.get(Tier.ISLAND).size() + " entries, mid-ring="
+                + lootTables.get(Tier.MID_RING).size() + " entries, middle="
                 + lootTables.get(Tier.MIDDLE).size() + " entries");
     }
 
@@ -103,6 +106,9 @@ public class ChestStocker {
 
         for (Island i : arena.getIslands().values()) {
             total += stockNearLocation(i.getSpawn(), i.getChestSearchRadius(), Tier.ISLAND);
+        }
+        for (Island i : arena.getMidRingIslands().values()) {
+            total += stockNearLocation(i.getSpawn(), i.getChestSearchRadius(), Tier.MID_RING);
         }
         if (arena.getMiddleSpawn() != null) {
             total += stockNearLocation(arena.getMiddleSpawn(), arena.getMiddleRadius(), Tier.MIDDLE);

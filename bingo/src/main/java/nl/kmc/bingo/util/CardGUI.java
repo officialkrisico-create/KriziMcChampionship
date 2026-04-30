@@ -23,11 +23,11 @@ import java.util.List;
 /**
  * Opens the bingo card view for a player.
  *
- * <p>Layout: 6-row chest (54 slots).
+ * <p>Layout: 6-row chest (54 slots), card horizontally CENTERED.
  * <pre>
- *   Row 0: filler glass with team info
- *   Rows 1-5: the 5×5 card (slots 10-14, 19-23, 28-32, 37-41, 46-50)
- *   Right column slots: line completion indicators
+ *   Row 0: filler glass with team info (header at slot 4)
+ *   Rows 1-5: the 5×5 card (slots 11-15, 20-24, 29-33, 38-42, 47-51)
+ *   Edge slots: filler / line completion indicators
  * </pre>
  *
  * <p>Completed squares show as the same item enchanted. Incomplete
@@ -38,11 +38,11 @@ public final class CardGUI {
     private CardGUI() {}
 
     private static final int[] CARD_SLOTS = {
-        10, 11, 12, 13, 14,
-        19, 20, 21, 22, 23,
-        28, 29, 30, 31, 32,
-        37, 38, 39, 40, 41,
-        46, 47, 48, 49, 50
+        11, 12, 13, 14, 15,
+        20, 21, 22, 23, 24,
+        29, 30, 31, 32, 33,
+        38, 39, 40, 41, 42,
+        47, 48, 49, 50, 51
     };
 
     public static void open(BingoPlugin plugin, Player viewer) {
@@ -90,26 +90,29 @@ public final class CardGUI {
     }
 
     private static ItemStack buildSquareItem(BingoObjective obj, TeamCardState state, int idx) {
-        ItemStack stack = new ItemStack(obj.getDisplayIcon());
+        boolean done = state.isCompleted(idx);
+
+        // Completed: show as barrier for clear visual distinction.
+        // Incomplete: show as the actual target item.
+        ItemStack stack = new ItemStack(done ? Material.BARRIER : obj.getDisplayIcon());
         ItemMeta meta = stack.getItemMeta();
         if (meta == null) return stack;
 
-        boolean done = state.isCompleted(idx);
         int progress = state.getProgress(idx);
         int target   = obj.getTargetAmount();
 
         Component name = obj.getDisplayName();
         if (done) {
-            name = name.color(NamedTextColor.GREEN).decorate(TextDecoration.BOLD);
-            meta.addEnchant(org.bukkit.enchantments.Enchantment.UNBREAKING, 1, true);
-            meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS,
-                    org.bukkit.inventory.ItemFlag.HIDE_ATTRIBUTES);
+            name = Component.text("✔ ", NamedTextColor.GREEN, TextDecoration.BOLD)
+                    .append(name.color(NamedTextColor.GREEN).decorate(TextDecoration.BOLD,
+                            TextDecoration.STRIKETHROUGH));
         }
         meta.displayName(name.decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
         if (done) {
-            lore.add(Component.text("✔ Compleet!", NamedTextColor.GREEN));
+            lore.add(Component.text("✔ Compleet!", NamedTextColor.GREEN)
+                    .decoration(TextDecoration.ITALIC, false));
         } else if (target > 1) {
             lore.add(Component.text("Voortgang: " + progress + " / " + target,
                     NamedTextColor.YELLOW)

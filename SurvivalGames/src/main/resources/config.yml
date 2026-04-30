@@ -97,7 +97,6 @@ loot:
     - { material: ENDER_PEARL, min: 1, max: 2, chance: 0.3 }
     - { material: COOKED_BEEF, min: 4, max: 8, chance: 0.7 }
     - { material: TNT, min: 2, max: 4, chance: 0.2 }
-    - { material: FLINT_AND_STEEL, min: 1, max: 1, chance: 0.3 }
     - { material: SPLASH_POTION, min: 1, max: 1, chance: 0.2 }
   
   # Outer chests — basic + intermediate loot

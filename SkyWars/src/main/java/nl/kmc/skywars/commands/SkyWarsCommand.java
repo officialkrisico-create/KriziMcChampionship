@@ -77,6 +77,30 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
                             + " (radius " + i.getChestSearchRadius() + ")");
                 }
             }
+            case "addmidring" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /skywars addmidring <id> [radius]"); return true; }
+                int radius = args.length >= 3 ? parseInt(args[2], 6) : 6;
+                plugin.getArenaManager().addMidRingIsland(args[1], p.getLocation(), radius);
+                sender.sendMessage(ChatColor.GREEN + "Mid-ring island '" + args[1]
+                        + "' toegevoegd op huidige plek (zoekradius: " + radius + ").");
+            }
+            case "removemidring" -> {
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /skywars removemidring <id>"); return true; }
+                plugin.getArenaManager().removeMidRingIsland(args[1]);
+                sender.sendMessage(ChatColor.GREEN + "Mid-ring island verwijderd.");
+            }
+            case "listmidring" -> {
+                var mr = plugin.getArenaManager().getMidRingIslands();
+                if (mr.isEmpty()) { sender.sendMessage(ChatColor.GRAY + "Geen mid-ring islands."); return true; }
+                sender.sendMessage(ChatColor.GOLD + "=== Mid-Ring Islands (" + mr.size() + ") ===");
+                for (var i : mr.values()) {
+                    var s = i.getSpawn();
+                    sender.sendMessage(ChatColor.YELLOW + i.getId() + ChatColor.GRAY + " — "
+                            + s.getBlockX() + "," + s.getBlockY() + "," + s.getBlockZ()
+                            + " (radius " + i.getChestSearchRadius() + ")");
+                }
+            }
             case "setmiddle" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
                 plugin.getArenaManager().setMiddleSpawn(p.getLocation());

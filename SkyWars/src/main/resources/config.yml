@@ -92,6 +92,27 @@ loot:
     - { material: WATER_BUCKET, min: 1, max: 1, chance: 0.15 }
     - { material: LADDER, min: 8, max: 16, chance: 0.3 }
   
+  # Mid-ring chests — small intermediate islands between team islands
+  # and the middle. Loot tier between island and middle.
+  mid-ring:
+    - { material: IRON_SWORD, min: 1, max: 1, chance: 0.35 }
+    - { material: STONE_SWORD, min: 1, max: 1, chance: 0.4 }
+    - { material: CHAINMAIL_HELMET, min: 1, max: 1, chance: 0.35 }
+    - { material: CHAINMAIL_CHESTPLATE, min: 1, max: 1, chance: 0.35 }
+    - { material: CHAINMAIL_LEGGINGS, min: 1, max: 1, chance: 0.3 }
+    - { material: CHAINMAIL_BOOTS, min: 1, max: 1, chance: 0.3 }
+    - { material: IRON_HELMET, min: 1, max: 1, chance: 0.2 }
+    - { material: IRON_CHESTPLATE, min: 1, max: 1, chance: 0.15 }
+    - { material: GOLDEN_APPLE, min: 1, max: 1, chance: 0.4 }
+    - { material: COBBLESTONE, min: 16, max: 32, chance: 0.6 }
+    - { material: OAK_PLANKS, min: 16, max: 24, chance: 0.4 }
+    - { material: BOW, min: 1, max: 1, chance: 0.3 }
+    - { material: ARROW, min: 6, max: 14, chance: 0.6 }
+    - { material: BREAD, min: 3, max: 6, chance: 0.5 }
+    - { material: TNT, min: 1, max: 2, chance: 0.25 }
+    - { material: ENDER_PEARL, min: 1, max: 1, chance: 0.15 }
+    - { material: WATER_BUCKET, min: 1, max: 1, chance: 0.1 }
+
   # Middle chests — better loot
   middle:
     - { material: IRON_SWORD, min: 1, max: 1, chance: 0.5 }
@@ -109,7 +130,6 @@ loot:
     - { material: ARROW, min: 8, max: 16, chance: 0.7 }
     - { material: COBBLESTONE, min: 32, max: 64, chance: 0.6 }
     - { material: TNT, min: 1, max: 3, chance: 0.2 }
-    - { material: FLINT_AND_STEEL, min: 1, max: 1, chance: 0.25 }
     - { material: SPLASH_POTION, min: 1, max: 1, chance: 0.15 }
 
 # Arena (set via /skywars commands)
@@ -117,4 +137,5 @@ arena:
   world: ""
   void-y: 0
   islands: {}
+  mid-ring-islands: {}
   middle: null
