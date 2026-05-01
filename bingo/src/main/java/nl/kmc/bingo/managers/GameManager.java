@@ -133,8 +133,9 @@ public class GameManager {
             participants.addAll(team.getMembers());
         }
 
-        // Acquire scoreboard lock from KMCCore
-        plugin.getKmcCore().getApi().acquireScoreboard("bingo");
+        // Note: Bingo does NOT acquire the scoreboard lock — we want
+        // KMCCore's lobby/leaderboard scoreboard to keep updating during
+        // play so players can see their point totals climb in real time.
 
         // Teleport, freeze, kit
         // Each team gets an anchor 20 blocks from other teams; teammates
@@ -355,6 +356,13 @@ public class GameManager {
                                 ChatColor.GOLD + "+" + pts + " bingo craft (#" + teamRank + ")"));
                         crafter.playSound(crafter.getLocation(),
                                 Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
+                        // Force-refresh the player's scoreboard so the new
+                        // total appears immediately (instead of waiting up
+                        // to 2s for the next tick).
+                        try {
+                            plugin.getKmcCore().getScoreboardManager()
+                                    .forceRefreshPlayer(crafter);
+                        } catch (Exception ignored) {}
                     }
                 }
             }
@@ -423,22 +431,26 @@ public class GameManager {
         KMCApi api = plugin.getKmcCore().getApi();
         String winnerName = "Niemand";
 
-        // Completion bonus: team with the MOST squares gets a 100-point pool
-        // split equally among its members. (4-member team → each gets 25;
-        // 2-member team → each gets 50.)
+        // Completion bonus: ONLY awarded when the top team has a FULL CARD
+        // (all 25 squares completed). Most-squares without a full card
+        // does not qualify.
         int completionPool = plugin.getConfig().getInt("points.completion-bonus-pool", 100);
         if (completionPool > 0 && !ranked.isEmpty()) {
             TeamScore winner = ranked.get(0);
-            KMCTeam winnerTeam = plugin.getKmcCore().getTeamManager().getTeam(winner.teamId);
-            if (winnerTeam != null && !winnerTeam.getMembers().isEmpty()) {
-                int perMember = completionPool / winnerTeam.getMembers().size();
-                if (perMember > 0) {
-                    for (UUID memberId : winnerTeam.getMembers()) {
-                        api.givePoints(memberId, perMember);
+            if (winner.fullCard) {
+                KMCTeam winnerTeam = plugin.getKmcCore().getTeamManager().getTeam(winner.teamId);
+                if (winnerTeam != null && !winnerTeam.getMembers().isEmpty()) {
+                    int perMember = completionPool / winnerTeam.getMembers().size();
+                    if (perMember > 0) {
+                        for (UUID memberId : winnerTeam.getMembers()) {
+                            api.givePoints(memberId, perMember);
+                        }
+                        broadcast("&6&l🏆 Volledige card bonus: " + winnerTeam.getColor()
+                                + winnerTeam.getDisplayName() + " &7(+" + perMember + " elk)");
                     }
-                    broadcast("&6&l🏆 Completion bonus: " + winnerTeam.getColor()
-                            + winnerTeam.getDisplayName() + " &7(+" + perMember + " elk)");
                 }
+            } else {
+                broadcast("&7(Geen team heeft een volledige card — geen completion bonus.)");
             }
         }
 
@@ -485,7 +497,7 @@ public class GameManager {
     }
 
     private void cleanup(String winnerName) {
-        plugin.getKmcCore().getApi().releaseScoreboard("bingo");
+        // No scoreboard lock to release — Bingo never claims it.
         if (bossBar != null) {
             bossBar.removeAll();
             bossBar = null;

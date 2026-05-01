@@ -133,12 +133,33 @@ public class GameManager {
             if (t != null) kmcTeamsWithPlayers.add(t.getId());
         }
 
-        // Assign each KMC team to one island (round-robin)
-        int islandIdx = 0;
+        // PASS 1: assign teams that have a bound island (Island.teamId set).
+        // This is opt-in — if no islands have team-id set, nothing changes.
+        Set<String> usedIslandIds = new HashSet<>();
         Map<String, Team> kmcToSwTeam = new HashMap<>();
+        Set<String> kmcTeamsHandled = new HashSet<>();
+        for (Island island : islands) {
+            String boundTeam = island.getTeamId();
+            if (boundTeam == null) continue;
+            if (!kmcTeamsWithPlayers.contains(boundTeam)) continue;
+            var kmcTeam = plugin.getKmcCore().getTeamManager().getTeam(boundTeam);
+            if (kmcTeam == null) continue;
+            Team swTeam = new Team(boundTeam, kmcTeam.getDisplayName(), kmcTeam.getColor(), island);
+            teams.put(boundTeam, swTeam);
+            kmcToSwTeam.put(boundTeam, swTeam);
+            usedIslandIds.add(island.getId());
+            kmcTeamsHandled.add(boundTeam);
+        }
+
+        // PASS 2: round-robin over remaining (unbound) islands for any
+        // unbound teams.
+        List<Island> freeIslands = new ArrayList<>();
+        for (Island i : islands) if (!usedIslandIds.contains(i.getId())) freeIslands.add(i);
+        int islandIdx = 0;
         for (String kmcId : kmcTeamsWithPlayers) {
-            if (islandIdx >= islands.size()) break;
-            Island island = islands.get(islandIdx++);
+            if (kmcTeamsHandled.contains(kmcId)) continue;
+            if (islandIdx >= freeIslands.size()) break;
+            Island island = freeIslands.get(islandIdx++);
             var kmcTeam = plugin.getKmcCore().getTeamManager().getTeam(kmcId);
             if (kmcTeam == null) continue;
             Team swTeam = new Team(kmcId, kmcTeam.getDisplayName(), kmcTeam.getColor(), island);
@@ -184,12 +205,16 @@ public class GameManager {
         countdownSeconds = plugin.getConfig().getInt("game.countdown-seconds", 15);
 
         // TP each player to their team's island spawn + freeze
+        // Each member gets a per-player spawn position if configured;
+        // otherwise falls back to the island's primary spawn.
         PotionEffectType slowType = slow();
         for (Team t : teams.values()) {
+            int memberIdx = 0;
             for (UUID uuid : t.getMembers()) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (p == null) continue;
-                p.teleport(t.getIsland().getSpawn());
+                if (p == null) { memberIdx++; continue; }
+                Location dest = t.getIsland().getSpawnForMember(memberIdx++);
+                p.teleport(dest);
                 p.setGameMode(GameMode.ADVENTURE);
                 p.getInventory().clear();
                 p.setHealth(20);

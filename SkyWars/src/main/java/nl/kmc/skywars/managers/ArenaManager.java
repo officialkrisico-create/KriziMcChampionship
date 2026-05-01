@@ -65,7 +65,27 @@ public class ArenaManager {
                 Location spawn = readLoc(s, "spawn", world);
                 if (spawn == null) continue;
                 int radius = s.getInt("radius", 8);
-                islands.put(id, new Island(id, spawn, radius));
+                Island island = new Island(id, spawn, radius);
+                // Optional team binding
+                String teamId = s.getString("team-id");
+                if (teamId != null && !teamId.isEmpty()) {
+                    island.setTeamId(teamId);
+                }
+                // Optional per-player spawns
+                if (s.isList("player-spawns")) {
+                    for (Object raw : s.getList("player-spawns")) {
+                        if (!(raw instanceof java.util.Map<?, ?> m)) continue;
+                        try {
+                            double x = ((Number) m.get("x")).doubleValue();
+                            double y = ((Number) m.get("y")).doubleValue();
+                            double z = ((Number) m.get("z")).doubleValue();
+                            float yaw = m.containsKey("yaw") ? ((Number) m.get("yaw")).floatValue() : 0f;
+                            float pitch = m.containsKey("pitch") ? ((Number) m.get("pitch")).floatValue() : 0f;
+                            island.addPlayerSpawn(new Location(world, x, y, z, yaw, pitch));
+                        } catch (Exception ignored) {}
+                    }
+                }
+                islands.put(id, island);
             }
         }
 
@@ -104,6 +124,23 @@ public class ArenaManager {
             String path = "arena.islands." + i.getId();
             writeLoc(cfg, path + ".spawn", i.getSpawn());
             cfg.set(path + ".radius", i.getChestSearchRadius());
+            if (i.getTeamId() != null) {
+                cfg.set(path + ".team-id", i.getTeamId());
+            }
+            // Per-player spawns — store as a list of maps
+            if (i.playerSpawnCount() > 0) {
+                List<java.util.Map<String, Object>> ps = new ArrayList<>();
+                for (Location l : i.getPlayerSpawns()) {
+                    java.util.Map<String, Object> entry = new java.util.LinkedHashMap<>();
+                    entry.put("x", l.getX());
+                    entry.put("y", l.getY());
+                    entry.put("z", l.getZ());
+                    entry.put("yaw", (double) l.getYaw());
+                    entry.put("pitch", (double) l.getPitch());
+                    ps.add(entry);
+                }
+                cfg.set(path + ".player-spawns", ps);
+            }
         }
 
         cfg.set("arena.mid-ring-islands", null);
@@ -162,6 +199,36 @@ public class ArenaManager {
     public void removeIsland(String id) {
         islands.remove(id);
         save();
+    }
+
+    /**
+     * Bind a KMCCore team to an island. Pass null/empty to unbind.
+     * @return true if the island exists and was modified
+     */
+    public boolean setIslandTeam(String islandId, String kmcTeamId) {
+        Island i = islands.get(islandId);
+        if (i == null) return false;
+        i.setTeamId(kmcTeamId);
+        save();
+        return true;
+    }
+
+    /** Add a per-player spawn to an island. Returns false if island unknown. */
+    public boolean addPlayerSpawn(String islandId, Location spawn) {
+        Island i = islands.get(islandId);
+        if (i == null) return false;
+        i.addPlayerSpawn(spawn);
+        save();
+        return true;
+    }
+
+    /** Clear all per-player spawns on an island. */
+    public boolean clearPlayerSpawns(String islandId) {
+        Island i = islands.get(islandId);
+        if (i == null) return false;
+        i.clearPlayerSpawns();
+        save();
+        return true;
     }
 
     // ---- Mid-ring islands ----

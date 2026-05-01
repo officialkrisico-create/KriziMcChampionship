@@ -66,15 +66,56 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
                 plugin.getArenaManager().removeIsland(args[1]);
                 sender.sendMessage(ChatColor.GREEN + "Island verwijderd.");
             }
+            case "bindislandteam" -> {
+                if (args.length < 2) {
+                    sender.sendMessage(ChatColor.RED + "Gebruik: /skywars bindislandteam <island> [kmcTeamId]"); return true;
+                }
+                String kmcTeamId = args.length >= 3 ? args[2] : null;
+                if (plugin.getArenaManager().setIslandTeam(args[1], kmcTeamId)) {
+                    if (kmcTeamId == null) {
+                        sender.sendMessage(ChatColor.GREEN + "Island '" + args[1] + "' team-binding verwijderd.");
+                    } else {
+                        sender.sendMessage(ChatColor.GREEN + "Island '" + args[1]
+                                + "' nu gebonden aan team '" + kmcTeamId + "'.");
+                    }
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Island '" + args[1] + "' bestaat niet.");
+                }
+            }
+            case "addplayerspawn" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /skywars addplayerspawn <island>"); return true; }
+                if (plugin.getArenaManager().addPlayerSpawn(args[1], p.getLocation())) {
+                    var island = plugin.getArenaManager().getIsland(args[1]);
+                    sender.sendMessage(ChatColor.GREEN + "Player-spawn toegevoegd op island '"
+                            + args[1] + "' (totaal: " + island.playerSpawnCount() + ").");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Island '" + args[1] + "' bestaat niet.");
+                }
+            }
+            case "clearplayerspawns" -> {
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /skywars clearplayerspawns <island>"); return true; }
+                if (plugin.getArenaManager().clearPlayerSpawns(args[1])) {
+                    sender.sendMessage(ChatColor.GREEN + "Player-spawns gewist op island '" + args[1] + "'.");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Island '" + args[1] + "' bestaat niet.");
+                }
+            }
             case "listislands" -> {
                 var islands = plugin.getArenaManager().getIslands();
                 if (islands.isEmpty()) { sender.sendMessage(ChatColor.GRAY + "Geen islands."); return true; }
                 sender.sendMessage(ChatColor.GOLD + "=== Islands (" + islands.size() + ") ===");
                 for (var i : islands.values()) {
                     var s = i.getSpawn();
-                    sender.sendMessage(ChatColor.YELLOW + i.getId() + ChatColor.GRAY + " — "
+                    String team = i.getTeamId() != null ? " &btm:" + i.getTeamId() : "";
+                    String spawns = i.playerSpawnCount() > 0
+                            ? " &7(" + i.playerSpawnCount() + " player-spawns)"
+                            : "";
+                    sender.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                            "&e" + i.getId() + " &7— "
                             + s.getBlockX() + "," + s.getBlockY() + "," + s.getBlockZ()
-                            + " (radius " + i.getChestSearchRadius() + ")");
+                            + " (radius " + i.getChestSearchRadius() + ")"
+                            + team + spawns));
                 }
             }
             case "addmidring" -> {

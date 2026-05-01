@@ -329,13 +329,21 @@ public class StatsGUI implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
+
+        // Identify our GUIs by title prefix. Cancel ALL clicks (including
+        // shift-clicks, hotbar swaps, and drags) if it's one of ours,
+        // so players can't yoink display items out.
+        String title = e.getView().getTitle();
+        if (!isStatsGuiTitle(title)) return;
+
+        e.setCancelled(true);
+
         ItemStack item = e.getCurrentItem();
         if (item == null || item.getItemMeta() == null) return;
 
         var pdc = item.getItemMeta().getPersistentDataContainer();
         if (!pdc.has(markerKey, PersistentDataType.STRING)) return;
 
-        e.setCancelled(true);
         String marker = pdc.get(markerKey, PersistentDataType.STRING);
 
         if ("close".equals(marker)) {
@@ -353,6 +361,25 @@ public class StatsGUI implements Listener {
                         () -> open(p, target, page), 1L);
             } catch (IllegalArgumentException ignored) {}
         }
+    }
+
+    /** Block dragging items (paint-style drags can move items in shared slot ranges). */
+    @EventHandler
+    public void onDrag(org.bukkit.event.inventory.InventoryDragEvent e) {
+        if (!(e.getWhoClicked() instanceof Player)) return;
+        if (!isStatsGuiTitle(e.getView().getTitle())) return;
+        e.setCancelled(true);
+    }
+
+    /** True if {@code title} is one of our stats GUIs (overview/stats page/achievements/history). */
+    private boolean isStatsGuiTitle(String title) {
+        if (title == null) return false;
+        // Strip color codes for matching
+        String stripped = ChatColor.stripColor(title);
+        if (stripped == null) return false;
+        return stripped.startsWith("Stats: ")
+            || stripped.startsWith("Achievements")
+            || stripped.startsWith("Toernooi Historie");
     }
 
     // ----------------------------------------------------------------
