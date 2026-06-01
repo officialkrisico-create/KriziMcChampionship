@@ -46,6 +46,18 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- V2 modules (provided — shipped as separate JARs on the server) -->
+        <dependency>
+            <groupId>nl.kmc</groupId>
+            <artifactId>kmc-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>nl.kmc</groupId>
+            <artifactId>kmc-stats</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <!-- SQLite JDBC (bundled in shaded jar) -->
         <dependency>
             <groupId>org.xerial</groupId>

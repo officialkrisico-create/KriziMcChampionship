@@ -9,6 +9,13 @@ settings:
   language: nl  # nl = Dutch, en = English (future)
   prefix: "&6[&eKMC&6] &r"
 
+  # Achievement system selector.
+  # v1 = legacy AchievementManager (KMCCore SQLite, synchronous)
+  # v2 = AchievementService (kmc-stats, async, YAML-driven — requires KMCCoreV2)
+  # When set to v2, the V1 AchievementManager is not initialised and
+  # no V1 achievement data is written. Run a DB migration before switching.
+  achievement-system: v1
+
 # -----------------------------------------------------------------------
 # Arena
 # -----------------------------------------------------------------------

@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.util;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import org.bukkit.ChatColor;
 import org.bukkit.Color;
 import org.bukkit.Material;

@@ -2,7 +2,7 @@ package nl.kmc.kmccore.commands;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.managers.TeamManager;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -89,7 +89,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(MessageUtil.color("&6═══ " + team.getColor() + team.getDisplayName() + " &6═══"));
                 sender.sendMessage(MessageUtil.color("&7Punten: &e" + team.getPoints()));
                 sender.sendMessage(MessageUtil.color("&7Wins: &a" + team.getWins()));
-                sender.sendMessage(MessageUtil.color("&7Leden (" + team.getMemberCount() + "):"));
+                sender.sendMessage(MessageUtil.color("&7Leden (" + team.getMembers().size() + "):"));
                 for (UUID uuid : team.getMembers()) {
                     Player p = Bukkit.getPlayer(uuid);
                     String nm = p != null ? p.getName() : Bukkit.getOfflinePlayer(uuid).getName();
@@ -101,7 +101,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(MessageUtil.color("&6═══ Teams ═══"));
                 for (KMCTeam t : plugin.getTeamManager().getAllTeams()) {
                     sender.sendMessage(MessageUtil.color("&7- " + t.getColor() + t.getDisplayName()
-                            + " &7(" + t.getMemberCount() + "/" + plugin.getTeamManager().getMaxPlayersPerTeam()
+                            + " &7(" + t.getMembers().size() + "/" + plugin.getTeamManager().getMaxPlayersPerTeam()
                             + ") - &e" + t.getPoints() + " pt"));
                 }
             }
@@ -149,7 +149,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 }
 
                 KMCTeam created = plugin.getTeamManager().createTeam(
-                        id, displayName.toString(), color, color.toString());
+                        id, displayName.toString(), color, color);
                 if (created == null) {
                     sender.sendMessage(MessageUtil.color("&cEen team met id '" + id + "' bestaat al."));
                 } else {
@@ -171,10 +171,10 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
                 }
 
                 // Confirm if team has members
-                if (t.getMemberCount() > 0
+                if (t.getMembers().size() > 0
                         && (args.length < 3 || !args[2].equalsIgnoreCase("confirm"))) {
                     sender.sendMessage(MessageUtil.color(
-                            "&c⚠ Team heeft " + t.getMemberCount()
+                            "&c⚠ Team heeft " + t.getMembers().size()
                             + " leden. Gebruik &e/kmcteam delete " + id + " confirm &com door te gaan."));
                     return true;
                 }

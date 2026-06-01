@@ -1,8 +1,10 @@
 package nl.kmc.bridge.listeners;
 
 import nl.kmc.bridge.TheBridgePlugin;
+import nl.kmc.bridge.managers.BridgeGameManagerV2;
 import nl.kmc.bridge.models.BridgeTeam;
 import nl.kmc.bridge.models.PlayerStats;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -23,9 +25,9 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
  * <ul>
  *   <li>Block place: only wool of player's team color, tracked for cleanup.</li>
  *   <li>Block break: only player-placed blocks, never the world.</li>
- *   <li>Movement: route to GameManager for goal check.</li>
+ *   <li>Movement: route to BridgeGameManagerV2 for goal check.</li>
  *   <li>PvP damage: pass through (so combat works).</li>
- *   <li>Player death: route to GameManager.handleDeath, cancel vanilla flow.</li>
+ *   <li>Player death: route to BridgeGameManagerV2.handleDeath, cancel vanilla flow.</li>
  *   <li>Drop / swap: cancelled (preserve kit).</li>
  * </ul>
  */
@@ -35,15 +37,17 @@ public class BridgeListener implements Listener {
 
     public BridgeListener(TheBridgePlugin plugin) { this.plugin = plugin; }
 
+    private BridgeGameManagerV2 gm() { return plugin.getBridgeGameManagerV2(); }
+
     // ----------------------------------------------------------------
     // Block place — only team wool, only in non-goal regions, tracked
     // ----------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         Player p = event.getPlayer();
-        PlayerStats ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerStats ps = gm.getStatsMap().get(p.getUniqueId());
         if (ps == null) {
             event.setCancelled(true);
             return;
@@ -65,7 +69,6 @@ public class BridgeListener implements Listener {
 
         // Track for cleanup
         plugin.getBlockTracker().recordPlacement(event.getBlockPlaced());
-        plugin.getGameManager().onBlockPlaced(p);
     }
 
     // ----------------------------------------------------------------
@@ -74,9 +77,9 @@ public class BridgeListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         Player p = event.getPlayer();
-        PlayerStats ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerStats ps = gm.getStatsMap().get(p.getUniqueId());
         if (ps == null) {
             event.setCancelled(true);
             return;
@@ -98,7 +101,7 @@ public class BridgeListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         if (event.getTo() == null) return;
         if (event.getFrom().getBlockX() == event.getTo().getBlockX()
             && event.getFrom().getBlockY() == event.getTo().getBlockY()
@@ -106,8 +109,24 @@ public class BridgeListener implements Listener {
             return;
         }
         Player p = event.getPlayer();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
-        plugin.getGameManager().handleMovement(p, event.getTo());
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
+
+        // Check if the player entered a goal region
+        Location to = event.getTo();
+        BridgeTeam playerTeam = getPlayerTeam(gm, p);
+        if (playerTeam == null) return;
+        BridgeTeam goalTeam = plugin.getArenaManager().findGoalTeam(to);
+        if (goalTeam == null) return;
+        // Can't score in own goal
+        if (goalTeam.getId().equals(playerTeam.getId())) return;
+
+        gm.onGoalScored(p);
+    }
+
+    private BridgeTeam getPlayerTeam(BridgeGameManagerV2 gm, Player p) {
+        PlayerStats ps = gm.getStatsMap().get(p.getUniqueId());
+        if (ps == null) return null;
+        return plugin.getArenaManager().getTeam(ps.getTeamId());
     }
 
     // ----------------------------------------------------------------
@@ -117,14 +136,14 @@ public class BridgeListener implements Listener {
 
     /**
      * Detect lethal damage — if it would kill the player, intercept
-     * and route to GameManager.handleDeath so we control respawn
+     * and route to BridgeGameManagerV2.handleDeath so we control respawn
      * instead of vanilla.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPvpDamage(EntityDamageByEntityEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         if (!(event.getEntity() instanceof Player victim)) return;
-        if (plugin.getGameManager().get(victim.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(victim.getUniqueId()) == null) return;
 
         // Find the actual attacker (could be a projectile)
         Player attacker = null;
@@ -137,31 +156,34 @@ public class BridgeListener implements Listener {
         if (attacker == null) return;
 
         // Friendly fire check — same team = no damage
-        PlayerStats victimStats   = plugin.getGameManager().get(victim.getUniqueId());
-        PlayerStats attackerStats = plugin.getGameManager().get(attacker.getUniqueId());
+        PlayerStats victimStats   = gm.getStatsMap().get(victim.getUniqueId());
+        PlayerStats attackerStats = gm.getStatsMap().get(attacker.getUniqueId());
         if (victimStats != null && attackerStats != null
                 && victimStats.getTeamId().equals(attackerStats.getTeamId())) {
             event.setCancelled(true);
             return;
         }
 
+        // Record the attack for kill credit
+        if (attacker != null) gm.recordAttack(victim.getUniqueId(), attacker.getUniqueId());
+
         // If the damage would kill, intercept
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
-            plugin.getGameManager().handleDeath(victim, attacker);
+            gm.handleDeath(victim);
         }
     }
 
     /** Defensive: if player somehow dies anyway (other source), treat as void death. */
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         Player p = event.getEntity();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
         event.deathMessage(null);
         event.getDrops().clear();
         event.setKeepInventory(true);
-        plugin.getGameManager().handleDeath(p, null);
+        gm.handleDeath(p);
     }
 
     // ----------------------------------------------------------------
@@ -170,15 +192,15 @@ public class BridgeListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
+        if (gm.getStatsMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        BridgeGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
+        if (gm.getStatsMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 }

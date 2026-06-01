@@ -1,85 +1,74 @@
 package nl.kmc.parkour;
 
+import nl.kmc.core.domain.GameRegistration;
+import nl.kmc.game.api.AbstractGamePlugin;
+import nl.kmc.game.api.BaseGameManager;
 import nl.kmc.parkour.commands.ParkourCommand;
 import nl.kmc.parkour.listeners.MovementListener;
 import nl.kmc.parkour.managers.CourseManager;
-import nl.kmc.parkour.managers.GameManager;
-import nl.kmc.kmccore.KMCCore;
-import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
+import nl.kmc.parkour.managers.ParkourGameManagerV2;
+import nl.kmc.stats.service.StatisticsService;
+import org.bukkit.Material;
 
-/**
- * Parkour Warrior — race-through-checkpoints minigame for KMC tournaments.
- *
- * <p>Players race a multi-stage parkour course built into the existing
- * tournament world. Region-box checkpoints award points; harder = more.
- * Players respawn at last checkpoint on death/fall. Skip mechanic
- * unlocks after 3 fails on the same stage (no points for skipped).
- *
- * <p>Both solo and team scoring — individual placement gets bonus,
- * team totals naturally aggregate via KMCCore.
- */
-public final class ParkourWarriorPlugin extends JavaPlugin {
+import java.util.List;
 
-    private static ParkourWarriorPlugin instance;
+public final class ParkourWarriorPlugin extends AbstractGamePlugin {
 
     public static final String GAME_ID = "parkour_warrior";
 
-    private KMCCore       kmcCore;
-    private CourseManager courseManager;
-    private GameManager   gameManager;
+    private CourseManager        courseManager;
+    private ParkourGameManagerV2 parkourManagerV2;
+
+    // ── Metadata ──────────────────────────────────────────────────────────────
+
+    @Override protected String      gameId()      { return GAME_ID; }
+    @Override protected String      displayName() { return "Parkour Warrior"; }
+    @Override protected Material    icon()        { return Material.FEATHER; }
+    @Override protected int         minPlayers()  { return 2; }
+    @Override protected String      description() { return "Race through parkour checkpoints as fast as possible."; }
+    @Override protected String      objective()   { return "Reach the most checkpoints before time runs out."; }
+    @Override protected List<String> scoringLines() {
+        return List.of(
+            "+25 pts — Checkpoint reached",
+            "+200 pts — Course finished",
+            "+500 pts — 1st Place"
+        );
+    }
+
+    // ── Factory ───────────────────────────────────────────────────────────────
 
     @Override
-    public void onEnable() {
-        instance = this;
-        saveDefaultConfig();
+    protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
+        courseManager    = new CourseManager(this);
+        parkourManagerV2 = new ParkourGameManagerV2(this, reg, stats);
+        return parkourManagerV2;
+    }
 
-        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
-            getLogger().severe("KMCCore not found! Disabling ParkourWarrior.");
-            setEnabled(false);
-            return;
-        }
-        kmcCore = core;
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-        courseManager = new CourseManager(this);
-        gameManager   = new GameManager(this);
+    @Override
+    protected void onGameEnable() {
+        if (courseManager == null) courseManager = new CourseManager(this);
 
         ParkourCommand cmd = new ParkourCommand(this);
         var bukkitCmd = getCommand("parkourwarrior");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        }
-
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new MovementListener(this), this);
-
-        // Auto-start hook
-        kmcCore.getApi().onGameStart(gameId -> {
-            if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore picked Parkour Warrior — launching countdown.");
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                String error = gameManager.startCountdown();
-                if (error != null) {
-                    getLogger().warning("Auto-start failed: " + error);
-                    if (kmcCore.getAutomationManager().isRunning()) {
-                        kmcCore.getAutomationManager().onGameEnd(null);
-                    }
-                }
-            }, 40L);
-        });
-
-        getLogger().info("ParkourWarrior enabled!");
     }
 
     @Override
-    public void onDisable() {
-        if (gameManager != null) gameManager.forceStop();
-        getLogger().info("ParkourWarrior disabled.");
+    protected void onGameDisable() {
+        if (parkourManagerV2 != null && parkourManagerV2.isRunning()) parkourManagerV2.end();
     }
 
-    public static ParkourWarriorPlugin getInstance() { return instance; }
+    @Override
+    protected void onV1GameStart(String gameId) {
+        getLogger().warning("[Parkour] V1 game-start signal received but V1 GameManager has been removed. Use V2.");
+    }
 
-    public KMCCore       getKmcCore()       { return kmcCore; }
-    public CourseManager getCourseManager() { return courseManager; }
-    public GameManager   getGameManager()   { return gameManager; }
+    // ── Accessors ─────────────────────────────────────────────────────────────
+
+    public CourseManager        getCourseManager()    { return courseManager; }
+    /** Returns the V2 manager cast to ParkourGameManagerV2, or null. */
+    public ParkourGameManagerV2 getParkourManagerV2() { return parkourManagerV2; }
 }

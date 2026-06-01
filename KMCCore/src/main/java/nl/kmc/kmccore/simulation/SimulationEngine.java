@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.simulation;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.snapshot.SnapshotManager;
 import org.bukkit.Bukkit;

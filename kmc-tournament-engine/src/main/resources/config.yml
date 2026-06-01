@@ -1,0 +1,28 @@
+# KMC Tournament Engine configuration
+
+automation:
+  # Time in seconds before ready-check auto-passes (if no ready-up system active)
+  ready-check-timeout: 30
+  # Set to true to skip the ready-check phase entirely
+  skip-ready-check: false
+
+  ceremony:
+    opening-duration: 20          # seconds
+    team-reveal-seconds: 4        # per team
+    overview-duration: 12
+    lineup-per-game-seconds: 3    # per game in lineup showcase
+    game-intro-duration: 15
+    game-end-duration: 10
+    round-end-duration: 20
+    closing-duration: 30
+
+  voting:
+    duration: 30                  # seconds players have to vote
+
+reconnect:
+  # How long (seconds) a player's game state is held after disconnect
+  timeout-seconds: 120
+
+recovery:
+  # Interval (seconds) between automatic tournament snapshots
+  snapshot-interval: 60

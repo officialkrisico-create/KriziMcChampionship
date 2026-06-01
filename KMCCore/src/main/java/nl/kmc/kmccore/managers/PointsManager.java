@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.managers;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -206,7 +206,7 @@ public class PointsManager {
     public void removeTeamPoints(String teamId, int amount) {
         KMCTeam t = plugin.getTeamManager().getTeam(teamId);
         if (t == null) return;
-        t.removePoints(amount);
+        t.setPoints(t.getPoints() - amount);
         plugin.getDatabaseManager().saveTeam(t);
     }
 
@@ -229,7 +229,7 @@ public class PointsManager {
         // Also remove from team
         KMCTeam team = plugin.getTeamManager().getTeamByPlayer(uuid);
         if (team != null) {
-            team.removePoints(amount);
+            team.setPoints(team.getPoints() - amount);
             plugin.getDatabaseManager().saveTeam(team);
         }
     }

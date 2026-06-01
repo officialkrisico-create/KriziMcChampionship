@@ -1,6 +1,7 @@
 package nl.kmc.parkour.listeners;
 
 import nl.kmc.parkour.ParkourWarriorPlugin;
+import nl.kmc.parkour.managers.ParkourGameManagerV2;
 import nl.kmc.parkour.models.Checkpoint;
 import nl.kmc.parkour.models.Powerup;
 import org.bukkit.entity.Player;
@@ -36,9 +37,16 @@ public class MovementListener implements Listener {
 
     public MovementListener(ParkourWarriorPlugin plugin) { this.plugin = plugin; }
 
+    private ParkourGameManagerV2 v2() { return plugin.getParkourManagerV2(); }
+
+    private boolean isGameActive() {
+        ParkourGameManagerV2 mgr = v2();
+        return mgr != null && mgr.isActive();
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         if (event.getTo() == null) return;
 
         // Only on block-position changes — skip same-block moves
@@ -49,7 +57,7 @@ public class MovementListener implements Listener {
         }
 
         Player p = event.getPlayer();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (v2().getRunner(p.getUniqueId()) == null) return;
         long now = System.currentTimeMillis();
 
         // ---- Checkpoint detection ----
@@ -58,7 +66,7 @@ public class MovementListener implements Listener {
             Long expire = checkpointCooldown.get(p.getUniqueId());
             if (expire == null || now > expire) {
                 checkpointCooldown.put(p.getUniqueId(), now + 1500);
-                plugin.getGameManager().handleCheckpointEntry(p, cp);
+                v2().handleCheckpointEntry(p, cp);
             }
             return;
         }
@@ -72,7 +80,7 @@ public class MovementListener implements Listener {
             if (expire == null || now > expire) {
                 // Cooldown = duration + 1s grace
                 perPlayer.put(pu.getId(), now + (pu.getDurationSeconds() + 1) * 1000L);
-                plugin.getGameManager().applyPowerup(p, pu);
+                v2().applyPowerup(p, pu);
             }
         }
     }
@@ -81,17 +89,17 @@ public class MovementListener implements Listener {
      * Treat all damage as a death — parkour shouldn't have HP loss; players
      * should respawn instantly on any damage source (fall, lava, etc.).
      *
-     * <p>Cancel the damage event itself, then respawn via GameManager.
+     * <p>Cancel the damage event itself, then respawn via V2 GameManager.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (v2().getRunner(p.getUniqueId()) == null) return;
 
         // Cancel the damage and respawn
         event.setCancelled(true);
-        plugin.getGameManager().handleDeath(p);
+        v2().handleDeath(p);
     }
 
     /**
@@ -99,15 +107,13 @@ public class MovementListener implements Listener {
      */
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         Player p = event.getEntity();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (v2().getRunner(p.getUniqueId()) == null) return;
 
         event.deathMessage(null);
         event.getDrops().clear();
         event.setKeepInventory(true);
-        // The respawn will be handled by handleDeath via void check or
-        // PlayerRespawnEvent — for now just record it
-        plugin.getGameManager().handleDeath(p);
+        v2().handleDeath(p);
     }
 }

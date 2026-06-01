@@ -150,7 +150,7 @@ public final class RailgunWeapon {
 
         // Did we hit a player?
         if (result != null && result.getHitEntity() instanceof Player target) {
-            plugin.getGameManager().handleHit(shooter, target, reason);
+            if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().handleHit(shooter, target, reason);
         }
     }
 

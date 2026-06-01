@@ -41,12 +41,17 @@ public class SpleefCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Spleef wordt gestart!");
+                var gm = plugin.getSpleefGameManagerV2();
+                if (gm != null) {
+                    if (gm.start()) sender.sendMessage(ChatColor.GREEN + "Spleef wordt gestart!");
+                    else sender.sendMessage(ChatColor.RED + "V2 start rejected — arena not ready.");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 game manager not available.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                var gm = plugin.getSpleefGameManagerV2();
+                if (gm != null) gm.end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -101,7 +106,9 @@ public class SpleefCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Spleef Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                var gm = plugin.getSpleefGameManagerV2();
+                String state = gm != null ? gm.getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + state);
                 for (String line : plugin.getArenaManager().getArena().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

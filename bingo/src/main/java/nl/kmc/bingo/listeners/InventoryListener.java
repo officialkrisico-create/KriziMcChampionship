@@ -1,6 +1,7 @@
 package nl.kmc.bingo.listeners;
 
 import nl.kmc.bingo.BingoPlugin;
+import nl.kmc.bingo.managers.BingoGameManagerV2;
 import nl.kmc.bingo.util.CardGUI;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -29,23 +30,31 @@ public class InventoryListener implements Listener {
     public InventoryListener(BingoPlugin plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
+    // Helpers
+    // ----------------------------------------------------------------
+
+    private BingoGameManagerV2 v2() { return plugin.getBingoManagerV2(); }
+
+    private boolean isGameActive() {
+        BingoGameManagerV2 mgr = v2();
+        return mgr != null && mgr.isRunning();
+    }
+
+    // ----------------------------------------------------------------
     // Events that change inventory contents
     // ----------------------------------------------------------------
 
     @EventHandler
     public void onPickup(EntityPickupItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        if (!plugin.getGameManager().getParticipants().contains(p.getUniqueId())) return;
         scheduleRecount(p);
     }
 
     @EventHandler
     public void onDrop(PlayerDropItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        Player p = event.getPlayer();
-        if (!plugin.getGameManager().getParticipants().contains(p.getUniqueId())) return;
-        scheduleRecount(p);
+        if (!isGameActive()) return;
+        scheduleRecount(event.getPlayer());
     }
 
     @EventHandler
@@ -56,17 +65,15 @@ public class InventoryListener implements Listener {
             return;
         }
 
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         if (!(event.getWhoClicked() instanceof Player p)) return;
-        if (!plugin.getGameManager().getParticipants().contains(p.getUniqueId())) return;
         scheduleRecount(p);
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        if (!isGameActive()) return;
         if (!(event.getPlayer() instanceof Player p)) return;
-        if (!plugin.getGameManager().getParticipants().contains(p.getUniqueId())) return;
         scheduleRecount(p);
     }
 
@@ -75,7 +82,9 @@ public class InventoryListener implements Listener {
         if (team == null) return;
         // Defer one tick so amounts have settled
         UUID triggererId = p.getUniqueId();
+        BingoGameManagerV2 mgr = v2();
+        if (mgr == null) return;
         Bukkit.getScheduler().runTask(plugin,
-                () -> plugin.getGameManager().recountTeam(team.getId(), triggererId));
+                () -> mgr.recountTeamInventory(team.getId(), triggererId));
     }
 }

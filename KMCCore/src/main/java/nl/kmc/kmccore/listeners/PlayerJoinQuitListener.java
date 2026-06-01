@@ -42,6 +42,10 @@ public class PlayerJoinQuitListener implements Listener {
         schedule(20L);
         schedule(40L);
 
+        // Pre-load V2 achievement progress asynchronously
+        if (plugin.getAchievementServiceV2() != null)
+            plugin.getAchievementServiceV2().loadPlayer(player.getUniqueId());
+
         // Lobby teleport in adventure mode
         if (plugin.getArenaManager().getLobby() != null
                 && !plugin.getGameManager().isGameActive()) {
@@ -63,5 +67,7 @@ public class PlayerJoinQuitListener implements Listener {
         var player = event.getPlayer();
         plugin.getPlayerDataManager().unload(player.getUniqueId());
         plugin.getScoreboardManager().onPlayerQuit(player);
+        if (plugin.getAchievementServiceV2() != null)
+            plugin.getAchievementServiceV2().unloadPlayer(player.getUniqueId());
     }
 }

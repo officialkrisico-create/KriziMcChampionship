@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.managers;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;

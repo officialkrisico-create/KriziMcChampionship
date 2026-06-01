@@ -27,11 +27,16 @@ public class BingoCommand implements CommandExecutor, TabCompleter {
 
     public BingoCommand(BingoPlugin plugin) { this.plugin = plugin; }
 
+    /** @return true if a V2 game is currently running */
+    private boolean isV2Active() {
+        return plugin.getBingoManagerV2() != null && plugin.getBingoManagerV2().isRunning();
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (args.length == 0) {
             // Default: open card if player is in a game
-            if (sender instanceof Player p && plugin.getGameManager().isActive()) {
+            if (sender instanceof Player p && isV2Active()) {
                 CardGUI.open(plugin, p);
                 return true;
             }
@@ -43,7 +48,7 @@ public class BingoCommand implements CommandExecutor, TabCompleter {
 
             case "card", "view" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
-                if (!plugin.getGameManager().isActive()) {
+                if (!isV2Active()) {
                     sender.sendMessage(ChatColor.RED + "Geen Bingo game actief.");
                     return true;
                 }
@@ -54,16 +59,20 @@ public class BingoCommand implements CommandExecutor, TabCompleter {
                 if (!sender.hasPermission("bingo.admin")) {
                     sender.sendMessage(ChatColor.RED + "Geen toestemming."); return true;
                 }
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Bingo wordt gestart!");
+                if (plugin.getBingoManagerV2() != null) {
+                    boolean ok = plugin.getBingoManagerV2().start();
+                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar?");
+                    else sender.sendMessage(ChatColor.GREEN + "Bingo wordt gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");
+                }
             }
 
             case "stop" -> {
                 if (!sender.hasPermission("bingo.admin")) {
                     sender.sendMessage(ChatColor.RED + "Geen toestemming."); return true;
                 }
-                plugin.getGameManager().forceStop();
+                if (plugin.getBingoManagerV2() != null) plugin.getBingoManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Bingo gestopt.");
             }
 
@@ -103,7 +112,9 @@ public class BingoCommand implements CommandExecutor, TabCompleter {
 
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Bingo Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                String stateStr = plugin.getBingoManagerV2() != null
+                        ? plugin.getBingoManagerV2().getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + stateStr);
                 sender.sendMessage(ChatColor.GRAY + "Template world: "
                         + plugin.getWorldManager().getTemplateWorldName()
                         + (plugin.getWorldManager().templateExists() ? " &a✔" : " &c✘ (bestaat niet)"));

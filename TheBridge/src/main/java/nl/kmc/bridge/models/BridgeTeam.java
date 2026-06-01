@@ -32,6 +32,7 @@ public class BridgeTeam {
 
     private final Set<UUID> members = new HashSet<>();
     private int goalsScored;        // goals THIS team scored against others
+    private int killsScored;        // kills accumulated by this team's members
 
     public BridgeTeam(String id, String displayName, ChatColor chatColor,
                       org.bukkit.Material woolMaterial,
@@ -60,6 +61,9 @@ public class BridgeTeam {
     public int                   getGoalsScored()  { return goalsScored; }
     public void                  addGoal()         { goalsScored++; }
     public void                  resetGoals()      { goalsScored = 0; }
+
+    public int                   getKillsScored()  { return killsScored; }
+    public void                  addKill()         { killsScored++; }
 
     /** Did the given location enter THIS team's goal region? */
     public boolean isInGoalRegion(Location loc) {

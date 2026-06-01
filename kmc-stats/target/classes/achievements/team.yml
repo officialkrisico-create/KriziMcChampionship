@@ -1,0 +1,64 @@
+achievements:
+  - id: team_player
+    name: "Team Player"
+    description: "Join a team for a tournament"
+    category: TEAM
+    rarity: COMMON
+    icon: LEATHER_CHESTPLATE
+    hidden: false
+    trigger: MANUAL
+
+  - id: win_with_team
+    name: "We Did It Together"
+    description: "Win a game as part of a team"
+    category: TEAM
+    rarity: COMMON
+    icon: YELLOW_BANNER
+    hidden: false
+    trigger: TOURNAMENT_WIN
+
+  - id: clutch_outnumbered
+    name: "1vX Carry"
+    description: "Win a clutch situation when outnumbered"
+    category: TEAM
+    rarity: EPIC
+    icon: IRON_CHESTPLATE
+    hidden: false
+    trigger: CLUTCH_MOMENT
+    clutch_type: OUTNUMBERED_VICTORY
+    reward_type: TITLE
+    reward_value: "Clutch God"
+
+  - id: comeback_win
+    name: "Comeback Kid"
+    description: "Win a game after being in last place mid-game"
+    category: TEAM
+    rarity: EPIC
+    icon: TOTEM_OF_UNDYING
+    hidden: true
+    trigger: CLUTCH_MOMENT
+    clutch_type: COMEBACK_WIN
+    reward_type: BADGE
+    reward_value: badge_comeback
+
+  - id: last_survivor
+    name: "Against All Odds"
+    description: "Be the last survivor when your team was expected to lose"
+    category: TEAM
+    rarity: EPIC
+    icon: SHIELD
+    hidden: true
+    trigger: CLUTCH_MOMENT
+    clutch_type: LAST_SURVIVOR
+
+  - id: perfect_game
+    name: "Perfect Game"
+    description: "Your team achieves a perfect game with no critical mistakes"
+    category: TEAM
+    rarity: LEGENDARY
+    icon: BEACON
+    hidden: true
+    trigger: CLUTCH_MOMENT
+    clutch_type: PERFECT_GAME
+    reward_type: TITLE
+    reward_value: "Perfectionist"

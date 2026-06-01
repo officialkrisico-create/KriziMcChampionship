@@ -1,0 +1,69 @@
+# Legendary achievements — exceptionally rare, server-broadcast on unlock.
+achievements:
+  - id: kmc_immortal
+    name: "KMC Immortal"
+    description: "Complete a full tournament without a single death"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: NETHER_STAR
+    hidden: false
+    trigger: MANUAL
+    reward_type: TITLE
+    reward_value: "Immortal"
+
+  - id: the_goat
+    name: "The G.O.A.T."
+    description: "Win 5 tournaments over your career"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: DRAGON_EGG
+    hidden: false
+    trigger: TOURNAMENT_WIN
+    progress_target: 5
+    reward_type: TITLE
+    reward_value: "G.O.A.T."
+
+  - id: decathlete
+    name: "Decathlete"
+    description: "Win at least one game in every minigame type"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: BEACON
+    hidden: false
+    trigger: MANUAL
+    reward_type: HOF_ENTRY
+    reward_value: "decathlete"
+
+  - id: perfect_tournament
+    name: "Perfect Tournament"
+    description: "Win every game in a single tournament"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: ENCHANTED_GOLDEN_APPLE
+    hidden: true
+    trigger: MANUAL
+    reward_type: TITLE
+    reward_value: "Perfect"
+
+  - id: record_breaker
+    name: "Record Breaker"
+    description: "Beat a server record in any statistic"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: GOLD_BLOCK
+    hidden: true
+    trigger: MANUAL
+    reward_type: HOF_ENTRY
+    reward_value: "record_breaker"
+
+  - id: thousand_kills
+    name: "War Machine"
+    description: "Get 1000 kills across your career"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: NETHERITE_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 1000
+    reward_type: TITLE
+    reward_value: "War Machine"

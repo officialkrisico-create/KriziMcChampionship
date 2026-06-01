@@ -1,0 +1,29 @@
+name: KMCCoreV2
+version: '2.0.0'
+main: nl.kmc.core.KMCCorePlugin
+api-version: '1.21'
+description: KMC Tournament Core Platform V2
+authors: [ Krizicow ]
+
+softdepend:
+  - Citizens
+  - WorldEdit
+  - FastAsyncWorldEdit
+
+commands:
+  kmc:
+    description: Root KMC command
+    usage: /kmc <subcommand>
+    permission: kmc.admin
+
+permissions:
+  kmc.*:
+    description: Full KMC access
+    children:
+      kmc.admin: true
+      kmc.player: true
+  kmc.admin:
+    description: Tournament administration
+  kmc.player:
+    description: Player commands (stats, teamchat)
+    default: true

@@ -134,4 +134,21 @@ public class ArenaManager {
         arena.setVoidYLevel(y);
         save();
     }
+
+    // ---- Convenience delegates used by game manager ----
+
+    /** Returns the world the arena is in, or null if not configured. */
+    public World getWorld() { return arena.getWorld(); }
+
+    /** Returns the spawn pedestal locations. */
+    public List<Location> getSpawnLocations() { return arena.getSpawnPedestals(); }
+
+    /** Returns the void Y level below which players are eliminated. */
+    public int getVoidYLevel() { return arena.getVoidYLevel(); }
+
+    /** Delegates to Arena readiness check. */
+    public boolean isReady() { return arena.isReady(); }
+
+    /** Delegates to Arena readiness report. */
+    public String getReadinessReport() { return arena.getReadinessReport(); }
 }

@@ -85,7 +85,7 @@ public final class GrenadeWeapon {
             var rayResult = world.rayTraceBlocks(loc, toTarget, toTarget.length());
             if (rayResult != null) continue; // wall in the way
 
-            plugin.getGameManager().handleHit(thrower, target, "grenade");
+            if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().handleHit(thrower, target, "grenade");
         }
     }
 }

@@ -2,7 +2,7 @@ package nl.kmc.kmccore.listeners;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.managers.TabListManager;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;

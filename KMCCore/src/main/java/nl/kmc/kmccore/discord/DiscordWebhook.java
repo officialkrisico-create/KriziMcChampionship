@@ -2,7 +2,7 @@ package nl.kmc.kmccore.discord;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.health.HealthMonitor;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import org.bukkit.Bukkit;
 
 import java.io.OutputStream;

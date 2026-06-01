@@ -8,7 +8,7 @@ import nl.kmc.bingo.models.BingoCard;
 import nl.kmc.bingo.models.TeamCardState;
 import nl.kmc.bingo.objectives.BingoObjective;
 import nl.kmc.bingo.objectives.CollectObjective;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -51,7 +51,8 @@ public final class CardGUI {
             viewer.sendMessage(ChatColor.RED + "Je zit niet in een team!");
             return;
         }
-        TeamCardState state = plugin.getGameManager().getTeamState(team.getId());
+        TeamCardState state = plugin.getBingoManagerV2() != null
+                ? plugin.getBingoManagerV2().getTeamState(team.getId()) : null;
         if (state == null) {
             viewer.sendMessage(ChatColor.RED + "Geen Bingo game actief!");
             return;

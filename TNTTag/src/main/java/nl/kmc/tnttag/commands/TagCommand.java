@@ -38,12 +38,16 @@ public class TagCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "TNT Tag gestart!");
+                if (plugin.getTntManagerV2() != null) {
+                    boolean ok = plugin.getTntManagerV2().start();
+                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar?");
+                    else sender.sendMessage(ChatColor.GREEN + "TNT Tag gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                if (plugin.getTntManagerV2() != null) plugin.getTntManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -76,8 +80,9 @@ public class TagCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== TNT Tag Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
-                sender.sendMessage(ChatColor.YELLOW + "Round: " + plugin.getGameManager().getCurrentRound());
+                String stateStr = plugin.getTntManagerV2() != null
+                        ? plugin.getTntManagerV2().getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + stateStr);
                 for (String line : plugin.getArenaManager().getArena().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

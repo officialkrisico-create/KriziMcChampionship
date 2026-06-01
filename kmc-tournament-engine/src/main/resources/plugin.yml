@@ -1,0 +1,41 @@
+name: KMCTournamentEngine
+version: 1.0.0
+main: nl.kmc.tournament.KMCTournamentPlugin
+api-version: '1.21'
+description: KMC Tournament Engine — orchestration, automation, templates, timeline, recovery
+authors: [ Krizicow ]
+
+depend:
+  - KMCCore
+
+commands:
+  kmc:
+    description: Tournament control command
+    usage: /kmc <start|end|pause|resume|skip|status|vote|ready>
+    permission: kmc.use
+    aliases: [ tournament ]
+
+  kmctimeline:
+    description: Open the tournament timeline GUI
+    usage: /kmctimeline
+    permission: kmc.use
+    aliases: [ timeline ]
+
+  kmctemplate:
+    description: Manage tournament templates
+    usage: /kmctemplate <list|info|delete> [id]
+    permission: kmc.admin
+    aliases: [ template ]
+
+  kmcrecover:
+    description: Emergency tournament recovery
+    usage: /kmcrecover <status|restore>
+    permission: kmc.admin
+
+permissions:
+  kmc.use:
+    description: Allows players to use player-facing KMC commands
+    default: true
+  kmc.admin:
+    description: Allows use of admin-only tournament controls
+    default: op

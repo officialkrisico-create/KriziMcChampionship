@@ -49,12 +49,16 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Mob Mayhem wordt gestart!");
+                if (plugin.getGameManagerV2() != null) {
+                    if (!plugin.getGameManagerV2().start())
+                        sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar.");
+                    else sender.sendMessage(ChatColor.GREEN + "Mob Mayhem wordt gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 niet beschikbaar.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "settemplate" -> {
@@ -89,7 +93,7 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Mob Mayhem Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                sender.sendMessage(ChatColor.YELLOW + "State: " + (plugin.getGameManagerV2() != null ? plugin.getGameManagerV2().getState().toString() : "IDLE"));
                 String tname = plugin.getConfig().getString("world.template-name", "mm_template");
                 boolean texists = new File(Bukkit.getWorldContainer(), tname).isDirectory();
                 sender.sendMessage(ChatColor.GRAY + "Template: " + tname

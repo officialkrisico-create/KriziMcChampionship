@@ -1,6 +1,7 @@
 package nl.kmc.elytra.listeners;
 
 import nl.kmc.elytra.ElytraEndriumPlugin;
+import nl.kmc.elytra.managers.ElytraEndriumGameManagerV2;
 import nl.kmc.elytra.models.BoostHoop;
 import nl.kmc.elytra.models.Checkpoint;
 import org.bukkit.Material;
@@ -24,9 +25,12 @@ public class MovementListener implements Listener {
 
     public MovementListener(ElytraEndriumPlugin plugin) { this.plugin = plugin; }
 
+    private ElytraEndriumGameManagerV2 gm() { return plugin.getGameManagerV2(); }
+
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (event.getTo() == null) return;
 
         // Skip same-block moves to keep this cheap
@@ -37,19 +41,19 @@ public class MovementListener implements Listener {
         }
 
         Player p = event.getPlayer();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getRunnersMap().get(p.getUniqueId()) == null) return;
 
         // Checkpoint check
         Checkpoint cp = plugin.getCourseManager().findCheckpointAt(event.getTo());
         if (cp != null) {
-            plugin.getGameManager().handleCheckpointEntry(p, cp);
+            gm.handleCheckpointEntry(p, cp);
             return;
         }
 
         // Boost hoop check
         BoostHoop boost = plugin.getCourseManager().findBoostAt(event.getTo());
         if (boost != null) {
-            plugin.getGameManager().handleBoostEntry(p, boost);
+            gm.handleBoostEntry(p, boost);
         }
     }
 
@@ -60,9 +64,10 @@ public class MovementListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getRunnersMap().get(p.getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 
@@ -72,9 +77,10 @@ public class MovementListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onToggleGlide(EntityToggleGlideEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getRunnersMap().get(p.getUniqueId()) == null) return;
         // If they're trying to STOP gliding mid-air, cancel it
         if (!event.isGliding() && !p.isOnGround()) {
             event.setCancelled(true);
@@ -83,8 +89,9 @@ public class MovementListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm.getRunnersMap().get(event.getPlayer().getUniqueId()) == null) return;
         if (event.getItemDrop().getItemStack().getType() == Material.ELYTRA) {
             event.setCancelled(true);
         }
@@ -92,8 +99,9 @@ public class MovementListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm.getRunnersMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 }

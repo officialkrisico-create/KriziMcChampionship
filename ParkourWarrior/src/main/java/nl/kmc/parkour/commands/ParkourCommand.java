@@ -46,7 +46,9 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
         // Player commands available to all
         if (args[0].equalsIgnoreCase("skip")) {
             if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
-            String error = plugin.getGameManager().trySkip(p);
+            String error = plugin.getParkourManagerV2() != null
+                    ? plugin.getParkourManagerV2().trySkip(p)
+                    : "V2 manager niet beschikbaar.";
             if (error != null) p.sendMessage(ChatColor.RED + error);
             return true;
         }
@@ -59,12 +61,16 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startCountdown();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                if (plugin.getParkourManagerV2() != null) {
+                    boolean ok = plugin.getParkourManagerV2().start();
+                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — course niet klaar?");
+                    else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                if (plugin.getParkourManagerV2() != null) plugin.getParkourManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -141,7 +147,9 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Parkour Warrior Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                String stateStr = plugin.getParkourManagerV2() != null
+                        ? plugin.getParkourManagerV2().getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + stateStr);
                 for (String line : plugin.getCourseManager().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

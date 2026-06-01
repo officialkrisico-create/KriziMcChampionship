@@ -1,6 +1,7 @@
 package nl.kmc.skywars.listeners;
 
 import nl.kmc.skywars.SkyWarsPlugin;
+import nl.kmc.skywars.managers.SkyWarsGameManagerV2;
 import nl.kmc.skywars.models.PlayerStats;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -26,7 +27,7 @@ import org.bukkit.inventory.ItemStack;
  *   <li>Damage during GRACE: cancelled (chest opening, no PvP)</li>
  *   <li>Damage during ACTIVE: passes through, attribution recorded</li>
  *   <li>Friendly fire: cancelled regardless of phase</li>
- *   <li>Lethal damage: intercepted → routed to GameManager.handleDeath</li>
+ *   <li>Lethal damage: intercepted → routed to SkyWarsGameManagerV2.handleDeath</li>
  *   <li>Death event: cleared, no respawn (player goes spectator)</li>
  * </ul>
  */
@@ -36,15 +37,17 @@ public class SkyWarsListener implements Listener {
 
     public SkyWarsListener(SkyWarsPlugin plugin) { this.plugin = plugin; }
 
+    private SkyWarsGameManagerV2 gm() { return plugin.getSkyWarsGameManagerV2(); }
+
     /**
      * Block ALL damage to participants during GRACE phase (chest-opening,
      * no PvP allowed). Also block environmental damage to spectators.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SkyWarsGameManagerV2 gm = gm(); if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        PlayerStats ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerStats ps = gm.getStatsMap().get(p.getUniqueId());
         if (ps == null) return;
 
         // Spectators: never take damage
@@ -54,7 +57,7 @@ public class SkyWarsListener implements Listener {
         }
 
         // During PREPARING / COUNTDOWN / GRACE: no damage at all
-        if (!plugin.getGameManager().isPvpAllowed()) {
+        if (!gm.isPvpAllowed()) {
             event.setCancelled(true);
         }
     }
@@ -65,9 +68,9 @@ public class SkyWarsListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPvp(EntityDamageByEntityEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SkyWarsGameManagerV2 gm = gm(); if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player victim)) return;
-        PlayerStats victimStats = plugin.getGameManager().get(victim.getUniqueId());
+        PlayerStats victimStats = gm.getStatsMap().get(victim.getUniqueId());
         if (victimStats == null) return;
         if (victim.getGameMode() == GameMode.SPECTATOR) {
             event.setCancelled(true);
@@ -84,25 +87,25 @@ public class SkyWarsListener implements Listener {
         if (attacker == null) return;
 
         // No PvP yet during grace
-        if (!plugin.getGameManager().isPvpAllowed()) {
+        if (!gm.isPvpAllowed()) {
             event.setCancelled(true);
             return;
         }
 
         // Friendly fire check
-        PlayerStats attackerStats = plugin.getGameManager().get(attacker.getUniqueId());
+        PlayerStats attackerStats = gm.getStatsMap().get(attacker.getUniqueId());
         if (attackerStats != null
                 && attackerStats.getTeamId().equals(victimStats.getTeamId())) {
             event.setCancelled(true);
             return;
         }
 
-        plugin.getGameManager().recordAttack(victim.getUniqueId(), attacker.getUniqueId());
+        gm.recordAttack(victim.getUniqueId(), attacker.getUniqueId());
 
         // If this would kill, intercept and route through GameManager
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
-            plugin.getGameManager().handleDeath(victim, attacker, "killed");
+            gm.handleDeath(victim, attacker, "killed");
         }
     }
 
@@ -113,24 +116,22 @@ public class SkyWarsListener implements Listener {
      */
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SkyWarsGameManagerV2 gm = gm(); if (gm == null || !gm.getState().isRunning()) return;
         Player p = event.getEntity();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
 
         event.deathMessage(null);
         event.getDrops().clear();
         event.setKeepInventory(true);
 
-        Player killer = plugin.getGameManager().getRecentAttacker(p.getUniqueId());
-        plugin.getGameManager().handleDeath(p, killer, "stierf");
+        Player killer = gm.getRecentAttacker(p.getUniqueId());
+        gm.handleDeath(p, killer, "stierf");
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        // Allow item drops during the match (it's normal SkyWars play),
-        // but cancel for spectators
-        if (!plugin.getGameManager().isInMatch()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        SkyWarsGameManagerV2 gm = gm(); if (gm == null || !gm.getState().isRunning()) return;
+        if (gm.getStatsMap().get(event.getPlayer().getUniqueId()) == null) return;
         if (event.getPlayer().getGameMode() == GameMode.SPECTATOR) {
             event.setCancelled(true);
         }
@@ -143,11 +144,11 @@ public class SkyWarsListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTntPlace(BlockPlaceEvent event) {
-        if (!plugin.getGameManager().isPvpAllowed()) return;
+        SkyWarsGameManagerV2 gm = gm(); if (gm == null || !gm.isPvpAllowed()) return;
         if (event.getBlock().getType() != Material.TNT) return;
 
         Player placer = event.getPlayer();
-        if (plugin.getGameManager().get(placer.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(placer.getUniqueId()) == null) return;
         if (placer.getGameMode() == GameMode.SPECTATOR) return;
 
         // Cancel the placement, spawn a primed TNT entity at that location,

@@ -29,12 +29,16 @@ public class SGCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Survival Games gestart!");
+                if (plugin.getGameManagerV2() != null) {
+                    if (!plugin.getGameManagerV2().start())
+                        sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar.");
+                    else sender.sendMessage(ChatColor.GREEN + "Survival Games gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 niet beschikbaar.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -89,7 +93,7 @@ public class SGCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Survival Games Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                sender.sendMessage(ChatColor.YELLOW + "State: " + (plugin.getGameManagerV2() != null ? plugin.getGameManagerV2().getState().toString() : "IDLE"));
                 for (String line : plugin.getArenaManager().getArena().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

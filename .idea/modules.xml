@@ -16,6 +16,10 @@
       <module fileurl="file://$PROJECT_DIR$/TGTTOS/TGTTOS.iml" filepath="$PROJECT_DIR$/TGTTOS/TGTTOS.iml" />
       <module fileurl="file://$PROJECT_DIR$/TNTTag/TNTTag.iml" filepath="$PROJECT_DIR$/TNTTag/TNTTag.iml" />
       <module fileurl="file://$PROJECT_DIR$/TheBridge/TheBridge.iml" filepath="$PROJECT_DIR$/TheBridge/TheBridge.iml" />
+      <module fileurl="file://$PROJECT_DIR$/kmc-core/kmc-core.iml" filepath="$PROJECT_DIR$/kmc-core/kmc-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/kmc-game-api/kmc-game-api.iml" filepath="$PROJECT_DIR$/kmc-game-api/kmc-game-api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/kmc-stats/kmc-stats.iml" filepath="$PROJECT_DIR$/kmc-stats/kmc-stats.iml" />
+      <module fileurl="file://$PROJECT_DIR$/kmc-tournament-engine/kmc-tournament-engine.iml" filepath="$PROJECT_DIR$/kmc-tournament-engine/kmc-tournament-engine.iml" />
     </modules>
   </component>
 </project>

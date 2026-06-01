@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.managers;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
@@ -19,7 +19,7 @@ import java.util.logging.Level;
  * <p>Changes in this version:
  * <ul>
  *   <li>{@link #sendPlayerToLobby(Player)} — teleport after team add/remove</li>
- *   <li>{@link #createTeam(String, String, ChatColor, String)} — admin create</li>
+ *   <li>{@link #createTeam(String, String, ChatColor, ChatColor)} — admin create</li>
  *   <li>{@link #deleteTeam(String)} — admin delete, kicks members to no-team</li>
  *   <li>{@link #sendTeamChat(Player, String)} — sends a message to every
  *       member of the player's team (restored — was used by TeamChatCommand)</li>
@@ -56,7 +56,7 @@ public class TeamManager {
                 ConfigurationSection t = ts.getConfigurationSection(id);
                 if (t == null) continue;
                 String displayName = t.getString("display-name", id);
-                String tagColor    = t.getString("tag-color", "&7");
+                String tagColorStr = t.getString("tag-color", "GRAY");
                 ChatColor color;
                 try { color = ChatColor.valueOf(t.getString("color", "WHITE").toUpperCase()); }
                 catch (IllegalArgumentException e) { color = ChatColor.WHITE; }
@@ -65,7 +65,10 @@ public class TeamManager {
                 if (existing != null) {
                     teams.put(id, existing);
                 } else {
-                    KMCTeam fresh = new KMCTeam(id, displayName, color, tagColor);
+                    ChatColor tagColor;
+                try { tagColor = ChatColor.valueOf(tagColorStr.toUpperCase()); }
+                catch (IllegalArgumentException e) { tagColor = color; }
+                KMCTeam fresh = new KMCTeam(id, displayName, color, tagColor);
                     teams.put(id, fresh);
                     plugin.getDatabaseManager().saveTeam(fresh);
                 }
@@ -100,7 +103,7 @@ public class TeamManager {
         if (target == null) return AddResult.TEAM_NOT_FOUND;
 
         int maxPlayers = plugin.getConfig().getInt("teams.max-players-per-team", 4);
-        if (target.getMemberCount() >= maxPlayers) return AddResult.TEAM_FULL;
+        if (target.getMembers().size() >= maxPlayers) return AddResult.TEAM_FULL;
         if (getTeamByPlayer(uuid) != null)         return AddResult.ALREADY_IN_TEAM;
 
         target.addMember(uuid);
@@ -200,7 +203,7 @@ public class TeamManager {
     // Create / delete teams at runtime
     // ----------------------------------------------------------------
 
-    public KMCTeam createTeam(String id, String displayName, ChatColor color, String tagColor) {
+    public KMCTeam createTeam(String id, String displayName, ChatColor color, ChatColor tagColor) {
         if (id == null) return null;
         String key = id.toLowerCase();
         if (teams.containsKey(key)) return null;

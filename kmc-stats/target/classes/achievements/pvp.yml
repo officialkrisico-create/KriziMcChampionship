@@ -1,0 +1,106 @@
+achievements:
+  - id: first_kill
+    name: "First Blood"
+    description: "Get your first kill in any game"
+    category: PVP
+    rarity: COMMON
+    icon: IRON_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 1
+    reward_type: BADGE
+    reward_value: badge_first_blood
+
+  - id: kill_10_lifetime
+    name: "Ten Takedowns"
+    description: "Get 10 kills across all games"
+    category: PVP
+    rarity: COMMON
+    icon: STONE_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 10
+
+  - id: kill_50_lifetime
+    name: "Half-Century"
+    description: "Get 50 kills across all games"
+    category: PVP
+    rarity: COMMON
+    icon: IRON_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 50
+
+  - id: kill_100_lifetime
+    name: "Centurion"
+    description: "Get 100 kills across all games"
+    category: PVP
+    rarity: RARE
+    icon: DIAMOND_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 100
+    reward_type: BADGE
+    reward_value: badge_centurion
+
+  - id: kill_500_lifetime
+    name: "Slaughter"
+    description: "Get 500 kills across all tournaments"
+    category: PVP
+    rarity: RARE
+    icon: NETHERITE_SWORD
+    hidden: false
+    trigger: KILL_COUNT
+    progress_target: 500
+
+  - id: knockout
+    name: "Knockout"
+    description: "Get 3 kills in a single game"
+    category: PVP
+    rarity: COMMON
+    icon: NETHERITE_SWORD
+    hidden: false
+    trigger: KILL_COUNT_IN_GAME
+    progress_target: 3
+
+  - id: pentakill
+    name: "Pentakill"
+    description: "Get 5 kills in a single game"
+    category: PVP
+    rarity: RARE
+    icon: DIAMOND_SWORD
+    hidden: false
+    trigger: KILL_COUNT_IN_GAME
+    progress_target: 5
+
+  - id: rampage
+    name: "Rampage"
+    description: "Get 10 kills in a single game"
+    category: PVP
+    rarity: RARE
+    icon: NETHERITE_SWORD
+    hidden: false
+    trigger: KILL_COUNT_IN_GAME
+    progress_target: 10
+
+  - id: kill_streak_5
+    name: "On Fire"
+    description: "5 kills in a row without 30 seconds gap"
+    category: PVP
+    rarity: RARE
+    icon: BLAZE_ROD
+    hidden: false
+    trigger: KILL_STREAK_IN_GAME
+    progress_target: 5
+
+  - id: kill_streak_10
+    name: "Unstoppable"
+    description: "10 kills in a row without 30 seconds gap"
+    category: PVP
+    rarity: EPIC
+    icon: BLAZE_POWDER
+    hidden: false
+    trigger: KILL_STREAK_IN_GAME
+    progress_target: 10
+    reward_type: TITLE
+    reward_value: "Unstoppable"

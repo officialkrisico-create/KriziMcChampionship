@@ -55,87 +55,76 @@ public class AchievementManager {
     // ----------------------------------------------------------------
 
     private void ensureTables() {
-        Connection c = plugin.getDatabaseManager().getConnection();
-        if (c == null) return;
-        try (Statement st = c.createStatement()) {
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS player_achievements (
-                    uuid VARCHAR(36) NOT NULL,
-                    achievement_id VARCHAR(64) NOT NULL,
-                    unlocked_at BIGINT NOT NULL,
-                    PRIMARY KEY (uuid, achievement_id)
-                )""");
-            st.executeUpdate("""
-                CREATE TABLE IF NOT EXISTS achievement_progress (
-                    uuid VARCHAR(36) NOT NULL,
-                    achievement_id VARCHAR(64) NOT NULL,
-                    progress INT NOT NULL DEFAULT 0,
-                    PRIMARY KEY (uuid, achievement_id)
-                )""");
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to create achievement tables", e);
-        }
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (Statement st = c.createStatement()) {
+                st.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS player_achievements (
+                        uuid VARCHAR(36) NOT NULL,
+                        achievement_id VARCHAR(64) NOT NULL,
+                        unlocked_at BIGINT NOT NULL,
+                        PRIMARY KEY (uuid, achievement_id)
+                    )""");
+                st.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS achievement_progress (
+                        uuid VARCHAR(36) NOT NULL,
+                        achievement_id VARCHAR(64) NOT NULL,
+                        progress INT NOT NULL DEFAULT 0,
+                        PRIMARY KEY (uuid, achievement_id)
+                    )""");
+            }
+        });
     }
 
     private void loadAll() {
-        Connection c = plugin.getDatabaseManager().getConnection();
-        if (c == null) return;
-        try (PreparedStatement ps = c.prepareStatement(
-                "SELECT uuid, achievement_id FROM player_achievements")) {
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    UUID uuid = UUID.fromString(rs.getString("uuid"));
-                    String aid = rs.getString("achievement_id");
-                    unlocked.computeIfAbsent(uuid, k -> new HashSet<>()).add(aid);
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT uuid, achievement_id FROM player_achievements")) {
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        UUID uuid = UUID.fromString(rs.getString("uuid"));
+                        String aid = rs.getString("achievement_id");
+                        unlocked.computeIfAbsent(uuid, k -> new HashSet<>()).add(aid);
+                    }
                 }
             }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to load player_achievements", e);
-        }
 
-        try (PreparedStatement ps = c.prepareStatement(
-                "SELECT uuid, achievement_id, progress FROM achievement_progress")) {
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    UUID uuid = UUID.fromString(rs.getString("uuid"));
-                    String aid = rs.getString("achievement_id");
-                    int prog = rs.getInt("progress");
-                    progress.computeIfAbsent(uuid, k -> new HashMap<>()).put(aid, prog);
+            try (PreparedStatement ps = c.prepareStatement(
+                    "SELECT uuid, achievement_id, progress FROM achievement_progress")) {
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        UUID uuid = UUID.fromString(rs.getString("uuid"));
+                        String aid = rs.getString("achievement_id");
+                        int prog = rs.getInt("progress");
+                        progress.computeIfAbsent(uuid, k -> new HashMap<>()).put(aid, prog);
+                    }
                 }
             }
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to load achievement_progress", e);
-        }
-
+        });
         plugin.getLogger().info("Loaded achievements for " + unlocked.size() + " player(s).");
     }
 
     private void persistUnlock(UUID uuid, String aid, long ts) {
-        Connection c = plugin.getDatabaseManager().getConnection();
-        if (c == null) return;
-        try (PreparedStatement ps = c.prepareStatement(
-                "INSERT OR IGNORE INTO player_achievements (uuid, achievement_id, unlocked_at) VALUES (?, ?, ?)")) {
-            ps.setString(1, uuid.toString());
-            ps.setString(2, aid);
-            ps.setLong(3, ts);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to persist achievement unlock", e);
-        }
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT OR IGNORE INTO player_achievements (uuid, achievement_id, unlocked_at) VALUES (?, ?, ?)")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, aid);
+                ps.setLong(3, ts);
+                ps.executeUpdate();
+            }
+        });
     }
 
     private void persistProgress(UUID uuid, String aid, int newValue) {
-        Connection c = plugin.getDatabaseManager().getConnection();
-        if (c == null) return;
-        try (PreparedStatement ps = c.prepareStatement(
-                "INSERT OR REPLACE INTO achievement_progress (uuid, achievement_id, progress) VALUES (?, ?, ?)")) {
-            ps.setString(1, uuid.toString());
-            ps.setString(2, aid);
-            ps.setInt(3, newValue);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().log(Level.WARNING, "Failed to persist achievement progress", e);
-        }
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT OR REPLACE INTO achievement_progress (uuid, achievement_id, progress) VALUES (?, ?, ?)")) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, aid);
+                ps.setInt(3, newValue);
+                ps.executeUpdate();
+            }
+        });
     }
 
     // ----------------------------------------------------------------

@@ -48,12 +48,16 @@ public class ElytraCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startCountdown();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                if (plugin.getGameManagerV2() != null) {
+                    if (!plugin.getGameManagerV2().start())
+                        sender.sendMessage(ChatColor.RED + "V2 start geweigerd — course niet klaar.");
+                    else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 niet beschikbaar.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -112,7 +116,7 @@ public class ElytraCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Elytra Endrium Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                sender.sendMessage(ChatColor.YELLOW + "State: " + (plugin.getGameManagerV2() != null ? plugin.getGameManagerV2().getState().toString() : "IDLE"));
                 for (String line : plugin.getCourseManager().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

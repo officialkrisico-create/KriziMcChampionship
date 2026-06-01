@@ -45,12 +45,17 @@ public class BridgeCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                var gm = plugin.getBridgeGameManagerV2();
+                if (gm != null) {
+                    if (gm.start()) sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                    else sender.sendMessage(ChatColor.RED + "V2 start rejected — validation failed.");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 game manager not available.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                var gm = plugin.getBridgeGameManagerV2();
+                if (gm != null) gm.end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "setworld" -> {
@@ -122,7 +127,9 @@ public class BridgeCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== The Bridge Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
+                var gm = plugin.getBridgeGameManagerV2();
+                String state = gm != null ? gm.getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + state);
                 for (String line : plugin.getArenaManager().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }

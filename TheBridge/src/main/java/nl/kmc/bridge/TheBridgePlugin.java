@@ -1,96 +1,81 @@
 package nl.kmc.bridge;
 
+import nl.kmc.core.domain.GameRegistration;
+import nl.kmc.game.api.AbstractGamePlugin;
+import nl.kmc.game.api.BaseGameManager;
 import nl.kmc.bridge.commands.BridgeCommand;
 import nl.kmc.bridge.listeners.BridgeListener;
 import nl.kmc.bridge.managers.ArenaManager;
 import nl.kmc.bridge.managers.AssistManager;
 import nl.kmc.bridge.managers.BlockTracker;
-import nl.kmc.bridge.managers.GameManager;
+import nl.kmc.bridge.managers.BridgeGameManagerV2;
 import nl.kmc.bridge.managers.KitManager;
-import nl.kmc.kmccore.KMCCore;
-import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
+import nl.kmc.stats.service.StatisticsService;
+import org.bukkit.Material;
 
-/**
- * The Bridge — Hypixel-style 2v2/4v4 bridge battle minigame.
- *
- * <p>Players spawn with a sword, bow, kit of team-colored wool, and
- * a pickaxe. Bridge across the void to the opponent's goal hole and
- * jump in to score. PvP active. First team to N goals wins; tiebreak
- * by total kills.
- */
-public final class TheBridgePlugin extends JavaPlugin {
+import java.util.List;
 
-    private static TheBridgePlugin instance;
+public final class TheBridgePlugin extends AbstractGamePlugin {
 
     public static final String GAME_ID = "the_bridge";
 
-    private KMCCore       kmcCore;
-    private ArenaManager  arenaManager;
-    private KitManager    kitManager;
-    private BlockTracker  blockTracker;
-    private GameManager   gameManager;
-    private AssistManager assistManager;
+    private ArenaManager        arenaManager;
+    private KitManager          kitManager;
+    private BlockTracker        blockTracker;
+    private AssistManager       assistManager;
+    private BridgeGameManagerV2 bridgeGameManagerV2;
+
+    // ── AbstractGamePlugin metadata ───────────────────────────────────────────
+
+    @Override protected String   gameId()      { return GAME_ID; }
+    @Override protected String   displayName() { return "The Bridge"; }
+    @Override protected Material icon()        { return Material.BLUE_WOOL; }
+    @Override protected int      minPlayers()  { return 4; }
+    @Override protected String   description() { return "Bridge to the enemy goal and score! First team to 5 goals wins."; }
+    @Override protected String   objective()   { return "Score goals by entering the opponent's goal hole."; }
+    @Override protected List<String> scoringLines() {
+        return List.of(
+            "+150 pts — Goal scored",
+            "+50 pts — Kill",
+            "+500 pts — 1st Place"
+        );
+    }
 
     @Override
-    public void onEnable() {
-        instance = this;
-        saveDefaultConfig();
+    protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
+        arenaManager        = new ArenaManager(this);
+        kitManager          = new KitManager(this);
+        blockTracker        = new BlockTracker(this);
+        assistManager       = new AssistManager();
+        bridgeGameManagerV2 = new BridgeGameManagerV2(this, reg, stats);
+        return bridgeGameManagerV2;
+    }
 
-        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
-            getLogger().severe("KMCCore not found! Disabling The Bridge.");
-            setEnabled(false);
-            return;
-        }
-        kmcCore = core;
-
-        arenaManager = new ArenaManager(this);
-        kitManager   = new KitManager(this);
-        blockTracker = new BlockTracker(this);
-        gameManager  = new GameManager(this);
-        assistManager = new AssistManager();
-
-
+    @Override
+    protected void onGameEnable() {
         var cmd = new BridgeCommand(this);
         var bukkitCmd = getCommand("bridge");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        }
-
-
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new BridgeListener(this), this);
         getServer().getPluginManager().registerEvents(assistManager, this);
-
-        kmcCore.getApi().onGameStart(gameId -> {
-            if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore picked The Bridge — launching countdown.");
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                String error = gameManager.startGame();
-                if (error != null) {
-                    getLogger().warning("Auto-start failed: " + error);
-                    if (kmcCore.getAutomationManager().isRunning()) {
-                        kmcCore.getAutomationManager().onGameEnd(null);
-                    }
-                }
-            }, 40L);
-        });
-
-        getLogger().info("The Bridge enabled!");
     }
 
     @Override
-    public void onDisable() {
-        if (gameManager != null) gameManager.forceStop();
-        if (blockTracker != null) blockTracker.cancelTasks();
+    protected void onGameDisable() {
+        if (bridgeGameManagerV2 != null && bridgeGameManagerV2.isRunning()) bridgeGameManagerV2.end();
+        if (blockTracker        != null) blockTracker.cancelTasks();
     }
 
-    public static TheBridgePlugin getInstance() { return instance; }
+    @Override
+    protected void onV1GameStart(String gameId) {
+        // No V1 game manager — V1 path is a no-op after migration.
+    }
 
-    public KMCCore      getKmcCore()      { return kmcCore; }
-    public ArenaManager getArenaManager() { return arenaManager; }
-    public KitManager   getKitManager()   { return kitManager; }
-    public BlockTracker getBlockTracker() { return blockTracker; }
-    public GameManager  getGameManager()  { return gameManager; }
-    public AssistManager getAssistManager() { return assistManager; }
+    // ── Getters ───────────────────────────────────────────────────────────────
+
+    public ArenaManager        getArenaManager()       { return arenaManager; }
+    public KitManager          getKitManager()         { return kitManager; }
+    public BlockTracker        getBlockTracker()       { return blockTracker; }
+    public AssistManager       getAssistManager()      { return assistManager; }
+    public BridgeGameManagerV2 getBridgeGameManagerV2(){ return bridgeGameManagerV2; }
 }

@@ -3,10 +3,13 @@ package nl.kmc.mayhem.listeners;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import nl.kmc.mayhem.MobMayhemPlugin;
+import nl.kmc.mayhem.managers.MobMayhemGameManagerV2;
 import nl.kmc.mayhem.managers.WaveExecutor;
 import nl.kmc.mayhem.models.TeamGameState;
+import nl.kmc.mayhem.waves.WaveLibrary;
 import nl.kmc.mayhem.waves.WaveModifier;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -21,7 +24,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 /**
- * Routes mob/player death events to GameManager.
+ * Routes mob/player death events to the V2 game manager.
  *
  * <p>Mobs spawned by Mob Mayhem are tagged with team id + wave number
  * via PersistentDataContainer. When they die, this listener reads the
@@ -39,13 +42,26 @@ public class MobListener implements Listener {
 
     public MobListener(MobMayhemPlugin plugin) { this.plugin = plugin; }
 
+    private MobMayhemGameManagerV2 gm() { return plugin.getGameManagerV2(); }
+
+    /** Find the TeamGameState for a given player UUID across all teams. */
+    private TeamGameState getTeamStateForPlayer(java.util.UUID uuid) {
+        MobMayhemGameManagerV2 gm = gm();
+        if (gm == null) return null;
+        for (TeamGameState ts : gm.getTeamStates().values()) {
+            if (ts.getAllPlayers().contains(uuid)) return ts;
+        }
+        return null;
+    }
+
     // ----------------------------------------------------------------
     // Mob death — read tags, route to GameManager, modifier effects
     // ----------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onMobDeath(EntityDeathEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        MobMayhemGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
 
         LivingEntity entity = event.getEntity();
         if (entity instanceof Player) return;  // PlayerDeathEvent handles those
@@ -56,11 +72,11 @@ public class MobListener implements Listener {
 
         if (!pdc.has(teamKey, PersistentDataType.STRING)) return;
 
-        String teamId    = pdc.get(teamKey, PersistentDataType.STRING);
-        Integer waveNum  = pdc.get(waveKey, PersistentDataType.INTEGER);
+        String teamId   = pdc.get(teamKey, PersistentDataType.STRING);
+        Integer waveNum = pdc.get(waveKey, PersistentDataType.INTEGER);
         if (waveNum == null) waveNum = 0;
 
-        TeamGameState ts = plugin.getGameManager().getTeamStates().get(teamId);
+        TeamGameState ts = gm.getTeamStates().get(teamId);
         if (ts == null) return;
 
         // Check if this mob's modifiers include EXPLOSIVE_MOBS — if so, boom on death
@@ -71,9 +87,17 @@ public class MobListener implements Listener {
         // Untrack from team state
         ts.removeMob(entity.getUniqueId());
 
-        // Find killer (might be null for environmental death)
+        // Route kill to V2 manager
         Player killer = entity.getKiller();
-        plugin.getGameManager().handleMobKill(teamId, waveNum, entity.getType(), killer);
+        boolean wasBoss = ts.getCurrentWave() > 0
+                && !WaveLibrary.defaultWaves().isEmpty()
+                && ts.getCurrentWave() <= WaveLibrary.defaultWaves().size()
+                && WaveLibrary.defaultWaves().get(ts.getCurrentWave() - 1).isBossWave();
+        int mobPoints = WaveLibrary.defaultPointsForKill(entity.getType(), wasBoss);
+
+        if (killer != null) {
+            gm.onMobKill(killer.getUniqueId(), mobPoints);
+        }
 
         // Strip XP drops — keeps things clean
         event.setDroppedExp(0);
@@ -87,15 +111,19 @@ public class MobListener implements Listener {
 
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        MobMayhemGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         Player p = event.getEntity();
-        TeamGameState ts = plugin.getGameManager().getTeamStateForPlayer(p.getUniqueId());
+        TeamGameState ts = getTeamStateForPlayer(p.getUniqueId());
         if (ts == null) return;
 
         // Don't fire respawn animation — we'll handle it
         event.deathMessage(null);
 
-        plugin.getGameManager().handlePlayerDeath(p);
+        ts.eliminatePlayer(p.getUniqueId());
+        p.setGameMode(GameMode.SPECTATOR);
+        Bukkit.broadcastMessage(org.bukkit.ChatColor.RED + "☠ " + org.bukkit.ChatColor.GRAY
+                + p.getName() + " is uitgeschakeld op wave " + ts.getCurrentWave());
     }
 
     // ----------------------------------------------------------------
@@ -104,7 +132,8 @@ public class MobListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onMobHitsPlayer(EntityDamageByEntityEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        MobMayhemGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
         if (!(event.getDamager() instanceof LivingEntity damager)) return;
         if (damager instanceof Player) return;  // ignore PvP
@@ -114,7 +143,7 @@ public class MobListener implements Listener {
         if (!pdc.has(teamKey, PersistentDataType.STRING)) return;
 
         String teamId = pdc.get(teamKey, PersistentDataType.STRING);
-        TeamGameState ts = plugin.getGameManager().getTeamStates().get(teamId);
+        TeamGameState ts = gm.getTeamStates().get(teamId);
         if (ts == null) return;
 
         if (ts.getActiveModifiers().contains(WaveModifier.POISON_TOUCH)) {

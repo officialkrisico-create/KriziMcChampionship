@@ -2,7 +2,7 @@ package nl.kmc.kmccore.commands;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.managers.TeamManager;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.command.*;
@@ -145,7 +145,7 @@ public class RandomTeamsCommand implements CommandExecutor {
         int smallestSize = Integer.MAX_VALUE;
         for (KMCTeam t : plugin.getTeamManager().getAllTeams()) {
             if (t == null) continue;
-            int size = t.getMemberCount();
+            int size = t.getMembers().size();
             if (size < maxPerTeam && size < smallestSize) {
                 smallest = t;
                 smallestSize = size;

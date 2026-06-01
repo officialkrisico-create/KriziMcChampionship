@@ -23,6 +23,14 @@
          AdventureEscape depend on it.
     -->
     <modules>
+        <!-- ── V2 foundation (build first) ── -->
+        <module>kmc-storage</module>
+        <module>kmc-core</module>
+        <module>kmc-stats</module>
+        <module>kmc-game-api</module>
+        <module>kmc-tournament-engine</module>
+
+        <!-- ── Legacy V1 modules (unchanged until Phase 10 migration) ── -->
         <module>KMCCore</module>
         <module>LuckyBlock</module>
         <module>AdventureEscape</module>
@@ -126,13 +134,66 @@
                 <scope>provided</scope>
             </dependency>
 
-            <!-- KMCCore module — referenced by game plugins -->
+            <!-- KMCCore module — referenced by legacy game plugins -->
             <dependency>
                 <groupId>nl.kmc</groupId>
                 <artifactId>KMCCore</artifactId>
                 <version>${kmccore.version}</version>
                 <scope>provided</scope>
             </dependency>
+
+            <!-- V2 modules -->
+            <dependency>
+                <groupId>nl.kmc</groupId>
+                <artifactId>kmc-storage</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>nl.kmc</groupId>
+                <artifactId>kmc-core</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>nl.kmc</groupId>
+                <artifactId>kmc-stats</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>nl.kmc</groupId>
+                <artifactId>kmc-game-api</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>nl.kmc</groupId>
+                <artifactId>kmc-tournament-engine</artifactId>
+                <version>${project.version}</version>
+                <scope>provided</scope>
+            </dependency>
+
+            <!-- SQLite JDBC (shared) -->
+            <dependency>
+                <groupId>org.xerial</groupId>
+                <artifactId>sqlite-jdbc</artifactId>
+                <version>3.45.1.0</version>
+            </dependency>
+
+            <!-- Testing -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter</artifactId>
+                <version>5.10.2</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>5.11.0</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
 </project>

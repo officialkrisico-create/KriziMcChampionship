@@ -4,6 +4,7 @@ import nl.kmc.spleef.SpleefPlugin;
 import nl.kmc.spleef.models.Arena;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -157,5 +158,29 @@ public class ArenaManager {
     public void setVoidY(int y) {
         arena.setVoidYLevel(y);
         save();
+    }
+
+    /** Delegates to Arena readiness check. */
+    public boolean isReady() { return arena.isReady(); }
+
+    /** Delegates to Arena readiness report. */
+    public String getReadinessReport() { return arena.getReadinessReport(); }
+
+    /**
+     * Restores all floor layers to SNOW_BLOCK.
+     * Called before each game starts to reset the arena.
+     */
+    public void restoreFloor() {
+        World world = arena.getWorld();
+        if (world == null) return;
+        Material floorMaterial = Material.valueOf(
+                plugin.getConfig().getString("arena.floor-material", "SNOW_BLOCK").toUpperCase());
+        for (Arena.Layer layer : arena.getLayers()) {
+            for (int x = layer.getMinX(); x <= layer.getMaxX(); x++) {
+                for (int z = layer.getMinZ(); z <= layer.getMaxZ(); z++) {
+                    world.getBlockAt(x, layer.getYLevel(), z).setType(floorMaterial);
+                }
+            }
+        }
     }
 }

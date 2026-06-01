@@ -16,6 +16,7 @@ import nl.kmc.kmccore.lobby.LobbyArmorListener;
 import nl.kmc.kmccore.lobby.LobbyNPCManager;
 import nl.kmc.kmccore.managers.*;
 import nl.kmc.kmccore.maps.MapRotationManager;
+import nl.kmc.kmccore.module.*;
 import nl.kmc.kmccore.npc.NPCManager;
 import nl.kmc.kmccore.preferences.PlayerPreferencesManager;
 import nl.kmc.kmccore.readyup.ReadyUpManager;
@@ -24,49 +25,19 @@ import nl.kmc.kmccore.simulation.SimulationEngine;
 import nl.kmc.kmccore.snapshot.SnapshotManager;
 import nl.kmc.kmccore.spectator.SpectatorManager;
 import nl.kmc.kmccore.util.MessageUtil;
+import nl.kmc.stats.service.AchievementService;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class KMCCore extends JavaPlugin {
 
     private static KMCCore instance;
 
-    // --- existing managers (patch 8 baseline) ---
-    private DatabaseManager    databaseManager;
-    private TeamManager        teamManager;
-    private PlayerDataManager  playerDataManager;
-    private TournamentManager  tournamentManager;
-    private GameManager        gameManager;
-    private PointsManager      pointsManager;
-    private ScoreboardManager  scoreboardManager;
-    private NPCManager         npcManager;
-    private AutomationManager  automationManager;
-    private TabListManager     tabListManager;
-    private ArenaManager       arenaManager;
-    private SchematicManager   schematicManager;
-    private HallOfFameManager  hallOfFameManager;
-    private VoteGuiListener    voteGuiListener;
-
-    private KMCApi api;
-
-    // --- megapatch managers ---
-    private SpectatorManager           spectatorManager;
-    private LobbyNPCManager            lobbyNPCManager;
-    private BossBarLeaderboardManager  bossBarLeaderboard;
-    private ReadyUpManager             readyUpManager;
-    private PlayerPreferencesManager   playerPreferences;
-    private HealthMonitor              healthMonitor;
-    private DiscordWebhook             discordHook;
-    private MapRotationManager         mapRotation;
-
-    // --- Phase 2: engagement layer ---
-    private AchievementManager        achievementManager;
-    private TournamentHistoryManager  tournamentHistoryManager;
-    private HoFNpcManager             hoFNpcManager;
-    private StatsGUI                  statsGUI;
-
-    // --- Phase 2.5: simulation + snapshots ---
-    private SnapshotManager   snapshotManager;
-    private SimulationEngine  simulationEngine;
+    // ── Modules (dependency order) ────────────────────────────────────────
+    private CoreModule       coreModule;
+    private InfraModule      infraModule;
+    private MegapatchModule  megapatchModule;
+    private EngagementModule engagementModule;
+    private SimulationModule simulationModule;
 
     @Override public void onLoad() { instance = this; }
 
@@ -78,85 +49,41 @@ public final class KMCCore extends JavaPlugin {
 
         MessageUtil.init(this);
 
-        databaseManager   = new DatabaseManager(this);
-        databaseManager.connect();
-        teamManager       = new TeamManager(this);
-        playerDataManager = new PlayerDataManager(this);
-        pointsManager     = new PointsManager(this);
-        api               = new KMCApi(this);
-        tournamentManager = new TournamentManager(this);
-        gameManager       = new GameManager(this);
-        schematicManager  = new SchematicManager(this);
-        arenaManager      = new ArenaManager(this);
-        tabListManager    = new TabListManager(this);
-        scoreboardManager = new ScoreboardManager(this);
-        npcManager        = new NPCManager(this);
-        hallOfFameManager = new HallOfFameManager(this);
-        automationManager = new AutomationManager(this);
-
-        voteGuiListener = new VoteGuiListener(this);
-
-        // ---- Megapatch managers ----
-        // Order matters: discordHook first because HealthMonitor uses it.
-        discordHook         = new DiscordWebhook(this);
-        playerPreferences   = new PlayerPreferencesManager(this);
-        mapRotation         = new MapRotationManager(this);
-        spectatorManager    = new SpectatorManager(this);
-        lobbyNPCManager     = new LobbyNPCManager(this);
-        bossBarLeaderboard  = new BossBarLeaderboardManager(this);
-        readyUpManager      = new ReadyUpManager(this);
-        healthMonitor       = new HealthMonitor(this);
-
-        // ---- Phase 2: engagement layer ----
-        achievementManager       = new AchievementManager(this);
-        tournamentHistoryManager = new TournamentHistoryManager(this);
-        statsGUI                 = new StatsGUI(this);
-        hoFNpcManager            = new HoFNpcManager(this);
-
-        // ---- Phase 2.5: simulation + snapshots ----
-        snapshotManager   = new SnapshotManager(this);
-        simulationEngine  = new SimulationEngine(this);
+        // Enable modules in dependency order
+        (coreModule       = new CoreModule(this)).enable();
+        (infraModule      = new InfraModule(this)).enable();
+        (megapatchModule  = new MegapatchModule(this)).enable();
+        (engagementModule = new EngagementModule(this)).enable();
+        (simulationModule = new SimulationModule(this)).enable();
 
         registerCommands();
         registerListeners();
 
-        // Start background services that depend on api/managers being ready
-        if (getConfig().getBoolean("leaderboard-bar.enabled", true)) {
-            bossBarLeaderboard.start();
-        }
-        healthMonitor.start();
-        hoFNpcManager.start();
+        // Start background tasks after all managers are fully wired
+        megapatchModule.startBackgroundTasks();
+        engagementModule.startBackgroundTasks();
 
-        // Welcome message — fires once when /kmctournament start runs
+        // Welcome broadcast fires once when /kmctournament start runs
         WelcomeBroadcaster welcome = new WelcomeBroadcaster(this);
-        api.onTournamentStart(welcome::broadcast);
+        getApi().onTournamentStart(welcome::broadcast);
 
         getLogger().info("KMCCore v" + getDescription().getVersion() + " enabled!");
     }
 
     @Override
     public void onDisable() {
-        // ---- Megapatch shutdown (BEFORE existing shutdown so saves succeed) ----
-        if (bossBarLeaderboard != null) bossBarLeaderboard.stop();
-        if (healthMonitor      != null) healthMonitor.stop();
-        if (lobbyNPCManager    != null) lobbyNPCManager.despawnAll();
-        if (readyUpManager     != null) readyUpManager.shutdown();
-        if (playerPreferences  != null) playerPreferences.shutdown();
-        if (spectatorManager   != null) spectatorManager.shutdown();
-        if (hoFNpcManager      != null) hoFNpcManager.stop();
-        // mapRotation: nothing to clean — saves on every change
-
-        // ---- Existing shutdown ----
-        if (playerDataManager != null) playerDataManager.saveAll();
-        if (teamManager       != null) teamManager.saveAll();
-        if (tournamentManager != null) tournamentManager.save();
-        if (gameManager       != null) gameManager.save();
-        if (automationManager != null) automationManager.stop();
-        if (scoreboardManager != null) scoreboardManager.cleanup();
-        if (npcManager        != null) npcManager.save();
-        if (databaseManager   != null) databaseManager.disconnect();
+        // Disable in reverse dependency order
+        if (simulationModule  != null) simulationModule.disable();
+        if (engagementModule  != null) engagementModule.disable();
+        if (megapatchModule   != null) megapatchModule.disable();
+        if (infraModule       != null) infraModule.disable();
+        if (coreModule        != null) coreModule.disable();
         getLogger().info("KMCCore disabled.");
     }
+
+    // ====================================================================
+    // Commands
+    // ====================================================================
 
     private void registerCommands() {
         setCmd("kmcteam",        new TeamCommand(this));
@@ -175,16 +102,14 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcrandomteams", new RandomTeamsCommand(this));
         setCmd("kmchof",         new HofCommand(this));
 
-        // ---- Megapatch commands (entries should be in plugin.yml) ----
-        // setCmd already warns when a command is missing — KMCCore boots either way.
         setCmd("kmcprefs",    new AdminCommands.PreferencesCommand(this));
         setCmd("kmchealth",   new AdminCommands.HealthCommand(this));
         setCmd("kmcready",    new AdminCommands.ReadyCommand(this));
         setCmd("kmcmap",      new AdminCommands.MapCommand(this));
         setCmd("kmclobbynpc", new AdminCommands.LobbyNPCCommand(this));
 
-        // ---- Phase 2.5: simulation + snapshot ----
-        setCmd("event",       new EventCommand(this));
+        setCmd("event",           new EventCommand(this));
+        setCmd("kmcachievements", new AchievementCommand());
     }
 
     @SuppressWarnings("unchecked")
@@ -199,62 +124,76 @@ public final class KMCCore extends JavaPlugin {
             cmd.setTabCompleter(tc);
     }
 
+    // ====================================================================
+    // Listeners
+    // ====================================================================
+
     private void registerListeners() {
         var pm = getServer().getPluginManager();
         pm.registerEvents(new PlayerJoinQuitListener(this),  this);
         pm.registerEvents(new ChatListener(this),            this);
         pm.registerEvents(new PlayerKillListener(this),      this);
         pm.registerEvents(new VoteListener(this),            this);
-        pm.registerEvents(voteGuiListener,                    this);
+        pm.registerEvents(infraModule.getVoteGuiListener(),  this);
         pm.registerEvents(new LobbyProtectionListener(this), this);
         pm.registerEvents(new DeathListener(this),           this);
         pm.registerEvents(new GlobalPvPListener(this),       this);
 
-        // ---- Phase 1: lobby armor ----
         LobbyArmorListener lobbyArmor = new LobbyArmorListener(this);
         pm.registerEvents(lobbyArmor, this);
         lobbyArmor.applyToAllOnline();
 
-        // ---- Phase 2: stats GUI + HoF NPC interactions ----
-        pm.registerEvents(statsGUI,      this);
-        pm.registerEvents(hoFNpcManager, this);
+        pm.registerEvents(engagementModule.getStatsGUI(),      this);
+        pm.registerEvents(engagementModule.getHoFNpcManager(), this);
     }
 
-    // ---- Existing getters ----
+    // ====================================================================
+    // Static accessor
+    // ====================================================================
+
     public static KMCCore getInstance() { return instance; }
-    public DatabaseManager    getDatabaseManager()   { return databaseManager; }
-    public TeamManager        getTeamManager()       { return teamManager; }
-    public PlayerDataManager  getPlayerDataManager() { return playerDataManager; }
-    public TournamentManager  getTournamentManager() { return tournamentManager; }
-    public GameManager        getGameManager()       { return gameManager; }
-    public PointsManager      getPointsManager()     { return pointsManager; }
-    public ScoreboardManager  getScoreboardManager() { return scoreboardManager; }
-    public NPCManager         getNpcManager()        { return npcManager; }
-    public AutomationManager  getAutomationManager() { return automationManager; }
-    public TabListManager     getTabListManager()    { return tabListManager; }
-    public ArenaManager       getArenaManager()      { return arenaManager; }
-    public SchematicManager   getSchematicManager()  { return schematicManager; }
-    public HallOfFameManager  getHallOfFameManager() { return hallOfFameManager; }
-    public VoteGuiListener    getVoteGuiListener()   { return voteGuiListener; }
-    public KMCApi             getApi()               { return api; }
 
-    // ---- Megapatch getters ----
-    public SpectatorManager          getSpectatorManager()       { return spectatorManager; }
-    public LobbyNPCManager           getLobbyNPCManager()        { return lobbyNPCManager; }
-    public BossBarLeaderboardManager getBossBarLeaderboard()     { return bossBarLeaderboard; }
-    public ReadyUpManager            getReadyUpManager()         { return readyUpManager; }
-    public PlayerPreferencesManager  getPlayerPreferences()      { return playerPreferences; }
-    public HealthMonitor             getHealthMonitor()          { return healthMonitor; }
-    public DiscordWebhook            getDiscordHook()            { return discordHook; }
-    public MapRotationManager        getMapRotation()            { return mapRotation; }
+    // ====================================================================
+    // Getters — delegate to modules (public API unchanged)
+    // ====================================================================
 
-    // ---- Phase 2 getters ----
-    public AchievementManager        getAchievementManager()       { return achievementManager; }
-    public TournamentHistoryManager  getTournamentHistoryManager() { return tournamentHistoryManager; }
-    public HoFNpcManager             getHoFNpcManager()            { return hoFNpcManager; }
-    public StatsGUI                  getStatsGUI()                 { return statsGUI; }
+    // Core
+    public DatabaseManager   getDatabaseManager()   { return coreModule.getDatabaseManager(); }
+    public TeamManager       getTeamManager()       { return coreModule.getTeamManager(); }
+    public PlayerDataManager getPlayerDataManager() { return coreModule.getPlayerDataManager(); }
+    public PointsManager     getPointsManager()     { return coreModule.getPointsManager(); }
+    public KMCApi            getApi()               { return coreModule.getApi(); }
 
-    // ---- Phase 2.5 getters ----
-    public SnapshotManager   getSnapshotManager()  { return snapshotManager; }
-    public SimulationEngine  getSimulationEngine() { return simulationEngine; }
+    // Infra
+    public TournamentManager getTournamentManager() { return infraModule.getTournamentManager(); }
+    public GameManager       getGameManager()       { return infraModule.getGameManager(); }
+    public SchematicManager  getSchematicManager()  { return infraModule.getSchematicManager(); }
+    public ArenaManager      getArenaManager()      { return infraModule.getArenaManager(); }
+    public TabListManager    getTabListManager()    { return infraModule.getTabListManager(); }
+    public ScoreboardManager getScoreboardManager() { return infraModule.getScoreboardManager(); }
+    public NPCManager        getNpcManager()        { return infraModule.getNpcManager(); }
+    public HallOfFameManager getHallOfFameManager() { return infraModule.getHallOfFameManager(); }
+    public AutomationManager getAutomationManager() { return infraModule.getAutomationManager(); }
+    public VoteGuiListener   getVoteGuiListener()   { return infraModule.getVoteGuiListener(); }
+
+    // Megapatch
+    public DiscordWebhook            getDiscordHook()        { return megapatchModule.getDiscordHook(); }
+    public PlayerPreferencesManager  getPlayerPreferences()  { return megapatchModule.getPlayerPreferences(); }
+    public MapRotationManager        getMapRotation()        { return megapatchModule.getMapRotation(); }
+    public SpectatorManager          getSpectatorManager()   { return megapatchModule.getSpectatorManager(); }
+    public LobbyNPCManager           getLobbyNPCManager()    { return megapatchModule.getLobbyNPCManager(); }
+    public BossBarLeaderboardManager getBossBarLeaderboard() { return megapatchModule.getBossBarLeaderboard(); }
+    public ReadyUpManager            getReadyUpManager()     { return megapatchModule.getReadyUpManager(); }
+    public HealthMonitor             getHealthMonitor()      { return megapatchModule.getHealthMonitor(); }
+
+    // Engagement
+    public AchievementManager       getAchievementManager()       { return engagementModule.getAchievementManager(); }
+    public TournamentHistoryManager getTournamentHistoryManager() { return engagementModule.getTournamentHistoryManager(); }
+    public HoFNpcManager            getHoFNpcManager()            { return engagementModule.getHoFNpcManager(); }
+    public StatsGUI                 getStatsGUI()                 { return engagementModule.getStatsGUI(); }
+    public AchievementService       getAchievementServiceV2()     { return engagementModule.getAchievementServiceV2(); }
+
+    // Simulation
+    public SnapshotManager  getSnapshotManager()  { return simulationModule.getSnapshotManager(); }
+    public SimulationEngine getSimulationEngine() { return simulationModule.getSimulationEngine(); }
 }

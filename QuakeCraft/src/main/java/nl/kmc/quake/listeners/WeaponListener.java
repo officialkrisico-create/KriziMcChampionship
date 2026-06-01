@@ -4,6 +4,7 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import nl.kmc.quake.QuakeCraftPlugin;
 import nl.kmc.quake.managers.PowerupSpawner;
+import nl.kmc.quake.managers.QuakeCraftGameManagerV2;
 import nl.kmc.quake.models.ActivePowerup;
 import nl.kmc.quake.models.PlayerState;
 import nl.kmc.quake.models.PowerupType;
@@ -30,21 +31,6 @@ import org.bukkit.potion.PotionEffectType;
 
 /**
  * Handles all in-game player interaction.
- *
- * <p>FIXES:
- * <ul>
- *   <li>{@code onInteract} no longer uses {@code ignoreCancelled=true}.
- *       Other listeners (e.g. block adventure-mode protections) sometimes
- *       pre-cancel right-clicks on grass etc., which prevented our
- *       fire handler from running.</li>
- *   <li>{@code onDamage} now lets scripted kill damage through (the
- *       setHealth(0) call from GameManager). It only blocks environmental
- *       damage (fall, drown, etc.) so players don't accidentally die.</li>
- *   <li>NEW {@code onPlayerDamagePlayer} at HIGHEST priority — un-cancels
- *       PvP that KMCCore's GlobalPvPListener cancelled at NORMAL priority.
- *       Note: railgun hits don't actually go through this event, but
- *       this keeps the world consistent for any indirect PvP.</li>
- * </ul>
  */
 public class WeaponListener implements Listener {
 
@@ -52,16 +38,19 @@ public class WeaponListener implements Listener {
 
     public WeaponListener(QuakeCraftPlugin plugin) { this.plugin = plugin; }
 
+    private QuakeCraftGameManagerV2 gm() { return plugin.getGameManagerV2(); }
+
     // ----------------------------------------------------------------
     // Right-click → fire weapon
     // ----------------------------------------------------------------
 
-    @EventHandler   // ← removed ignoreCancelled=true so we always run
+    @EventHandler   // ← no ignoreCancelled=true so we always run
     public void onInteract(PlayerInteractEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
 
         Player p = event.getPlayer();
-        PlayerState state = plugin.getGameManager().get(p.getUniqueId());
+        PlayerState state = gm.getPlayersMap().get(p.getUniqueId());
         if (state == null) return;
 
         // Only right-clicks (in air or on block)
@@ -119,10 +108,11 @@ public class WeaponListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
 
-        PlayerState state = plugin.getGameManager().get(p.getUniqueId());
+        PlayerState state = gm.getPlayersMap().get(p.getUniqueId());
         if (state == null) {
             event.setCancelled(true);
             return;
@@ -187,8 +177,9 @@ public class WeaponListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm.getPlayersMap().get(event.getPlayer().getUniqueId()) == null) return;
         if (WeaponFactory.isQuakeWeapon(plugin, event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
         }
@@ -196,8 +187,9 @@ public class WeaponListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm.getPlayersMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 
@@ -209,9 +201,10 @@ public class WeaponListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getPlayersMap().get(p.getUniqueId()) == null) return;
 
         // Allow player-vs-player damage (PvP is enabled in QuakeCraft)
         if (event instanceof EntityDamageByEntityEvent ebe
@@ -226,18 +219,14 @@ public class WeaponListener implements Listener {
     /**
      * Un-cancels player-vs-player damage at HIGHEST priority, overriding
      * KMCCore's GlobalPvPListener which cancels at NORMAL.
-     *
-     * <p>Without this, melee/projectile attacks between players would be
-     * silently blocked. Railgun hits don't actually go through damage
-     * events (they call GameManager.handleHit directly), but standard
-     * PvP from punching, bows, etc., needs this override.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerDamagePlayer(EntityDamageByEntityEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        QuakeCraftGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getDamager() instanceof Player)) return;
         if (!(event.getEntity()  instanceof Player target)) return;
-        if (plugin.getGameManager().get(target.getUniqueId()) == null) return;
+        if (gm.getPlayersMap().get(target.getUniqueId()) == null) return;
 
         // Un-cancel — GlobalPvPListener cancelled at NORMAL, we override
         event.setCancelled(false);

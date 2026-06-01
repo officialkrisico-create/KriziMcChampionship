@@ -1,6 +1,7 @@
 package nl.kmc.sg.listeners;
 
 import nl.kmc.sg.SurvivalGamesPlugin;
+import nl.kmc.sg.managers.SurvivalGamesManagerV2;
 import nl.kmc.sg.models.PlayerStats;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -36,11 +37,14 @@ public class SGListener implements Listener {
 
     public SGListener(SurvivalGamesPlugin plugin) { this.plugin = plugin; }
 
+    private SurvivalGamesManagerV2 gm() { return plugin.getGameManagerV2(); }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        PlayerStats ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerStats ps = gm.getStatsMap().get(p.getUniqueId());
         if (ps == null) return;
 
         if (p.getGameMode() == GameMode.SPECTATOR) {
@@ -48,17 +52,18 @@ public class SGListener implements Listener {
             return;
         }
 
-        // No damage during PREPARING / COUNTDOWN
-        if (!plugin.getGameManager().isPvpAllowed()) {
+        // No damage during non-PvP phases
+        if (!gm.isPvpAllowed()) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPvp(EntityDamageByEntityEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player victim)) return;
-        PlayerStats victimStats = plugin.getGameManager().get(victim.getUniqueId());
+        PlayerStats victimStats = gm.getStatsMap().get(victim.getUniqueId());
         if (victimStats == null) return;
 
         if (victim.getGameMode() == GameMode.SPECTATOR) {
@@ -75,31 +80,32 @@ public class SGListener implements Listener {
         }
         if (attacker == null) return;
 
-        if (!plugin.getGameManager().isPvpAllowed()) {
+        if (!gm.isPvpAllowed()) {
             event.setCancelled(true);
             return;
         }
 
-        plugin.getGameManager().recordAttack(victim.getUniqueId(), attacker.getUniqueId());
+        gm.recordAttack(victim.getUniqueId(), attacker.getUniqueId());
 
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
-            plugin.getGameManager().handleDeath(victim, attacker, "killed");
+            gm.handleDeath(victim, attacker, "killed");
         }
     }
 
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
-        if (!plugin.getGameManager().isInMatch()) return;
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
         Player p = event.getEntity();
-        if (plugin.getGameManager().get(p.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
 
         event.deathMessage(null);
         event.getDrops().clear();
         event.setKeepInventory(true);
 
-        Player killer = plugin.getGameManager().getRecentAttacker(p.getUniqueId());
-        plugin.getGameManager().handleDeath(p, killer, "stierf");
+        Player killer = gm.getRecentAttacker(p.getUniqueId());
+        gm.handleDeath(p, killer, "stierf");
     }
 
     /**
@@ -109,11 +115,12 @@ public class SGListener implements Listener {
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTntPlace(BlockPlaceEvent event) {
-        if (!plugin.getGameManager().isPvpAllowed()) return;
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.isPvpAllowed()) return;
         if (event.getBlock().getType() != Material.TNT) return;
 
         Player placer = event.getPlayer();
-        if (plugin.getGameManager().get(placer.getUniqueId()) == null) return;
+        if (gm.getStatsMap().get(placer.getUniqueId()) == null) return;
         if (placer.getGameMode() == GameMode.SPECTATOR) return;
 
         event.setCancelled(true);

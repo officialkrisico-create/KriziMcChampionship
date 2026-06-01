@@ -1,7 +1,7 @@
 package nl.kmc.kmccore.managers;
 
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.AnnouncementUtil;
 import nl.kmc.kmccore.util.EventStatsBookBuilder;

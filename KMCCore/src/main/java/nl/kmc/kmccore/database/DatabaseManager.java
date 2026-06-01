@@ -2,7 +2,7 @@ package nl.kmc.kmccore.database;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.models.HoFRecord;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.models.PointAward;
 import org.bukkit.ChatColor;
@@ -35,13 +35,44 @@ public class DatabaseManager {
     public DatabaseManager(KMCCore plugin) { this.plugin = plugin; }
 
     /**
-     * Public access to the underlying SQLite connection. Used by feature
-     * modules (achievements, history, etc.) that need to manage their
-     * own tables. Caller MUST NOT close this connection.
+     * Package-private access to the underlying SQLite connection.
+     * External callers should use {@link #runWithConnection(DbTask)} instead.
+     * Caller MUST NOT close this connection.
      *
      * @return the live JDBC connection, or null if not connected
      */
-    public Connection getConnection() { return connection; }
+    Connection getConnection() { return connection; }
+
+    /**
+     * Functional interface for database tasks that may throw {@link SQLException}.
+     * Use with {@link #runWithConnection(DbTask)}.
+     */
+    @FunctionalInterface
+    public interface DbTask {
+        void run(Connection c) throws SQLException;
+    }
+
+    /**
+     * Executes a database task with the live connection.
+     * Preferred over {@code getConnection()} for cross-package callers:
+     * the connection is never leaked and errors are logged centrally.
+     *
+     * <p>If the connection is null (not yet connected), the task is skipped
+     * and a warning is logged.
+     *
+     * @param task the task to execute
+     */
+    public void runWithConnection(DbTask task) {
+        if (connection == null) {
+            plugin.getLogger().warning("runWithConnection called but DB is not connected.");
+            return;
+        }
+        try {
+            task.run(connection);
+        } catch (SQLException e) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "Database task failed", e);
+        }
+    }
 
     public void connect() {
         try {
@@ -81,7 +112,7 @@ public class DatabaseManager {
                 play_time_minutes  INTEGER DEFAULT 0,
                 win_streak         INTEGER DEFAULT 0,
                 best_win_streak    INTEGER DEFAULT 0,
-                wins_per_game      TEXT DEFAULT '',
+                wins_per_game      TEXT DEFAULT '{}',
                 deaths             INTEGER DEFAULT 0
             );""";
         String teams = """
@@ -245,7 +276,7 @@ public class DatabaseManager {
             ps.setString(1, team.getId());
             ps.setString(2, team.getDisplayName());
             ps.setString(3, team.getColor().name());
-            ps.setString(4, team.getTagColor());
+            ps.setString(4, team.getTagColor().name());
             ps.setInt(5, team.getPoints());
             ps.setInt(6, team.getWins());
             ps.executeUpdate();
@@ -280,7 +311,8 @@ public class DatabaseManager {
             while (rs.next()) {
                 String id = rs.getString("id");
                 KMCTeam t = new KMCTeam(id, rs.getString("display_name"),
-                        ChatColor.valueOf(rs.getString("color")), rs.getString("tag_color"));
+                        ChatColor.valueOf(rs.getString("color")),
+                        safeTagColor(rs.getString("tag_color")));
                 t.setPoints(rs.getInt("points"));
                 t.setWins(rs.getInt("wins"));
                 map.put(id, t);
@@ -484,6 +516,12 @@ public class DatabaseManager {
             sb.append(e.getKey()).append(":").append(e.getValue());
         }
         return sb.toString();
+    }
+
+    private ChatColor safeTagColor(String raw) {
+        if (raw == null || raw.isBlank()) return ChatColor.GRAY;
+        try { return ChatColor.valueOf(raw.toUpperCase()); }
+        catch (IllegalArgumentException e) { return ChatColor.GRAY; }
     }
 
     private Map<String, Integer> deserializeWinsPerGame(String raw) {

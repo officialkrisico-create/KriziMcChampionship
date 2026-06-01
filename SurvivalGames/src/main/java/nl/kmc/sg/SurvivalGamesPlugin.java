@@ -1,86 +1,79 @@
 package nl.kmc.sg;
 
+import nl.kmc.core.domain.GameRegistration;
+import nl.kmc.game.api.AbstractGamePlugin;
+import nl.kmc.game.api.BaseGameManager;
+import nl.kmc.kmccore.KMCCore;
 import nl.kmc.sg.commands.SGCommand;
 import nl.kmc.sg.listeners.SGListener;
 import nl.kmc.sg.managers.ArenaManager;
 import nl.kmc.sg.managers.ChestStocker;
-import nl.kmc.sg.managers.GameManager;
-import nl.kmc.kmccore.KMCCore;
+import nl.kmc.sg.managers.SurvivalGamesManagerV2;
+import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Material;
 
-/**
- * Survival Games — Hunger Games-style PvP minigame.
- *
- * <p>Players spawn around a cornucopia in a pre-built arena. Plugin
- * stocks all chests in the world (within border radius) with random
- * loot. After 10s bloodbath, full PvP for 8 minutes. Last 2 minutes
- * trigger deathmatch — world border shrinks toward cornucopia.
- *
- * <p>1 life per player, last alive wins.
- */
-public final class SurvivalGamesPlugin extends JavaPlugin {
+import java.util.List;
 
-    private static SurvivalGamesPlugin instance;
+public final class SurvivalGamesPlugin extends AbstractGamePlugin {
+
     public static final String GAME_ID = "survival_games";
 
-    private KMCCore       kmcCore;
-    private ArenaManager  arenaManager;
-    private ChestStocker  chestStocker;
-    private GameManager   gameManager;
+    private ArenaManager           arenaManager;
+    private ChestStocker           chestStocker;
+    private SurvivalGamesManagerV2 sgV2;
 
-    @Override
-    public void onEnable() {
-        instance = this;
-        saveDefaultConfig();
+    // ── AbstractGamePlugin metadata ───────────────────────────────────────────
 
-        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
-            getLogger().severe("KMCCore not found! Disabling Survival Games.");
-            setEnabled(false);
-            return;
-        }
-        kmcCore = core;
-
-        arenaManager = new ArenaManager(this);
-        chestStocker = new ChestStocker(this);
-        gameManager  = new GameManager(this);
-
-        var cmd = new SGCommand(this);
-        var bukkitCmd = getCommand("survivalgames");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        }
-
-        getServer().getPluginManager().registerEvents(new SGListener(this), this);
-
-        kmcCore.getApi().onGameStart(gameId -> {
-            if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore picked Survival Games — preparing match.");
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                String error = gameManager.startGame();
-                if (error != null) {
-                    getLogger().warning("SG auto-start failed: " + error);
-                    if (kmcCore.getAutomationManager().isRunning()) {
-                        kmcCore.getAutomationManager().onGameEnd(null);
-                    }
-                }
-            }, 40L);
-        });
-
-        getLogger().info("Survival Games enabled!");
+    @Override protected String  gameId()      { return GAME_ID; }
+    @Override protected String  displayName() { return "Survival Games"; }
+    @Override protected Material icon()       { return Material.BOW; }
+    @Override protected int     minPlayers()  { return 4; }
+    @Override protected String  description() { return "Hunger Games — loot, fight, and be the last one standing."; }
+    @Override protected String  objective()   { return "Eliminate all other players to win."; }
+    @Override protected List<String> scoringLines() {
+        return List.of(
+                "+75 pts — Kill",
+                "+5 pts — Survival bonus (per death)",
+                "+500 pts — 1st Place"
+        );
     }
 
     @Override
-    public void onDisable() {
-        if (gameManager != null) gameManager.forceStop();
+    protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
+        arenaManager = new ArenaManager(this);
+        chestStocker = new ChestStocker(this);
+        sgV2         = new SurvivalGamesManagerV2(this, reg, stats);
+        return sgV2;
+    }
+
+    @Override
+    protected void onGameEnable() {
+        var cmd = new SGCommand(this);
+        var bukkitCmd = getCommand("survivalgames");
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
+        getServer().getPluginManager().registerEvents(new SGListener(this), this);
+    }
+
+    @Override
+    protected void onGameDisable() {
+        if (sgV2 != null && sgV2.isRunning()) sgV2.end();
         if (chestStocker != null) chestStocker.cancelTasks();
     }
 
-    public static SurvivalGamesPlugin getInstance() { return instance; }
+    @Override
+    protected void onV1GameStart(String gameId) {
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            getLogger().warning("[SG] V1 auto-start fired but V1 GameManager has been removed.");
+            if (kmcCore.getAutomationManager().isRunning())
+                kmcCore.getAutomationManager().onGameEnd(null);
+        }, 40L);
+    }
 
-    public KMCCore      getKmcCore()      { return kmcCore; }
-    public ArenaManager getArenaManager() { return arenaManager; }
-    public ChestStocker getChestStocker() { return chestStocker; }
-    public GameManager  getGameManager()  { return gameManager; }
+    // ── Getters used by commands / listeners ──────────────────────────────────
+
+    public KMCCore                 getKmcCore()       { return kmcCore; }
+    public ArenaManager            getArenaManager()  { return arenaManager; }
+    public ChestStocker            getChestStocker()  { return chestStocker; }
+    public SurvivalGamesManagerV2  getGameManagerV2() { return sgV2; }
 }

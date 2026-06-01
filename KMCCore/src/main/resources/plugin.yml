@@ -117,6 +117,11 @@ commands:
     usage: /event <simulate|snapshot|rollback|listsnapshots> [args...]
     permission: kmc.event.admin
 
+  kmcachievements:
+    description: Manage V2 achievements (grant, revoke, view progress, reload)
+    usage: /kmcachievements <list|progress|grant|revoke|reset|reload|info> [player] [id]
+    permission: kmc.admin
+
 permissions:
   kmc.*:
     description: All KMC permissions
@@ -143,6 +148,7 @@ permissions:
       kmc.map.admin: true
       kmc.lobbynpc.admin: true
       kmc.event.admin: true
+      kmc.admin: true
 
   kmc.team:             { description: Basic team commands,    default: true }
   kmc.team.admin:       { description: Manage team assignments, default: op }
@@ -166,3 +172,4 @@ permissions:
   kmc.map.admin:        { description: Manage map rotation,      default: op }
   kmc.lobbynpc.admin:   { description: Manage decorative NPCs,   default: op }
   kmc.event.admin:      { description: Run simulations and rollbacks, default: op }
+  kmc.admin:            { description: Full KMC admin access (achievements etc.), default: op }

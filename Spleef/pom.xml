@@ -35,6 +35,25 @@
             <version>1.0.0</version>
             <scope>provided</scope>
         </dependency>
+<!-- V2 tournament API -->
+        <dependency>
+            <groupId>nl.kmc</groupId>
+            <artifactId>kmc-core</artifactId>
+            <version>1.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>nl.kmc</groupId>
+            <artifactId>kmc-stats</artifactId>
+            <version>1.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>nl.kmc</groupId>
+            <artifactId>kmc-game-api</artifactId>
+            <version>1.0.0</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <build>

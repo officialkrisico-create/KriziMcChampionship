@@ -15,6 +15,7 @@ public class PlayerState {
 
     private boolean alive = true;
     private int     blocksBroken;
+    private int     kills;
     private int     currentLayer;     // 0 = top layer
     private long    eliminatedAtMs;
     private int     eliminationOrder = -1;  // 0 = first to die, increases
@@ -32,7 +33,9 @@ public class PlayerState {
     public long    getEliminatedAtMs()      { return eliminatedAtMs; }
     public int     getEliminationOrder()    { return eliminationOrder; }
 
+    public int  getKills()                  { return kills; }
     public void incrementBlocksBroken()     { this.blocksBroken++; }
+    public void incrementKills()            { this.kills++; }
 
     public void eliminate(int order) {
         if (!alive) return;

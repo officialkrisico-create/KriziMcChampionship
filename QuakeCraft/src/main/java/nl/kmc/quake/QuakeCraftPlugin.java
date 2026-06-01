@@ -1,96 +1,79 @@
 package nl.kmc.quake;
 
+import nl.kmc.core.domain.GameRegistration;
+import nl.kmc.game.api.AbstractGamePlugin;
+import nl.kmc.game.api.BaseGameManager;
+import nl.kmc.kmccore.KMCCore;
 import nl.kmc.quake.commands.QuakeCommand;
 import nl.kmc.quake.listeners.WeaponListener;
 import nl.kmc.quake.managers.ArenaManager;
-import nl.kmc.quake.managers.GameManager;
 import nl.kmc.quake.managers.PowerupSpawner;
-import nl.kmc.kmccore.KMCCore;
+import nl.kmc.quake.managers.QuakeCraftGameManagerV2;
+import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Material;
 
-/**
- * QuakeCraft — fast-paced railgun deathmatch for KMC tournaments.
- *
- * <p>Hoe-based weapons. Right-click to fire. Teams play together,
- * first team to 25 collective kills wins, or whoever has the most
- * kills when the 10-minute timer runs out.
- *
- * <p>Weapon mapping:
- * <ul>
- *   <li>Wooden hoe = Railgun (∞ ammo, base weapon)</li>
- *   <li>Iron hoe = Shotgun (5 uses, 5-pellet spread)</li>
- *   <li>Netherite hoe = Sniper (3 uses, long range, tracer)</li>
- *   <li>Gold hoe = Machine gun (25 uses, fast cooldown)</li>
- *   <li>Bone = Grenade (1 use, throwable, AOE)</li>
- *   <li>Sugar = Speed II buff (15 sec, consumed on pickup)</li>
- * </ul>
- */
-public final class QuakeCraftPlugin extends JavaPlugin {
+import java.util.List;
 
-    private static QuakeCraftPlugin instance;
+public final class QuakeCraftPlugin extends AbstractGamePlugin {
 
     public static final String GAME_ID = "quake_craft";
 
-    private KMCCore        kmcCore;
-    private ArenaManager   arenaManager;
-    private GameManager    gameManager;
-    private PowerupSpawner powerupSpawner;
+    private ArenaManager            arenaManager;
+    private PowerupSpawner          powerupSpawner;
+    private QuakeCraftGameManagerV2 quakeV2;
+
+    // ── AbstractGamePlugin metadata ───────────────────────────────────────────
+
+    @Override protected String  gameId()      { return GAME_ID; }
+    @Override protected String  displayName() { return "QuakeCraft"; }
+    @Override protected Material icon()       { return Material.WOODEN_HOE; }
+    @Override protected int     minPlayers()  { return 4; }
+    @Override protected String  description() { return "Fast-paced railgun FPS — first to the kill target wins."; }
+    @Override protected String  objective()   { return "Reach " + getConfig().getInt("game.kill-target", 25) + " kills first."; }
+    @Override protected List<String> scoringLines() {
+        return List.of(
+                "+10 pts — Kill",
+                "+25 pts — Revenge kill",
+                "+50 pts — Win game"
+        );
+    }
 
     @Override
-    public void onEnable() {
-        instance = this;
-        saveDefaultConfig();
-
-        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
-            getLogger().severe("KMCCore not found! Disabling QuakeCraft.");
-            setEnabled(false);
-            return;
-        }
-        kmcCore = core;
-
+    protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
         arenaManager   = new ArenaManager(this);
-        gameManager    = new GameManager(this);
         powerupSpawner = new PowerupSpawner(this);
+        quakeV2        = new QuakeCraftGameManagerV2(this, reg, stats);
+        return quakeV2;
+    }
 
+    @Override
+    protected void onGameEnable() {
         QuakeCommand cmd = new QuakeCommand(this);
         var bukkitCmd = getCommand("quakecraft");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        }
-
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new WeaponListener(this), this);
-
-        // Auto-start hook: KMCCore picks QuakeCraft → start countdown
-        kmcCore.getApi().onGameStart(gameId -> {
-            if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore picked QuakeCraft — launching countdown.");
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                String error = gameManager.startCountdown();
-                if (error != null) {
-                    getLogger().warning("Auto-start failed: " + error);
-                    if (kmcCore.getAutomationManager().isRunning()) {
-                        kmcCore.getAutomationManager().onGameEnd(null);
-                    }
-                }
-            }, 40L);
-        });
-
-        getLogger().info("QuakeCraft enabled!");
     }
 
     @Override
-    public void onDisable() {
-        if (gameManager != null) gameManager.forceStop();
+    protected void onGameDisable() {
+        if (quakeV2 != null && quakeV2.isRunning()) quakeV2.end();
         if (powerupSpawner != null) powerupSpawner.stop();
-        getLogger().info("QuakeCraft disabled.");
     }
 
-    public static QuakeCraftPlugin getInstance() { return instance; }
+    @Override
+    protected void onV1GameStart(String gameId) {
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            getLogger().warning("[QuakeCraft] V1 auto-start fired but V1 GameManager has been removed.");
+            if (kmcCore.getAutomationManager().isRunning())
+                kmcCore.getAutomationManager().onGameEnd(null);
+        }, 40L);
+    }
 
-    public KMCCore        getKmcCore()        { return kmcCore; }
-    public ArenaManager   getArenaManager()   { return arenaManager; }
-    public GameManager    getGameManager()    { return gameManager; }
-    public PowerupSpawner getPowerupSpawner() { return powerupSpawner; }
+    // ── Getters used by commands / listeners ──────────────────────────────────
+
+    public KMCCore                 getKmcCore()        { return kmcCore; }
+    public ArenaManager            getArenaManager()   { return arenaManager; }
+    public PowerupSpawner          getPowerupSpawner() { return powerupSpawner; }
+    public QuakeCraftGameManagerV2 getGameManagerV2()  { return quakeV2; }
 }

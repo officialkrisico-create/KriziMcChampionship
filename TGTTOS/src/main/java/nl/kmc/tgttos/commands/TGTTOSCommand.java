@@ -45,12 +45,17 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "start" -> {
-                String error = plugin.getGameManager().startGame();
-                if (error != null) sender.sendMessage(ChatColor.RED + error);
-                else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                var gm = plugin.getTGTTOSGameManagerV2();
+                if (gm != null) {
+                    if (gm.start()) sender.sendMessage(ChatColor.GREEN + "Game gestart!");
+                    else sender.sendMessage(ChatColor.RED + "V2 start rejected — validation failed.");
+                } else {
+                    sender.sendMessage(ChatColor.RED + "V2 game manager not available.");
+                }
             }
             case "stop" -> {
-                plugin.getGameManager().forceStop();
+                var gm = plugin.getTGTTOSGameManagerV2();
+                if (gm != null) gm.end();
                 sender.sendMessage(ChatColor.RED + "Game gestopt.");
             }
             case "createmap" -> {
@@ -91,10 +96,11 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
             }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== TGTTOS Status ===");
-                sender.sendMessage(ChatColor.YELLOW + "State: " + plugin.getGameManager().getState());
-                sender.sendMessage(ChatColor.YELLOW + "Round: " + (plugin.getGameManager().getCurrentMap() != null
-                        ? plugin.getGameManager().getCurrentMap().getDisplayName() : "—"));
-                sender.sendMessage(ChatColor.GRAY + plugin.getMapManager().getReadinessReport().replace("&c", ChatColor.RED.toString()));
+                var gm = plugin.getTGTTOSGameManagerV2();
+                String state = gm != null ? gm.getState().toString() : "IDLE";
+                sender.sendMessage(ChatColor.YELLOW + "State: " + state);
+                sender.sendMessage(ChatColor.GRAY + plugin.getMapManager().getReadinessReport()
+                        .replace("&c", ChatColor.RED.toString()));
             }
             case "reload" -> {
                 plugin.reloadConfig();

@@ -1,6 +1,7 @@
 package nl.kmc.spleef.listeners;
 
 import nl.kmc.spleef.SpleefPlugin;
+import nl.kmc.spleef.managers.SpleefGameManagerV2;
 import nl.kmc.spleef.models.PlayerState;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -42,16 +43,18 @@ public class SpleefListener implements Listener {
 
     public SpleefListener(SpleefPlugin plugin) { this.plugin = plugin; }
 
+    private SpleefGameManagerV2 gm() { return plugin.getSpleefGameManagerV2(); }
+
     // ----------------------------------------------------------------
     // Block break — only floor blocks, only by alive participants
     // ----------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
         Player p = event.getPlayer();
 
-        PlayerState ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerState ps = gm.getPlayersMap().get(p.getUniqueId());
         if (ps == null) {
             // Non-participant — no breaking during a game
             event.setCancelled(true);
@@ -77,10 +80,10 @@ public class SpleefListener implements Listener {
         // a snow block item, then untrack it
         event.setDropItems(false);
         plugin.getFloorManager().unregisterBlock(event.getBlock());
-        plugin.getGameManager().onFloorBlockBroken(p);
+        gm.onBlockBroken(p.getUniqueId());
 
         // Track this break for kill-credit attribution
-        plugin.getGameManager().recordBlockBreakNearby(p, event.getBlock());
+        gm.recordBreak(p.getUniqueId(), p.getUniqueId()); // self-track; victim determined on eliminate
 
         // Subtle visual at the broken block
         event.getBlock().getWorld().spawnParticle(Particle.SNOWFLAKE,
@@ -93,8 +96,8 @@ public class SpleefListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
+        if (gm.getPlayersMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 
@@ -104,8 +107,8 @@ public class SpleefListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
+        if (gm.getPlayersMap().get(event.getPlayer().getUniqueId()) == null) return;
         Material type = event.getItemDrop().getItemStack().getType();
         if (type.name().endsWith("_SHOVEL")) {
             event.setCancelled(true);
@@ -114,8 +117,8 @@ public class SpleefListener implements Listener {
 
     @EventHandler(ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
-        if (plugin.getGameManager().get(event.getPlayer().getUniqueId()) == null) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
+        if (gm.getPlayersMap().get(event.getPlayer().getUniqueId()) == null) return;
         event.setCancelled(true);
     }
 
@@ -125,9 +128,9 @@ public class SpleefListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        PlayerState ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerState ps = gm.getPlayersMap().get(p.getUniqueId());
         if (ps == null || !ps.isAlive()) {
             event.setCancelled(true);
             return;
@@ -149,11 +152,11 @@ public class SpleefListener implements Listener {
 
     @EventHandler
     public void onProjectileHit(ProjectileHitEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
         Projectile proj = event.getEntity();
         if (!(proj instanceof Snowball)) return;
         if (!(event.getHitEntity() instanceof Player target)) return;
-        PlayerState ps = plugin.getGameManager().get(target.getUniqueId());
+        PlayerState ps = gm.getPlayersMap().get(target.getUniqueId());
         if (ps == null || !ps.isAlive()) return;
 
         // Boosted knockback in the projectile's direction
@@ -174,9 +177,9 @@ public class SpleefListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        if (!plugin.getGameManager().isActive()) return;
+        SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
         if (!(event.getEntity() instanceof Player p)) return;
-        PlayerState ps = plugin.getGameManager().get(p.getUniqueId());
+        PlayerState ps = gm.getPlayersMap().get(p.getUniqueId());
         if (ps == null) return;
         // Block ALL damage — players are eliminated only by void fall
         event.setCancelled(true);

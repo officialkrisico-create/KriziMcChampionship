@@ -29,7 +29,19 @@
     <file url="file://$PROJECT_DIR$/TheBridge/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/bingo/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/bingo/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-core/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-core/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-game-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-game-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-stats/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-stats/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-storage/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-storage/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-tournament-engine/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/kmc-tournament-engine/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/src/main/resources" charset="UTF-8" />
+    <file url="file://$USER_HOME$/src/main/java" charset="UTF-8" />
+    <file url="file://$USER_HOME$/src/main/resources" charset="UTF-8" />
   </component>
 </project>

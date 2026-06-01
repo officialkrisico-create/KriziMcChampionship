@@ -1,94 +1,83 @@
 package nl.kmc.mayhem;
 
+import nl.kmc.core.domain.GameRegistration;
+import nl.kmc.game.api.AbstractGamePlugin;
+import nl.kmc.game.api.BaseGameManager;
+import nl.kmc.kmccore.KMCCore;
 import nl.kmc.mayhem.commands.MobMayhemCommand;
 import nl.kmc.mayhem.listeners.MobListener;
 import nl.kmc.mayhem.managers.ArenaManager;
-import nl.kmc.mayhem.managers.GameManager;
 import nl.kmc.mayhem.managers.KitManager;
+import nl.kmc.mayhem.managers.MobMayhemGameManagerV2;
 import nl.kmc.mayhem.managers.WorldCloner;
-import nl.kmc.kmccore.KMCCore;
+import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.Bukkit;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Material;
 
-/**
- * Mob Mayhem — wave-based survival minigame.
- *
- * <p>Each team plays in their own cloned arena (template world is
- * cloned once per team at game start). 10 waves of escalating
- * difficulty, with random modifiers per wave (speed mobs, poison
- * touch, explosive on death, etc.). Boss waves at 7 (mini) and 10
- * (final). Wooden starter kit + scaling loot drops between waves.
- *
- * <p>Win condition: highest wave survived. Tiebreak: most mob kills.
- */
-public final class MobMayhemPlugin extends JavaPlugin {
+import java.util.List;
 
-    private static MobMayhemPlugin instance;
+public final class MobMayhemPlugin extends AbstractGamePlugin {
 
     public static final String GAME_ID = "mob_mayhem";
 
-    private KMCCore       kmcCore;
-    private ArenaManager  arenaManager;
-    private WorldCloner   worldCloner;
-    private KitManager    kitManager;
-    private GameManager   gameManager;
+    private ArenaManager           arenaManager;
+    private WorldCloner            worldCloner;
+    private KitManager             kitManager;
+    private MobMayhemGameManagerV2 mobMayhemV2;
+
+    // ── AbstractGamePlugin metadata ───────────────────────────────────────────
+
+    @Override protected String  gameId()      { return GAME_ID; }
+    @Override protected String  displayName() { return "Mob Mayhem"; }
+    @Override protected Material icon()       { return Material.ZOMBIE_HEAD; }
+    @Override protected int     minPlayers()  { return 4; }
+    @Override protected String  description() { return "Survive 10 escalating waves of mobs — each team in their own arena."; }
+    @Override protected String  objective()   { return "Survive more waves than the other teams."; }
+    @Override protected List<String> scoringLines() {
+        return List.of(
+                "+pts — Per mob kill (scales by wave)",
+                "+100 pts — Wave cleared",
+                "+500 pts — 1st Place (most waves)"
+        );
+    }
 
     @Override
-    public void onEnable() {
-        instance = this;
-        saveDefaultConfig();
-
-        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
-            getLogger().severe("KMCCore not found! Disabling Mob Mayhem.");
-            setEnabled(false);
-            return;
-        }
-        kmcCore = core;
-
+    protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
         arenaManager = new ArenaManager(this);
         worldCloner  = new WorldCloner(this);
         kitManager   = new KitManager(this);
-        gameManager  = new GameManager(this);
-
-        var cmd = new MobMayhemCommand(this);
-        var bukkitCmd = getCommand("mobmayhem");
-        if (bukkitCmd != null) {
-            bukkitCmd.setExecutor(cmd);
-            bukkitCmd.setTabCompleter(cmd);
-        }
-
-        getServer().getPluginManager().registerEvents(new MobListener(this), this);
-
-        // Auto-start hook — same pattern as QuakeCraft / Bingo / ParkourWarrior
-        kmcCore.getApi().onGameStart(gameId -> {
-            if (!GAME_ID.equals(gameId)) return;
-            getLogger().info("KMCCore picked Mob Mayhem — preparing arenas...");
-            Bukkit.getScheduler().runTaskLater(this, () -> {
-                String error = gameManager.startGame();
-                if (error != null) {
-                    getLogger().warning("Mob Mayhem auto-start failed: " + error);
-                    if (kmcCore.getAutomationManager().isRunning()) {
-                        kmcCore.getAutomationManager().onGameEnd(null);
-                    }
-                }
-            }, 40L);
-        });
-
-        getLogger().info("Mob Mayhem enabled!");
+        mobMayhemV2  = new MobMayhemGameManagerV2(this, reg, stats);
+        return mobMayhemV2;
     }
 
     @Override
-    public void onDisable() {
-        if (gameManager != null) gameManager.forceStop();
-        if (worldCloner != null) worldCloner.disposeAll();
-        getLogger().info("Mob Mayhem disabled.");
+    protected void onGameEnable() {
+        var cmd = new MobMayhemCommand(this);
+        var bukkitCmd = getCommand("mobmayhem");
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
+        getServer().getPluginManager().registerEvents(new MobListener(this), this);
     }
 
-    public static MobMayhemPlugin getInstance() { return instance; }
+    @Override
+    protected void onGameDisable() {
+        if (mobMayhemV2 != null && mobMayhemV2.isRunning()) mobMayhemV2.end();
+        if (worldCloner != null) worldCloner.disposeAll();
+    }
 
-    public KMCCore       getKmcCore()       { return kmcCore; }
-    public ArenaManager  getArenaManager()  { return arenaManager; }
-    public WorldCloner   getWorldCloner()   { return worldCloner; }
-    public KitManager    getKitManager()    { return kitManager; }
-    public GameManager   getGameManager()   { return gameManager; }
+    @Override
+    protected void onV1GameStart(String gameId) {
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            getLogger().warning("[MobMayhem] V1 auto-start fired but V1 GameManager has been removed.");
+            if (kmcCore.getAutomationManager().isRunning())
+                kmcCore.getAutomationManager().onGameEnd(null);
+        }, 40L);
+    }
+
+    // ── Getters used by commands / listeners ──────────────────────────────────
+
+    public KMCCore                getKmcCore()       { return kmcCore; }
+    public ArenaManager           getArenaManager()  { return arenaManager; }
+    public WorldCloner            getWorldCloner()   { return worldCloner; }
+    public KitManager             getKitManager()    { return kitManager; }
+    public MobMayhemGameManagerV2 getGameManagerV2() { return mobMayhemV2; }
 }

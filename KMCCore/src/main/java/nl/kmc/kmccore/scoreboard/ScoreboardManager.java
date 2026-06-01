@@ -1,7 +1,10 @@
 package nl.kmc.kmccore.scoreboard;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import nl.kmc.kmccore.KMCCore;
-import nl.kmc.kmccore.models.KMCTeam;
+import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.MessageUtil;
 import org.bukkit.Bukkit;
@@ -10,63 +13,104 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scoreboard.*;
 
+import nl.kmc.kmccore.managers.TabListManager;
+
 import java.util.*;
 import java.util.logging.Level;
 
 /**
- * Per-player sidebar.
+ * Per-player sidebar + scoreboard team management.
  *
- * <p>FIXES IN THIS VERSION:
- * <ul>
- *   <li><b>No more flicker.</b> Previously each tick we unregistered the
- *       objective and re-created it — leaving a one-tick gap where the
- *       sidebar was invisible. Now we keep TWO objectives ("kmc_a" and
- *       "kmc_b"), only one shown at a time. We populate the hidden one,
- *       then atomically swap which one is on the sidebar slot. No gap.</li>
- *   <li><b>Top 5 only</b> instead of all teams.</li>
- *   <li><b>Viewer's own points</b> always shown, regardless of team.</li>
- * </ul>
+ * <p>Previously, scoreboard <em>creation</em> lived here while team-prefix
+ * <em>syncing</em> lived in {@link TabListManager}, which held a redundant
+ * {@code personalBoards} map pointing to the same {@link Scoreboard} objects.
+ * Both maps are now unified here, eliminating the cross-manager coupling and
+ * the duplicate storage.
+ *
+ * <p><b>Anti-flicker double buffer.</b> We keep two objectives ("kmc_a" / "kmc_b")
+ * per player, only one shown at a time. We populate the hidden one, then
+ * atomically swap which one is on the SIDEBAR slot. No one-tick gap.
  */
 public class ScoreboardManager {
 
-    private static final int  MAX_SIDEBAR_LINES = 15;
-    private static final int  TOP_TEAM_COUNT    = 5;
+    private static final int MAX_SIDEBAR_LINES = 15;
+    private static final int TOP_TEAM_COUNT    = 5;
+
+    private static final String NO_TEAM_KEY = "zz_noteam";
+
+    // ChatColor → Adventure NamedTextColor mapping (was duplicated in TabListManager)
+    private static final Map<ChatColor, NamedTextColor> COLOR_MAP = new HashMap<>();
+    static {
+        COLOR_MAP.put(ChatColor.RED,          NamedTextColor.RED);
+        COLOR_MAP.put(ChatColor.GOLD,         NamedTextColor.GOLD);
+        COLOR_MAP.put(ChatColor.YELLOW,       NamedTextColor.YELLOW);
+        COLOR_MAP.put(ChatColor.GREEN,        NamedTextColor.GREEN);
+        COLOR_MAP.put(ChatColor.BLUE,         NamedTextColor.BLUE);
+        COLOR_MAP.put(ChatColor.DARK_PURPLE,  NamedTextColor.DARK_PURPLE);
+        COLOR_MAP.put(ChatColor.LIGHT_PURPLE, NamedTextColor.LIGHT_PURPLE);
+        COLOR_MAP.put(ChatColor.WHITE,        NamedTextColor.WHITE);
+        COLOR_MAP.put(ChatColor.DARK_GREEN,   NamedTextColor.DARK_GREEN);
+        COLOR_MAP.put(ChatColor.AQUA,         NamedTextColor.AQUA);
+        COLOR_MAP.put(ChatColor.DARK_AQUA,    NamedTextColor.DARK_AQUA);
+        COLOR_MAP.put(ChatColor.DARK_RED,     NamedTextColor.DARK_RED);
+        COLOR_MAP.put(ChatColor.DARK_BLUE,    NamedTextColor.DARK_BLUE);
+        COLOR_MAP.put(ChatColor.GRAY,         NamedTextColor.GRAY);
+        COLOR_MAP.put(ChatColor.DARK_GRAY,    NamedTextColor.DARK_GRAY);
+    }
 
     private final KMCCore plugin;
+    private final Scoreboard mainScoreboard;
+
+    /** Single authoritative map: one Scoreboard per online player. */
     private final Map<UUID, Scoreboard> boards = new HashMap<>();
-    /** Tracks which buffer ("a" or "b") is currently visible per player. */
+    /** Tracks which buffer ("kmc_a" or "kmc_b") is currently visible per player. */
     private final Map<UUID, String> activeBuffer = new HashMap<>();
+
     private BukkitTask updateTask;
 
     public ScoreboardManager(KMCCore plugin) {
         this.plugin = plugin;
+        this.mainScoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
+        ensureTeamsExist(mainScoreboard);
+
         if (plugin.getConfig().getBoolean("scoreboard.enabled", true)) {
             int interval = plugin.getConfig().getInt("scoreboard.update-interval", 20);
             updateTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tickAll, 40L, interval);
         }
     }
 
+    // ====================================================================
+    // Tick / refresh
+    // ====================================================================
+
     private void tickAll() {
         if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
-
         for (Player p : Bukkit.getOnlinePlayers()) {
-            try {
-                updatePlayer(p);
-            } catch (Exception e) {
+            try { updatePlayer(p); }
+            catch (Exception e) {
                 plugin.getLogger().log(Level.WARNING,
                         "Scoreboard update failed for " + p.getName() + " — skipping", e);
             }
         }
     }
 
-    public void refreshAll() { tickAll(); }
+    /** Refresh sidebar for all online players. */
+    public void refreshAll() {
+        // Always sync team prefixes — safe during minigames (only touches Bukkit Team objects)
+        syncAllBoards();
+        tickAll();
+    }
+
+    public void refreshAllNametags() { syncAllBoards(); }
 
     public void forceRefreshPlayer(Player player) {
         try { updatePlayer(player); }
         catch (Exception e) { plugin.getLogger().log(Level.WARNING, "Forced refresh failed", e); }
     }
 
-    // ----------------------------------------------------------------
+    // ====================================================================
+    // Per-player scoreboard update (sidebar)
+    // ====================================================================
 
     public void updatePlayer(Player player) {
         Scoreboard board = boards.get(player.getUniqueId());
@@ -79,10 +123,14 @@ public class ScoreboardManager {
         }
 
         if (newBoard) {
-            plugin.getTabListManager().registerPersonalBoard(player.getUniqueId(), board);
+            ensureTeamsExist(board);
+            syncTeamsOn(board);
         }
 
-        // Determine which buffer is currently shown vs hidden
+        // Skip sidebar updates while a minigame owns it
+        if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
+
+        // Determine which buffer is visible vs hidden
         String currentName = activeBuffer.getOrDefault(player.getUniqueId(), "kmc_b");
         String nextName    = currentName.equals("kmc_a") ? "kmc_b" : "kmc_a";
 
@@ -95,107 +143,108 @@ public class ScoreboardManager {
                 MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC")));
 
         List<String> lines = buildLines(player);
-        if (lines.size() > MAX_SIDEBAR_LINES) {
+        if (lines.size() > MAX_SIDEBAR_LINES)
             lines = new ArrayList<>(lines.subList(0, MAX_SIDEBAR_LINES));
-        }
 
         int score = lines.size();
         Set<String> usedEntries = new HashSet<>();
         for (String text : lines) {
             String entry = uniqueEntry(text, usedEntries);
             usedEntries.add(entry);
-            next.getScore(entry).setScore(score);
-            score--;
+            next.getScore(entry).setScore(score--);
         }
 
-        // ATOMIC SWAP: put the freshly-built buffer on the sidebar slot.
-        // The previously-shown buffer is now hidden but still alive — we'll
-        // overwrite it on the next tick. No gap, no flicker.
+        // ATOMIC SWAP: no sidebar gap, no flicker
         next.setDisplaySlot(DisplaySlot.SIDEBAR);
         activeBuffer.put(player.getUniqueId(), nextName);
-
         player.setScoreboard(board);
     }
 
-    // ----------------------------------------------------------------
-    // Sidebar content
-    // ----------------------------------------------------------------
+    // ====================================================================
+    // Team sync across all personal boards
+    // ====================================================================
 
-    private List<String> buildLines(Player player) {
-        List<String> lines = new ArrayList<>();
-
-        boolean active = plugin.getTournamentManager().isActive();
-        int     round  = plugin.getTournamentManager().getCurrentRound();
-        double  mul    = plugin.getTournamentManager().getMultiplier();
-
-        String gameName = plugin.getGameManager().getActiveGame() != null
-                ? plugin.getGameManager().getActiveGame().getDisplayName()
-                : null;
-
-        KMCTeam myTeam = plugin.getTeamManager().getTeamByPlayer(player.getUniqueId());
-        PlayerData pd  = plugin.getPlayerDataManager().get(player.getUniqueId());
-        // If for some reason cache is empty, fall back to DB so points always show
-        if (pd == null) pd = plugin.getDatabaseManager().loadPlayer(player.getUniqueId());
-
-        List<KMCTeam> allTeams = plugin.getTeamManager().getTeamsSortedByPoints();
-
-        // --- Status section ---
-        if (active) {
-            lines.add("&7Ronde: &e" + round + " &8(&e×" + mul + "&8)");
-        } else {
-            lines.add("&7Status: &cInactief");
+    /**
+     * Syncs Bukkit team membership on every personal board and the main
+     * scoreboard. Always safe to call — only touches shared Team objects,
+     * not the sidebar objective.
+     */
+    public void syncAllBoards() {
+        for (Scoreboard board : new ArrayList<>(boards.values())) {
+            try { syncTeamsOn(board); }
+            catch (Exception e) { plugin.getLogger().log(Level.WARNING, "syncTeamsOn failed", e); }
         }
-        if (gameName != null) lines.add("&7Game: &b" + gameName);
+        try { syncTeamsOn(mainScoreboard); }
+        catch (Exception e) { plugin.getLogger().log(Level.WARNING, "syncTeamsOn(main) failed", e); }
+    }
 
-        lines.add("&r");
+    private void ensureTeamsExist(Scoreboard board) {
+        for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
+            String teamKey = bukkitTeamName(kmcTeam);
+            Team bt = board.getTeam(teamKey);
+            if (bt == null) bt = board.registerNewTeam(teamKey);
 
-        // --- Top 5 teams ---
-        if (!allTeams.isEmpty()) {
-            lines.add("&6&lTop Teams:");
-            int show = Math.min(TOP_TEAM_COUNT, allTeams.size());
-            for (int i = 0; i < show; i++) {
-                KMCTeam t = allTeams.get(i);
-                String rank;
-                if      (i == 0) rank = "&6#1";
-                else if (i == 1) rank = "&7#2";
-                else if (i == 2) rank = "&c#3";
-                else             rank = "&8#" + (i + 1);
-                lines.add(rank + " " + t.getColor() + t.getDisplayName() + " &8- &e" + t.getPoints());
+            NamedTextColor ntc = COLOR_MAP.getOrDefault(kmcTeam.getColor(), NamedTextColor.WHITE);
+            bt.prefix(Component.text("[" + kmcTeam.getDisplayName() + "] ", ntc, TextDecoration.BOLD));
+            bt.color(ntc);
+            bt.setAllowFriendlyFire(false);
+            bt.setCanSeeFriendlyInvisibles(true);
+        }
+
+        Team none = board.getTeam(NO_TEAM_KEY);
+        if (none == null) {
+            none = board.registerNewTeam(NO_TEAM_KEY);
+            none.prefix(Component.empty());
+            none.color(NamedTextColor.GRAY);
+        }
+
+        // Remove any stale kmc_ prefix teams from previous plugin versions
+        for (Team t : new ArrayList<>(board.getTeams())) {
+            if (t.getName().startsWith("kmc_")) {
+                try { t.unregister(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private void syncTeamsOn(Scoreboard board) {
+        ensureTeamsExist(board);
+
+        Map<String, String> desiredTeam = new HashMap<>();
+        for (KMCTeam kmcTeam : plugin.getTeamManager().getTeamsInOrder()) {
+            String btName = bukkitTeamName(kmcTeam);
+            for (UUID uuid : kmcTeam.getMembers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) desiredTeam.put(p.getName(), btName);
+            }
+        }
+        for (Player p : Bukkit.getOnlinePlayers())
+            desiredTeam.putIfAbsent(p.getName(), NO_TEAM_KEY);
+
+        // Remove entries that moved to a different team
+        for (Team bt : board.getTeams()) {
+            String nm = bt.getName();
+            if (!nm.equals(NO_TEAM_KEY) && !nm.matches("\\d\\d_.+")) continue;
+            for (String entry : new HashSet<>(bt.getEntries())) {
+                String desired = desiredTeam.get(entry);
+                if (desired == null || !desired.equals(nm)) bt.removeEntry(entry);
             }
         }
 
-        lines.add("&r ");
-
-        // --- Your team (if any) ---
-        if (myTeam != null) {
-            lines.add("&e&lJouw Team:");
-            lines.add(myTeam.getColor() + myTeam.getDisplayName()
-                    + " &8- &e" + myTeam.getPoints() + "p");
+        // Add entries that are not yet in the right team
+        for (Map.Entry<String, String> e : desiredTeam.entrySet()) {
+            Team bt = board.getTeam(e.getValue());
+            if (bt != null && !bt.hasEntry(e.getKey())) bt.addEntry(e.getKey());
         }
-
-        // --- Always show your personal points ---
-        lines.add("&r  ");
-        lines.add("&b&lJouw Punten: &e" + (pd != null ? pd.getPoints() : 0));
-
-        return lines;
     }
 
-    // ----------------------------------------------------------------
-
-    private static final ChatColor[] UNIQUE_COLORS = ChatColor.values();
-
-    private String uniqueEntry(String text, Set<String> taken) {
-        String colored = MessageUtil.color(text);
-        for (int i = 0; i < UNIQUE_COLORS.length; i++) {
-            String prefix = UNIQUE_COLORS[i].toString() + ChatColor.RESET;
-            String entry = prefix + colored;
-            if (entry.length() > 40) entry = entry.substring(0, 40);
-            if (!taken.contains(entry)) return entry;
-        }
-        return colored;
+    private String bukkitTeamName(KMCTeam kmcTeam) {
+        int index = plugin.getTeamManager().getTeamsInOrder().indexOf(kmcTeam);
+        return String.format("%02d_%s", index, kmcTeam.getId());
     }
 
-    // ----------------------------------------------------------------
+    // ====================================================================
+    // Lifecycle
+    // ====================================================================
 
     public void onPlayerJoin(Player player) {
         if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
@@ -206,12 +255,87 @@ public class ScoreboardManager {
     public void onPlayerQuit(Player player) {
         boards.remove(player.getUniqueId());
         activeBuffer.remove(player.getUniqueId());
-        plugin.getTabListManager().unregisterPersonalBoard(player.getUniqueId());
     }
 
     public void cleanup() {
         if (updateTask != null) updateTask.cancel();
         boards.clear();
         activeBuffer.clear();
+    }
+
+    public Scoreboard getMainScoreboard() { return mainScoreboard; }
+
+    // ====================================================================
+    // Static helpers (also accessible via TabListManager for callers that
+    // import that class already)
+    // ====================================================================
+
+    public static NamedTextColor toNamed(ChatColor cc) {
+        return COLOR_MAP.getOrDefault(cc, NamedTextColor.WHITE);
+    }
+
+    // ====================================================================
+    // Sidebar content
+    // ====================================================================
+
+    private List<String> buildLines(Player player) {
+        List<String> lines = new ArrayList<>();
+
+        boolean active  = plugin.getTournamentManager().isActive();
+        int     round   = plugin.getTournamentManager().getCurrentRound();
+        double  mul     = plugin.getTournamentManager().getMultiplier();
+
+        String gameName = plugin.getGameManager().getActiveGame() != null
+                ? plugin.getGameManager().getActiveGame().getDisplayName() : null;
+
+        KMCTeam myTeam = plugin.getTeamManager().getTeamByPlayer(player.getUniqueId());
+        PlayerData pd  = plugin.getPlayerDataManager().get(player.getUniqueId());
+        if (pd == null) pd = plugin.getDatabaseManager().loadPlayer(player.getUniqueId());
+
+        List<KMCTeam> allTeams = plugin.getTeamManager().getTeamsSortedByPoints();
+
+        // Status
+        lines.add(active ? "&7Ronde: &e" + round + " &8(&e×" + mul + "&8)" : "&7Status: &cInactief");
+        if (gameName != null) lines.add("&7Game: &b" + gameName);
+        lines.add("&r");
+
+        // Top 5 teams
+        if (!allTeams.isEmpty()) {
+            lines.add("&6&lTop Teams:");
+            int show = Math.min(TOP_TEAM_COUNT, allTeams.size());
+            for (int i = 0; i < show; i++) {
+                KMCTeam t = allTeams.get(i);
+                String rank = switch (i) {
+                    case 0 -> "&6#1";
+                    case 1 -> "&7#2";
+                    case 2 -> "&c#3";
+                    default -> "&8#" + (i + 1);
+                };
+                lines.add(rank + " " + t.getColor() + t.getDisplayName() + " &8- &e" + t.getPoints());
+            }
+        }
+        lines.add("&r ");
+
+        // Player's team
+        if (myTeam != null) {
+            lines.add("&e&lJouw Team:");
+            lines.add(myTeam.getColor() + myTeam.getDisplayName() + " &8- &e" + myTeam.getPoints() + "p");
+        }
+
+        lines.add("&r  ");
+        lines.add("&b&lJouw Punten: &e" + (pd != null ? pd.getPoints() : 0));
+        return lines;
+    }
+
+    private static final ChatColor[] UNIQUE_COLORS = ChatColor.values();
+
+    private String uniqueEntry(String text, Set<String> taken) {
+        String colored = MessageUtil.color(text);
+        for (ChatColor color : UNIQUE_COLORS) {
+            String entry = color + "" + ChatColor.RESET + colored;
+            if (entry.length() > 40) entry = entry.substring(0, 40);
+            if (!taken.contains(entry)) return entry;
+        }
+        return colored;
     }
 }

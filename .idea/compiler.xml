@@ -8,16 +8,21 @@
         <outputRelativeToContentRoot value="true" />
         <module name="TheBridge" />
         <module name="SkyWars" />
+        <module name="kmc-game-api" />
+        <module name="kmc-tournament-engine" />
         <module name="MobMayhem" />
         <module name="QuakeCraft" />
         <module name="KMCCore" />
         <module name="Spleef" />
         <module name="TNTTag" />
         <module name="ParkourWarrior" />
+        <module name="kmc-stats" />
         <module name="TGTTOS" />
         <module name="AdventureEscape" />
         <module name="SurvivalGames" />
+        <module name="kmc-core" />
         <module name="LuckyBlock" />
+        <module name="kmc-storage" />
         <module name="Bingo" />
         <module name="ElytraEndrium" />
       </profile>

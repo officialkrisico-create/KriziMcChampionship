@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\krish\\\\Videos\\\\kmc-tournament\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(mvn compile *)",
+      "PowerShell(Get-Command java -ErrorAction SilentlyContinue)",
+      "PowerShell($env:JAVA_HOME)",
+      "Bash(python3 -c ' *)",
+      "Bash(Get-ChildItem -Filter \"*.md\" -Recurse)",
+      "Bash(Select-Object -First 20)",
+      "Bash(ls -la \"C:\\\\Users\\\\krish\\\\Videos\\\\kmc-tournament\\\\\" | head -30)",
+      "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\krish\\\\Videos\\\\kmc-tournament\\\\KMCCore\\\\src\\\\main\\\\java\\\\nl\\\\kmc\\\\kmccore\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(Get-Unique)"
+    ]
+  }
+}
