@@ -1,0 +1,74 @@
+# ============================================================
+#   KMC Core - Camera Routes
+#
+#   This file stores all cinematic camera routes.
+#   Edit with /kmccamera in-game — do NOT edit manually while the server is running.
+#
+#   Route naming conventions:
+#     opening              — tournament opening ceremony flyover
+#     team-showcase        — team introduction flyover
+#     tournament-overview  — game lineup reveal
+#     game-intro-{gameId}  — per-game introduction (e.g. game-intro-team_skywars)
+#     arena-{gameId}       — arena flyover before a game
+#     winner-{gameId}      — post-game winner camera (e.g. winner-team_skywars)
+#     closing              — tournament finale
+#
+#   Waypoint fields:
+#     world          — world name
+#     x, y, z        — position
+#     yaw, pitch      — camera direction
+#     duration-ticks  — ticks to travel TO this point (20 ticks = 1 second)
+#     interpolation   — LINEAR | SMOOTH | EASE_IN | EASE_OUT | EASE_IN_OUT
+#     title          — large title text shown when entering this segment (&-codes)
+#     subtitle        — subtitle text (&-codes)
+#     action-bar      — action bar text (&-codes)
+#
+#   Placeholders supported in title/subtitle/action-bar:
+#     {tournament_name}  {round}  {multiplier}  {game_name}
+#
+#   Leave routes.opening (or any other route) empty to skip that cinematic.
+#   The tournament will continue safely without any route configured.
+# ============================================================
+
+routes:
+  # Example: replace waypoint coordinates with your actual lobby/arena positions.
+  # Remove the 'example-route' section once you have real routes configured.
+  example-route:
+    description: "Example route — replace with real coordinates"
+    waypoints:
+      "0":
+        world: world
+        x: 0.0
+        y: 100.0
+        z: 0.0
+        yaw: 0.0
+        pitch: -30.0
+        duration-ticks: 60
+        interpolation: SMOOTH
+        title: "&6&lKMC TOURNAMENT"
+        subtitle: "&eSeason 14"
+        action-bar: ""
+      "1":
+        world: world
+        x: 10.0
+        y: 95.0
+        z: 10.0
+        yaw: -45.0
+        pitch: -20.0
+        duration-ticks: 80
+        interpolation: EASE_IN_OUT
+        title: ""
+        subtitle: ""
+        action-bar: "&7Flying through the arena..."
+      "2":
+        world: world
+        x: 20.0
+        y: 90.0
+        z: 20.0
+        yaw: -90.0
+        pitch: 0.0
+        duration-ticks: 60
+        interpolation: EASE_OUT
+        title: "&eLet the games begin!"
+        subtitle: ""
+        action-bar: ""

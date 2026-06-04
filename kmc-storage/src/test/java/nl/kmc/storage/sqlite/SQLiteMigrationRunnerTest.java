@@ -51,13 +51,13 @@ class SQLiteMigrationRunnerTest {
     }
 
     @Test
-    void schema_version_advances_to_3() throws SQLException {
+    void schema_version_advances_to_5() throws SQLException {
         new SQLiteMigrationRunner(dataSource).run();
         Connection c = dataSource.get();
         try (var st = c.createStatement();
              var rs = st.executeQuery("SELECT version FROM schema_version")) {
             assertTrue(rs.next());
-            assertEquals(3, rs.getInt(1));
+            assertEquals(5, rs.getInt(1));
         }
     }
 

@@ -1,10 +1,5 @@
 package nl.kmc.core;
 
-import nl.kmc.core.api.KMCApiImpl;
-import nl.kmc.core.api.KMCApiProvider;
-import nl.kmc.core.listener.CoreProtectionListener;
-import nl.kmc.core.listener.PlayerSessionListener;
-import nl.kmc.core.listener.TeamChatListener;
 import nl.kmc.core.service.*;
 import nl.kmc.storage.StorageModule;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -69,15 +64,18 @@ public final class KMCCorePlugin extends JavaPlugin {
         container.register(StorageModule.class,       storage);
 
         // ── Public API ───────────────────────────────────────────────────────
-        KMCApiProvider.set(new KMCApiImpl(teamService, pointsService, tournamentService, gameRegistry));
+        // KMCCore (V1) is the single source of truth and registers the KMCApi via
+        // KMCApiProvider. We intentionally do NOT register one here — a second API
+        // would mean a second data store (the old points "split-brain"). The V2
+        // services above stay available via getContainer() for game bootstrap
+        // (e.g. PlayerService for StatisticsService, GameRegistryService).
 
         // ── Listeners ────────────────────────────────────────────────────────
-        var pm = getServer().getPluginManager();
-        pm.registerEvents(new PlayerSessionListener(this, playerService, teamService), this);
-        pm.registerEvents(new CoreProtectionListener(this, tournamentService), this);
-        pm.registerEvents(new TeamChatListener(this, teamService), this);
+        // V2 session/chat/protection listeners are intentionally NOT registered:
+        // KMCCore (V1) owns player join/quit, team chat, and lobby protection.
+        // Registering them here would double-handle those events.
 
-        getLogger().info("KMC Core V2 enabled — event #" + tournamentService.getEventNumber());
+        getLogger().info("KMC Core V2 (data/service library) enabled — event #" + tournamentService.getEventNumber());
     }
 
     @Override
@@ -86,7 +84,7 @@ public final class KMCCorePlugin extends JavaPlugin {
         if (teamService    != null) teamService.saveAll();
         if (tournamentService != null) tournamentService.save();
         if (storage        != null) storage.shutdown();
-        KMCApiProvider.clear();
+        // The KMCApi slot is owned and cleared by KMCCore (V1), not here.
         getLogger().info("KMC Core V2 disabled.");
     }
 

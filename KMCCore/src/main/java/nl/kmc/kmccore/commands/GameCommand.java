@@ -63,6 +63,35 @@ public class GameCommand implements CommandExecutor, TabCompleter {
                 else
                     sender.sendMessage(MessageUtil.get("game.force-set").replace("{game}", args[1]));
             }
+            case "setorigin" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("§cOnly players can use setorigin."); return true; }
+                if (args.length < 2) { sender.sendMessage("§cUsage: /kmcgame setorigin <gameId>"); return true; }
+                String gameId = args[1].toLowerCase();
+                plugin.getSchematicManager().setOriginForGame(gameId, p.getLocation());
+                sender.sendMessage("§a[KMC] Arena origin for §e" + gameId + "§a set to your location.");
+                sender.sendMessage("§7Schematic file expected: §e" + gameId + "mapschematic.schem§7 in plugins/KMCCore/schematics/");
+            }
+            case "resetarena" -> {
+                if (args.length < 2) { sender.sendMessage("§cUsage: /kmcgame resetarena <gameId>"); return true; }
+                String gameId = args[1].toLowerCase();
+                String schematic = gameId + "mapschematic.schem";
+                org.bukkit.Location origin = plugin.getSchematicManager().getOriginForGame(gameId);
+                if (origin == null) { sender.sendMessage("§cNo origin set for §e" + gameId + "§c. Use /kmcgame setorigin first."); return true; }
+                sender.sendMessage("§e[KMC] Pasting §f" + schematic + "§e...");
+                boolean ok = plugin.getSchematicManager().resetArena(schematic, origin);
+                sender.sendMessage(ok ? "§a[KMC] Arena reset complete." : "§c[KMC] Paste failed — check console.");
+            }
+            case "repetitions" -> {
+                if (args.length < 3) { sender.sendMessage("§cUsage: /kmcgame repetitions <gameId> <count>"); return true; }
+                String gameId = args[1].toLowerCase();
+                int count;
+                try { count = Integer.parseInt(args[2]); } catch (NumberFormatException e) { sender.sendMessage(MessageUtil.get("invalid-number")); return true; }
+                if (count < 1 || count > 10) { sender.sendMessage("§cRepetitions must be between 1 and 10."); return true; }
+                if (plugin.getConfig().get("games.list." + gameId) == null) { sender.sendMessage(MessageUtil.get("game.not-found").replace("{game}", gameId)); return true; }
+                plugin.getConfig().set("games.list." + gameId + ".repetitions", count);
+                plugin.saveConfig();
+                sender.sendMessage("§a[KMC] §e" + gameId + "§a will now play §e" + count + "x§a per round.");
+            }
             default -> usage(sender);
         }
         return true;
@@ -70,11 +99,15 @@ public class GameCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
-        if (args.length == 1) return List.of("start","stop","skip","forceskip","next","vote","list","set").stream().filter(o -> o.startsWith(args[0])).collect(Collectors.toList());
-        if (args.length == 2 && (args[0].equalsIgnoreCase("start") || args[0].equalsIgnoreCase("set")))
+        if (args.length == 1) return List.of("start","stop","skip","forceskip","next","vote","list","set","setorigin","resetarena","repetitions").stream().filter(o -> o.startsWith(args[0])).collect(Collectors.toList());
+        if (args.length == 2 && (args[0].equalsIgnoreCase("start") || args[0].equalsIgnoreCase("set")
+                || args[0].equalsIgnoreCase("setorigin") || args[0].equalsIgnoreCase("resetarena")
+                || args[0].equalsIgnoreCase("repetitions")))
             return plugin.getGameManager().getAllGames().stream().map(KMCGame::getId).filter(id -> id.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+        if (args.length == 3 && args[0].equalsIgnoreCase("repetitions"))
+            return List.of("1","2","3","4","5");
         return List.of();
     }
 
-    private void usage(CommandSender s) { s.sendMessage(MessageUtil.get("invalid-usage").replace("{usage}", "/kmcgame <start|stop|skip|forceskip|next|vote|list|set> [game]")); }
+    private void usage(CommandSender s) { s.sendMessage(MessageUtil.get("invalid-usage").replace("{usage}", "/kmcgame <start|stop|skip|forceskip|next|vote|list|set|setorigin|resetarena> [game]")); }
 }

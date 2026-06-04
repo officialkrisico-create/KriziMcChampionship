@@ -299,10 +299,30 @@ rotation as if the game ended normally.
 ### Automation engine
 
 ```
-/kmcauto start     ← begin automatic rotation
+/kmcauto start     ← begin automatic rotation (runs the FULL presentation flow)
 /kmcauto pause     ← pause between games
 /kmcauto resume    ← continue
 ```
+
+`/kmcauto start` is the main entry point. It drives the complete championship
+flow end-to-end:
+
+```
+Opening ceremony → Team showcase → Tournament overview
+   → Voting → Game intro → Arena flyover → Countdown → GAME
+   → Winner ceremony → (repeat game if configured) → next game
+   → Round-end ceremony → ... → Closing ceremony
+```
+
+Each stage shows **ceremony text** (from `ceremonies.yml`) and plays a
+**cinematic camera route** (from `cameras.yml`) if one is configured. Any
+stage with no ceremony/route configured is simply skipped — the tournament
+always continues safely.
+
+> There are two engines in the codebase: the V1 `/kmcauto` (recommended,
+> fully featured) and a V2 `/kmctournament` engine. Both now run the same
+> ceremonies, cinematics, and repetitions. Use **`/kmcauto`** unless you have
+> a specific reason to use the V2 engine — don't run both at once.
 
 ---
 
@@ -803,6 +823,29 @@ game's own `config.yml`.
 | `/kmclobbynpc list` | List all lobby NPCs |
 | `/kmcnpc create` | Create a leaderboard NPC |
 
+### Presentation & cinematics
+
+| Command | What it does |
+|---|---|
+| `/kmccamera create <route> [desc]` | Start recording a camera route |
+| `/kmccamera addpoint [ticks] [interp]` | Add a waypoint at your location |
+| `/kmccamera removepoint` | Remove the last waypoint |
+| `/kmccamera save` / `discard` | Save or throw away the recording |
+| `/kmccamera preview <route>` | Preview a route (yourself only) |
+| `/kmccamera info <route>` | Inspect a route's waypoints |
+| `/kmccamera list` / `delete <route>` / `reload` / `stop` | Manage routes |
+| `/kmcpresentation start <route> [player\|all]` | Force-play a route now |
+| `/kmcpresentation skip` | Stop / skip all active cinematics |
+| `/kmcpresentation status` / `routes` / `reload` | Inspect / reload routes |
+| `/kmcceremonies info <phase>` | Show a ceremony phase's config |
+| `/kmcceremonies duration <phase> <secs>` | Set a phase's duration |
+| `/kmcceremonies title \| subtitle <phase> <text>` | Set title/subtitle |
+| `/kmcceremonies addmsg \| setmsg \| delmsg \| clearmsg <phase>` | Edit chat lines |
+| `/kmcceremonies list` / `reload` | List phases / reload from disk |
+| `/kmcgame setorigin <gameId>` | Set arena schematic paste origin |
+| `/kmcgame resetarena <gameId>` | Manually paste the arena schematic |
+| `/kmcgame repetitions <gameId> <count>` | Set how many times a game repeats per round |
+
 ### Quality of life
 
 | Command | What it does |
@@ -836,6 +879,92 @@ Every game supports these four commands:
 
 `reload` re-reads the per-game `config.yml` without restarting the server.
 Useful for tweaking scoring values mid-test.
+
+---
+
+## Presentation & cinematics
+
+KMC runs as a professional championship event: ceremonies, camera flyovers,
+title cards, and per-game intros — all driven automatically by `/kmcauto`.
+
+### The three layers
+
+| Layer | File | What it controls |
+|---|---|---|
+| **Ceremonies** | `ceremonies.yml` | Chat messages, titles, durations per phase |
+| **Cinematics** | `cameras.yml` | Camera flyover routes per phase / game |
+| **Repetitions** | `config.yml` (`games.list.<id>.repetitions`) | How many times a game plays per round |
+
+All three are **optional** — anything unconfigured is skipped, and the
+tournament continues normally.
+
+### Camera routes — naming convention
+
+Routes are matched to tournament moments by their ID:
+
+| Route ID | Plays during |
+|---|---|
+| `opening` | Opening ceremony |
+| `team-showcase` | Team introduction |
+| `tournament-overview` | Game lineup reveal |
+| `game-intro-<gameId>` | Before a specific game (e.g. `game-intro-team_skywars`) |
+| `arena-<gameId>` | Arena flyover before that game starts |
+| `winner-<gameId>` | After that game ends |
+| `closing` | Tournament finale |
+
+### Recording a route in-game
+
+```
+/kmccamera create opening "Opening flyover"
+   [fly to your first camera position]
+/kmccamera addpoint 100 smooth title=&6&lKMC TOURNAMENT subtitle=&eSeason 14
+   [fly to the next position]
+/kmccamera addpoint 80 ease_in_out actionbar=&716 players - 4 teams - 13 games
+   [fly to the final position]
+/kmccamera addpoint 60 ease_out title=&eLet the games begin!
+/kmccamera save
+/kmccamera preview opening        ← watch it back
+```
+
+- `addpoint [ticks] [interp]` — `ticks` = travel time TO this point (20 = 1s).
+  `interp` = `linear`, `smooth`, `ease_in`, `ease_out`, `ease_in_out`.
+- Overlay params (use `_` for spaces): `title=...`, `subtitle=...`, `actionbar=...`
+- Players are put in spectator mode during a cinematic and fully restored after.
+
+### Editing ceremony text
+
+```
+/kmcceremonies info opening                        ← see current config
+/kmcceremonies title opening &6&lWELCOME!          ← set the title
+/kmcceremonies addmsg opening &eGood luck teams!   ← add a chat line
+/kmcceremonies duration opening 30                 ← hold for 30 seconds
+/kmcceremonies reload
+```
+
+Placeholders: `{tournament_name}`, `{round}`, `{multiplier}`, `{team_count}`,
+`{game_name}`, `{game_objective}`, `{winner}`.
+
+### Game repetitions
+
+Make a game play multiple times in a row, with points accumulating:
+
+```
+/kmcgame repetitions team_skywars 3
+```
+
+Now when SkyWars is chosen, it plays **3 times back-to-back** (arena reset
+between each), all points counting toward the same round, before the
+tournament moves on. The boss bar shows "ronde 2/3" during repeats.
+
+### Skipping / emergency control
+
+If a cinematic glitches or you need to bail out:
+
+```
+/kmcpresentation skip      ← stops ALL active cinematics, restores players
+```
+
+The tournament continues from where it was — cinematics never block the flow.
 
 ---
 

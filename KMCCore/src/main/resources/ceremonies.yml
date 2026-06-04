@@ -1,0 +1,104 @@
+# ============================================================
+#   KMC Core - Ceremony & Phase Configuration
+#
+#   Configure what is said, shown, and how long each tournament
+#   phase lasts. Edit this file or use /kmcceremonies in-game.
+#
+#   Supported placeholders in messages/titles:
+#     {tournament_name}  — e.g. "Krizi Minecraft Championship"
+#     {round}            — current round number
+#     {multiplier}       — current point multiplier (e.g. 1.5)
+#     {team_count}       — number of active teams
+#     {game_name}        — display name of the current game
+#     {game_objective}   — one-line objective of the current game
+#     {winner}           — winning team name (closing ceremony only)
+#
+#   Color codes: use & followed by the Minecraft color code.
+#   Titles/subtitles support color codes too.
+#   Set title or subtitle to "" to skip showing it.
+# ============================================================
+
+# ── Opening ceremony (fires once at tournament start) ─────────────────────────
+opening:
+  duration-seconds: 20
+  title: "&6&lKMC TOURNAMENT"
+  subtitle: "&eLet the games begin!"
+  messages:
+    - "&8§m                                    "
+    - "  &6&lWelcome to the &e{tournament_name}&6&l!"
+    - "  &7{team_count} teams will compete across 13 mini-games."
+    - "  &eMay the best team win!"
+    - "&8§m                                    "
+
+# ── Team showcase (shows all team names) ─────────────────────────────────────
+team-showcase:
+  duration-seconds: 15
+  title: "&b&lTEAM SHOWCASE"
+  subtitle: "&7Get to know your competition"
+  messages:
+    - "&b&l▸ COMPETING TEAMS ◂"
+
+# ── Tournament overview (game lineup reveal) ──────────────────────────────────
+tournament-overview:
+  duration-seconds: 12
+  title: "&d&lTODAY'S GAMES"
+  subtitle: ""
+  messages:
+    - "&d&l▸ TOURNAMENT OVERVIEW ◂"
+    - "  &7Points multiply each round — later rounds are worth more!"
+    - "  &7Round {round} multiplier: &e{multiplier}x"
+
+# ── Game lineup showcase (lists all games before voting starts) ───────────────
+game-lineup:
+  duration-seconds: 10
+  title: "&a&lGAME LINEUP"
+  subtitle: ""
+  messages:
+    - "&a&l▸ GAMES THIS ROUND ◂"
+
+# ── Voting phase ──────────────────────────────────────────────────────────────
+voting:
+  duration-seconds: 30    # also controlled by automation.voting.duration
+  title: "&6&lVOTE NOW"
+  subtitle: "&eType the number in chat"
+  messages:
+    - "&6&l▸ VOTE FOR THE NEXT GAME ◂"
+
+# ── Per-game intro (shown before each individual game starts) ─────────────────
+game-intro:
+  duration-seconds: 15
+  title: "&e&l{game_name}"
+  subtitle: "&7Get ready!"
+  messages:
+    - "&e&l▸ {game_name} ◂"
+    - "  &7Objective: &f{game_objective}"
+    - "  &7Round {round} — &e{multiplier}x &7points"
+
+# ── Game end ceremony (shown after each game, before next vote) ───────────────
+game-end:
+  duration-seconds: 10
+  title: "&a&lGAME COMPLETE"
+  subtitle: "&7Results are being calculated..."
+  messages:
+    - "&a&l▸ GAME COMPLETE ◂"
+
+# ── Round end ceremony (shown after all games in a round finish) ──────────────
+round-end:
+  duration-seconds: 20
+  title: "&6&lROUND {round} COMPLETE"
+  subtitle: "&7Standings below"
+  messages:
+    - "&6&l▸ END OF ROUND {round} ◂"
+    - "  &7Next round multiplier: &e{multiplier}x"
+
+# ── Closing / winner ceremony ─────────────────────────────────────────────────
+closing:
+  duration-seconds: 40
+  title: "&6&l★ TOURNAMENT COMPLETE ★"
+  subtitle: "&eCongratulations!"
+  messages:
+    - "&8§m                                    "
+    - "  &6&l★ {tournament_name} — COMPLETE ★"
+    - "  &aCongratulations to &6{winner}&a!"
+    - "  &7Thank you all for playing!"
+    - "&8§m                                    "

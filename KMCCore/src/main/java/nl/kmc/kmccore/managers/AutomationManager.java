@@ -13,8 +13,10 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -42,6 +44,11 @@ public class AutomationManager {
     /** Games already attempted this cycle (avoid infinite skip loops). */
     private final Set<String> attemptedThisCycle = new HashSet<>();
 
+    // Repetition tracking — how many times the current game plays back-to-back.
+    private String currentRepGameId  = null;
+    private int    currentRepetition = 0;
+    private int    maxRepetitions    = 1;
+
     public AutomationManager(KMCCore plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
@@ -53,7 +60,17 @@ public class AutomationManager {
         gamesThisRound = 0;
         attemptedThisCycle.clear();
         createBossBar();
-        enterIntermission();
+        // Opening presentation sequence. Each stage shows ceremony text (chat +
+        // title from ceremonies.yml) then plays its camera route (no-op if either
+        // is unconfigured), finally leading into the first intermission/voting.
+        ceremony("opening");
+        playCinematic("opening", () -> {
+            ceremony("team-showcase");
+            playCinematic("team-showcase", () -> {
+                ceremony("tournament-overview");
+                playCinematic("tournament-overview", this::enterIntermission);
+            });
+        });
     }
 
     public void stop() {
@@ -66,17 +83,58 @@ public class AutomationManager {
         if (state != State.GAME_ACTIVE && state != State.PAUSED) {
             if (state == State.IDLE) return;
         }
+        // Winner ceremony cinematic for the game that just finished, then continue.
+        // (Active game is already cleared by stopGame, so use the tracked rep id.)
+        String winnerRoute = currentRepGameId != null ? "winner-" + currentRepGameId : "winner";
+        playCinematic(winnerRoute, () -> continueGameEnd(winnerName));
+    }
+
+    /** Runs the post-game flow after the winner cinematic finishes. */
+    private void continueGameEnd(String winnerName) {
+        ceremony("game-end");
+
+        // ── Repetitions: replay the same game until maxRepetitions reached ──
+        if (currentRepGameId != null && currentRepetition < maxRepetitions) {
+            currentRepetition++;
+            KMCGame same = plugin.getGameManager().getGame(currentRepGameId);
+            int done = currentRepetition - 1;
+            broadcast("&6[KMC] &e" + (same != null ? same.getDisplayName() : currentRepGameId)
+                    + " &7— spel &e" + done + "&7/&e" + maxRepetitions
+                    + " &7klaar. Volgende start zo...");
+            plugin.getArenaManager().teleportAllToLobby();
+
+            int interSec = plugin.getConfig().getInt("automation.repetition-intermission-seconds", 20);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (same != null) enterPreStart(same);   // re-runs intro + arena + countdown + launch
+                else proceedAfterGame(winnerName);
+            }, interSec * 20L);
+            return;
+        }
+
+        // All repetitions done — clear tracking and advance the rotation.
+        currentRepGameId  = null;
+        currentRepetition = 0;
+        maxRepetitions    = 1;
+        proceedAfterGame(winnerName);
+    }
+
+    /** Advances the round counter and moves to the next game / round / finale. */
+    private void proceedAfterGame(String winnerName) {
         gamesThisRound++;
         attemptedThisCycle.clear();
 
         int gamesPerRound = plugin.getConfig().getInt("automation.games-per-round", 3);
+        boolean roundComplete = false;
         if (gamesThisRound >= gamesPerRound) {
             gamesThisRound = 0;
+            roundComplete  = true;
             if (!plugin.getTournamentManager().nextRound()) {
                 endTournament(winnerName);
                 return;
             }
         }
+
+        if (roundComplete) ceremony("round-end");
 
         plugin.getArenaManager().teleportAllToLobby();
         postGameLeaderboardChain();
@@ -228,7 +286,13 @@ public class AutomationManager {
 
             if (countdownSeconds <= 0) {
                 cancelTick();
-                launchGame(game);
+                // Game showcase ceremony text, then game-intro + arena flyover
+                // cinematics, then launch. Cinematics/ceremony are no-ops if
+                // unconfigured, so the game launches immediately in that case.
+                ceremonyGame("game-intro", game);
+                playCinematicChain(
+                        List.of("game-intro-" + game.getId(), "arena-" + game.getId()),
+                        () -> launchGame(game));
             }
         });
     }
@@ -249,17 +313,33 @@ public class AutomationManager {
     }
 
     private void launchGame(KMCGame game) {
+        // Initialise repetition tracking the first time a NEW game launches.
+        // Re-launches of the same game (for repetitions) keep the counter.
+        if (!game.getId().equals(currentRepGameId)) {
+            currentRepGameId  = game.getId();
+            currentRepetition = 1;
+            maxRepetitions    = Math.max(1, plugin.getConfig().getInt(
+                    "games.list." + game.getId() + ".repetitions", 1));
+        }
+
         state = State.GAME_ACTIVE;
         attemptedThisCycle.clear();
         hideBossBar();
         plugin.getGameManager().startGame(game.getId());
 
         createBossBar();
+        String repSuffix = maxRepetitions > 1
+                ? "  &7(ronde &e" + currentRepetition + "&7/&e" + maxRepetitions + "&7)" : "";
         setBossBar("&2▶ &a" + game.getDisplayName() + " &2◀  Ronde "
                         + plugin.getTournamentManager().getCurrentRound()
-                        + "  ×" + plugin.getTournamentManager().getMultiplier(),
+                        + "  ×" + plugin.getTournamentManager().getMultiplier() + repSuffix,
                 BarColor.GREEN, 1.0);
         setBossBarProgress(1.0);
+
+        if (maxRepetitions > 1) {
+            broadcast("&6[KMC] &e" + game.getDisplayName() + " &7— spel &e"
+                    + currentRepetition + "&7/&e" + maxRepetitions);
+        }
     }
 
     private void endTournament(String lastWinner) {
@@ -270,12 +350,16 @@ public class AutomationManager {
                 .findFirst().map(t -> t.getColor() + t.getDisplayName())
                 .orElse("Onbekend");
 
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.sendTitle(MessageUtil.color("&6&lToernooi Afgelopen!"),
-                    MessageUtil.color("&eWinnaar: " + topTeam), 10, 100, 30);
-            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-        }
-        broadcast("&6&l[KMC] &eHet toernooi is afgelopen! Winnaar: " + topTeam);
+        // Finale cinematic (no-op if unconfigured), then closing ceremony + winner.
+        playCinematic("closing", () -> {
+            ceremony("closing");
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendTitle(MessageUtil.color("&6&lToernooi Afgelopen!"),
+                        MessageUtil.color("&eWinnaar: " + topTeam), 10, 100, 30);
+                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            }
+            broadcast("&6&l[KMC] &eHet toernooi is afgelopen! Winnaar: " + topTeam);
+        });
     }
 
     // ----------------------------------------------------------------
@@ -397,6 +481,86 @@ public class AutomationManager {
 
     private void broadcast(String msg) {
         Bukkit.broadcastMessage(MessageUtil.color(msg));
+    }
+
+    // ----------------------------------------------------------------
+    // Cinematic presentation hooks
+    // ----------------------------------------------------------------
+
+    /**
+     * Plays a single camera route for all players, then runs {@code after}.
+     * If the route is missing/empty (or CinematicManager unavailable), runs
+     * {@code after} immediately — the tournament continues safely.
+     */
+    private void playCinematic(String routeId, Runnable after) {
+        var cm = plugin.getCinematicManager();
+        if (cm != null && cm.routeExists(routeId)) {
+            cm.playRouteForAll(routeId, after);
+        } else {
+            after.run();
+        }
+    }
+
+    /**
+     * Plays a list of camera routes back-to-back, then runs {@code after}.
+     * Any route not configured is skipped. Used for multi-stage sequences
+     * like the opening ceremony (opening → team-showcase → tournament-overview).
+     */
+    private void playCinematicChain(List<String> routeIds, Runnable after) {
+        if (routeIds == null || routeIds.isEmpty()) { after.run(); return; }
+        playCinematic(routeIds.get(0),
+                () -> playCinematicChain(routeIds.subList(1, routeIds.size()), after));
+    }
+
+    /**
+     * Broadcasts the ceremony text (chat lines + title/subtitle) for a phase,
+     * driven by {@code ceremonies.yml}. No-op if CeremonyManager is unavailable.
+     */
+    private void ceremony(String phase) {
+        var cm = plugin.getCeremonyManager();
+        if (cm == null) return;
+        Map<String, String> ph = basePlaceholders();
+        cm.getMessages(phase, ph).forEach(Bukkit::broadcastMessage);
+        showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+    }
+
+    /** Like {@link #ceremony(String)} but adds game_name / game_objective placeholders. */
+    private void ceremonyGame(String phase, KMCGame game) {
+        var cm = plugin.getCeremonyManager();
+        if (cm == null) return;
+        Map<String, String> ph = basePlaceholders();
+        ph.put("game_name", game.getDisplayName());
+        ph.put("game_objective", lookupObjective(game.getId()));
+        cm.getMessages(phase, ph).forEach(Bukkit::broadcastMessage);
+        showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+    }
+
+    private Map<String, String> basePlaceholders() {
+        Map<String, String> m = new HashMap<>();
+        m.put("tournament_name", plugin.getConfig().getString("tournament.name", "KMC Tournament"));
+        m.put("round",       String.valueOf(plugin.getTournamentManager().getCurrentRound()));
+        m.put("multiplier",  String.valueOf(plugin.getTournamentManager().getMultiplier()));
+        m.put("team_count",  String.valueOf(plugin.getTeamManager().getTeamsSortedByPoints().size()));
+        return m;
+    }
+
+    private void showCeremonyTitle(String title, String subtitle) {
+        boolean noTitle = (title == null || title.isBlank());
+        boolean noSub   = (subtitle == null || subtitle.isBlank());
+        if (noTitle && noSub) return;
+        String t  = noTitle ? "" : title;
+        String st = noSub   ? "" : subtitle;
+        for (Player p : Bukkit.getOnlinePlayers()) p.sendTitle(t, st, 5, 60, 10);
+    }
+
+    /** Looks up a game's objective text from the V2 registry, or "" if unavailable. */
+    private String lookupObjective(String gameId) {
+        var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
+        if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
+            var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class).get(gameId);
+            if (reg.isPresent()) return reg.get().getObjective();
+        }
+        return "";
     }
 
     /**

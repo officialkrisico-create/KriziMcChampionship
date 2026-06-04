@@ -108,13 +108,41 @@ public class GameManager {
 
         plugin.getScoreboardManager().refreshAll();
 
-        // Notify minigame plugins that this game has started.
-        // AE, QuakeCraft, Bingo, ParkourWarrior, MobMayhem all register
-        // onGameStart hooks via KMCApi to auto-launch their countdowns.
-        // Without this line, /kmcauto teleports players but the game
-        // never starts — admin has to run /ae start manually.
-        plugin.getApi().fireGameStart(gameId);
+        // Start the game. Migrated (V2) games listen for the V2 GameStartEvent;
+        // any legacy game uses the V1 KMCApi hook path. fireV2GameStart returns
+        // true when it found a V2 registration and dispatched the event.
+        if (!fireV2GameStart(gameId)) {
+            // Legacy V1 path — PreGameAnnouncer countdown + V1 onGameStart hooks.
+            plugin.getApi().fireGameStart(gameId);
+        }
 
+        return true;
+    }
+
+    /**
+     * Bridges {@code /kmcauto} to the V2 game framework.
+     *
+     * <p>All current minigames extend {@code AbstractGamePlugin} and listen for
+     * {@code nl.kmc.core.event.GameStartEvent} (fired with a {@code GameRegistration}).
+     * This dispatches that event so the V2 game manager resets its arena and
+     * starts — exactly as if the V2 tournament engine had launched it.
+     *
+     * @return true if a V2 registration was found and the event was fired.
+     */
+    private boolean fireV2GameStart(String gameId) {
+        var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
+        if (!(coreV2 instanceof nl.kmc.core.KMCCorePlugin v2)) return false;
+
+        var registry = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class);
+        var regOpt   = registry.get(gameId);
+        if (regOpt.isEmpty()) return false;
+
+        registry.setActive(gameId);
+        registry.markPlayed(gameId);
+        int round = plugin.getTournamentManager().getCurrentRound();
+        Bukkit.getPluginManager().callEvent(
+                new nl.kmc.core.event.GameStartEvent(regOpt.get(), round));
+        plugin.getLogger().info("[KMC] Dispatched V2 GameStartEvent for '" + gameId + "'.");
         return true;
     }
 

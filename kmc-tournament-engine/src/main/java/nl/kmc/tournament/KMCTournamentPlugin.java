@@ -1,120 +1,43 @@
 package nl.kmc.tournament;
 
-import nl.kmc.core.KMCCorePlugin;
-import nl.kmc.core.service.GameRegistryService;
-import nl.kmc.core.service.TeamService;
-import nl.kmc.core.service.TournamentService;
-import nl.kmc.tournament.command.*;
-import nl.kmc.tournament.engine.AutomationEngine;
-import nl.kmc.tournament.engine.TournamentEngine;
-import nl.kmc.tournament.recovery.RecoveryScheduler;
-import nl.kmc.tournament.recovery.TournamentRecoveryEngine;
-import nl.kmc.tournament.reconnect.ReconnectManager;
-import nl.kmc.tournament.template.TemplateManager;
-import nl.kmc.tournament.timeline.TimelineDisplayManager;
-import nl.kmc.tournament.voting.VotingEngine;
-import nl.kmc.core.api.KMCApiProvider;
+import nl.kmc.kmccore.KMCCore;
+import nl.kmc.tournament.command.TournamentCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.Objects;
 import java.util.logging.Logger;
 
 /**
- * Main plugin class for the KMC Tournament Engine.
+ * Thin compatibility shim for the {@code /kmc} command.
  *
- * Wires all subsystems in dependency order and registers commands.
- * Requires KMCCore to be enabled first (soft-dep via plugin.yml).
+ * <p>The tournament flow, automation, ceremonies, cinematics, voting and
+ * repetitions all live in the single V1 engine inside <b>KMCCore</b>
+ * ({@code AutomationManager}, driven by {@code /kmcauto}). This plugin no
+ * longer contains a parallel engine — it simply forwards {@code /kmc} to that
+ * one engine so existing muscle-memory / macros keep working.
+ *
+ * <p>Everything that used to live here (TournamentEngine, AutomationEngine,
+ * VotingEngine, recovery, timeline, templates, reconnect) was removed during
+ * the V1/V2 consolidation: it duplicated KMCCore's automation, voting and
+ * {@code SnapshotManager}/{@code /event} recovery.
  */
 public final class KMCTournamentPlugin extends JavaPlugin {
 
     private static final Logger LOG = Logger.getLogger(KMCTournamentPlugin.class.getName());
 
-    // ── Subsystems ─────────────────────────────────────────────────────────────
-
-    private TournamentEngine         tournamentEngine;
-    private VotingEngine             votingEngine;
-    private TournamentRecoveryEngine recoveryEngine;
-    private RecoveryScheduler        recoveryScheduler;
-    private TemplateManager          templateManager;
-    private TimelineDisplayManager   timelineDisplay;
-    private ReconnectManager         reconnectManager;
-
     @Override
     public void onEnable() {
-        saveDefaultConfig();
-
-        // ── Acquire services from KMCCore ────────────────────────────────────
-        KMCCorePlugin core = (KMCCorePlugin) getServer().getPluginManager().getPlugin("KMCCore");
-        if (core == null || !core.isEnabled()) {
-            LOG.severe("[KMC/Engine] KMCCore is not loaded — disabling.");
-            getServer().getPluginManager().disablePlugin(this);
+        if (!(getServer().getPluginManager().getPlugin("KMCCore") instanceof KMCCore core)) {
+            LOG.severe("[KMC/Engine] KMCCore not found — /kmc command unavailable.");
             return;
         }
 
-        var api          = KMCApiProvider.get();
-        // Retrieve concrete services via ServiceContainer (KMCCore exposes it)
-        TournamentService   tournamentService = core.getContainer().get(TournamentService.class);
-        TeamService         teamService       = core.getContainer().get(TeamService.class);
-        GameRegistryService registryService   = core.getContainer().get(GameRegistryService.class);
-
-        // ── Build engine subsystems ──────────────────────────────────────────
-        recoveryEngine    = new TournamentRecoveryEngine(tournamentService, teamService, registryService);
-        tournamentEngine  = new TournamentEngine(this, tournamentService, teamService,
-                                                 registryService, recoveryEngine);
-        votingEngine      = new VotingEngine(this);
-        templateManager   = new TemplateManager(getDataFolder());
-        timelineDisplay   = new TimelineDisplayManager(this, teamService);
-        reconnectManager  = new ReconnectManager(this,
-                getConfig().getInt("reconnect.timeout-seconds", 120));
-        recoveryScheduler = new RecoveryScheduler(this, recoveryEngine);
-
-        // ── Register Bukkit listeners ────────────────────────────────────────
-        getServer().getPluginManager().registerEvents(tournamentEngine, this);
-
-        // ── Register phase handlers ──────────────────────────────────────────
-        new AutomationEngine(this, tournamentEngine, votingEngine, registryService).registerAll();
-
-        // ── Load templates ───────────────────────────────────────────────────
-        templateManager.loadAll();
-
-        // ── Register commands ────────────────────────────────────────────────
-        TournamentCommand kmcCmd = new TournamentCommand(
-                tournamentEngine, votingEngine, recoveryEngine, templateManager);
-        Objects.requireNonNull(getCommand("kmc")).setExecutor(kmcCmd);
-        Objects.requireNonNull(getCommand("kmc")).setTabCompleter(kmcCmd);
-
-        TimelineCommand tlCmd = new TimelineCommand(tournamentService, registryService, timelineDisplay);
-        Objects.requireNonNull(getCommand("kmctimeline")).setExecutor(tlCmd);
-
-        TemplateCommand tplCmd = new TemplateCommand(templateManager);
-        Objects.requireNonNull(getCommand("kmctemplate")).setExecutor(tplCmd);
-        Objects.requireNonNull(getCommand("kmctemplate")).setTabCompleter(tplCmd);
-
-        RecoverCommand recCmd = new RecoverCommand(tournamentEngine, recoveryEngine);
-        Objects.requireNonNull(getCommand("kmcrecover")).setExecutor(recCmd);
-
-        // ── Start recovery scheduler if a tournament is already active ────────
-        if (tournamentService.isActive()) {
-            int intervalSec = getConfig().getInt("recovery.snapshot-interval", 60);
-            recoveryScheduler.start(intervalSec);
-            LOG.info("[KMC/Engine] Active tournament found — recovery scheduler started.");
+        TournamentCommand cmd = new TournamentCommand(core);
+        var kmc = getCommand("kmc");
+        if (kmc != null) {
+            kmc.setExecutor(cmd);
+            kmc.setTabCompleter(cmd);
         }
 
-        LOG.info("[KMC/Engine] KMC Tournament Engine enabled.");
+        LOG.info("[KMC/Engine] Shim enabled — /kmc forwards to KMCCore automation (/kmcauto).");
     }
-
-    @Override
-    public void onDisable() {
-        if (recoveryScheduler != null) recoveryScheduler.stop();
-        if (reconnectManager  != null) reconnectManager.clearAll();
-        LOG.info("[KMC/Engine] KMC Tournament Engine disabled.");
-    }
-
-    // ── Getters for inter-plugin access ──────────────────────────────────────
-
-    public TournamentEngine         getTournamentEngine()  { return tournamentEngine; }
-    public VotingEngine             getVotingEngine()      { return votingEngine; }
-    public TournamentRecoveryEngine getRecoveryEngine()    { return recoveryEngine; }
-    public ReconnectManager         getReconnectManager()  { return reconnectManager; }
-    public TemplateManager          getTemplateManager()   { return templateManager; }
 }

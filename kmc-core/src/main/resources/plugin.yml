@@ -10,20 +10,7 @@ softdepend:
   - WorldEdit
   - FastAsyncWorldEdit
 
-commands:
-  kmc:
-    description: Root KMC command
-    usage: /kmc <subcommand>
-    permission: kmc.admin
-
-permissions:
-  kmc.*:
-    description: Full KMC access
-    children:
-      kmc.admin: true
-      kmc.player: true
-  kmc.admin:
-    description: Tournament administration
-  kmc.player:
-    description: Player commands (stats, teamchat)
-    default: true
+# NOTE: KMCCoreV2 is an API/data library plugin — it registers no commands.
+# The /kmc command and kmc.* permissions are owned by KMCCore (V1), which is
+# the single tournament runtime. Declaring them here too caused duplicate
+# command/permission registration warnings, so they were removed.

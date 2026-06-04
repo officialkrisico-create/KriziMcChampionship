@@ -6,6 +6,8 @@ description: Lucky Block minigame for KMC tournament
 authors: [ KMC ]
 depend:
   - KMCCore
+  - kmc-game-api
+  - kmc-stats
 softdepend:
   - WorldEdit
   - FastAsyncWorldEdit

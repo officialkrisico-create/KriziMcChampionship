@@ -7,6 +7,8 @@ authors: [ KMC ]
 
 depend:
   - KMCCore
+  - kmc-game-api
+  - kmc-stats
 softdepend:
   - Multiverse-Core
 

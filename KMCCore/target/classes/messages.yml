@@ -1,0 +1,121 @@
+# ============================================================
+#   KMC Core - Messages
+#   You can edit all messages here. Use & for color codes.
+# ============================================================
+
+prefix: "&6[&eKMC&6] &r"
+
+# General
+no-permission: "&cJe hebt geen toestemming voor dit commando."
+player-not-found: "&cSpeler &e{player} &cniet gevonden."
+invalid-usage: "&cVerkeerd gebruik: &e{usage}"
+invalid-number: "&cVoer een geldig getal in."
+
+# Teams
+team:
+  not-found: "&cTeam &e{team} &cniet gevonden."
+  full: "&cTeam &e{team} &cis vol! (max {max} spelers)"
+  already-in-team: "&cSpeler &e{player} &czit al in een team."
+  added: "&aSpeler &e{player} &atoegevoegd aan team &e{team}&a."
+  removed: "&aSpeler &e{player} &averwijderd uit team &e{team}&a."
+  not-in-team: "&cSpeler &e{player} &czit in geen team."
+  join-message: "&aJe bent toegevoegd aan team &e{team}&a!"
+  leave-message: "&cJe bent verwijderd uit team &e{team}&c."
+  info-header: "&6=== Team: {team_color}{team_name} &6==="
+  info-members: "&7Leden: &e{members}"
+  info-points: "&7Punten: &e{points}"
+  info-wins: "&7Gewonnen games: &e{wins}"
+  list-header: "&6=== KMC Teams ==="
+  list-entry: "  {team_color}{team_name} &7- &e{count}&7/{max} spelers"
+  no-team: "&cJe zit in geen team."
+  chat-enabled: "&aTeam chat &aAAN&a."
+  chat-disabled: "&7Team chat &cUIT&7."
+
+# Stats
+stats:
+  header: "&6=== Stats: &e{player} &6==="
+  team: "&7Team: {team_color}{team_name}"
+  coins: "&7Munten: &e{coins}"
+  points: "&7Punten: &e{points}"
+  kills: "&7Kills: &e{kills}"
+  wins: "&7Gewonnen: &e{wins}"
+  no-team: "&7Team: &8Geen"
+
+
+# Points
+points:
+  team-set: "&ePunten van team &b{team} &eingesteld op &b{amount}&e."
+  team-add: "&b{amount} &epunten toegevoegd aan team &b{team}&e."
+  team-remove: "&b{amount} &epunten verwijderd van team &b{team}&e."
+  player-set: "&ePunten van &b{player} &eingesteld op &b{amount}&e."
+  player-add: "&b{amount} &epunten toegevoegd aan &b{player}&e."
+  player-remove: "&b{amount} &epunten verwijderd van &b{player}&e."
+
+# Tournament
+tournament:
+  started: "&aHet KMC Toernooi is gestart!"
+  stopped: "&cHet KMC Toernooi is gestopt."
+  already-running: "&cHet toernooi is al bezig."
+  not-running: "&cHet toernooi is niet actief."
+  reset: "&aToernooi data gereset."
+  status-header: "&6=== Toernooi Status ==="
+  status-active: "&7Status: &aActief"
+  status-inactive: "&7Status: &cInactief"
+  status-round: "&7Ronde: &e{round}"
+  status-multiplier: "&7Multiplier: &e{multiplier}x"
+  status-game: "&7Huidige game: &e{game}"
+  status-no-game: "&7Huidige game: &8Geen"
+
+# Games
+game:
+  started: "&aGame &e{game} &ais gestart!"
+  stopped: "&cGame &e{game} &cis gestopt."
+  skipped: "&eGame &b{game} &eovergeslagen."
+  no-active: "&cEr is geen actieve game."
+  next: "&aVolgende game: &e{game}"
+  list-header: "&6=== Beschikbare Games ==="
+  list-entry: "  &e{game}"
+  force-set: "&aVolgende game ingesteld op &e{game}&a."
+  not-found: "&cGame &e{game} &cniet gevonden."
+
+# Voting
+vote:
+  started: "&6Vote voor de volgende game!"
+  option: "&e{number}. &f{game}"
+  submit: "&aJe hebt gestemd op &e{game}&a!"
+  already-voted: "&cJe hebt al gestemd."
+  result: "&aVolgende game na stemming: &e{game} &7({votes} stemmen)"
+  not-active: "&cEr is geen actieve stemronde."
+
+# Round
+round:
+  set: "&aRonde ingesteld op &e{round}&a."
+  next: "&aRonde &e{round} &agestart! Multiplier: &e{multiplier}x"
+  max-reached: "&cMaximum ronde bereikt."
+
+# Leaderboard
+leaderboard:
+  teams-header: "&6=== Team Klassement (Pagina {page}) ==="
+  players-header: "&6=== Speler Klassement (Pagina {page}) ==="
+  team-entry: "  &e#{rank} &f{team_color}{team_name} &7- &e{points} &7punten"
+  player-entry: "  &e#{rank} &f{player} &7- &e{points} &7punten"
+  no-data: "&7Nog geen data beschikbaar."
+  page-end: "&7Einde van de lijst."
+
+# NPC
+npc:
+  created: "&aNPC aangemaakt op jouw locatie (Type: {type})."
+  removed: "&cNPC verwijderd."
+  list-header: "&6=== KMC NPCs ==="
+  list-entry: "  &e{id} &7- Type: &f{type} &7@ &e{location}"
+  not-found: "&cNPC niet gevonden."
+  invalid-type: "&cOngeldig type. Gebruik: top_teams, top_players, current_game, multiplier"
+
+# Announcements (broadcast messages — these support {variables})
+broadcast:
+  game-start: "&6&lGame gestart: &e{game_name} &6(Ronde {round}, &e{multiplier}x&6)"
+  game-end: "&6&lGame afgelopen! Winnaar: &e{winner}"
+  vote-start: "&6&lStem! &eType &61&e-{count} &6in de chat voor de volgende game. ({seconds}s)"
+  round-start: "&6&lRonde &e{round} &6gestart! Multiplier: &e{multiplier}x"
+  tournament-start: "&6&lHet KMC Toernooi is begonnen! &eVeel succes aan alle teams!"
+  tournament-end: "&6&lHet KMC Toernooi is afgelopen! &eGefeliciteerd aan &6{winner}&e!"

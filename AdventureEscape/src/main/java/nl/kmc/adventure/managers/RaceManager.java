@@ -323,7 +323,7 @@ public class RaceManager {
         // ===== TEAM AVERAGE PLACEMENT BONUS =====
         // Build map: teamId → list of placements (using finishOrder; DNFs counted as size+1)
         Map<String, List<Integer>> teamPlacements = new HashMap<>();
-        Map<String, nl.kmc.kmccore.models.KMCTeam> teamLookup = new HashMap<>();
+        Map<String, nl.kmc.core.domain.KMCTeam> teamLookup = new HashMap<>();
         int totalRacerCount = allRacers.size();
         for (UUID uuid : allRacers) {
             var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(uuid);

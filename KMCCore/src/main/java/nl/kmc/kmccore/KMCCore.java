@@ -15,6 +15,8 @@ import nl.kmc.kmccore.listeners.*;
 import nl.kmc.kmccore.lobby.LobbyArmorListener;
 import nl.kmc.kmccore.lobby.LobbyNPCManager;
 import nl.kmc.kmccore.managers.*;
+import nl.kmc.kmccore.managers.CeremonyManager;
+import nl.kmc.kmccore.presentation.CinematicManager;
 import nl.kmc.kmccore.maps.MapRotationManager;
 import nl.kmc.kmccore.module.*;
 import nl.kmc.kmccore.npc.NPCManager;
@@ -52,6 +54,17 @@ public final class KMCCore extends JavaPlugin {
         // Enable modules in dependency order
         (coreModule       = new CoreModule(this)).enable();
         (infraModule      = new InfraModule(this)).enable();
+
+        // Register the single, V1-backed game API. All game plugins write through
+        // this (api.points()/games()...), so games and the lobby share ONE store.
+        // KMCCoreV2 no longer registers a provider — this is the only one.
+        try {
+            nl.kmc.core.api.KMCApiProvider.set(new nl.kmc.kmccore.api.V1KMCApi(this));
+            getLogger().info("[KMCCore] Registered V1-backed KMCApi (single source of truth).");
+        } catch (IllegalStateException e) {
+            getLogger().warning("[KMCCore] KMCApi already registered — another plugin set it first: " + e.getMessage());
+        }
+
         (megapatchModule  = new MegapatchModule(this)).enable();
         (engagementModule = new EngagementModule(this)).enable();
         (simulationModule = new SimulationModule(this)).enable();
@@ -72,6 +85,8 @@ public final class KMCCore extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Release the shared API slot we own.
+        try { nl.kmc.core.api.KMCApiProvider.clear(); } catch (Exception ignored) {}
         // Disable in reverse dependency order
         if (simulationModule  != null) simulationModule.disable();
         if (engagementModule  != null) engagementModule.disable();
@@ -108,8 +123,11 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcmap",      new AdminCommands.MapCommand(this));
         setCmd("kmclobbynpc", new AdminCommands.LobbyNPCCommand(this));
 
-        setCmd("event",           new EventCommand(this));
-        setCmd("kmcachievements", new AchievementCommand());
+        setCmd("event",              new EventCommand(this));
+        setCmd("kmcachievements",    new AchievementCommand());
+        setCmd("kmcceremonies",      new CeremoniesCommand(this));
+        setCmd("kmccamera",          new CameraCommand(this));
+        setCmd("kmcpresentation",    new PresentationCommand(this));
     }
 
     @SuppressWarnings("unchecked")
@@ -168,6 +186,8 @@ public final class KMCCore extends JavaPlugin {
     public TournamentManager getTournamentManager() { return infraModule.getTournamentManager(); }
     public GameManager       getGameManager()       { return infraModule.getGameManager(); }
     public SchematicManager  getSchematicManager()  { return infraModule.getSchematicManager(); }
+    public CeremonyManager   getCeremonyManager()   { return infraModule.getCeremonyManager(); }
+    public CinematicManager  getCinematicManager()  { return infraModule.getCinematicManager(); }
     public ArenaManager      getArenaManager()      { return infraModule.getArenaManager(); }
     public TabListManager    getTabListManager()    { return infraModule.getTabListManager(); }
     public ScoreboardManager getScoreboardManager() { return infraModule.getScoreboardManager(); }

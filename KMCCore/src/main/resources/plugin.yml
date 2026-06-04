@@ -122,6 +122,23 @@ commands:
     usage: /kmcachievements <list|progress|grant|revoke|reset|reload|info> [player] [id]
     permission: kmc.admin
 
+  kmcceremonies:
+    description: Edit ceremony messages, titles and durations in-game
+    usage: /kmcceremonies <list|info|duration|title|subtitle|addmsg|setmsg|delmsg|clearmsg|reload> [phase] [args]
+    permission: kmc.admin
+
+  kmccamera:
+    description: Record and manage cinematic camera routes
+    usage: /kmccamera <list|info|create|addpoint|removepoint|save|discard|preview|delete|reload|stop> [args]
+    permission: kmc.camera.admin
+    aliases: [kmc-cam, cam]
+
+  kmcpresentation:
+    description: Control active cinematic presentations
+    usage: /kmcpresentation <start|skip|stop|status|routes|reload> [routeId] [player|all]
+    permission: kmc.admin
+    aliases: [kmc-pres]
+
 permissions:
   kmc.*:
     description: All KMC permissions
@@ -173,3 +190,4 @@ permissions:
   kmc.lobbynpc.admin:   { description: Manage decorative NPCs,   default: op }
   kmc.event.admin:      { description: Run simulations and rollbacks, default: op }
   kmc.admin:            { description: Full KMC admin access (achievements etc.), default: op }
+  kmc.camera.admin:     { description: Record and manage camera routes, default: op }

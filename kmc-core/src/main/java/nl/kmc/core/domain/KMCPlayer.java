@@ -61,6 +61,15 @@ public final class KMCPlayer {
     public void setWinStreak(int v)              { this.winStreak = v; }
     public void setBestWinStreak(int v)          { this.bestWinStreak = v; }
 
+    // Bulk setters — used when hydrating from another store (e.g. the V1 adapter).
+    public void setKills(int v)       { this.kills = Math.max(0, v); }
+    public void setDeaths(int v)      { this.deaths = Math.max(0, v); }
+    public void setWins(int v)        { this.wins = Math.max(0, v); }
+    public void setGamesPlayed(int v) { this.gamesPlayed = Math.max(0, v); }
+    public void putWinsPerGame(String gameId, int wins) {
+        if (gameId != null) this.winsPerGame.put(gameId, wins);
+    }
+
     public void addPoints(int amount)    { this.points = Math.max(0, this.points + amount); }
     public void addKill()                { this.kills++; }
     public void addDeath()               { this.deaths++; }

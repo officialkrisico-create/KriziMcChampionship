@@ -177,11 +177,16 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                 @EventHandler
                 public void onGameStart(GameStartEvent event) {
                     if (!id.equals(event.getGame().getId())) return;
-                    getLogger().info("[" + pluginName + "] Tournament start signal — launching V2 match.");
+                    getLogger().info("[" + pluginName + "] Tournament start signal — resetting arena then launching.");
                     Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
-                        if (!gameManagerV2.start())
-                            getLogger().warning("[" + pluginName + "] V2 start() rejected — arena not ready.");
-                    }, 40L);
+                        // Paste schematic to restore arena (no-op if not configured)
+                        resetArena();
+                        // Start game 1 second after paste so world changes settle
+                        Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
+                            if (!gameManagerV2.start())
+                                getLogger().warning("[" + pluginName + "] V2 start() rejected — arena not ready.");
+                        }, 20L);
+                    }, 20L);
                 }
             }, this);
 
@@ -207,4 +212,28 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
 
     /** Returns the V1 KMCCore plugin instance. */
     public KMCCore getKmcCore() { return kmcCore; }
+
+    /**
+     * Resets the arena by pasting {@code <gameId>mapschematic.schem} from
+     * {@code plugins/KMCCore/schematics/} at the origin configured with
+     * {@code /kmcgame setorigin <gameId>}.
+     *
+     * <p>Silently skips if WorldEdit is absent, the schematic file is missing,
+     * or no origin has been set. Call this before each game start so the arena
+     * is always in its original state, regardless of what players did last round.
+     *
+     * @return {@code true} if the paste succeeded or was skipped, {@code false} on error
+     */
+    protected boolean resetArena() {
+        var sm = kmcCore.getSchematicManager();
+        if (!sm.isWorldEditAvailable()) return true;
+        String schematicName = gameId() + "mapschematic.schem";
+        org.bukkit.Location origin = sm.getOriginForGame(gameId());
+        if (origin == null) {
+            getLogger().fine("[" + gameId() + "] No arena origin set — skipping schematic reset.");
+            return true;
+        }
+        getLogger().info("[" + gameId() + "] Resetting arena: " + schematicName);
+        return sm.resetArena(schematicName, origin);
+    }
 }

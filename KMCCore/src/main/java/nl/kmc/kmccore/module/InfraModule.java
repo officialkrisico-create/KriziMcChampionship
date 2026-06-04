@@ -4,6 +4,7 @@ import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.listeners.VoteGuiListener;
 import nl.kmc.kmccore.managers.*;
 import nl.kmc.kmccore.npc.NPCManager;
+import nl.kmc.kmccore.presentation.CinematicManager;
 import nl.kmc.kmccore.scoreboard.ScoreboardManager;
 
 /**
@@ -18,6 +19,8 @@ public class InfraModule implements PluginModule {
     private TournamentManager tournamentManager;
     private GameManager       gameManager;
     private SchematicManager  schematicManager;
+    private CeremonyManager   ceremonyManager;
+    private CinematicManager  cinematicManager;
     private ArenaManager      arenaManager;
     private TabListManager    tabListManager;
     private ScoreboardManager scoreboardManager;
@@ -33,6 +36,8 @@ public class InfraModule implements PluginModule {
         tournamentManager = new TournamentManager(plugin);
         gameManager       = new GameManager(plugin);
         schematicManager  = new SchematicManager(plugin);
+        ceremonyManager   = new CeremonyManager(plugin);
+        cinematicManager  = new CinematicManager(plugin);
         arenaManager      = new ArenaManager(plugin);
         tabListManager    = new TabListManager(plugin);
         scoreboardManager = new ScoreboardManager(plugin);
@@ -47,6 +52,7 @@ public class InfraModule implements PluginModule {
         if (tournamentManager != null) tournamentManager.save();
         if (gameManager       != null) gameManager.save();
         if (automationManager != null) automationManager.stop();
+        if (cinematicManager  != null) cinematicManager.stopAll();
         if (scoreboardManager != null) scoreboardManager.cleanup();
         if (npcManager        != null) npcManager.save();
     }
@@ -54,6 +60,8 @@ public class InfraModule implements PluginModule {
     public TournamentManager getTournamentManager() { return tournamentManager; }
     public GameManager       getGameManager()       { return gameManager; }
     public SchematicManager  getSchematicManager()  { return schematicManager; }
+    public CeremonyManager   getCeremonyManager()   { return ceremonyManager; }
+    public CinematicManager  getCinematicManager()  { return cinematicManager; }
     public ArenaManager      getArenaManager()      { return arenaManager; }
     public TabListManager    getTabListManager()    { return tabListManager; }
     public ScoreboardManager getScoreboardManager() { return scoreboardManager; }

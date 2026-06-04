@@ -7,6 +7,7 @@ nl\kmc\stats\clutch\PerfectGameDetector.class
 nl\kmc\stats\service\HallOfFameService.class
 nl\kmc\stats\clutch\ClutchDetector.class
 nl\kmc\stats\achievement\AchievementLoader.class
+nl\kmc\stats\StatsPlugin.class
 nl\kmc\stats\model\ClutchEvent.class
 nl\kmc\stats\clutch\LastSurvivorDetector.class
 nl\kmc\stats\model\HallOfFameRecord.class
