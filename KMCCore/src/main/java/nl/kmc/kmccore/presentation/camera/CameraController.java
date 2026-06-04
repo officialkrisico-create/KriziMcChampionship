@@ -39,6 +39,7 @@ public final class CameraController {
     private final Map<UUID, CinematicState> savedStates = new HashMap<>();
 
     private BukkitTask task;
+    private BukkitTask watchdog;
     private boolean    cancelled = false;
 
     // Playhead state
@@ -78,6 +79,17 @@ public final class CameraController {
         // Schedule repeating tick
         task = plugin.getServer().getScheduler()
                 .runTaskTimer(plugin, this::tick, 0L, TICK_INTERVAL);
+
+        // Safety watchdog: no matter what goes wrong in tick(), force-finish
+        // (and restore players out of spectator) after the route's max runtime
+        // plus a buffer. Guarantees a player can never be stuck in spectator.
+        long maxTicks = route.totalTicks() + 100L;
+        watchdog = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (task != null && !cancelled) {
+                LOG.warning("[Cinematic] Route '" + route.getId() + "' watchdog fired — force-finishing.");
+                finish();
+            }
+        }, maxTicks);
     }
 
     /**
@@ -86,7 +98,8 @@ public final class CameraController {
      */
     public void cancel() {
         cancelled = true;
-        if (task != null) { task.cancel(); task = null; }
+        if (task != null)     { task.cancel();     task = null; }
+        if (watchdog != null) { watchdog.cancel(); watchdog = null; }
         restoreAll();
         if (onComplete != null) onComplete.run();
     }
@@ -106,6 +119,16 @@ public final class CameraController {
     // ── Tick ──────────────────────────────────────────────────────────────────
 
     private void tick() {
+        try {
+            tick0();
+        } catch (Throwable t) {
+            LOG.warning("[Cinematic] tick() failed for route '" + route.getId()
+                    + "' — restoring players. " + t);
+            finish();
+        }
+    }
+
+    private void tick0() {
         if (cancelled) return;
 
         List<CameraWaypoint> wps = route.getWaypoints();
@@ -152,7 +175,8 @@ public final class CameraController {
     // ── Internals ─────────────────────────────────────────────────────────────
 
     private void finish() {
-        if (task != null) { task.cancel(); task = null; }
+        if (task != null)     { task.cancel();     task = null; }
+        if (watchdog != null) { watchdog.cancel(); watchdog = null; }
         if (!cancelled) {
             restoreAll();
             if (onComplete != null) onComplete.run();
@@ -161,8 +185,17 @@ public final class CameraController {
 
     private void restoreAll() {
         for (Player p : new ArrayList<>(players)) {
+            if (!p.isOnline()) continue;
             CinematicState state = savedStates.get(p.getUniqueId());
-            if (state != null && p.isOnline()) state.restore(p);
+            if (state != null) {
+                try { state.restore(p); } catch (Exception e) {
+                    LOG.warning("[Cinematic] restore failed for " + p.getName() + ": " + e);
+                }
+            }
+            // Hard safety: never leave anyone stuck in spectator from a cinematic.
+            if (p.getGameMode() == GameMode.SPECTATOR) {
+                p.setGameMode(GameMode.ADVENTURE);
+            }
         }
         savedStates.clear();
     }

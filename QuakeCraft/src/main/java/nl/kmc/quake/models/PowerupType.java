@@ -8,6 +8,18 @@ package nl.kmc.quake.models;
 public enum PowerupType {
     SNIPER(true,  false),
     GRENADE(true, false),
+    BAZOOKA(true, false),
+    GRAPPLE(true, false),
+    PROXIMITY_MINE(true, false),
+    SMOKE_BOMB(true, false),
+    IMPULSE_CANNON(true, false),
+    JUMP_PAD_GRENADE(true, false),
+    RECON_DART(true, false),
+    FREEZE_GRENADE(true, false),
+    FLASHBANG(true, false),
+    AIRSTRIKE(true, false),
+    HOLOGRAM_DECOY(true, false),
+    MIMIC_DEVICE(true, false),
     SHOTGUN(true, false),
     MACHINE_GUN(true, false),
     SPEED(false, true);

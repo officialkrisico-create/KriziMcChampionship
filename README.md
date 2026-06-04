@@ -34,6 +34,7 @@ as the rotation.
   - [Lucky Block](#lucky-block)
 - [Scoring reference](#scoring-reference)
 - [Admin commands cheat sheet](#admin-commands-cheat-sheet)
+- [QuakeCraft arsenal & gadgets](#quakecraft-arsenal--gadgets)
 - [Player commands](#player-commands)
 - [Troubleshooting](#troubleshooting)
 
@@ -473,15 +474,18 @@ Hunger Games style. Pedestals at start, world border shrinks for deathmatch.
 
 ### QuakeCraft
 
-Railgun PvP — first team to the kill limit wins.
+Railgun PvP — one shot, one kill, first to the kill limit wins. QuakeCraft has
+the deepest toolkit of any game: a 16-piece arsenal, jump pads, a rarity system
+and a fully configurable sound engine. See the dedicated
+[QuakeCraft arsenal & gadgets](#quakecraft-arsenal--gadgets) section below.
 
 **Setup:**
 ```
 /quakecraft setworld <world-name>
 /quakecraft setspawn            ← stand on each spawn point, repeat
                                    (players are randomly assigned on respawn)
-/quakecraft setpowerup damage_boost   ← optional powerup locations
-/quakecraft setpowerup speed_boost
+/quakecraft setpowerup <name>   ← stand where powerups should spawn, repeat
+/quakecraft setjumppad [height] ← turn the block you're on into a jump pad
 ```
 
 Kill streaks (×3, ×5, ×7, ×10) and multi-kill bonuses are in
@@ -766,9 +770,12 @@ game's own `config.yml`.
 | `/kmcgame forceskip` | Abort current game, return to lobby |
 | `/kmcgame list` | Show all games and their statuses |
 | `/kmcvote` | Open the voting GUI |
-| `/kmcauto start` | Start automation engine |
+| `/kmcauto start` | Start automation engine (full ceremony flow) |
 | `/kmcauto pause` | Pause between games |
 | `/kmcauto resume` | Resume automation |
+| `/kmcauto schedule 20:00` | Auto-start the whole tournament at a clock time |
+| `/kmcauto schedule in <minutes>` | Auto-start after a delay |
+| `/kmcauto schedule status \| cancel` | Check or cancel a scheduled start |
 
 ### Teams
 
@@ -965,6 +972,95 @@ If a cinematic glitches or you need to bail out:
 ```
 
 The tournament continues from where it was — cinematics never block the flow.
+
+---
+
+## QuakeCraft arsenal & gadgets
+
+QuakeCraft is an instant-kill railgun shooter, but the depth comes from the
+**powerups** that spawn around the arena. Everyone starts with the base
+railgun + permanent Speed I; powerups are temporary upgrades you fight over.
+Every value (uses, cooldown, radius, duration, rarity, sounds) lives in
+`plugins/QuakeCraft/config.yml`.
+
+### The 16-piece arsenal
+
+**Weapons (instant-kill):**
+
+| Weapon | Item | Notes |
+|---|---|---|
+| Railgun | Wooden Hoe | Base weapon, infinite ammo, one-shot |
+| Shotgun | Iron Hoe | 5-pellet spread, short range |
+| Sniper | Netherite Hoe | Long-range, tracer |
+| Machine Gun | Golden Hoe | 3-shot bursts, fast |
+| Bazooka | Diamond Hoe | Fired rocket, AoE explosion (2 uses) |
+| Grenade | Bone | Lobbed, 2s fuse, AoE |
+| Airstrike | Firework Rocket | **Legendary** — mark a spot, 6 instant-kill strikes rain down |
+
+**Mobility:**
+
+| Gadget | Item | Notes |
+|---|---|---|
+| Grappling Hook | Fishing Rod | Yank yourself toward a block |
+| Impulse Cannon | Heavy Core | Knockback blast — launch enemies, or rocket-jump yourself (no kill) |
+| Jump Pad Grenade | Slime Ball | Throw → temporary launch pad anyone can use |
+
+**Tactical / control / info:**
+
+| Gadget | Item | Notes |
+|---|---|---|
+| Proximity Mine | Tripwire Hook | Drops a mine; detonates when an enemy gets close |
+| Smoke Bomb | Gunpowder | Sightline-blocking smoke cloud + blindness |
+| Freeze Grenade | Packed Ice | AoE slow + crippled jump (no damage) |
+| Flashbang | Echo Shard | Blinds only enemies **looking at** the blast |
+| Recon Dart | Spectral Arrow | Hit an enemy → they glow through walls for your team |
+
+**Deception:**
+
+| Gadget | Item | Notes |
+|---|---|---|
+| Hologram Decoy | Armor Stand | A look-alike wearing your skin; enemies waste shots popping it |
+| Mimic Device | Player Head | Visually disguise as another team (cosmetic only — real team unchanged) |
+
+### Jump pads
+
+Place launch pads anywhere to reach higher parts of the map. Location-based, so
+the pad can be **any block** you build:
+
+```
+/qc setjumppad          → default height (4 blocks)
+/qc setjumppad 7        → big 7-block launch
+/qc setjumppad 5 0.8    → 5 high with a strong forward shove
+/qc listjumppads        → list pads + their strength
+/qc removejumppad       → remove the nearest pad
+/qc clearjumppads       → wipe all
+```
+
+Each pad stores its **own** strength, so you can mix 3-block hops and 7-block
+launches around the map.
+
+### Powerup rarity
+
+Each powerup has a `rarity:` — `common`, `rare`, `epic`, or `legendary`. Rare+
+spawns **broadcast to the whole lobby** with the location and a stinger sound
+(e.g. *"LEGENDARY powerup spawned: Airstrike @ mid"*). Spawn frequency is
+controlled by the `powerup-spawning.weights` map.
+
+### Configurable sound system
+
+Every weapon/gadget event (fire, impact, kill-confirm, etc.) plays through a
+configurable identifier under `sounds:` in the config:
+
+```yaml
+sounds:
+  kill.confirm: "BLOCK_NOTE_BLOCK_PLING:1.0:2.0"   # vanilla enum
+  airstrike.incoming: "kmc:airstrike.whistle:1.0"   # resource-pack sound
+```
+
+Format is `NAME[:volume[:pitch]]`. `NAME` is either a vanilla sound enum **or**
+a resource-pack key (`namespace:path`), so a server can re-theme the entire
+game with a sound pack — no code changes. Missing keys fall back to a sensible
+built-in, so nothing is ever silent.
 
 ---
 

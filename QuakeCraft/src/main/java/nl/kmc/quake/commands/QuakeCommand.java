@@ -73,6 +73,48 @@ public class QuakeCommand implements CommandExecutor, TabCompleter {
                 plugin.getArenaManager().clearPowerupLocations();
                 sender.sendMessage(ChatColor.GREEN + "Alle powerup locaties gewist.");
             }
+            case "setjumppad" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                double defHeight  = plugin.getConfig().getDouble("jump-pad.default-height", 4.0);
+                double defForward = plugin.getConfig().getDouble("jump-pad.forward", 0.4);
+                double height = defHeight, forward = defForward;
+                if (args.length >= 2) {
+                    try { height = Double.parseDouble(args[1]); }
+                    catch (NumberFormatException e) { sender.sendMessage(ChatColor.RED + "Hoogte moet een getal zijn."); return true; }
+                }
+                if (args.length >= 3) {
+                    try { forward = Double.parseDouble(args[2]); }
+                    catch (NumberFormatException e) { sender.sendMessage(ChatColor.RED + "Forward moet een getal zijn."); return true; }
+                }
+                plugin.getArenaManager().addJumpPad(p.getLocation(), height, forward);
+                int count = plugin.getArenaManager().getJumpPads().size();
+                sender.sendMessage(ChatColor.GREEN + "Jump pad geplaatst (±" + height + " blokken hoog, forward "
+                        + forward + "). Totaal: " + count);
+            }
+            case "removejumppad" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                boolean ok = plugin.getArenaManager().removeNearestJumpPad(p.getLocation());
+                sender.sendMessage(ok ? ChatColor.GREEN + "Dichtstbijzijnde jump pad verwijderd."
+                        : ChatColor.RED + "Geen jump pad in de buurt.");
+            }
+            case "clearjumppads" -> {
+                plugin.getArenaManager().clearJumpPads();
+                sender.sendMessage(ChatColor.GREEN + "Alle jump pads gewist.");
+            }
+            case "listjumppads" -> {
+                var pads = plugin.getArenaManager().getJumpPads();
+                if (pads.isEmpty()) sender.sendMessage(ChatColor.GRAY + "Geen jump pads.");
+                else {
+                    sender.sendMessage(ChatColor.GOLD + "=== Jump pads (" + pads.size() + ") ===");
+                    for (var pad : pads) {
+                        var loc = pad.getLocation();
+                        sender.sendMessage(ChatColor.YELLOW + "• " + ChatColor.GRAY
+                                + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ()
+                                + ChatColor.DARK_GRAY + "  (±" + pad.getTargetHeight() + " blokken, forward "
+                                + pad.getForward() + ")");
+                    }
+                }
+            }
             case "listpowerups" -> {
                 var locs = plugin.getArenaManager().getPowerupLocations();
                 if (locs.isEmpty()) sender.sendMessage(ChatColor.GRAY + "Geen powerup locaties.");
@@ -104,7 +146,8 @@ public class QuakeCommand implements CommandExecutor, TabCompleter {
 
     private void usage(CommandSender s) {
         s.sendMessage(ChatColor.RED + "Gebruik: /qc <start|stop|setworld|setspawn|clearspawns"
-                + "|setpowerup|removepowerup|clearpowerups|listpowerups|status|reload>");
+                + "|setpowerup|removepowerup|clearpowerups|listpowerups"
+                + "|setjumppad|removejumppad|clearjumppads|listjumppads|status|reload>");
     }
 
     @Override
@@ -112,6 +155,7 @@ public class QuakeCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1)
             return List.of("start","stop","setworld","setspawn","clearspawns",
                     "setpowerup","removepowerup","clearpowerups","listpowerups",
+                    "setjumppad","removejumppad","clearjumppads","listjumppads",
                     "status","reload").stream()
                     .filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());

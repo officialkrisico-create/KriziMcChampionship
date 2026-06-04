@@ -183,9 +183,23 @@ public final class CinematicManager {
             if (onComplete != null) onComplete.run();
             return false;
         }
+        return playRouteInstance(routeId, route, players, onComplete);
+    }
 
-        // Stop any existing playback of this route
-        stopRoute(routeId);
+    /**
+     * Plays a {@link CameraRoute} object directly (not necessarily saved), tracked
+     * under {@code trackingKey} so {@link #stopAll()}, {@link #stopRoute},
+     * {@link #onPlayerQuit} and the watchdog all apply — fixing the previous
+     * "stuck in spectator" bug where previews ran on an untracked controller.
+     */
+    public boolean playRouteInstance(String trackingKey, CameraRoute route,
+                                     Collection<Player> players, Runnable onComplete) {
+        if (route == null || route.isEmpty()) {
+            if (onComplete != null) onComplete.run();
+            return false;
+        }
+
+        stopRoute(trackingKey); // stop any existing playback under this key
 
         List<Player> online = players.stream().filter(Player::isOnline).toList();
         if (online.isEmpty()) {
@@ -194,17 +208,22 @@ public final class CinematicManager {
         }
 
         CameraController controller = new CameraController(plugin, route, online, () -> {
-            active.remove(routeId);
+            active.remove(trackingKey);
             online.forEach(p -> playerInCinematic.remove(p.getUniqueId()));
             if (onComplete != null) onComplete.run();
         });
 
-        active.put(routeId, controller);
+        active.put(trackingKey, controller);
         online.forEach(p -> playerInCinematic.put(p.getUniqueId(), controller));
 
         controller.start();
-        LOG.info("[Cinematic] Playing route '" + routeId + "' for " + online.size() + " player(s).");
+        LOG.info("[Cinematic] Playing route '" + trackingKey + "' for " + online.size() + " player(s).");
         return true;
+    }
+
+    /** Previews a route object for a single viewer — fully tracked and watchdog-guarded. */
+    public boolean previewRoute(CameraRoute route, Player viewer, Runnable onComplete) {
+        return playRouteInstance("__preview__:" + viewer.getUniqueId(), route, List.of(viewer), onComplete);
     }
 
     /** Convenience overload: plays for all online players. */

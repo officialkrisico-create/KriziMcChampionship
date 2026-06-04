@@ -131,6 +131,8 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                 }
             }
 
+            case "schedule" -> handleSchedule(sender, am, args);
+
             default -> usage(sender);
         }
         return true;
@@ -165,16 +167,76 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /**
+     * /kmcauto schedule &lt;HH:mm | in &lt;minutes&gt; | cancel | status&gt;
+     *
+     * <p>Schedules the whole ceremony + automation flow to auto-start at a
+     * given clock time (server local time), a relative delay, or shows/cancels
+     * the current schedule.
+     */
+    private void handleSchedule(CommandSender sender, AutomationManager am, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto schedule <HH:mm | in <minuten> | cancel | status>"));
+            return;
+        }
+        String sub = args[1].toLowerCase();
+
+        switch (sub) {
+            case "cancel" -> {
+                am.cancelScheduledStart();
+                sender.sendMessage(MessageUtil.color("&a[KMC] Geplande start geannuleerd."));
+            }
+            case "status" -> {
+                if (!am.hasScheduledStart()) { sender.sendMessage(MessageUtil.color("&7Geen start gepland.")); return; }
+                long secs = am.scheduledStartInMs() / 1000;
+                sender.sendMessage(MessageUtil.color("&6[KMC] Toernooi start over &e"
+                        + (secs / 60) + "m " + (secs % 60) + "s&6."));
+            }
+            case "in" -> {
+                if (args.length < 3) { sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto schedule in <minuten>")); return; }
+                double minutes;
+                try { minutes = Double.parseDouble(args[2]); }
+                catch (NumberFormatException e) { sender.sendMessage(MessageUtil.get("invalid-number")); return; }
+                if (minutes <= 0) { sender.sendMessage(MessageUtil.color("&cMoet groter dan 0 zijn.")); return; }
+                long ticks = (long) (minutes * 60 * 20);
+                am.scheduleStart(ticks);
+                sender.sendMessage(MessageUtil.color("&a[KMC] Toernooi gepland over &e" + minutes + " minuten&a."));
+            }
+            default -> {
+                // Parse as HH:mm clock time (server local), next occurrence.
+                java.time.LocalTime target;
+                try {
+                    String[] hm = sub.split(":");
+                    target = java.time.LocalTime.of(Integer.parseInt(hm[0]), Integer.parseInt(hm[1]));
+                } catch (Exception e) {
+                    sender.sendMessage(MessageUtil.color("&cOngeldige tijd. Gebruik HH:mm, bv. 20:00."));
+                    return;
+                }
+                java.time.LocalDateTime now = java.time.LocalDateTime.now();
+                java.time.LocalDateTime when = now.toLocalDate().atTime(target);
+                if (!when.isAfter(now)) when = when.plusDays(1); // already passed → tomorrow
+                long delayMs = java.time.Duration.between(now, when).toMillis();
+                long ticks = delayMs / 50L;
+                am.scheduleStart(ticks);
+                sender.sendMessage(MessageUtil.color("&a[KMC] Toernooi gepland om &e"
+                        + when.toLocalTime() + "&a (" + (delayMs / 60000) + " min vanaf nu)."));
+            }
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1)
-            return List.of("start","stop","pause","resume","status","endgame")
+            return List.of("start","stop","pause","resume","status","endgame","schedule")
                     .stream().filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
+        if (args.length == 2 && args[0].equalsIgnoreCase("schedule"))
+            return List.of("in","cancel","status","20:00").stream()
+                    .filter(o -> o.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
         return List.of();
     }
 
     private void usage(CommandSender s) {
-        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|pause|resume|status|endgame> [winner]"));
+        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|pause|resume|status|endgame|schedule> [winner]"));
     }
 }

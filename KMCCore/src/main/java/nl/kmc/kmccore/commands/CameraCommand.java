@@ -157,27 +157,22 @@ public class CameraCommand implements CommandExecutor, TabCompleter {
             case "preview" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("§cPlayers only."); return true; }
 
-                // If previewing a saved route, use its ID. If no arg, preview the pending route.
+                // If previewing a saved route, use its ID. If no arg, preview the
+                // route currently being recorded. Both go through previewRoute so
+                // the controller is tracked + watchdog-guarded (no stuck spectator).
                 if (args.length > 1) {
                     String id = args[1];
-                    boolean ok = plugin.getCinematicManager().playRoute(id,
-                            List.of(p), () -> p.sendMessage("§a[Camera] Preview complete."));
+                    boolean ok = cm.getRoute(id)
+                            .map(r -> plugin.getCinematicManager().previewRoute(r, p,
+                                    () -> p.sendMessage("§a[Camera] Preview complete.")))
+                            .orElse(false);
                     if (!ok) sender.sendMessage("§cRoute '" + id + "' not found or empty.");
                 } else if (cm.isRecording(p.getUniqueId())) {
-                    // Save temporarily, play, don't persist
-                    cm.getPendingRoute(p.getUniqueId()).ifPresent(r -> {
+                    cm.getPendingRoute(p.getUniqueId()).ifPresentOrElse(r -> {
                         if (r.isEmpty()) { p.sendMessage("§cNo waypoints to preview."); return; }
-                        var tempRoute = r;
-                        plugin.getCinematicManager().playRoute(
-                                "__preview__", List.of(p),
+                        plugin.getCinematicManager().previewRoute(r, p,
                                 () -> p.sendMessage("§a[Camera] Preview complete."));
-                        // Inject the pending route temporarily
-                        plugin.getCinematicManager().getRoute("__preview__"); // won't find it
-                        // Simplest approach: just play via controller directly
-                        new nl.kmc.kmccore.presentation.camera.CameraController(
-                                plugin, tempRoute, List.of(p),
-                                () -> p.sendMessage("§a[Camera] Preview complete.")).start();
-                    });
+                    }, () -> sender.sendMessage("§cNothing to preview."));
                 } else {
                     sender.sendMessage("§cUsage: /kmccamera preview <routeId>");
                 }

@@ -126,7 +126,8 @@ public final class RailgunWeapon {
         RayTraceResult result = world.rayTrace(
                 rayStart, direction, range,
                 FluidCollisionMode.NEVER, true, 0.4,
-                e -> e instanceof Player && !e.equals(shooter) && !e.isDead()
+                e -> (e instanceof Player && !e.equals(shooter) && !e.isDead())
+                        || plugin.getDecoyManager().isDecoy(e)
         );
 
         // Determine where the shot ended (hit point or max range)
@@ -148,9 +149,15 @@ public final class RailgunWeapon {
             world.spawnParticle(Particle.LARGE_SMOKE, hitLoc, 5, 0.1, 0.1, 0.1, 0);
         }
 
-        // Did we hit a player?
-        if (result != null && result.getHitEntity() instanceof Player target) {
-            if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().handleHit(shooter, target, reason);
+        // Did we hit something?
+        if (result != null && result.getHitEntity() != null) {
+            var hitEntity = result.getHitEntity();
+            if (hitEntity instanceof Player target) {
+                if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().handleHit(shooter, target, reason);
+            } else if (plugin.getDecoyManager().isDecoy(hitEntity)) {
+                // Shot absorbed by a hologram decoy — it pops, no kill.
+                plugin.getDecoyManager().popDecoy(hitEntity, shooter);
+            }
         }
     }
 

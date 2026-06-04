@@ -86,6 +86,103 @@ public final class WeaponFactory {
                         Component.text("Ontploft na 2 seconden", NamedTextColor.DARK_GRAY)
                     ));
 
+            case BAZOOKA -> build(plugin, Material.DIAMOND_HOE, "BAZOOKA",
+                    Component.text("Bazooka [" + uses + "]", NamedTextColor.DARK_RED, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om een raket af te vuren", NamedTextColor.GRAY),
+                        Component.text("Explodeert bij inslag (AoE)", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case GRAPPLE -> build(plugin, Material.FISHING_ROD, "GRAPPLE",
+                    Component.text("Grappling Hook [" + uses + "]", NamedTextColor.GREEN, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click op een blok om jezelf erheen te trekken", NamedTextColor.GRAY),
+                        Component.text("Perfect voor jump pads en hoge plekken", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case PROXIMITY_MINE -> build(plugin, Material.TRIPWIRE_HOOK, "PROXIMITY_MINE",
+                    Component.text("Proximity Mine [" + uses + "]", NamedTextColor.RED, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om een mijn te plaatsen", NamedTextColor.GRAY),
+                        Component.text("Explodeert als een vijand dichtbij komt", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case SMOKE_BOMB -> build(plugin, Material.GUNPOWDER, "SMOKE_BOMB",
+                    Component.text("Smoke Bomb [" + uses + "]", NamedTextColor.DARK_GRAY, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om te gooien", NamedTextColor.GRAY),
+                        Component.text("Maakt een rookwolk die zicht blokkeert", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case IMPULSE_CANNON -> build(plugin, Material.HEAVY_CORE, "IMPULSE_CANNON",
+                    Component.text("Impulse Cannon [" + uses + "]", NamedTextColor.AQUA, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click voor een knockback-blast", NamedTextColor.GRAY),
+                        Component.text("Lanceert vijanden weg — en jezelf (rocket-jump)", NamedTextColor.DARK_GRAY),
+                        Component.text("Doodt niet", NamedTextColor.DARK_AQUA),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case JUMP_PAD_GRENADE -> build(plugin, Material.SLIME_BALL, "JUMP_PAD_GRENADE",
+                    Component.text("Jump Pad Grenade [" + uses + "]", NamedTextColor.GREEN, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Gooi om een tijdelijke jump pad te maken", NamedTextColor.GRAY),
+                        Component.text("Iedereen kan hem gebruiken", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case RECON_DART -> build(plugin, Material.SPECTRAL_ARROW, "RECON_DART",
+                    Component.text("Recon Dart [" + uses + "]", NamedTextColor.YELLOW, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om een vijand te markeren", NamedTextColor.GRAY),
+                        Component.text("Doelwit gaat gloeien (zichtbaar door muren)", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case FREEZE_GRENADE -> build(plugin, Material.PACKED_ICE, "FREEZE_GRENADE",
+                    Component.text("Freeze Grenade [" + uses + "]", NamedTextColor.AQUA, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Gooi om vijanden te vertragen", NamedTextColor.GRAY),
+                        Component.text("Minder snelheid + sprong (geen schade)", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case FLASHBANG -> build(plugin, Material.ECHO_SHARD, "FLASHBANG",
+                    Component.text("Flashbang [" + uses + "]", NamedTextColor.WHITE, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Gooi om vijanden te verblinden", NamedTextColor.GRAY),
+                        Component.text("Wie ernaar kijkt wordt blind (geen schade)", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case AIRSTRIKE -> build(plugin, Material.FIREWORK_ROCKET, "AIRSTRIKE",
+                    Component.text("Airstrike [" + uses + "]", NamedTextColor.RED, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om een doelwit te markeren", NamedTextColor.GRAY),
+                        Component.text("Na korte vertraging slaan raketten in (instant-kill)", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case HOLOGRAM_DECOY -> build(plugin, Material.ARMOR_STAND, "HOLOGRAM_DECOY",
+                    Component.text("Hologram Decoy [" + uses + "]", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om een nep-jou neer te zetten", NamedTextColor.GRAY),
+                        Component.text("Vijanden verspillen schoten erop", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
+            case MIMIC_DEVICE -> build(plugin, Material.PLAYER_HEAD, "MIMIC_DEVICE",
+                    Component.text("Mimic Device [" + uses + "]", NamedTextColor.DARK_PURPLE, TextDecoration.BOLD),
+                    List.of(
+                        Component.text("Right-click om je als een ander team te vermommen", NamedTextColor.GRAY),
+                        Component.text("Alleen visueel — je echte team blijft hetzelfde", NamedTextColor.DARK_GRAY),
+                        Component.text("Uses: " + uses, NamedTextColor.GOLD)
+                    ));
+
             case SPEED -> build(plugin, Material.SUGAR, "SPEED_BUFF",
                     Component.text("Speed II Boost", NamedTextColor.GREEN, TextDecoration.BOLD),
                     List.of(

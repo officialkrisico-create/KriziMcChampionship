@@ -118,6 +118,8 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         if (plugin.getConfig().getBoolean("powerup-spawning.enabled", true)) {
             plugin.getPowerupSpawner().start();
         }
+        plugin.getMineManager().start();
+        plugin.getDecoyManager().start();
     }
 
     @Override
@@ -126,6 +128,8 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         if (bossBar       != null) { bossBar.removeAll();   bossBar       = null; }
 
         plugin.getPowerupSpawner().stop();
+        plugin.getMineManager().stop();
+        plugin.getDecoyManager().stop();
 
         if (arenaWorld != null) {
             arenaWorld.setPVP(arenaWorldPreviousPvp);
@@ -236,7 +240,9 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
         Location deathLoc = target.getLocation().add(0, 1, 0);
         target.getWorld().spawnParticle(Particle.EXPLOSION, deathLoc, 1);
-        target.getWorld().playSound(deathLoc, Sound.ENTITY_GENERIC_EXPLODE, 1f, 1.5f);
+        // Per-weapon impact sound + a kill-confirmation ping to the shooter.
+        nl.kmc.quake.util.Sfx.play(plugin, deathLoc, weapon + ".impact", Sound.ENTITY_GENERIC_EXPLODE, 1f, 1.5f);
+        nl.kmc.quake.util.Sfx.playTo(plugin, shooter, "kill.confirm", Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 2.0f);
         broadcast("§c☠ §7" + target.getName() + " §8← §e" + shooter.getName() + " §8(" + shooterState.getKills() + ")");
 
         respawnAfterDeath(target);

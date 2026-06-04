@@ -28,6 +28,9 @@ public class ArenaManager {
     /** Named powerup spawn locations: "platform_a" → Location(...) */
     private final Map<String, Location> powerupLocations = new LinkedHashMap<>();
 
+    /** Jump pads — each with its own launch strength. */
+    private final List<nl.kmc.quake.models.JumpPad> jumpPads = new ArrayList<>();
+
     public ArenaManager(QuakeCraftPlugin plugin) {
         this.plugin = plugin;
         load();
@@ -53,8 +56,24 @@ public class ArenaManager {
             }
         }
 
+        jumpPads.clear();
+        ConfigurationSection pads = cfg.getConfigurationSection("arena.jump-pads");
+        if (pads != null) {
+            for (String key : pads.getKeys(false)) {
+                ConfigurationSection pad = pads.getConfigurationSection(key);
+                if (pad == null) continue;
+                Location loc = pad.getLocation("location");
+                if (loc == null) continue;
+                double height   = pad.getDouble("height", 4.0);
+                double vertical = pad.getDouble("vertical", nl.kmc.quake.models.JumpPad.heightToVelocity(height));
+                double forward  = pad.getDouble("forward", 0.4);
+                jumpPads.add(new nl.kmc.quake.models.JumpPad(loc, vertical, forward, height));
+            }
+        }
+
         plugin.getLogger().info("Loaded " + spawns.size() + " spawns, "
-                + powerupLocations.size() + " powerup locations.");
+                + powerupLocations.size() + " powerup locations, "
+                + jumpPads.size() + " jump pads.");
     }
 
     public void save() {
@@ -64,6 +83,15 @@ public class ArenaManager {
         cfg.set("arena.powerup-locations", null); // clear
         for (var e : powerupLocations.entrySet()) {
             cfg.set("arena.powerup-locations." + e.getKey(), e.getValue());
+        }
+        cfg.set("arena.jump-pads", null); // clear
+        for (int i = 0; i < jumpPads.size(); i++) {
+            var pad = jumpPads.get(i);
+            String path = "arena.jump-pads." + i;
+            cfg.set(path + ".location", pad.getLocation());
+            cfg.set(path + ".height",   pad.getTargetHeight());
+            cfg.set(path + ".vertical", pad.getVerticalVelocity());
+            cfg.set(path + ".forward",  pad.getForward());
         }
         plugin.saveConfig();
     }
@@ -128,6 +156,49 @@ public class ArenaManager {
 
     public Map<String, Location> getPowerupLocations() {
         return Collections.unmodifiableMap(powerupLocations);
+    }
+
+    // ---- Jump pads ------------------------------------------------
+
+    /**
+     * Registers the block the player is standing on as a jump pad with a
+     * specific target height (blocks) and forward boost. If a pad already
+     * exists on that block it is replaced with the new strength.
+     */
+    public void addJumpPad(Location playerLoc, double height, double forward) {
+        Location pad = playerLoc.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN).getLocation();
+        jumpPads.removeIf(jp -> jp.matchesBlock(pad)); // replace if present
+        double vertical = nl.kmc.quake.models.JumpPad.heightToVelocity(height);
+        jumpPads.add(new nl.kmc.quake.models.JumpPad(pad, vertical, forward, height));
+        save();
+    }
+
+    /** Removes the jump pad nearest to (and within 2 blocks of) the given location. */
+    public boolean removeNearestJumpPad(Location near) {
+        Location floor = near.getBlock().getRelative(org.bukkit.block.BlockFace.DOWN).getLocation();
+        nl.kmc.quake.models.JumpPad best = null;
+        double bestDist = 4.0; // within 2 blocks (squared)
+        for (var pad : jumpPads) {
+            Location l = pad.getLocation();
+            if (l.getWorld() != floor.getWorld()) continue;
+            double d = l.distanceSquared(floor);
+            if (d <= bestDist) { bestDist = d; best = pad; }
+        }
+        if (best != null) { jumpPads.remove(best); save(); return true; }
+        return false;
+    }
+
+    public void clearJumpPads() { jumpPads.clear(); save(); }
+
+    public List<nl.kmc.quake.models.JumpPad> getJumpPads() { return Collections.unmodifiableList(jumpPads); }
+
+    /** Returns the jump pad at the given block location, or null. */
+    public nl.kmc.quake.models.JumpPad getJumpPadAt(Location blockLoc) {
+        if (blockLoc == null) return null;
+        for (var pad : jumpPads) {
+            if (pad.matchesBlock(blockLoc)) return pad;
+        }
+        return null;
     }
 
     // ---- Validity --------------------------------------------------

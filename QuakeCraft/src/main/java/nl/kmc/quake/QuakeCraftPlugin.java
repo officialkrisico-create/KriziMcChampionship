@@ -21,6 +21,8 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
 
     private ArenaManager            arenaManager;
     private PowerupSpawner          powerupSpawner;
+    private nl.kmc.quake.managers.MineManager  mineManager;
+    private nl.kmc.quake.managers.DecoyManager decoyManager;
     private QuakeCraftGameManagerV2 quakeV2;
 
     // ── AbstractGamePlugin metadata ───────────────────────────────────────────
@@ -43,6 +45,8 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
     protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
         arenaManager   = new ArenaManager(this);
         powerupSpawner = new PowerupSpawner(this);
+        mineManager    = new nl.kmc.quake.managers.MineManager(this);
+        decoyManager   = new nl.kmc.quake.managers.DecoyManager(this);
         quakeV2        = new QuakeCraftGameManagerV2(this, reg, stats);
         return quakeV2;
     }
@@ -53,12 +57,16 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
         var bukkitCmd = getCommand("quakecraft");
         if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new WeaponListener(this), this);
+        getServer().getPluginManager().registerEvents(
+                new nl.kmc.quake.listeners.JumpPadListener(this), this);
     }
 
     @Override
     protected void onGameDisable() {
         if (quakeV2 != null && quakeV2.isRunning()) quakeV2.end();
         if (powerupSpawner != null) powerupSpawner.stop();
+        if (mineManager != null) mineManager.stop();
+        if (decoyManager != null) decoyManager.stop();
     }
 
     @Override
@@ -75,5 +83,7 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
     public KMCCore                 getKmcCore()        { return kmcCore; }
     public ArenaManager            getArenaManager()   { return arenaManager; }
     public PowerupSpawner          getPowerupSpawner() { return powerupSpawner; }
+    public nl.kmc.quake.managers.MineManager  getMineManager()  { return mineManager; }
+    public nl.kmc.quake.managers.DecoyManager getDecoyManager() { return decoyManager; }
     public QuakeCraftGameManagerV2 getGameManagerV2()  { return quakeV2; }
 }

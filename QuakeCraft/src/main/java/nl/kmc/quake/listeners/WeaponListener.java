@@ -77,6 +77,44 @@ public class WeaponListener implements Listener {
             case "MACHINE_GUN" -> {
                 if (RailgunWeapon.fireMachineGun(plugin, p, state)) consumeUse(p, state, item);
             }
+            case "BAZOOKA" -> {
+                if (nl.kmc.quake.weapons.BazookaWeapon.fire(plugin, p, state)) consumeUse(p, state, item);
+            }
+            case "GRAPPLE" -> {
+                if (nl.kmc.quake.weapons.GrappleWeapon.fire(plugin, p, state)) consumeUse(p, state, item);
+            }
+            case "PROXIMITY_MINE" -> {
+                plugin.getMineManager().place(p);
+                consumeUse(p, state, item);
+            }
+            case "SMOKE_BOMB" -> {
+                if (nl.kmc.quake.weapons.SmokeBombWeapon.throwBomb(plugin, p)) consumeUse(p, state, item);
+            }
+            case "IMPULSE_CANNON" -> {
+                if (nl.kmc.quake.weapons.ImpulseCannonWeapon.fire(plugin, p, state)) consumeUse(p, state, item);
+            }
+            case "JUMP_PAD_GRENADE" -> {
+                if (nl.kmc.quake.weapons.JumpPadGrenadeWeapon.throwPad(plugin, p)) consumeUse(p, state, item);
+            }
+            case "RECON_DART" -> {
+                if (nl.kmc.quake.weapons.ReconDartWeapon.fire(plugin, p, state)) consumeUse(p, state, item);
+            }
+            case "FREEZE_GRENADE" -> {
+                if (nl.kmc.quake.weapons.FreezeGrenadeWeapon.throwBomb(plugin, p)) consumeUse(p, state, item);
+            }
+            case "FLASHBANG" -> {
+                if (nl.kmc.quake.weapons.FlashbangWeapon.throwBang(plugin, p)) consumeUse(p, state, item);
+            }
+            case "AIRSTRIKE" -> {
+                if (nl.kmc.quake.weapons.AirstrikeWeapon.fire(plugin, p, state)) consumeUse(p, state, item);
+            }
+            case "HOLOGRAM_DECOY" -> {
+                plugin.getDecoyManager().deploy(p);
+                consumeUse(p, state, item);
+            }
+            case "MIMIC_DEVICE" -> {
+                if (nl.kmc.quake.weapons.MimicDeviceWeapon.activate(plugin, p, state)) consumeUse(p, state, item);
+            }
             case "GRENADE" -> {
                 GrenadeWeapon.throwGrenade(plugin, p);
                 p.getInventory().remove(item);

@@ -133,6 +133,8 @@ public class PowerupSpawner {
                 loc.clone().add(0, 1, 0), 30, 0.5, 0.5, 0.5,
                 new Particle.DustOptions(Color.AQUA, 1.5f));
 
+        announceRarity(type, locationKey);
+
         // Schedule despawn
         int despawnSec = plugin.getConfig().getInt("powerup-spawning.despawn-seconds", 60);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -147,6 +149,40 @@ public class PowerupSpawner {
                 world.playSound(loc, Sound.BLOCK_BEACON_DEACTIVATE, 0.3f, 1.5f);
             }
         }, despawnSec * 20L);
+    }
+
+    /**
+     * Broadcasts an announcement for rare+ powerups so the whole lobby knows
+     * something valuable just appeared (and where). Tier comes from
+     * {@code powerups.<key>.rarity} (common|rare|epic|legendary).
+     */
+    private void announceRarity(PowerupType type, String locationKey) {
+        String rarity = plugin.getConfig().getString(
+                "powerups." + type.getConfigKey() + ".rarity", "common").toLowerCase();
+        if (rarity.equals("common")) return;
+
+        String display = ChatColor.translateAlternateColorCodes('&',
+                plugin.getConfig().getString("powerups." + type.getConfigKey() + ".display-name", type.name()));
+
+        String tierLabel = switch (rarity) {
+            case "legendary" -> "&6&lLEGENDARY";
+            case "epic"      -> "&5&lEPIC";
+            case "rare"      -> "&b&lRARE";
+            default          -> "&f" + rarity;
+        };
+
+        String msg = ChatColor.translateAlternateColorCodes('&',
+                tierLabel + " &7powerup gespawnd: " + display + " &7@ &e" + locationKey);
+        Bukkit.broadcastMessage(msg);
+
+        // Legendary gets a global stinger; epic/rare a softer ping.
+        if (rarity.equals("legendary")) {
+            nl.kmc.quake.util.Sfx.playGlobal(plugin, "rarity.legendary",
+                    Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+        } else {
+            nl.kmc.quake.util.Sfx.playGlobal(plugin, "rarity." + rarity,
+                    Sound.BLOCK_NOTE_BLOCK_BELL, 0.7f, 1.4f);
+        }
     }
 
     /** Called by the listener when a powerup item is picked up. */

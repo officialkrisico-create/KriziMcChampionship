@@ -49,6 +49,10 @@ public class AutomationManager {
     private int    currentRepetition = 0;
     private int    maxRepetitions    = 1;
 
+    // Scheduled auto-start (clock-time start of the whole ceremony flow).
+    private BukkitTask scheduledStartTask;
+    private long       scheduledStartAtMs;
+
     public AutomationManager(KMCCore plugin) { this.plugin = plugin; }
 
     // ----------------------------------------------------------------
@@ -60,23 +64,100 @@ public class AutomationManager {
         gamesThisRound = 0;
         attemptedThisCycle.clear();
         createBossBar();
-        // Opening presentation sequence. Each stage shows ceremony text (chat +
-        // title from ceremonies.yml) then plays its camera route (no-op if either
-        // is unconfigured), finally leading into the first intermission/voting.
-        ceremony("opening");
-        playCinematic("opening", () -> {
-            ceremony("team-showcase");
-            playCinematic("team-showcase", () -> {
-                ceremony("tournament-overview");
-                playCinematic("tournament-overview", this::enterIntermission);
-            });
+        // Opening presentation sequence. Each STAGE runs in turn with a real gap
+        // between them (its ceremonies.yml duration), and each stage's chat lines
+        // are revealed one at a time — no more wall-of-text dumped at once.
+        ceremonyStage("opening", () ->
+            ceremonyStage("team-showcase", () ->
+                ceremonyStage("tournament-overview", this::enterIntermission)));
+    }
+
+    /**
+     * Runs one presentation stage: plays its camera route (if any), then reveals
+     * the stage's chat lines spaced out + shows its title, then waits the stage's
+     * configured duration before running {@code after}.
+     */
+    private void ceremonyStage(String phase, Runnable after) {
+        playCinematic(phase, () -> {
+            var cm = plugin.getCeremonyManager();
+            if (cm == null) { after.run(); return; }
+            Map<String, String> ph = basePlaceholders();
+            showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+            long lastLineTick = broadcastSpaced(cm.getMessages(phase, ph));
+            int durSec = cm.getDuration(phase, 8);
+            long delay = Math.max(durSec * 20L, lastLineTick + 30L);
+            Bukkit.getScheduler().runTaskLater(plugin, after, delay);
         });
+    }
+
+    /** Ticks between consecutive ceremony chat lines. */
+    private static final long LINE_DELAY_TICKS = 30L; // ~1.5s
+
+    /**
+     * Broadcasts each line spaced {@value #LINE_DELAY_TICKS} ticks apart.
+     * Returns the tick offset of the LAST line (0 if empty).
+     */
+    private long broadcastSpaced(List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.broadcastMessage(line), i * LINE_DELAY_TICKS);
+        }
+        return (long) Math.max(0, lines.size() - 1) * LINE_DELAY_TICKS;
     }
 
     public void stop() {
         cancelTick();
         hideBossBar();
         state = State.IDLE;
+    }
+
+    // ----------------------------------------------------------------
+    // Scheduled auto-start (the whole ceremony flow at a clock time)
+    // ----------------------------------------------------------------
+
+    /**
+     * Schedules the full tournament (ceremonies + automation) to begin after
+     * {@code delayTicks}. Replaces any existing schedule. Broadcasts reminders
+     * at 5 min / 1 min / 10 s before start.
+     */
+    public void scheduleStart(long delayTicks) {
+        cancelScheduledStart();
+        if (delayTicks <= 0) { fireScheduledStart(); return; }
+        scheduledStartAtMs = System.currentTimeMillis() + delayTicks * 50L;
+
+        // Reminder broadcasts before the start.
+        long[] remindersBeforeTicks = { 6000L, 1200L, 200L }; // 5 min, 1 min, 10 s
+        for (long before : remindersBeforeTicks) {
+            long at = delayTicks - before;
+            if (at <= 0) continue;
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                long secsLeft = Math.max(1, (scheduledStartAtMs - System.currentTimeMillis()) / 1000);
+                broadcast("&6[KMC] &eToernooi start over &6" + formatDuration(secsLeft) + "&e!");
+            }, at);
+        }
+
+        scheduledStartTask = Bukkit.getScheduler().runTaskLater(plugin, this::fireScheduledStart, delayTicks);
+    }
+
+    private void fireScheduledStart() {
+        scheduledStartTask = null;
+        scheduledStartAtMs = 0;
+        if (state != State.IDLE) return; // already running
+        if (!plugin.getTournamentManager().isActive()) plugin.getTournamentManager().start();
+        start();
+    }
+
+    public void cancelScheduledStart() {
+        if (scheduledStartTask != null) { scheduledStartTask.cancel(); scheduledStartTask = null; }
+        scheduledStartAtMs = 0;
+    }
+
+    public boolean hasScheduledStart()    { return scheduledStartTask != null; }
+    public long    scheduledStartInMs()   { return scheduledStartTask != null ? Math.max(0, scheduledStartAtMs - System.currentTimeMillis()) : -1; }
+
+    private static String formatDuration(long seconds) {
+        if (seconds >= 60) return (seconds / 60) + "m " + (seconds % 60) + "s";
+        return seconds + "s";
     }
 
     public void onGameEnd(String winnerName) {
@@ -520,8 +601,8 @@ public class AutomationManager {
         var cm = plugin.getCeremonyManager();
         if (cm == null) return;
         Map<String, String> ph = basePlaceholders();
-        cm.getMessages(phase, ph).forEach(Bukkit::broadcastMessage);
         showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+        broadcastSpaced(cm.getMessages(phase, ph)); // reveal lines one at a time
     }
 
     /** Like {@link #ceremony(String)} but adds game_name / game_objective placeholders. */

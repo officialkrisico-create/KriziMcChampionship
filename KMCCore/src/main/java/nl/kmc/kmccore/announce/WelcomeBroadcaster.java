@@ -60,13 +60,29 @@ public class WelcomeBroadcaster {
                         ? java.util.Arrays.asList(defaults)
                         : configLines;
 
-        // Stagger by 1 tick so the chat has time to flush after game-start
-        // events. Send ~3 ticks after tournament start.
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            for (String raw : lines) {
-                String coloured = ChatColor.translateAlternateColorCodes('&', raw);
-                Bukkit.broadcastMessage(coloured);
+        // Group the lines into sections separated by blank lines, then reveal
+        // each section a few seconds apart — so it reads as a paced intro
+        // instead of one giant wall of text.
+        java.util.List<java.util.List<String>> sections = new java.util.ArrayList<>();
+        java.util.List<String> current = new java.util.ArrayList<>();
+        for (String raw : lines) {
+            if (raw == null || raw.isBlank()) {
+                if (!current.isEmpty()) { sections.add(current); current = new java.util.ArrayList<>(); }
+            } else {
+                current.add(ChatColor.translateAlternateColorCodes('&', raw));
             }
-        }, 60L);
+        }
+        if (!current.isEmpty()) sections.add(current);
+
+        // Seconds between each section (configurable).
+        long gapTicks = Math.max(20L, cfg.getLong("tournament-welcome.section-gap-ticks", 50L));
+        long startDelay = 60L; // ~3s after tournament start so chat has flushed
+
+        for (int i = 0; i < sections.size(); i++) {
+            java.util.List<String> section = sections.get(i);
+            Bukkit.getScheduler().runTaskLater(plugin,
+                    () -> section.forEach(Bukkit::broadcastMessage),
+                    startDelay + (long) i * gapTicks);
+        }
     }
 }
