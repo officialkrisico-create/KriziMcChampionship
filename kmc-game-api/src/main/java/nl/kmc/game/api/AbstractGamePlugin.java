@@ -183,12 +183,27 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                         resetArena();
                         // Start game 1 second after paste so world changes settle
                         Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
-                            if (!gameManagerV2.start())
-                                getLogger().warning("[" + pluginName + "] V2 start() rejected — arena not ready.");
+                            if (!gameManagerV2.start()) {
+                                java.util.List<String> issues = gameManagerV2.getArenaIssues();
+                                getLogger().warning("[" + pluginName + "] V2 start() rejected — arena not ready:");
+                                issues.forEach(i -> getLogger().warning("  - " + i));
+                                // Tell online admins in chat so they don't have to read console.
+                                for (org.bukkit.entity.Player op : Bukkit.getOnlinePlayers()) {
+                                    if (!op.isOp() && !op.hasPermission("kmc.admin")) continue;
+                                    op.sendMessage("§c[" + pluginName + "] Arena niet klaar:");
+                                    if (issues.isEmpty()) op.sendMessage("§7  (geen details — check de arena setup)");
+                                    issues.forEach(i -> op.sendMessage("§7  - §f" + i));
+                                }
+                            }
                         }, 20L);
                     }, 20L);
                 }
             }, this);
+
+            // Register this game in the unified Setup Dashboard.
+            nl.kmc.core.setup.SetupService setupService =
+                    coreV2.getContainer().get(nl.kmc.core.setup.SetupService.class);
+            if (setupService != null) setupService.register(buildGameSetup());
 
             getLogger().info("[" + pluginName + "] V2 tournament integration enabled.");
 
@@ -235,5 +250,66 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
         }
         getLogger().info("[" + gameId() + "] Resetting arena: " + schematicName);
         return sm.resetArena(schematicName, origin);
+    }
+
+    // ── Setup Dashboard integration ───────────────────────────────────────────
+
+    /**
+     * Game-specific setup steps (spawns, powerup spots, jump pads, etc.) shown in
+     * the Setup Dashboard. Override to add clickable actions; the base class
+     * already contributes the shared arena-origin / schematic / readiness steps.
+     *
+     * @param viewer the admin viewing the dashboard
+     */
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        return java.util.List.of();
+    }
+
+    /** Builds the {@link nl.kmc.core.setup.GameSetup} registered for this game. */
+    private nl.kmc.core.setup.GameSetup buildGameSetup() {
+        final String id = gameId();
+        final String name = displayName();
+        final Material ic = icon();
+        return new nl.kmc.core.setup.GameSetup() {
+            @Override public String   gameId()      { return id; }
+            @Override public String   displayName() { return name; }
+            @Override public Material  icon()        { return ic; }
+            @Override public boolean  isReady() {
+                return gameManagerV2 != null && gameManagerV2.getArenaIssues().isEmpty();
+            }
+            @Override public java.util.List<String> issues() {
+                return gameManagerV2 != null ? gameManagerV2.getArenaIssues() : java.util.List.of();
+            }
+            @Override public java.util.List<nl.kmc.core.setup.SetupStep> steps(org.bukkit.entity.Player viewer) {
+                java.util.List<nl.kmc.core.setup.SetupStep> out = new java.util.ArrayList<>();
+
+                // Shared: arena schematic origin (used to auto-reset arenas between rounds).
+                var sm = kmcCore.getSchematicManager();
+                boolean originSet = sm.getOriginForGame(id) != null;
+                out.add(nl.kmc.core.setup.SetupStep.action(
+                        "Arena origin", originSet ? "✓ ingesteld" : "niet ingesteld", originSet,
+                        Material.LODESTONE,
+                        p -> { sm.setOriginForGame(id, p.getLocation());
+                               p.sendMessage("§a[Setup] Arena origin gezet op jouw locatie."); },
+                        "Klik: zet de schematic-origin op jouw locatie"));
+
+                String schemName = id + "mapschematic.schem";
+                boolean schemPresent = new java.io.File(sm.getSchematicFolder(), schemName).exists();
+                out.add(nl.kmc.core.setup.SetupStep.info(
+                        "Schematic", schemPresent ? "✓ " + schemName : "ontbreekt (" + schemName + ")",
+                        schemPresent, Material.STRUCTURE_BLOCK));
+
+                // Game-specific actions provided by the subclass.
+                out.addAll(extraSetupSteps(viewer));
+
+                // Any remaining validation problems, surfaced as red display rows.
+                if (gameManagerV2 != null) {
+                    for (String issue : gameManagerV2.getArenaIssues()) {
+                        out.add(nl.kmc.core.setup.SetupStep.info("Probleem", issue, false, Material.BARRIER));
+                    }
+                }
+                return out;
+            }
+        };
     }
 }

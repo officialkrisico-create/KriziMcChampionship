@@ -37,7 +37,15 @@ public class CeremoniesCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§cYou don't have permission to use this command.");
             return true;
         }
-        if (args.length == 0) { usage(sender); return true; }
+        // No args → open the editor GUI (text subcommands still work).
+        if (args.length == 0) {
+            if (sender instanceof org.bukkit.entity.Player p) {
+                new nl.kmc.kmccore.gui.CeremonyEditorGui(plugin).open(p);
+            } else {
+                usage(sender);
+            }
+            return true;
+        }
 
         CeremonyManager cm = plugin.getCeremonyManager();
 

@@ -31,8 +31,12 @@ public final class GamePlayerUtil {
         player.setGameMode(GameMode.ADVENTURE);
         player.getInventory().clear();
         player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));
-        player.setHealth(player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) != null
-                ? player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue() : 20);
+        // getMaxHealth() is deprecated but version-stable — it avoids referencing the
+        // Attribute enum constant (renamed MAX_HEALTH ↔ GENERIC_MAX_HEALTH between
+        // 1.21 builds), which would throw NoSuchFieldError on a mismatched server.
+        double max;
+        try { max = player.getMaxHealth(); } catch (Throwable t) { max = 20.0; }
+        player.setHealth(max);
         player.setFoodLevel(20);
         player.setSaturation(20f);
         player.setFallDistance(0f);

@@ -63,7 +63,7 @@ public class ParkourCommand implements CommandExecutor, TabCompleter {
             case "start" -> {
                 if (plugin.getParkourManagerV2() != null) {
                     boolean ok = plugin.getParkourManagerV2().start();
-                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — course niet klaar?");
+                    if (!ok) plugin.getParkourManagerV2().reportArenaIssues(sender);
                     else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");

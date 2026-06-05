@@ -65,7 +65,7 @@ public final class FlashbangWeapon {
 
         for (var e : loc.getWorld().getNearbyEntities(loc, maxDist, maxDist, maxDist)) {
             if (!(e instanceof Player pl) || pl.isDead()) continue;
-            if (pl.equals(owner)) continue;
+            if (pl.equals(owner) || nl.kmc.quake.util.TeamUtil.areTeammates(plugin, owner, pl)) continue;
             if (pl.getLocation().distanceSquared(loc) > maxSq) continue;
 
             // Only blind players who are actually looking toward the flash.

@@ -75,17 +75,35 @@ public class VoteGuiListener implements Listener {
                 NamedTextColor.AQUA, TextDecoration.BOLD)
                 .decoration(TextDecoration.ITALIC, false));
 
-        meta.lore(List.of(
-                Component.text("Klik om te stemmen!", NamedTextColor.YELLOW)
-                        .decoration(TextDecoration.ITALIC, false),
-                Component.text("(Optie " + optionNumber + ")", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false)
-        ));
+        java.util.List<Component> lore = new java.util.ArrayList<>();
+        // Pull description/objective from the V2 game registry when available.
+        var reg = registrationFor(game.getId());
+        if (reg != null) {
+            if (reg.getObjective() != null && !reg.getObjective().isBlank())
+                lore.add(Component.text("Doel: " + reg.getObjective(), NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(" ", NamedTextColor.DARK_GRAY));
+        }
+        int votes = plugin.getGameManager().getVoteCount(game.getId());
+        lore.add(Component.text("Stemmen: " + votes, NamedTextColor.GREEN)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("Klik om te stemmen!  (Optie " + optionNumber + ")", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
 
         // Store game ID on the item so we know what was clicked
         meta.getPersistentDataContainer().set(GAME_ID_KEY, PersistentDataType.STRING, game.getId());
         item.setItemMeta(meta);
         return item;
+    }
+
+    /** Looks up the V2 GameRegistration for richer vote-item info, or null. */
+    private nl.kmc.core.domain.GameRegistration registrationFor(String gameId) {
+        if (Bukkit.getPluginManager().getPlugin("KMCCoreV2") instanceof nl.kmc.core.KMCCorePlugin v2) {
+            var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class);
+            if (reg != null) return reg.get(gameId).orElse(null);
+        }
+        return null;
     }
 
     // ----------------------------------------------------------------

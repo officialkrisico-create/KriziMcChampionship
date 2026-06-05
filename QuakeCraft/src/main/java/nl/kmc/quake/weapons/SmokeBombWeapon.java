@@ -75,7 +75,7 @@ public final class SmokeBombWeapon {
                     double rSq = radius * radius;
                     for (var e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
                         if (!(e instanceof Player pl) || pl.isDead()) continue;
-                        if (pl.equals(owner)) continue; // owner can see through their own smoke
+                        if (pl.equals(owner) || nl.kmc.quake.util.TeamUtil.areTeammates(plugin, owner, pl)) continue;
                         if (pl.getLocation().distanceSquared(center) > rSq) continue;
                         pl.addPotionEffect(new PotionEffect(blindness, 30, 0, true, false, false));
                     }

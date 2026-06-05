@@ -25,6 +25,17 @@ public final class TheBridgePlugin extends AbstractGamePlugin {
     private AssistManager       assistManager;
     private BridgeGameManagerV2 bridgeGameManagerV2;
 
+    /** The team currently being built in the Setup Dashboard wizard. */
+    private String wizardTeamId;
+
+    private static final org.bukkit.ChatColor[] WIZ_COLORS = {
+            org.bukkit.ChatColor.RED, org.bukkit.ChatColor.BLUE, org.bukkit.ChatColor.GREEN,
+            org.bukkit.ChatColor.YELLOW, org.bukkit.ChatColor.AQUA, org.bukkit.ChatColor.LIGHT_PURPLE,
+            org.bukkit.ChatColor.GOLD, org.bukkit.ChatColor.WHITE };
+    private static final Material[] WIZ_WOOLS = {
+            Material.RED_WOOL, Material.BLUE_WOOL, Material.LIME_WOOL, Material.YELLOW_WOOL,
+            Material.CYAN_WOOL, Material.MAGENTA_WOOL, Material.ORANGE_WOOL, Material.WHITE_WOOL };
+
     // ── AbstractGamePlugin metadata ───────────────────────────────────────────
 
     @Override protected String   gameId()      { return GAME_ID; }
@@ -49,6 +60,69 @@ public final class TheBridgePlugin extends AbstractGamePlugin {
         assistManager       = new AssistManager();
         bridgeGameManagerV2 = new BridgeGameManagerV2(this, reg, stats);
         return bridgeGameManagerV2;
+    }
+
+    @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        boolean worldSet = am.getWorld() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Arena wereld",
+                worldSet ? "✓ " + am.getWorld().getName() : "niet ingesteld", worldSet,
+                Material.GRASS_BLOCK,
+                p -> { am.setWorld(p.getWorld()); p.sendMessage("§a[Setup] Wereld gezet op " + p.getWorld().getName()); },
+                "Klik: zet de arena-wereld op die van jou"));
+
+        s.add(nl.kmc.core.setup.SetupStep.action("Void Y-level", "jouw hoogte", false,
+                Material.LIGHT_GRAY_STAINED_GLASS,
+                p -> { am.setVoidYLevel(p.getLocation().getBlockY());
+                       p.sendMessage("§a[Setup] Void-Y gezet op " + p.getLocation().getBlockY()); },
+                "Klik: zet void-Y op jouw huidige hoogte"));
+
+        int teams = am.getTeams().size();
+        s.add(nl.kmc.core.setup.SetupStep.action("Teams (" + teams + ", min. 2)",
+                "nieuw team starten", teams >= 2, Material.WHITE_BANNER,
+                p -> getKmcCore().getChatInput().await(p, "Typ de naam van het nieuwe team:", name -> {
+                    String id = name.toLowerCase().replace(' ', '_');
+                    int idx = am.getTeams().size() % WIZ_COLORS.length;
+                    var partial = am.getPartial(id);
+                    partial.displayName  = name;
+                    partial.chatColor    = WIZ_COLORS[idx];
+                    partial.woolMaterial = WIZ_WOOLS[idx];
+                    partial.spawn        = p.getLocation();
+                    wizardTeamId = id;
+                    p.sendMessage("§a[Setup] Team §e" + name + "§a gestart (kleur + spawn gezet).");
+                    p.sendMessage("§7Open §e/kmcsetup → The Bridge §7en zet de 2 goal-hoeken, dan opslaan.");
+                }),
+                "Klik: start een nieuw team (typ de naam)"));
+
+        // Goal-corner + commit steps for the team currently being built.
+        if (wizardTeamId != null) {
+            var partial = am.getPartial(wizardTeamId);
+            s.add(nl.kmc.core.setup.SetupStep.action("Goal hoek 1 (" + wizardTeamId + ")",
+                    partial.goalPos1 != null ? "✓ gezet" : "nog niet", partial.goalPos1 != null,
+                    Material.TARGET,
+                    p -> { am.getPartial(wizardTeamId).goalPos1 = p.getLocation();
+                           p.sendMessage("§a[Setup] Goal-hoek 1 gezet."); },
+                    "Klik: zet de eerste goal-hoek op jouw locatie"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Goal hoek 2 (" + wizardTeamId + ")",
+                    partial.goalPos2 != null ? "✓ gezet" : "nog niet", partial.goalPos2 != null,
+                    Material.TARGET,
+                    p -> { am.getPartial(wizardTeamId).goalPos2 = p.getLocation();
+                           p.sendMessage("§a[Setup] Goal-hoek 2 gezet."); },
+                    "Klik: zet de tweede goal-hoek op jouw locatie"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Team opslaan",
+                    partial.isComplete() ? "klaar om op te slaan" : "mist: " + partial.missing(), partial.isComplete(),
+                    Material.LIME_DYE,
+                    p -> { var pt = am.getPartial(wizardTeamId);
+                           if (pt.isComplete()) { am.commitPartial(wizardTeamId);
+                               p.sendMessage("§a[Setup] Team §e" + wizardTeamId + "§a opgeslagen!"); wizardTeamId = null; }
+                           else p.sendMessage("§c[Setup] Team nog niet compleet — mist: " + pt.missing()); },
+                    "Klik: sla het team op"));
+        }
+        return s;
     }
 
     @Override

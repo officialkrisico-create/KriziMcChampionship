@@ -67,6 +67,10 @@ public final class LuckyBlockPlugin extends JavaPlugin {
             gameRegistry.register(reg);
             gameManagerV2 = new LuckyBlockGameManagerV2(this, reg, statsService);
 
+            // Register in the unified Setup Dashboard / Event Validation System.
+            var setupService = coreV2.getContainer().get(nl.kmc.core.setup.SetupService.class);
+            if (setupService != null) setupService.register(buildSetup());
+
             GameIntroCardRegistry.register(GameIntroCard.builder(GAME_ID, "Lucky Block")
                     .objective("Last player alive wins")
                     .addScoringLine("+pts — Lucky block loot")
@@ -109,4 +113,33 @@ public final class LuckyBlockPlugin extends JavaPlugin {
     public LuckyBlockTracker       getTracker()           { return tracker; }
     public GameStateManager        getGameState()         { return gameStateManager; }
     public LuckyBlockGameManagerV2 getGameManagerV2()     { return gameManagerV2; }
+
+    /** Setup descriptor for the unified Setup Dashboard / EVS. */
+    private nl.kmc.core.setup.GameSetup buildSetup() {
+        return new nl.kmc.core.setup.GameSetup() {
+            @Override public String   gameId()      { return GAME_ID; }
+            @Override public String   displayName() { return "Lucky Block"; }
+            @Override public Material  icon()        { return Material.YELLOW_CONCRETE; }
+            @Override public boolean   isReady() {
+                return kmcCore != null && kmcCore.getTeamManager().getAllTeams().size() >= 2;
+            }
+            @Override public java.util.List<String> issues() {
+                java.util.List<String> out = new java.util.ArrayList<>();
+                if (kmcCore == null || kmcCore.getTeamManager().getAllTeams().size() < 2)
+                    out.add("Minder dan 2 teams (Lucky Block gebruikt KMCCore team-spawns)");
+                return out;
+            }
+            @Override public java.util.List<nl.kmc.core.setup.SetupStep> steps(org.bukkit.entity.Player viewer) {
+                java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+                String mat = getConfig().getString("lucky-block.material", getConfig().getString("material", "SPONGE"));
+                s.add(nl.kmc.core.setup.SetupStep.info("Lucky block materiaal", mat, true, Material.SPONGE));
+                int teams = kmcCore != null ? kmcCore.getTeamManager().getAllTeams().size() : 0;
+                s.add(nl.kmc.core.setup.SetupStep.info("Teams", teams + " (gebruikt KMCCore teams + lobby)",
+                        teams >= 2, Material.WHITE_BANNER));
+                s.add(nl.kmc.core.setup.SetupStep.info("Arena",
+                        "Bouw de PvP-arena handmatig en plaats lucky blocks", true, Material.YELLOW_CONCRETE));
+                return s;
+            }
+        };
+    }
 }

@@ -72,6 +72,8 @@ public final class MineManager {
             for (var e : mine.loc().getWorld().getNearbyEntities(mine.loc(), triggerR, triggerR, triggerR)) {
                 if (!(e instanceof Player pl) || pl.isDead()) continue;
                 if (pl.getUniqueId().equals(mine.owner())) continue; // owner doesn't trip it
+                Player mineOwner = plugin.getServer().getPlayer(mine.owner());
+                if (nl.kmc.quake.util.TeamUtil.areTeammates(plugin, mineOwner, pl)) continue; // teammates don't trip it
                 if (pl.getLocation().distanceSquared(mine.loc()) <= triggerSq) { trigger = pl; break; }
             }
 

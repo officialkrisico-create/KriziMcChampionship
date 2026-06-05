@@ -47,6 +47,24 @@ public final class ParkourWarriorPlugin extends AbstractGamePlugin {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (courseManager == null) return java.util.List.of();
+        var cm = courseManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        boolean start = cm.getStartSpawn() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Start",
+                start ? "✓ ingesteld" : "niet ingesteld", start, org.bukkit.Material.LIME_BANNER,
+                p -> { cm.setStartSpawn(p.getLocation()); p.sendMessage("§a[Setup] Start gezet op jouw locatie."); },
+                "Klik: zet het startpunt op jouw locatie"));
+
+        int cps = cm.getCheckpointCount();
+        s.add(nl.kmc.core.setup.SetupStep.info("Checkpoints",
+                cps + " (voeg toe met /pkw cp <naam>)", cps > 0, org.bukkit.Material.END_ROD));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         if (courseManager == null) courseManager = new CourseManager(this);
 

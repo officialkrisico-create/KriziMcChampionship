@@ -48,7 +48,7 @@ public class BridgeCommand implements CommandExecutor, TabCompleter {
                 var gm = plugin.getBridgeGameManagerV2();
                 if (gm != null) {
                     if (gm.start()) sender.sendMessage(ChatColor.GREEN + "Game gestart!");
-                    else sender.sendMessage(ChatColor.RED + "V2 start rejected — validation failed.");
+                    else gm.reportArenaIssues(sender);
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 game manager not available.");
                 }

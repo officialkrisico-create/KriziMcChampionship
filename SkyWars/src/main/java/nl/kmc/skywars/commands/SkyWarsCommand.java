@@ -32,7 +32,7 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
                 var gm = plugin.getSkyWarsGameManagerV2();
                 if (gm != null) {
                     if (gm.start()) sender.sendMessage(ChatColor.GREEN + "SkyWars gestart!");
-                    else sender.sendMessage(ChatColor.RED + "V2 start rejected — arena not ready.");
+                    else gm.reportArenaIssues(sender);
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 game manager not available.");
                 }

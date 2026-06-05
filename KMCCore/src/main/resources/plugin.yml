@@ -127,6 +127,37 @@ commands:
     usage: /kmcceremonies <list|info|duration|title|subtitle|addmsg|setmsg|delmsg|clearmsg|reload> [phase] [args]
     permission: kmc.admin
 
+  kmcsetup:
+    description: Open the unified Setup Dashboard GUI (lobby + all games)
+    usage: /kmcsetup
+    permission: kmc.arena.admin
+
+  kmcprofile:
+    description: Open your (or another player's) profile GUI
+    usage: /kmcprofile [player]
+    permission: kmc.stats
+
+  kmcstandings:
+    description: Open the live standings GUI
+    usage: /kmcstandings
+    permission: kmc.leaderboard
+
+  kmchelp:
+    description: Open the help / how-it-works GUI
+    usage: /kmchelp
+    permission: kmc.stats
+
+  kmcsettings:
+    description: Open the settings GUI (admin)
+    usage: /kmcsettings
+    permission: kmc.admin
+
+  kmcvalidate:
+    description: Open the Event Validation Center (readiness checks)
+    usage: /kmcvalidate [test|export]
+    permission: kmc.tournament.admin
+    aliases: [kmcreadycheck, kmceventcheck, kmcdiagnostics]
+
   kmccamera:
     description: Record and manage cinematic camera routes
     usage: /kmccamera <list|info|create|addpoint|removepoint|save|discard|preview|delete|reload|stop> [args]

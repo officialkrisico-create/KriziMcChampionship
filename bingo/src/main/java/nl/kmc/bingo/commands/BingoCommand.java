@@ -61,7 +61,7 @@ public class BingoCommand implements CommandExecutor, TabCompleter {
                 }
                 if (plugin.getBingoManagerV2() != null) {
                     boolean ok = plugin.getBingoManagerV2().start();
-                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar?");
+                    if (!ok) plugin.getBingoManagerV2().reportArenaIssues(sender);
                     else sender.sendMessage(ChatColor.GREEN + "Bingo wordt gestart!");
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");

@@ -50,6 +50,35 @@ public final class SkyWarsPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        boolean worldSet = am.getWorld() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Arena wereld",
+                worldSet ? "✓ " + am.getWorld().getName() : "niet ingesteld", worldSet,
+                org.bukkit.Material.GRASS_BLOCK,
+                p -> { am.setWorld(p.getWorld()); p.sendMessage("§a[Setup] Wereld gezet op " + p.getWorld().getName()); },
+                "Klik: zet de arena-wereld op die van jou"));
+
+        boolean midSet = am.getMiddleSpawn() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Midden",
+                midSet ? "✓ ingesteld" : "niet ingesteld", midSet, org.bukkit.Material.BEACON,
+                p -> { am.setMiddleSpawn(p.getLocation()); p.sendMessage("§a[Setup] Midden gezet op jouw locatie."); },
+                "Klik: zet het midden van de map op jouw locatie"));
+
+        int islands = am.getIslands().size();
+        int radius = getConfig().getInt("islands.default-radius", 8);
+        s.add(nl.kmc.core.setup.SetupStep.action("Eilanden",
+                islands + " (min. 2)", islands >= 2, org.bukkit.Material.GRASS_BLOCK,
+                p -> { am.addIsland("island_" + (am.getIslands().size() + 1), p.getLocation(), radius);
+                       p.sendMessage("§a[Setup] Eiland #" + am.getIslands().size() + " toegevoegd (radius " + radius + ")."); },
+                "Klik: voeg een eiland-spawn toe op jouw locatie"));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         var cmd = new SkyWarsCommand(this);
         var bukkitCmd = getCommand("skywars");

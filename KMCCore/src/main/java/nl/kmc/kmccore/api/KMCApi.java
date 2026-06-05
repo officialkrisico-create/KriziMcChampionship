@@ -152,6 +152,8 @@ public class KMCApi {
         }
         scoreboardOwner = minigameName;
         plugin.getLogger().info("Scoreboard acquired by " + minigameName);
+        // Hide the lobby leaderboard bossbar — the running game shows its own.
+        try { plugin.getBossBarLeaderboard().suppress(); } catch (Exception ignored) {}
         return true;
     }
 
@@ -166,7 +168,8 @@ public class KMCApi {
         scoreboardOwner = null;
         plugin.getLogger().info("Scoreboard released by " + minigameName);
 
-        // Force a fresh repaint of the lobby sidebar / tab list now
+        // Restore the lobby leaderboard bossbar + repaint sidebar / tab list now
+        try { plugin.getBossBarLeaderboard().unsuppress(); } catch (Exception ignored) {}
         try { plugin.getScoreboardManager().refreshAll(); } catch (Exception ignored) {}
         try { plugin.getTabListManager().refreshAll();    } catch (Exception ignored) {}
     }

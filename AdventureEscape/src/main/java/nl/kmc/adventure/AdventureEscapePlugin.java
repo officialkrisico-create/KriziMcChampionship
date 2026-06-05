@@ -80,6 +80,10 @@ public final class AdventureEscapePlugin extends JavaPlugin {
             gameRegistry.register(reg);
             gameManagerV2 = new AdventureEscapeGameManagerV2(this, reg, statsService);
 
+            // Register in the unified Setup Dashboard / Event Validation System.
+            var setupService = coreV2.getContainer().get(nl.kmc.core.setup.SetupService.class);
+            if (setupService != null) setupService.register(buildSetup());
+
             GameIntroCardRegistry.register(GameIntroCard.builder(GAME_ID, "Adventure Escape")
                     .objective("Complete all laps first to win")
                     .addScoringLine("+50 pts — Lap completed")
@@ -143,4 +147,43 @@ public final class AdventureEscapePlugin extends JavaPlugin {
     public RaceScoreboard               getRaceScoreboard()       { return raceScoreboard; }
     public TrialKeyManager              getTrialKeyManager()      { return trialKeyManager; }
     public AdventureEscapeGameManagerV2 getGameManagerV2()        { return gameManagerV2; }
+
+    /** Setup descriptor for the unified Setup Dashboard / EVS. */
+    private nl.kmc.core.setup.GameSetup buildSetup() {
+        return new nl.kmc.core.setup.GameSetup() {
+            @Override public String   gameId()      { return GAME_ID; }
+            @Override public String   displayName() { return "Adventure Escape"; }
+            @Override public Material  icon()        { return Material.MAP; }
+            @Override public boolean   isReady()     { return arenaManager != null && arenaManager.isReady(); }
+            @Override public java.util.List<String> issues() {
+                java.util.List<String> out = new java.util.ArrayList<>();
+                if (arenaManager == null) return out;
+                if (arenaManager.getRaceWorld() == null) out.add("Geen race-wereld ingesteld");
+                if (arenaManager.getSpawns().isEmpty()) out.add("Geen spawns ingesteld");
+                if (arenaManager.getLaps() <= 0) out.add("Aantal laps niet ingesteld");
+                return out;
+            }
+            @Override public java.util.List<nl.kmc.core.setup.SetupStep> steps(org.bukkit.entity.Player viewer) {
+                java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+                var am = arenaManager;
+                if (am == null) return s;
+                boolean w = am.getRaceWorld() != null;
+                s.add(nl.kmc.core.setup.SetupStep.action("Race wereld",
+                        w ? "✓ " + am.getRaceWorld().getName() : "niet ingesteld", w, Material.GRASS_BLOCK,
+                        p -> { am.setRaceWorld(p.getWorld()); p.sendMessage("§a[Setup] Race-wereld gezet op " + p.getWorld().getName()); },
+                        "Klik: zet de race-wereld op die van jou"));
+                int spawns = am.getSpawns().size();
+                s.add(nl.kmc.core.setup.SetupStep.action("Spawns", spawns + " (min. 1)", spawns >= 1, Material.RED_BED,
+                        p -> { am.addSpawn(p.getLocation()); p.sendMessage("§a[Setup] Spawn #" + am.getSpawns().size() + " toegevoegd."); },
+                        "Klik: voeg een spawn toe op jouw locatie"));
+                int laps = am.getLaps();
+                s.add(nl.kmc.core.setup.SetupStep.action("Laps", laps + " ronden", laps > 0, Material.CLOCK,
+                        p -> { am.setLaps(laps >= 5 ? 1 : laps + 1); p.sendMessage("§a[Setup] Laps gezet."); },
+                        "Klik: cycle aantal laps 1 → 5"));
+                s.add(nl.kmc.core.setup.SetupStep.info("Start/finish + checkpoints",
+                        "via /ae setstartline, setfinishline, setcheckpoint", true, Material.OAK_SIGN));
+                return s;
+            }
+        };
+    }
 }

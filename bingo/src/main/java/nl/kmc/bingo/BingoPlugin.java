@@ -50,6 +50,35 @@ public final class BingoPlugin extends AbstractGamePlugin {
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (worldManager == null) return java.util.List.of();
+        var wm = worldManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        boolean tmpl = wm.templateExists();
+        s.add(nl.kmc.core.setup.SetupStep.action("Template wereld",
+                tmpl ? "✓ " + wm.getTemplateWorldName() : "ontbreekt", tmpl,
+                org.bukkit.Material.GRASS_BLOCK,
+                p -> { wm.setTemplateWorld(p.getWorld().getName());
+                       p.sendMessage("§a[Setup] Template-wereld gezet op " + p.getWorld().getName()); },
+                "Klik: gebruik je huidige wereld als bingo-template"));
+
+        boolean spawnSet = wm.getDefaultSpawn() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Spawn",
+                spawnSet ? "✓ ingesteld" : "niet ingesteld", spawnSet, org.bukkit.Material.RED_BED,
+                p -> { var loc = p.getLocation();
+                       getConfig().set("world.default-spawn.x", loc.getX());
+                       getConfig().set("world.default-spawn.y", loc.getY());
+                       getConfig().set("world.default-spawn.z", loc.getZ());
+                       getConfig().set("world.default-spawn.yaw", loc.getYaw());
+                       getConfig().set("world.default-spawn.pitch", loc.getPitch());
+                       saveConfig();
+                       p.sendMessage("§a[Setup] Spawn opgeslagen op jouw locatie (in de template-wereld)."); },
+                "Klik: zet de spawn op jouw locatie (sta in de template-wereld)"));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         if (cardGenerator == null) {
             // V1-only path: initialise supporting managers here

@@ -126,7 +126,8 @@ public final class RailgunWeapon {
         RayTraceResult result = world.rayTrace(
                 rayStart, direction, range,
                 FluidCollisionMode.NEVER, true, 0.4,
-                e -> (e instanceof Player && !e.equals(shooter) && !e.isDead())
+                e -> (e instanceof Player p && !p.isDead()
+                                && nl.kmc.quake.util.TeamUtil.isEnemy(plugin, shooter, p))
                         || plugin.getDecoyManager().isDecoy(e)
         );
 

@@ -139,11 +139,22 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
         private String scoreboardOwner;
 
         @Override public boolean acquireScoreboard(String gameId) {
-            if (scoreboardOwner != null && !scoreboardOwner.equals(gameId)) return false;
-            scoreboardOwner = gameId; return true;
+            // Delegate to the lobby KMCApi so the lobby scoreboard + leaderboard
+            // bossbar are actually suppressed while a game owns the board.
+            boolean ok = plugin.getApi().acquireScoreboard(gameId);
+            if (ok) scoreboardOwner = gameId;
+            return ok;
         }
         @Override public void releaseScoreboard(String gameId) {
             if (gameId.equals(scoreboardOwner)) scoreboardOwner = null;
+            plugin.getScoreboardManager().clearGameBoard(gameId);
+            plugin.getApi().releaseScoreboard(gameId);
+        }
+        @Override public void setScoreboard(String gameId, nl.kmc.core.api.GameScoreboard board) {
+            plugin.getScoreboardManager().setGameBoard(gameId, board);
+        }
+        @Override public void clearScoreboard(String gameId) {
+            plugin.getScoreboardManager().clearGameBoard(gameId);
         }
         @Override public boolean isScoreboardOwnedBy(String gameId) { return gameId.equals(scoreboardOwner); }
         @Override public Optional<String> getScoreboardOwner()      { return Optional.ofNullable(scoreboardOwner); }

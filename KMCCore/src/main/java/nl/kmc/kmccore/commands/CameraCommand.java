@@ -53,6 +53,12 @@ public class CameraCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
 
+            // ── gui ───────────────────────────────────────────────────────────
+            case "gui" -> {
+                if (sender instanceof Player p) new nl.kmc.kmccore.gui.CinematicGui(plugin).open(p);
+                else sender.sendMessage("§cAlleen spelers.");
+            }
+
             // ── list ──────────────────────────────────────────────────────────
             case "list" -> {
                 var routes = cm.getAllRoutes();

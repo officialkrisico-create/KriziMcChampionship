@@ -13,6 +13,7 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,7 +84,9 @@ public class AutomationManager {
             if (cm == null) { after.run(); return; }
             Map<String, String> ph = basePlaceholders();
             showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
-            long lastLineTick = broadcastSpaced(cm.getMessages(phase, ph));
+            List<String> messages = new ArrayList<>(cm.getMessages(phase, ph));
+            if (phase.equals("team-showcase")) messages.addAll(buildTeamShowcaseLines());
+            long lastLineTick = broadcastSpaced(messages);
             int durSec = cm.getDuration(phase, 8);
             long delay = Math.max(durSec * 20L, lastLineTick + 30L);
             Bukkit.getScheduler().runTaskLater(plugin, after, delay);
@@ -405,17 +408,10 @@ public class AutomationManager {
 
         state = State.GAME_ACTIVE;
         attemptedThisCycle.clear();
+        // Hide the automation bossbar entirely while the game runs — the game
+        // shows its OWN bossbar + scoreboard, so we don't stack a second one.
         hideBossBar();
         plugin.getGameManager().startGame(game.getId());
-
-        createBossBar();
-        String repSuffix = maxRepetitions > 1
-                ? "  &7(ronde &e" + currentRepetition + "&7/&e" + maxRepetitions + "&7)" : "";
-        setBossBar("&2▶ &a" + game.getDisplayName() + " &2◀  Ronde "
-                        + plugin.getTournamentManager().getCurrentRound()
-                        + "  ×" + plugin.getTournamentManager().getMultiplier() + repSuffix,
-                BarColor.GREEN, 1.0);
-        setBossBarProgress(1.0);
 
         if (maxRepetitions > 1) {
             broadcast("&6[KMC] &e" + game.getDisplayName() + " &7— spel &e"
@@ -614,6 +610,35 @@ public class AutomationManager {
         ph.put("game_objective", lookupObjective(game.getId()));
         cm.getMessages(phase, ph).forEach(Bukkit::broadcastMessage);
         showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+    }
+
+    /**
+     * Auto-generates the "competing teams" roster for the team-showcase
+     * ceremony: each team in standings order with its players (online players
+     * highlighted). Pulled live from the TeamManager so it always matches the
+     * actual teams + members assigned for the event.
+     */
+    private List<String> buildTeamShowcaseLines() {
+        List<String> out = new ArrayList<>();
+        var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+        if (teams.isEmpty()) {
+            out.add(MessageUtil.color("  &7Geen teams ingesteld — gebruik &e/kmcrandomteams&7."));
+            return out;
+        }
+        for (var team : teams) {
+            var members = team.getMembers();
+            out.add(MessageUtil.color(team.getColor() + "&l" + team.getDisplayName()
+                    + " &7(" + members.size() + (members.size() == 1 ? " speler)" : " spelers)")));
+            if (members.isEmpty()) { out.add(MessageUtil.color("   &8• (nog geen spelers)")); continue; }
+            List<String> names = new ArrayList<>();
+            for (java.util.UUID id : members) {
+                var op = Bukkit.getOfflinePlayer(id);
+                String name = op.getName() != null ? op.getName() : id.toString().substring(0, 8);
+                names.add((op.isOnline() ? "&a" : "&7") + name);
+            }
+            out.add(MessageUtil.color("   &8• " + String.join("&7, ", names)));
+        }
+        return out;
     }
 
     private Map<String, String> basePlaceholders() {

@@ -193,7 +193,7 @@ games:
 
     parkour_warrior:
       display-name: "Parkour Warrior"
-      icon: LEATHER_BOOTS
+      icon: FEATHER
       min-players: 1
       repetitions: 1
 

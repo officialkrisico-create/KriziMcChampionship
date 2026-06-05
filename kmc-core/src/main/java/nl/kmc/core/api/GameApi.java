@@ -18,6 +18,17 @@ public interface GameApi {
 
     void releaseScoreboard(String gameId);
 
+    /**
+     * Registers the sidebar content this game shows while it owns the
+     * scoreboard. Pass {@code null} (or call {@link #clearScoreboard}) to fall
+     * back to the frozen lobby sidebar. No-op by default so non-tournament
+     * API impls don't have to implement it.
+     */
+    default void setScoreboard(String gameId, GameScoreboard board) {}
+
+    /** Clears any per-game sidebar previously set by {@code gameId}. */
+    default void clearScoreboard(String gameId) {}
+
     boolean isScoreboardOwnedBy(String gameId);
 
     Optional<String> getScoreboardOwner();

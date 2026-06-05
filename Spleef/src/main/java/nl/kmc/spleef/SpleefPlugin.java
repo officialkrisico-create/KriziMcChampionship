@@ -49,6 +49,27 @@ public final class SpleefPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+        s.add(nl.kmc.core.setup.SetupStep.action("Arena wereld", "klik om te zetten", false,
+                org.bukkit.Material.GRASS_BLOCK,
+                p -> { am.setWorld(p.getWorld()); p.sendMessage("§a[Setup] Wereld gezet op " + p.getWorld().getName()); },
+                "Klik: zet de arena-wereld op die van jou"));
+        s.add(nl.kmc.core.setup.SetupStep.action("Voeg spawn toe", "klik op je locatie", false,
+                org.bukkit.Material.RED_BED,
+                p -> { am.addPlayerSpawn(p.getLocation()); p.sendMessage("§a[Setup] Spawn toegevoegd."); },
+                "Klik: voeg een spawn toe op jouw locatie"));
+        s.add(nl.kmc.core.setup.SetupStep.action("Void Y-level", "jouw hoogte", false,
+                org.bukkit.Material.LIGHT_GRAY_STAINED_GLASS,
+                p -> { am.setVoidY(p.getLocation().getBlockY());
+                       p.sendMessage("§a[Setup] Void-Y gezet op " + p.getLocation().getBlockY()); },
+                "Klik: zet void-Y op jouw huidige hoogte"));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         var cmd = new SpleefCommand(this);
         var bukkitCmd = getCommand("spleef");

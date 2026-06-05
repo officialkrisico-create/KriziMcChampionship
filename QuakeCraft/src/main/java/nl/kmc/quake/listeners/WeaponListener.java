@@ -47,7 +47,7 @@ public class WeaponListener implements Listener {
     @EventHandler   // ← no ignoreCancelled=true so we always run
     public void onInteract(PlayerInteractEvent event) {
         QuakeCraftGameManagerV2 gm = gm();
-        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm == null || !gm.isCombatEnabled()) return;
 
         Player p = event.getPlayer();
         PlayerState state = gm.getPlayersMap().get(p.getUniqueId());
@@ -147,7 +147,7 @@ public class WeaponListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         QuakeCraftGameManagerV2 gm = gm();
-        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm == null || !gm.isCombatEnabled()) return;
         if (!(event.getEntity() instanceof Player p)) return;
 
         PlayerState state = gm.getPlayersMap().get(p.getUniqueId());
@@ -240,6 +240,8 @@ public class WeaponListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         QuakeCraftGameManagerV2 gm = gm();
+        // Protective cancel — keep HP full for the whole match, incl. the
+        // frozen start presentation, not just once combat is live.
         if (gm == null || !gm.getState().isRunning()) return;
         if (!(event.getEntity() instanceof Player p)) return;
         if (gm.getPlayersMap().get(p.getUniqueId()) == null) return;
@@ -261,7 +263,7 @@ public class WeaponListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onPlayerDamagePlayer(EntityDamageByEntityEvent event) {
         QuakeCraftGameManagerV2 gm = gm();
-        if (gm == null || !gm.getState().isRunning()) return;
+        if (gm == null || !gm.isCombatEnabled()) return;
         if (!(event.getDamager() instanceof Player)) return;
         if (!(event.getEntity()  instanceof Player target)) return;
         if (gm.getPlayersMap().get(target.getUniqueId()) == null) return;

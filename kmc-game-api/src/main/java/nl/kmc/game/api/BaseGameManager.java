@@ -129,11 +129,71 @@ public abstract class BaseGameManager implements Listener {
      * @return {@code true} if the game started successfully;
      *         {@code false} if the state is not {@code IDLE} or arena validation fails
      */
+    /**
+     * Runs arena validation without starting the game.
+     * Use this when {@link #start()} returns {@code false} to report exactly
+     * what is missing.
+     */
+    public ValidationResult validateArena() {
+        return getArenaValidator().validate();
+    }
+
+    /**
+     * Player-friendly list of the reasons the arena isn't ready (errors only,
+     * with the {@code [ERROR]} prefix stripped). Empty if the arena is valid.
+     */
+    public java.util.List<String> getArenaIssues() {
+        return validateArena().getErrors().stream()
+                .map(e -> e.replace("[ERROR] ", "").replace("[WARN]  ", ""))
+                .toList();
+    }
+
+    /**
+     * Sends a clear "arena not ready" message to a command sender, listing
+     * exactly what's missing. Call this when {@link #start()} returns false.
+     */
+    public void reportArenaIssues(org.bukkit.command.CommandSender sender) {
+        sender.sendMessage("§cStart geweigerd — arena niet klaar:");
+        java.util.List<String> issues = getArenaIssues();
+        if (issues.isEmpty()) {
+            sender.sendMessage("§7  (geen details beschikbaar — controleer de arena setup met §estatus§7)");
+        } else {
+            issues.forEach(i -> sender.sendMessage("§7  - §f" + i));
+        }
+    }
+
+    // ── Per-game sidebar scoreboard (optional) ────────────────────────────────
+
+    /** Sidebar title shown while this game owns the scoreboard. Override to customise. */
+    protected String getScoreboardTitle() { return "§6§l" + registration.getDisplayName(); }
+
+    /**
+     * Per-game sidebar lines (top → bottom), rebuilt each scoreboard tick and
+     * painted onto each player's board (KMC team colours preserved). Return
+     * {@code null} (default) to keep the previous lobby sidebar untouched.
+     * Override to show kills, timers, objectives, etc.
+     */
+    protected java.util.List<String> getScoreboardLines(Player viewer) { return null; }
+
+    private void installScoreboard() {
+        try {
+            api.games().setScoreboard(registration.getId(), new nl.kmc.core.api.GameScoreboard() {
+                @Override public String title(Player viewer) { return getScoreboardTitle(); }
+                @Override public java.util.List<String> lines(Player viewer) { return getScoreboardLines(viewer); }
+            });
+        } catch (Throwable t) { log.warning("setScoreboard failed: " + t); }
+    }
+
     public boolean start() {
-        if (state != GameState.IDLE) {
-            log.warning("Cannot start — current state is " + state);
+        // Allow starting from IDLE or ENDED. Also recover from a stuck PREPARING
+        // (a previous start whose onPrepare() threw) so a game can never get
+        // permanently wedged.
+        if (state != GameState.IDLE && state != GameState.ENDED && state != GameState.PREPARING) {
+            log.warning("Cannot start — current state is " + state + " (use /<game> stop first).");
             return false;
         }
+        if (state == GameState.PREPARING) abortToIdle();   // recover from a stuck prepare
+        if (state == GameState.ENDED)     state = GameState.IDLE; // fresh start
 
         ValidationResult validation = getArenaValidator().validate();
         if (!validation.isValid()) {
@@ -147,10 +207,32 @@ public abstract class BaseGameManager implements Listener {
 
         transitionTo(GameState.PREPARING);
         api.games().acquireScoreboard(registration.getId());
+        installScoreboard();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        onPrepare();
-        startCountdown();
+
+        // Guard prepare/countdown: if a game's onPrepare() throws, reset cleanly
+        // to IDLE instead of leaving the game wedged in PREPARING — and log why.
+        try {
+            onPrepare();
+            startCountdown();
+        } catch (Throwable t) {
+            log.severe("Game '" + registration.getId() + "' failed to start during prepare/countdown:");
+            t.printStackTrace();
+            abortToIdle();
+            return false;
+        }
         return true;
+    }
+
+    /** Cleans up a half-started game and returns to IDLE (no result fired). */
+    private void abortToIdle() {
+        cancelTask(countdownTask);
+        cancelTask(graceTask);
+        try { HandlerList.unregisterAll(this); }                       catch (Exception ignored) {}
+        try { api.games().clearScoreboard(registration.getId()); }     catch (Exception ignored) {}
+        try { api.games().releaseScoreboard(registration.getId()); }   catch (Exception ignored) {}
+        state = GameState.IDLE;
+        log.info("Game '" + registration.getId() + "' reset to IDLE.");
     }
 
     protected void startCountdown() {
@@ -209,11 +291,21 @@ public abstract class BaseGameManager implements Listener {
         cancelTask(countdownTask);
         cancelTask(graceTask);
         transitionTo(GameState.ENDED);
-        statsService.onGameEnd();
-        api.games().releaseScoreboard(registration.getId());
+        try { statsService.onGameEnd(); }                            catch (Throwable t) { log.warning("statsService.onGameEnd failed: " + t); }
+        try { api.games().clearScoreboard(registration.getId()); }   catch (Throwable t) { log.warning("clearScoreboard failed: " + t); }
+        try { api.games().releaseScoreboard(registration.getId()); } catch (Throwable t) { log.warning("releaseScoreboard failed: " + t); }
         HandlerList.unregisterAll(this);
-        onGameEnd();
+        try { onGameEnd(); }                                         catch (Throwable t) { log.severe("onGameEnd failed: " + t); t.printStackTrace(); }
         log.info("Game ended.");
+
+        // Return to IDLE shortly after cleanup so the game can be started again.
+        int resetTicks = Math.max(1, plugin.getConfig().getInt("post-game-reset-ticks", 100));
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (state == GameState.ENDED) {
+                state = GameState.IDLE;
+                log.info("Game reset to IDLE — ready to start again.");
+            }
+        }, resetTicks);
     }
 
     /**

@@ -66,7 +66,25 @@ public class ScoreboardManager {
     /** Tracks which buffer ("kmc_a" or "kmc_b") is currently visible per player. */
     private final Map<UUID, String> activeBuffer = new HashMap<>();
 
+    /** Per-game sidebar content, set while a game owns the scoreboard. */
+    private volatile nl.kmc.core.api.GameScoreboard gameBoard;
+    private volatile String gameBoardOwner;
+
     private BukkitTask updateTask;
+
+    /** Called by the game API when a game wants to render its own sidebar. */
+    public void setGameBoard(String gameId, nl.kmc.core.api.GameScoreboard board) {
+        this.gameBoardOwner = gameId;
+        this.gameBoard      = board;
+    }
+
+    /** Clears the per-game sidebar (only the current owner may clear it). */
+    public void clearGameBoard(String gameId) {
+        if (gameId != null && gameId.equals(gameBoardOwner)) {
+            this.gameBoard      = null;
+            this.gameBoardOwner = null;
+        }
+    }
 
     public ScoreboardManager(KMCCore plugin) {
         this.plugin = plugin;
@@ -84,7 +102,9 @@ public class ScoreboardManager {
     // ====================================================================
 
     private void tickAll() {
-        if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
+        // While a game owns the board we keep ticking ONLY if it supplied a
+        // per-game sidebar; otherwise leave the lobby sidebar as-is.
+        if (plugin.getApi().isScoreboardOwnedByMinigame() && gameBoard == null) return;
         for (Player p : Bukkit.getOnlinePlayers()) {
             try { updatePlayer(p); }
             catch (Exception e) {
@@ -127,8 +147,20 @@ public class ScoreboardManager {
             syncTeamsOn(board);
         }
 
-        // Skip sidebar updates while a minigame owns it
-        if (plugin.getApi().isScoreboardOwnedByMinigame()) return;
+        // Decide what to paint: the per-game sidebar (if a game owns the board
+        // and supplied one) or the normal lobby sidebar.
+        boolean owned = plugin.getApi().isScoreboardOwnedByMinigame();
+        String title;
+        List<String> lines;
+        if (owned) {
+            if (gameBoard == null) return;            // game owns board, no custom sidebar → freeze
+            title = MessageUtil.color(safeTitle(player));
+            lines = safeLines(player);
+            if (lines == null) return;               // game opted out for this tick → freeze
+        } else {
+            title = MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC"));
+            lines = buildLines(player);
+        }
 
         // Determine which buffer is visible vs hidden
         String currentName = activeBuffer.getOrDefault(player.getUniqueId(), "kmc_b");
@@ -139,10 +171,7 @@ public class ScoreboardManager {
         if (next != null) {
             try { next.unregister(); } catch (Exception ignored) {}
         }
-        next = board.registerNewObjective(nextName, Criteria.DUMMY,
-                MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC")));
-
-        List<String> lines = buildLines(player);
+        next = board.registerNewObjective(nextName, Criteria.DUMMY, title);
         if (lines.size() > MAX_SIDEBAR_LINES)
             lines = new ArrayList<>(lines.subList(0, MAX_SIDEBAR_LINES));
 
@@ -277,6 +306,21 @@ public class ScoreboardManager {
     // ====================================================================
     // Sidebar content
     // ====================================================================
+
+    private String safeTitle(Player p) {
+        try { String t = gameBoard.title(p); return t != null ? t : "&6&lKMC"; }
+        catch (Exception e) { return "&6&lKMC"; }
+    }
+
+    private List<String> safeLines(Player p) {
+        try {
+            List<String> raw = gameBoard.lines(p);
+            if (raw == null) return null;
+            List<String> out = new ArrayList<>(raw.size());
+            for (String s : raw) out.add(MessageUtil.color(s == null ? "" : s));
+            return out;
+        } catch (Exception e) { return null; }
+    }
 
     private List<String> buildLines(Player player) {
         List<String> lines = new ArrayList<>();

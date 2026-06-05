@@ -63,7 +63,7 @@ public final class FreezeGrenadeWeapon {
 
         for (var e : loc.getWorld().getNearbyEntities(loc, radius, radius, radius)) {
             if (!(e instanceof Player pl) || pl.isDead()) continue;
-            if (pl.equals(owner)) continue;
+            if (pl.equals(owner) || nl.kmc.quake.util.TeamUtil.areTeammates(plugin, owner, pl)) continue;
             if (pl.getLocation().distanceSquared(loc) > rSq) continue;
             if (slow != null) pl.addPotionEffect(new PotionEffect(slow, dur, slowAmp, true, true, true));
             // jump_boost amplifier 128 cripples jump height (vanilla overflow trick)

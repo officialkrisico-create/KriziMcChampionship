@@ -41,6 +41,10 @@ public final class KMCCore extends JavaPlugin {
     private EngagementModule engagementModule;
     private SimulationModule simulationModule;
 
+    /** Shared "type in chat" helper for GUIs. */
+    private nl.kmc.kmccore.gui.ChatInput chatInput;
+    public nl.kmc.kmccore.gui.ChatInput getChatInput() { return chatInput; }
+
     @Override public void onLoad() { instance = this; }
 
     @Override
@@ -115,7 +119,7 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcarena",       new ArenaCommand(this));
         setCmd("kmclobby",       new LobbyCommand(this));
         setCmd("kmcrandomteams", new RandomTeamsCommand(this));
-        setCmd("kmchof",         new HofCommand(this));
+        setCmd("kmchof",         new GuiCommands.HofCommand(this));
 
         setCmd("kmcprefs",    new AdminCommands.PreferencesCommand(this));
         setCmd("kmchealth",   new AdminCommands.HealthCommand(this));
@@ -128,6 +132,12 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcceremonies",      new CeremoniesCommand(this));
         setCmd("kmccamera",          new CameraCommand(this));
         setCmd("kmcpresentation",    new PresentationCommand(this));
+        setCmd("kmcsetup",           new SetupCommand(this));
+        setCmd("kmcprofile",         new GuiCommands.ProfileCommand(this));
+        setCmd("kmcstandings",       new GuiCommands.StandingsCommand(this));
+        setCmd("kmchelp",            new GuiCommands.HelpCommand(this));
+        setCmd("kmcsettings",        new GuiCommands.SettingsCommand(this));
+        setCmd("kmcvalidate",        new ValidateCommand(this));
     }
 
     @SuppressWarnings("unchecked")
@@ -163,6 +173,9 @@ public final class KMCCore extends JavaPlugin {
 
         pm.registerEvents(engagementModule.getStatsGUI(),      this);
         pm.registerEvents(engagementModule.getHoFNpcManager(), this);
+        pm.registerEvents(new GuiListener(), this);
+        chatInput = new nl.kmc.kmccore.gui.ChatInput(this);
+        pm.registerEvents(chatInput, this);
     }
 
     // ====================================================================

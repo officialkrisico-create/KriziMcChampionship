@@ -1,9 +1,0 @@
-name: kmc-game-api
-version: '1.0.0'
-main: nl.kmc.game.api.GameApiPlugin
-api-version: '1.21'
-description: KMC Game API — shared base classes for all KMC mini-game plugins
-authors: [ KMC ]
-
-depend:
-  - KMCCoreV2

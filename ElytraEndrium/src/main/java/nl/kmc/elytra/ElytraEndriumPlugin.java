@@ -45,6 +45,24 @@ public final class ElytraEndriumPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (courseManager == null) return java.util.List.of();
+        var cm = courseManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        boolean launch = cm.getLaunchSpawn() != null;
+        s.add(nl.kmc.core.setup.SetupStep.action("Launch pad",
+                launch ? "✓ ingesteld" : "niet ingesteld", launch, org.bukkit.Material.FIREWORK_ROCKET,
+                p -> { cm.setLaunchSpawn(p.getLocation()); p.sendMessage("§a[Setup] Launch pad gezet op jouw locatie."); },
+                "Klik: zet het launch-punt op jouw locatie"));
+
+        int cps = cm.getCheckpoints().size();
+        s.add(nl.kmc.core.setup.SetupStep.info("Checkpoints",
+                cps + " (voeg toe met /ee cp <naam>)", cps > 0, org.bukkit.Material.END_ROD));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         var cmd = new ElytraCommand(this);
         var bukkitCmd = getCommand("elytraendrium");

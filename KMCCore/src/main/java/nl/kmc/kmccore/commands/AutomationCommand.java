@@ -65,6 +65,24 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
 
             case "start" -> {
+                // ── Tournament start protection (EVS) ─────────────────────────
+                // Block on critical validation issues unless 'force' is given.
+                boolean force = args.length >= 2 && args[1].equalsIgnoreCase("force");
+                java.util.List<String> critical = ValidateCommand.criticalIssues(plugin);
+                if (!critical.isEmpty() && !force) {
+                    sender.sendMessage(MessageUtil.color("&c&l⚠ Tournament Validation Failed"));
+                    sender.sendMessage(MessageUtil.color("&c" + critical.size() + " kritieke problemen gevonden:"));
+                    critical.stream().limit(8).forEach(i ->
+                            sender.sendMessage(MessageUtil.color("&7 - &f" + i)));
+                    if (critical.size() > 8)
+                        sender.sendMessage(MessageUtil.color("&7   ...en nog " + (critical.size() - 8) + " meer."));
+                    sender.sendMessage(MessageUtil.color("&7Open &e/kmcvalidate &7voor details, of"));
+                    sender.sendMessage(MessageUtil.color("&7gebruik &e/kmcauto start force &7om toch te starten."));
+                    return true;
+                }
+                if (force && !critical.isEmpty())
+                    sender.sendMessage(MessageUtil.color("&e[KMC] Geforceerde start ondanks " + critical.size() + " problemen."));
+
                 // Eager warmup — touches every manager that AutomationManager
                 // might lazy-resolve, so the first call doesn't NPE.
                 warmup(sender);

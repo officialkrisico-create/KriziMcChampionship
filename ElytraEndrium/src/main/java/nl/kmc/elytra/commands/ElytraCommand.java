@@ -50,7 +50,7 @@ public class ElytraCommand implements CommandExecutor, TabCompleter {
             case "start" -> {
                 if (plugin.getGameManagerV2() != null) {
                     if (!plugin.getGameManagerV2().start())
-                        sender.sendMessage(ChatColor.RED + "V2 start geweigerd — course niet klaar.");
+                        plugin.getGameManagerV2().reportArenaIssues(sender);
                     else sender.sendMessage(ChatColor.GREEN + "Game gestart!");
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 niet beschikbaar.");

@@ -48,6 +48,36 @@ public final class SurvivalGamesPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> steps = new java.util.ArrayList<>();
+
+        boolean worldSet = am.getWorld() != null;
+        steps.add(nl.kmc.core.setup.SetupStep.action("Arena wereld",
+                worldSet ? "✓ " + am.getWorld().getName() : "niet ingesteld", worldSet,
+                org.bukkit.Material.GRASS_BLOCK,
+                p -> { am.setWorld(p.getWorld());
+                       p.sendMessage("§a[Setup] Arena-wereld gezet op " + p.getWorld().getName()); },
+                "Klik: zet de arena-wereld op die van jou"));
+
+        steps.add(nl.kmc.core.setup.SetupStep.action("Cornucopia",
+                "midden van de map", true, org.bukkit.Material.CHEST,
+                p -> { am.setCornucopia(p.getLocation());
+                       p.sendMessage("§a[Setup] Cornucopia gezet op jouw locatie."); },
+                "Klik: zet het cornucopia-midden op jouw locatie"));
+
+        int pedestals = am.getSpawnLocations().size();
+        steps.add(nl.kmc.core.setup.SetupStep.action("Pedestals (spawns)",
+                pedestals + " (min. 2)", pedestals >= 2, org.bukkit.Material.QUARTZ_PILLAR,
+                p -> { am.addPedestal(p.getLocation());
+                       p.sendMessage("§a[Setup] Pedestal #" + am.getSpawnLocations().size() + " toegevoegd."); },
+                "Klik: voeg een start-pedestal toe op jouw locatie"));
+
+        return steps;
+    }
+
+    @Override
     protected void onGameEnable() {
         var cmd = new SGCommand(this);
         var bukkitCmd = getCommand("survivalgames");

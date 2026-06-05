@@ -19,6 +19,9 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
     private MapManager          mapManager;
     private TGTTOSGameManagerV2 tgttosGameManagerV2;
 
+    /** The map currently being built in the Setup Dashboard wizard. */
+    private String wizardMapId;
+
     // ── AbstractGamePlugin metadata ───────────────────────────────────────────
 
     @Override protected String   gameId()      { return GAME_ID; }
@@ -40,6 +43,58 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
         mapManager          = new MapManager(this);
         tgttosGameManagerV2 = new TGTTOSGameManagerV2(this, reg, stats);
         return tgttosGameManagerV2;
+    }
+
+    @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (mapManager == null) return java.util.List.of();
+        var mm = mapManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+
+        int maps = mm.getMaps().size();
+        s.add(nl.kmc.core.setup.SetupStep.action("Maps (" + maps + ", min. 1)",
+                "nieuwe map starten", maps >= 1, Material.FILLED_MAP,
+                p -> getKmcCore().getChatInput().await(p, "Typ de naam van de nieuwe map:", name -> {
+                    String id = name.toLowerCase().replace(' ', '_');
+                    var partial = mm.getPartial(id);
+                    partial.displayName = name;
+                    partial.world       = p.getWorld();
+                    wizardMapId = id;
+                    p.sendMessage("§a[Setup] Map §e" + name + "§a gestart (wereld gezet).");
+                    p.sendMessage("§7Open §e/kmcsetup → TGTTOS §7en voeg spawns + finish-hoeken toe.");
+                }),
+                "Klik: start een nieuwe map (typ de naam)"));
+
+        if (wizardMapId != null) {
+            var partial = mm.getPartial(wizardMapId);
+            s.add(nl.kmc.core.setup.SetupStep.action("Start-spawn (" + wizardMapId + ")",
+                    partial.startSpawns.size() + " spawns", !partial.startSpawns.isEmpty(),
+                    Material.RED_BED,
+                    p -> { mm.getPartial(wizardMapId).startSpawns.add(p.getLocation());
+                           p.sendMessage("§a[Setup] Start-spawn toegevoegd (" + mm.getPartial(wizardMapId).startSpawns.size() + ")."); },
+                    "Klik: voeg een start-spawn toe op jouw locatie"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Finish hoek 1",
+                    partial.finishPos1 != null ? "✓ gezet" : "nog niet", partial.finishPos1 != null,
+                    Material.TARGET,
+                    p -> { mm.getPartial(wizardMapId).finishPos1 = p.getLocation();
+                           p.sendMessage("§a[Setup] Finish-hoek 1 gezet."); },
+                    "Klik: zet de eerste finish-hoek"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Finish hoek 2",
+                    partial.finishPos2 != null ? "✓ gezet" : "nog niet", partial.finishPos2 != null,
+                    Material.TARGET,
+                    p -> { mm.getPartial(wizardMapId).finishPos2 = p.getLocation();
+                           p.sendMessage("§a[Setup] Finish-hoek 2 gezet."); },
+                    "Klik: zet de tweede finish-hoek"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Map opslaan",
+                    partial.isComplete() ? "klaar om op te slaan" : "mist: " + partial.missing(), partial.isComplete(),
+                    Material.LIME_DYE,
+                    p -> { var pm = mm.getPartial(wizardMapId);
+                           if (pm.isComplete()) { mm.commitPartial(wizardMapId);
+                               p.sendMessage("§a[Setup] Map §e" + wizardMapId + "§a opgeslagen!"); wizardMapId = null; }
+                           else p.sendMessage("§c[Setup] Map nog niet compleet — mist: " + pm.missing()); },
+                    "Klik: sla de map op"));
+        }
+        return s;
     }
 
     @Override

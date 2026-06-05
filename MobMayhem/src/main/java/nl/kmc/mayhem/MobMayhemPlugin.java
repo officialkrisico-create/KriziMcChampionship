@@ -51,6 +51,24 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+        s.add(nl.kmc.core.setup.SetupStep.action("Speler-spawn", "klik op je locatie", false,
+                org.bukkit.Material.COMPASS,
+                p -> { am.setPlayerSpawn(p.getLocation()); p.sendMessage("§a[Setup] Speler-spawn gezet."); },
+                "Klik: zet de speler-spawn op jouw locatie"));
+        int mobs = am.getMobSpawnCount();
+        s.add(nl.kmc.core.setup.SetupStep.action("Mob spawns", mobs + " stuks", mobs > 0,
+                org.bukkit.Material.ZOMBIE_HEAD,
+                p -> { am.addMobSpawn(p.getLocation());
+                       p.sendMessage("§a[Setup] Mob-spawn #" + am.getMobSpawnCount() + " toegevoegd."); },
+                "Klik: voeg een mob-spawn toe op jouw locatie"));
+        return s;
+    }
+
+    @Override
     protected void onGameEnable() {
         var cmd = new MobMayhemCommand(this);
         var bukkitCmd = getCommand("mobmayhem");

@@ -39,6 +39,55 @@ game:
   base-speed-boost: true
 
 # ================================================================
+# Generic lifecycle (BaseGameManager)
+# ================================================================
+# QuakeCraft drives its OWN presentation (see start-flow / start-sequence
+# below), so the generic base countdown + grace are disabled to stay out of
+# the way. Leave these at 0 unless you know what you're doing.
+games:
+  quake_craft:
+    countdown: 0
+    grace-period: 0
+
+# ================================================================
+# Match start flow — state machine
+# ================================================================
+# /qc start does NOT drop players straight into combat. It runs a presentation
+# sequence while everyone is frozen:
+#   INITIALIZING → INTRODUCTION → TUTORIAL → COUNTDOWN → GO (RUNNING)
+# Each phase can be toggled on/off and its duration tuned. Combat, scoring,
+# powerups and abilities only go live at GO. This framework is reusable by
+# future KMC minigames (flyovers, cinematics, team intros, announcers, …).
+
+start-flow:
+  introduction: true   # big "QUAKECRAFT" title card
+  tutorial: true       # gradual how-to-play chat messages
+  countdown: true      # 5..4..3..2..1 titles + sound
+  flyover: false       # reserved — cinematic map flyover (future module)
+
+start-sequence:
+  intro-seconds: 5
+  tutorial-seconds: 10
+  countdown-seconds: 5
+  intro-subtitle: "First to reach the kill limit wins"
+  # Optional override of the tutorial lines. Empty = built-in defaults.
+  # Lines are spread evenly across tutorial-seconds. Colour codes with &.
+  tutorial-messages: []
+
+# ================================================================
+# Team gameplay
+# ================================================================
+# Friendly fire is globally impossible whenever friendly-fire (above) is false:
+# every weapon, gadget and the hit handler route through TeamUtil.areTeammates,
+# so future weapons inherit the protection automatically (no per-weapon logic).
+# Team members also spawn grouped together and respawn near living teammates.
+
+team-awareness:
+  # Show teammates glowing in their team colour (NOTE: relies on KMCCore
+  # scoreboard team colours; off by default to keep enemies un-highlighted).
+  glow: false
+
+# ================================================================
 # Powerups
 # ================================================================
 
@@ -91,9 +140,12 @@ powerups:
     # Cooldown between rockets (ms)
     cooldown-ms: 2500
     bonus-coins: 45
-    # Blast radius of the rocket explosion
-    explosion-radius: 4.5
-    # How far the rocket travels before self-detonating (blocks)
+    # On impact the rocket bursts into a RAILGUN NOVA (no AoE blast):
+    #   ray-count railgun rays fly out in every direction, ray-length blocks each.
+    # Any enemy a ray crosses takes a railgun hit. Teammates are ignored.
+    ray-length: 10
+    ray-count: 24
+    # How far the rocket travels before bursting (blocks)
     max-range: 60
     # Rocket travel speed (blocks per tick)
     projectile-speed: 1.2
@@ -360,6 +412,11 @@ arena:
 sounds:
   # Universal kill-confirmation ping (played to the shooter)
   kill.confirm: "BLOCK_NOTE_BLOCK_PLING:1.0:2.0"
+
+  # Match start flow
+  match.intro:     "UI_TOAST_CHALLENGE_COMPLETE:1.0:1.0"
+  match.countdown: "BLOCK_NOTE_BLOCK_HAT:1.0:1.2"
+  match.start:     "ENTITY_PLAYER_LEVELUP:1.0:1.2"
 
   # New gadgets
   impulse_cannon.fire:   "ENTITY_WARDEN_SONIC_BOOM:1.0:1.4"

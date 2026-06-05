@@ -40,7 +40,7 @@ public class TagCommand implements CommandExecutor, TabCompleter {
             case "start" -> {
                 if (plugin.getTntManagerV2() != null) {
                     boolean ok = plugin.getTntManagerV2().start();
-                    if (!ok) sender.sendMessage(ChatColor.RED + "V2 start geweigerd — arena niet klaar?");
+                    if (!ok) plugin.getTntManagerV2().reportArenaIssues(sender);
                     else sender.sendMessage(ChatColor.GREEN + "TNT Tag gestart!");
                 } else {
                     sender.sendMessage(ChatColor.RED + "V2 manager niet beschikbaar.");

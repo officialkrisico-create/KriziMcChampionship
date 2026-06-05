@@ -70,6 +70,46 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
     }
 
     @Override
+    protected java.util.List<nl.kmc.core.setup.SetupStep> extraSetupSteps(org.bukkit.entity.Player viewer) {
+        if (arenaManager == null) return java.util.List.of();
+        var am = arenaManager;
+        java.util.List<nl.kmc.core.setup.SetupStep> steps = new java.util.ArrayList<>();
+
+        boolean worldSet = am.getArenaWorld() != null;
+        steps.add(nl.kmc.core.setup.SetupStep.action("Arena wereld",
+                worldSet ? "✓ " + am.getArenaWorld().getName() : "niet ingesteld", worldSet,
+                Material.GRASS_BLOCK,
+                p -> { am.setArenaWorld(p.getWorld());
+                       p.sendMessage("§a[Setup] Arena-wereld gezet op " + p.getWorld().getName()); },
+                "Klik: zet de arena-wereld op die van jou"));
+
+        int spawns = am.getSpawns().size();
+        steps.add(nl.kmc.core.setup.SetupStep.action("Spawns", spawns + " (min. 2)", spawns >= 2,
+                Material.RED_BED,
+                p -> { am.addSpawn(p.getLocation());
+                       p.sendMessage("§a[Setup] Spawn #" + am.getSpawns().size() + " toegevoegd."); },
+                "Klik: voeg een spawn toe op jouw locatie"));
+
+        int powerups = am.getPowerupLocations().size();
+        steps.add(nl.kmc.core.setup.SetupStep.action("Powerup-locaties", String.valueOf(powerups), powerups > 0,
+                Material.ENDER_CHEST,
+                p -> { am.addPowerupLocation("spot_" + (am.getPowerupLocations().size() + 1), p.getLocation());
+                       p.sendMessage("§a[Setup] Powerup-locatie toegevoegd."); },
+                "Klik: voeg een powerup-spawn toe"));
+
+        int pads = am.getJumpPads().size();
+        steps.add(nl.kmc.core.setup.SetupStep.action("Jump pads", String.valueOf(pads), true,
+                Material.SLIME_BLOCK,
+                p -> { am.addJumpPad(p.getLocation(),
+                            getConfig().getDouble("jump-pad.default-height", 4.0),
+                            getConfig().getDouble("jump-pad.forward", 0.4));
+                       p.sendMessage("§a[Setup] Jump pad toegevoegd."); },
+                "Klik: voeg een jump pad toe op jouw locatie"));
+
+        return steps;
+    }
+
+    @Override
     protected void onV1GameStart(String gameId) {
         Bukkit.getScheduler().runTaskLater(this, () -> {
             getLogger().warning("[QuakeCraft] V1 auto-start fired but V1 GameManager has been removed.");

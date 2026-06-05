@@ -303,6 +303,12 @@ public class GameManager {
         save();
     }
 
+    /** Current number of votes cast for a game (0 if no vote active). */
+    public int getVoteCount(String gameId) {
+        if (votes == null || gameId == null) return 0;
+        return (int) votes.values().stream().filter(gameId::equals).count();
+    }
+
     // ---- Getters ---------------------------------------------------
     public KMCGame getActiveGame()                      { return activeGame; }
     public KMCGame getNextGame()                        { return nextGame; }

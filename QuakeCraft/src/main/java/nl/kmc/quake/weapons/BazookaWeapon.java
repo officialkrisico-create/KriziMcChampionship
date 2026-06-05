@@ -2,22 +2,27 @@ package nl.kmc.quake.weapons;
 
 import nl.kmc.quake.QuakeCraftPlugin;
 import nl.kmc.quake.models.PlayerState;
+import nl.kmc.quake.util.TeamUtil;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 /**
- * Bazooka — fires a forward-travelling rocket that detonates on impact
- * (block or player) with an area-of-effect blast, like a directed grenade.
+ * Bazooka — fires a forward-travelling rocket. On impact it does NOT do an
+ * area-of-effect blast; instead it bursts into a <b>railgun nova</b>: a spray
+ * of hitscan railgun rays radiating outward in every direction (~10 blocks
+ * each). Any enemy a ray crosses takes a railgun hit. Teammates are ignored
+ * by every ray via {@link TeamUtil} — friendly fire is impossible.
  *
  * <p>Implementation: ray-marches a point forward each tick, drawing a flame
- * trail. When it hits a solid block, passes near a player, or reaches max
- * range, it detonates and ray-checks every player in the blast radius
- * (line-of-sight gated, same as the grenade) crediting kills to the shooter.
+ * trail. When it hits a solid block, passes near an enemy, or reaches max
+ * range, it bursts into the nova.
  *
  * <p>Has a cooldown (like the other weapons) and a limited number of uses
  * tracked by {@link PlayerState} / {@code ActivePowerup}.
@@ -36,9 +41,10 @@ public final class BazookaWeapon {
         if (!state.canShoot(cd)) return false;
         state.markShot();
 
-        final double range  = plugin.getConfig().getDouble("powerups.bazooka.max-range", 60);
-        final double speed  = plugin.getConfig().getDouble("powerups.bazooka.projectile-speed", 1.2);
-        final double radius = plugin.getConfig().getDouble("powerups.bazooka.explosion-radius", 4.5);
+        final double range     = plugin.getConfig().getDouble("powerups.bazooka.max-range", 60);
+        final double speed     = plugin.getConfig().getDouble("powerups.bazooka.projectile-speed", 1.2);
+        final double rayLength = plugin.getConfig().getDouble("powerups.bazooka.ray-length", 10);
+        final int    rayCount  = plugin.getConfig().getInt("powerups.bazooka.ray-count", 24);
 
         World world = shooter.getWorld();
         Vector dir  = shooter.getEyeLocation().getDirection().normalize();
@@ -64,19 +70,19 @@ public final class BazookaWeapon {
 
                     // Hit a solid block?
                     if (point.getBlock().getType().isSolid()) {
-                        detonate(plugin, shooter, point.clone(), radius);
+                        burst(plugin, shooter, point.clone(), rayLength, rayCount);
                         cancel(); return;
                     }
-                    // Near a player (not the shooter)?
+                    // Near an enemy (teammates don't trigger it)?
                     for (var e : world.getNearbyEntities(point, 1.5, 1.5, 1.5)) {
-                        if (e instanceof Player pl && !pl.equals(shooter) && !pl.isDead()) {
-                            detonate(plugin, shooter, point.clone(), radius);
+                        if (e instanceof Player pl && !pl.isDead() && TeamUtil.isEnemy(plugin, shooter, pl)) {
+                            burst(plugin, shooter, point.clone(), rayLength, rayCount);
                             cancel(); return;
                         }
                     }
                     // Out of range?
                     if (travelled >= range) {
-                        detonate(plugin, shooter, point.clone(), radius);
+                        burst(plugin, shooter, point.clone(), rayLength, rayCount);
                         cancel(); return;
                     }
                 }
@@ -86,27 +92,57 @@ public final class BazookaWeapon {
         return true;
     }
 
-    private static void detonate(QuakeCraftPlugin plugin, Player shooter, Location loc, double radius) {
-        World world = loc.getWorld();
+    /**
+     * The nova: a visual explosion flash followed by {@code rayCount} railgun
+     * rays fired outward in an even spherical spread, each up to {@code rayLength}
+     * blocks. The first enemy each ray crosses (line-of-sight gated by blocks)
+     * takes a railgun hit credited to the shooter. Teammates are skipped.
+     */
+    private static void burst(QuakeCraftPlugin plugin, Player shooter, Location center,
+                              double rayLength, int rayCount) {
+        World world = center.getWorld();
         if (world == null) return;
 
-        world.spawnParticle(Particle.EXPLOSION, loc, 1);
-        world.spawnParticle(Particle.LARGE_SMOKE, loc, 12, 0.6, 0.6, 0.6, 0);
-        world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.6f, 0.9f);
+        // Visual + audio flash (no AoE damage — the rays do the damage).
+        world.spawnParticle(Particle.EXPLOSION, center, 1);
+        world.spawnParticle(Particle.FLASH, center, 1);
+        world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 1.1f);
 
-        double radiusSq = radius * radius;
-        for (var entity : world.getNearbyEntities(loc, radius, radius, radius)) {
-            if (!(entity instanceof Player target)) continue;
-            if (target.isDead() || target.equals(shooter)) continue;
-            if (target.getLocation().distanceSquared(loc) > radiusSq) continue;
+        int rays = Math.max(1, rayCount);
+        final double golden = Math.PI * (3.0 - Math.sqrt(5.0)); // golden angle for even sphere spread
+        for (int i = 0; i < rays; i++) {
+            double y = 1.0 - (i / (double) Math.max(1, rays - 1)) * 2.0; // 1 → -1
+            double r = Math.sqrt(Math.max(0, 1.0 - y * y));
+            double theta = golden * i;
+            Vector rayDir = new Vector(Math.cos(theta) * r, y, Math.sin(theta) * r).normalize();
+            fireRay(plugin, shooter, center, rayDir, rayLength);
+        }
+    }
 
-            // Line-of-sight gate: a wall between the blast and the target blocks it.
-            Vector toTarget = target.getEyeLocation().toVector().subtract(loc.toVector());
-            if (world.rayTraceBlocks(loc, toTarget, toTarget.length()) != null) continue;
+    /** A single railgun ray from {@code center} along {@code dir}, up to {@code length} blocks. */
+    private static void fireRay(QuakeCraftPlugin plugin, Player shooter, Location center,
+                                Vector dir, double length) {
+        World world = center.getWorld();
+        if (world == null) return;
 
-            if (plugin.getGameManagerV2() != null) {
+        // Hitscan for the first enemy along the ray (pass through teammates & shooter).
+        RayTraceResult hit = world.rayTrace(center, dir, length, FluidCollisionMode.NEVER, true, 0.35,
+                e -> e instanceof Player p && !p.isDead() && TeamUtil.isEnemy(plugin, shooter, p));
+
+        double drawTo = length;
+        if (hit != null && hit.getHitEntity() instanceof Player target) {
+            drawTo = hit.getHitPosition().distance(center.toVector());
+            if (plugin.getGameManagerV2() != null)
                 plugin.getGameManagerV2().handleHit(shooter, target, "bazooka");
-            }
+        } else if (hit != null && hit.getHitBlock() != null) {
+            drawTo = hit.getHitPosition().distance(center.toVector());
+        }
+
+        // Tracer particles along the (possibly shortened) ray — railgun look.
+        for (double d = 0.5; d <= drawTo; d += 0.6) {
+            Location p = center.clone().add(dir.clone().multiply(d));
+            world.spawnParticle(Particle.CRIT, p, 1, 0, 0, 0, 0);
+            world.spawnParticle(Particle.END_ROD, p, 1, 0, 0, 0, 0);
         }
     }
 }

@@ -62,6 +62,8 @@ public final class KMCCorePlugin extends JavaPlugin {
         container.register(PointsService.class,       pointsService);
         container.register(GameRegistryService.class, gameRegistry);
         container.register(StorageModule.class,       storage);
+        container.register(nl.kmc.core.setup.SetupService.class, new nl.kmc.core.setup.SetupService());
+        container.register(nl.kmc.core.validation.ValidationManager.class, new nl.kmc.core.validation.ValidationManager());
 
         // ── Public API ───────────────────────────────────────────────────────
         // KMCCore (V1) is the single source of truth and registers the KMCApi via

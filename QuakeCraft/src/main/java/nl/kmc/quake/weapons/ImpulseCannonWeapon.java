@@ -47,6 +47,8 @@ public final class ImpulseCannonWeapon {
         double radiusSq = radius * radius;
         for (var e : impact.getWorld().getNearbyEntities(impact, radius, radius, radius)) {
             if (!(e instanceof Player target) || target.isDead()) continue;
+            // Self-launch is fine; never knock teammates around.
+            if (!target.equals(shooter) && nl.kmc.quake.util.TeamUtil.areTeammates(plugin, shooter, target)) continue;
             if (target.getLocation().distanceSquared(impact) > radiusSq) continue;
 
             Vector push = target.getLocation().toVector().subtract(impact.toVector());
