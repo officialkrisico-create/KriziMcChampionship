@@ -28,13 +28,13 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
     @Override protected String   displayName() { return "TGTTOS"; }
     @Override protected Material icon()        { return Material.DIRT_PATH; }
     @Override protected int      minPlayers()  { return 2; }
-    @Override protected String   description() { return "Race from one side of the map to the other on rotating maps."; }
-    @Override protected String   objective()   { return "Finish each round as fast as possible."; }
+    @Override protected String   description() { return "Race van de ene kant van de map naar de andere op wisselende maps."; }
+    @Override protected String   objective()   { return "Finish elke ronde zo snel mogelijk."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+100 pts — 1st finish in round",
-            "+75 pts — 2nd finish",
-            "+5 pts — DNF consolation"
+            "+100 ptn — 1e finish in ronde",
+            "+75 ptn — 2e finish",
+            "+5 ptn — DNF-troostprijs"
         );
     }
 

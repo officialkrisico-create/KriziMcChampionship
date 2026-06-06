@@ -29,13 +29,13 @@ public final class SpleefPlugin extends AbstractGamePlugin {
     @Override protected String   displayName() { return "Spleef"; }
     @Override protected Material icon()        { return Material.DIAMOND_SHOVEL; }
     @Override protected int      minPlayers()  { return 2; }
-    @Override protected String   description() { return "Break the floor under opponents to eliminate them."; }
-    @Override protected String   objective()   { return "Be the last player standing on the snow floor."; }
+    @Override protected String   description() { return "Breek de vloer onder tegenstanders om ze te elimineren."; }
+    @Override protected String   objective()   { return "Blijf als laatste speler op de sneeuwvloer staan."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+2 pts — Block broken",
-            "+35 pts — Elimination",
-            "+5 pts — Survival bonus (per elimination)"
+            "+2 ptn — Blok gebroken",
+            "+35 ptn — Eliminatie",
+            "+5 ptn — Overlevingsbonus (per eliminatie)"
         );
     }
 

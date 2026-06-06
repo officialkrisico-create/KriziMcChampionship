@@ -1,0 +1,118 @@
+# English texts. Use & for colour codes and {0}, {1}, ... for variables.
+language:
+  name: "English"
+  gui-title: "&1&lChoose your language"
+  choose: "&7Pick your language below."
+  set: "&aLanguage set to &e{0}&a."
+  current: "&7Current language: &e{0}"
+
+common:
+  players-only: "&cOnly players can use this."
+  no-permission: "&cYou don't have permission for this."
+
+vote:
+  confirm: "&a✔ You voted for &e{0}&a!"
+
+scoreboard:
+  round: "&7Round: &e{0} &8(&e×{1}&8)"
+  inactive: "&7Status: &cInactive"
+  game: "&7Game: &b{0}"
+  top-teams: "&6&lTop Teams:"
+  your-team: "&e&lYour Team:"
+  your-points: "&b&lYour Points: &e{0}"
+
+game:
+  board:
+    phase: "&7Phase &e{0}"
+    round: "&7Round &e{0}"
+    top-teams: "&6&lTOP TEAMS"
+    your-team: "&e&lYour team"
+  phase:
+    idle: "Waiting"
+    preparing: "Preparing"
+    countdown: "Countdown"
+    grace: "Start"
+    active: "Live"
+    deathmatch: "Deathmatch"
+    ended: "Finished"
+
+tablist:
+  game: "&7Game: &a{0} &8| &7Round &e{1}&7/&e{2}"
+  intermission: "&7Round &e{0}&7/&e{1} &8| &eIntermission"
+  lobby: "&aLobby &8| &7Waiting to start"
+  standings: "&6&lSTANDINGS"
+  no-points: "&7No points yet"
+  vote-hint: "&7Vote for the next game: &e/kmcvote"
+
+# Per-game scoreboards (translated per player via api.tr)
+sb:
+  common:
+    time: "&7Time &f{0}"
+    players-left: "&7Players left &a{0}"
+    teams-left: "&7Teams left &a{0}"
+    alive: "&7Status &aAlive"
+    eliminated: "&7Status &cEliminated"
+    kills: "&7Kills &c{0}"
+    points: "&7Points &a{0}"
+    deathmatch: "&c&l⚔ DEATHMATCH"
+  spleef:
+    tip1: "&7Break the floor under"
+    tip2: "&7your opponents!"
+  luckyblock:
+    tip1: "&7Break lucky blocks"
+    tip2: "&7for random loot!"
+  tnttag:
+    round: "&7Round &e{0}"
+    time: "&7Time &f{0}s"
+    out: "&7You are &cEliminated"
+    it: "&c&l⚠ YOU HAVE THE BOMB!"
+    safe: "&a&lSafe — run away!"
+  bridge:
+    target: "&7First to &e{0} &7goals"
+    standings: "&e&lSTANDINGS"
+    your-goals: "&7Your goals &b{0}"
+  mob:
+    your-team: "&e&lYOUR TEAM"
+    wave: "&7Wave &e{0}"
+    mobs-left: "&7Mobs left &c{0}"
+    mob-kills: "&7Mob kills &a{0}"
+    teams: "&6&lTEAMS — waves"
+    team-entry: " &7{0} &8- &ewave {1}"
+  tgttos:
+    round: "&7Round &e{0}&7/&e{1}"
+    time: "&7Time &f{0}s"
+    running: "&7Still racing &a{0}"
+    you-finished: "&7You: &aFinished"
+    you-running: "&7You: &eRacing"
+    rounds-done: "&7Rounds done &e{0}"
+  ae:
+    your-laps: "&7Your laps &e{0}"
+    finished: "&7Status &aFinished"
+    busy: "&7Status &eRacing"
+    top: "&e&lTOP RACERS"
+    entry: " &7{0} &8- &e{1} laps"
+  parkour:
+    checkpoint: "&7Checkpoint &e{0}"
+    checkpoint-of: "&7Checkpoint &e{0}&7/&e{1}"
+    stage: "&7Stage &e{0}"
+    finished: "&7Status &aFinished"
+    busy: "&7Status &eRunning"
+  elytra:
+    checkpoints: "&7Checkpoints &e{0}"
+    checkpoints-of: "&7Checkpoints &e{0}&7/&e{1}"
+    finished: "&7Status &aFinished"
+    flying: "&7Status &eFlying"
+  bingo:
+    your-team: "&e&lYOUR TEAM"
+    squares: "&7Squares &a{0}"
+    lines: "&7Lines &6{0}"
+    teams: "&6&lTEAMS — lines"
+    team-entry: " &7{0} &8- &6{1}L &7/ &a{2}S"
+  quake:
+    title: "&c&lQUAKECRAFT"
+    starting: "&7Match starting soon…"
+    first-to: "&7First to &e{0} &7kills"
+    time: "&7Time &f{0}"
+    top: "&e&lTOP PLAYERS"
+    kd: "&7Kills &a{0}  &7Deaths &c{1}"
+    streak: "&7Streak &6{0}"

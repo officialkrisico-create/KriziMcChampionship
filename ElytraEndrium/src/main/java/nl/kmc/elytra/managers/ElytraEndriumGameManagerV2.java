@@ -185,6 +185,24 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(org.bukkit.entity.Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        int totalCp = plugin.getCourseManager().getCheckpoints().size();
+        RunnerState me = runners.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(totalCp > 0 ? api.tr(id, "sb.elytra.checkpoints-of", me.getHighestCheckpoint(), totalCp)
+                              : api.tr(id, "sb.elytra.checkpoints", me.getHighestCheckpoint()));
+            l.add(me.isFinished() ? api.tr(id, "sb.elytra.finished") : api.tr(id, "sb.elytra.flying"));
+            l.add(api.tr(id, "sb.common.points", me.getTotalPoints()));
+        }
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "Elytra Endrium"; }

@@ -21,7 +21,7 @@ public final class GuiListener implements Listener {
         // Only act on clicks in the GUI's own (top) inventory.
         if (event.getClickedInventory() == null) return;
         if (event.getClickedInventory().getHolder() != gui) return;
-        gui.handleClick(p, event.getSlot());
+        gui.handleClick(p, event.getSlot(), event.isRightClick());
     }
 
     @EventHandler

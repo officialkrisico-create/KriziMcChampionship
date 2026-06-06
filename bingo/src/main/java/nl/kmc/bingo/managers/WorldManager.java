@@ -56,11 +56,31 @@ public class WorldManager {
     public World getGameWorld() { return gameWorld; }
     public boolean hasGameWorld() { return gameWorld != null; }
 
+    /**
+     * Returns (loading if needed) the template world. Bingo always spawns in
+     * the template world when no per-game clone is loaded, so it never falls
+     * back to the lobby. Must be called on the main thread.
+     */
+    public World getTemplateWorld() {
+        String name = getTemplateWorldName();
+        World w = Bukkit.getWorld(name);
+        if (w == null && templateExists()) {
+            w = Bukkit.createWorld(new WorldCreator(name));
+        }
+        return w;
+    }
+
+    /**
+     * The Bingo spawn — ALWAYS in the template world (or the per-game clone if
+     * one is loaded), never the lobby. Returns null only if no template world
+     * exists at all.
+     */
     public Location getDefaultSpawn() {
-        if (gameWorld == null) return null;
+        World w = gameWorld != null ? gameWorld : getTemplateWorld();
+        if (w == null) return null;
         var sec = plugin.getConfig().getConfigurationSection("world.default-spawn");
-        if (sec == null) return gameWorld.getSpawnLocation();
-        return new Location(gameWorld,
+        if (sec == null) return w.getSpawnLocation();
+        return new Location(w,
                 sec.getDouble("x", 0),
                 sec.getDouble("y", 65),
                 sec.getDouble("z", 0),
@@ -115,14 +135,7 @@ public class WorldManager {
                             callback.accept(null);
                             return;
                         }
-                        loaded.setKeepSpawnInMemory(false);
-                        loaded.setAutoSave(false);
-                        loaded.setGameRule(org.bukkit.GameRule.KEEP_INVENTORY,
-                                plugin.getConfig().getBoolean("game.keep-inventory", true));
-                        loaded.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, true);
-                        loaded.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
-                        loaded.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, true);
-                        loaded.setPVP(plugin.getConfig().getBoolean("game.pvp-enabled", false));
+                        applyGameRules(loaded);
 
                         gameWorld     = loaded;
                         gameWorldName = newName;
@@ -138,6 +151,57 @@ public class WorldManager {
                 Bukkit.getScheduler().runTask(plugin, () -> callback.accept(null));
             }
         });
+    }
+
+    /**
+     * Synchronously clones the template into a fresh per-game world and loads
+     * it, so every Bingo match starts pristine and the template world is never
+     * modified by play. Returns the loaded clone, or {@code null} on failure
+     * (callers then fall back to the template via {@link #getDefaultSpawn()}).
+     *
+     * <p>Runs on the main thread — fine for a typical arena-sized template;
+     * keep the template small to avoid a noticeable load hitch.
+     */
+    public World createGameWorldSync() {
+        if (!templateExists()) {
+            plugin.getLogger().severe("Template world '" + getTemplateWorldName() + "' not found!");
+            return null;
+        }
+        if (gameWorld != null) disposeGameWorld();
+
+        String newName = "bingo_game_" + UUID.randomUUID().toString().substring(0, 8);
+        File source = new File(Bukkit.getWorldContainer(), getTemplateWorldName());
+        File dest   = new File(Bukkit.getWorldContainer(), newName);
+        long t0 = System.currentTimeMillis();
+        try {
+            copyDirectory(source.toPath(), dest.toPath());
+            new File(dest, "uid.dat").delete();
+            new File(dest, "session.lock").delete();
+
+            World loaded = Bukkit.createWorld(new WorldCreator(newName));
+            if (loaded == null) { deleteRecursive(dest); return null; }
+            applyGameRules(loaded);
+            gameWorld     = loaded;
+            gameWorldName = newName;
+            plugin.getLogger().info("Bingo game world cloned + loaded: " + newName
+                    + " (" + (System.currentTimeMillis() - t0) + "ms)");
+            return loaded;
+        } catch (IOException io) {
+            plugin.getLogger().severe("Failed to clone Bingo world: " + io.getMessage());
+            deleteRecursive(dest);
+            return null;
+        }
+    }
+
+    private void applyGameRules(World loaded) {
+        loaded.setKeepSpawnInMemory(false);
+        loaded.setAutoSave(false);
+        loaded.setGameRule(org.bukkit.GameRule.KEEP_INVENTORY,
+                plugin.getConfig().getBoolean("game.keep-inventory", true));
+        loaded.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, true);
+        loaded.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
+        loaded.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, true);
+        loaded.setPVP(plugin.getConfig().getBoolean("game.pvp-enabled", false));
     }
 
     /**

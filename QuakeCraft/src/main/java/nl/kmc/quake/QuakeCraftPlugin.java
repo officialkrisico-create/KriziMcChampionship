@@ -31,13 +31,13 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "QuakeCraft"; }
     @Override protected Material icon()       { return Material.WOODEN_HOE; }
     @Override protected int     minPlayers()  { return 4; }
-    @Override protected String  description() { return "Fast-paced railgun FPS — first to the kill target wins."; }
-    @Override protected String  objective()   { return "Reach " + getConfig().getInt("game.kill-target", 25) + " kills first."; }
+    @Override protected String  description() { return "Snelle railgun-FPS — eerste die de kill-limiet haalt wint."; }
+    @Override protected String  objective()   { return "Haal als eerste " + getConfig().getInt("game.kill-target", 25) + " kills."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+10 pts — Kill",
-                "+25 pts — Revenge kill",
-                "+50 pts — Win game"
+                "+10 ptn — Kill",
+                "+25 ptn — Wraakkill",
+                "+50 ptn — Game gewonnen"
         );
     }
 

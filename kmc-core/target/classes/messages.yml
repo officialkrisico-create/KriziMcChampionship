@@ -1,0 +1,31 @@
+# KMC Messages V2
+# Supports MiniMessage formatting and classic &-codes.
+
+prefix: "&6[KMC]&r "
+
+tournament:
+  start: "&aThe tournament has started! Good luck everyone."
+  end: "&6The tournament has ended! Congratulations to &e{winner}&6!"
+  round-start: "&eRound &6{round}&e has begun! Multiplier: &6{multiplier}x"
+  round-end: "&eRound &6{round}&e complete. Check the standings!"
+
+game:
+  start: "&aGame starting: &e{game}"
+  end: "&aGame over! Winner: &e{winner}"
+  intro-objective: "&7Objective: &f{objective}"
+
+points:
+  awarded: "&7+&a{amount} &7points &8({reason})"
+  team-awarded: "&7Your team earned &a{amount} &7points!"
+
+clutch:
+  broadcast: "&6&l⚡ CLUTCH MOMENT &r&e{player}&7: &f{description}"
+
+mvp:
+  broadcast: "&6&l★ MVP &r&e{player} &7with &a{score} &7performance points!"
+
+errors:
+  no-permission: "&cYou don't have permission to do that."
+  player-not-found: "&cPlayer not found."
+  team-not-found: "&cTeam not found."
+  tournament-not-active: "&cNo tournament is currently active."

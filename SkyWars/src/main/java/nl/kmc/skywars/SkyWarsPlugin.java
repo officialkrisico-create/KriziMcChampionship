@@ -31,13 +31,13 @@ public final class SkyWarsPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "Team SkyWars"; }
     @Override protected Material icon()       { return Material.ENDER_CHEST; }
     @Override protected int     minPlayers()  { return 4; }
-    @Override protected String  description() { return "PvP on floating islands — last team standing wins."; }
-    @Override protected String  objective()   { return "Eliminate all other teams from their islands."; }
+    @Override protected String  description() { return "PvP op zwevende eilanden — laatste team dat overblijft wint."; }
+    @Override protected String  objective()   { return "Elimineer alle andere teams van hun eilanden."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+50 pts — Kill",
-            "+500 pts — 1st Place",
-            "+5 pts — Survival bonus (per enemy death)"
+            "+50 ptn — Kill",
+            "+500 ptn — 1e plaats",
+            "+5 ptn — Overlevingsbonus (per vijand dood)"
         );
     }
 

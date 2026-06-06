@@ -234,6 +234,27 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        long aliveP = stats.values().stream().filter(PlayerStats::isAlive).count();
+        java.util.Set<String> aliveT = new java.util.HashSet<>();
+        stats.values().stream().filter(PlayerStats::isAlive).forEach(ps -> aliveT.add(ps.getTeamId()));
+        l.add(api.tr(id, "sb.common.teams-left", aliveT.size()));
+        l.add(api.tr(id, "sb.common.players-left", aliveP));
+        PlayerStats me = stats.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(me.isAlive() ? api.tr(id, "sb.common.alive") : api.tr(id, "sb.common.eliminated"));
+            l.add(api.tr(id, "sb.common.kills", me.getKills()));
+        }
+        if (deathmatchActive) { l.add(""); l.add(api.tr(id, "sb.common.deathmatch")); }
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "Team SkyWars"; }

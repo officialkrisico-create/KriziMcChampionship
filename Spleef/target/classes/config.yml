@@ -1,0 +1,100 @@
+# ================================================================
+# Spleef — Configuration
+# ================================================================
+# Classic spleef: break the snow floor under opponents until they
+# fall into the void. Solo or team scoring.
+# ================================================================
+
+game:
+  # Maximum game duration. When timer expires, ranking is by blocks
+  # broken (most = best, then alive players win over eliminated)
+  max-duration-seconds: 300        # 5 minutes
+  
+  # Pre-game countdown
+  countdown-seconds: 15
+  
+  # Floor block material (default snow blocks for classic look)
+  floor-material: SNOW_BLOCK
+  
+  # Shovel material the players get
+  shovel-material: DIAMOND_SHOVEL
+  
+  # Apply Efficiency V to the shovel (instant break)
+  shovel-efficiency: true
+  
+  # Floor placement chunk size (blocks per tick during async placement)
+  # Larger = faster placement but more lag during placement
+  placement-batch-size: 50
+
+# ================================================================
+# Snowball powerups
+# ================================================================
+
+powerups:
+  enabled: true
+  
+  # Seconds between snowball drops
+  interval-seconds: 25
+  
+  # How many snowballs in each drop
+  snowball-count: 4
+  
+  # Knockback strength when a snowball hits a player
+  # 1.0 = vanilla, 2.0 = double, etc.
+  snowball-knockback: 1.5
+
+# ================================================================
+# Scoring
+# ================================================================
+
+points:
+  # Awarded per elimination — when you knock someone into the void
+  # by breaking blocks under them.
+  per-elimination: 35
+
+  # Living-while-someone-dies — every still-alive player gets this
+  # each time someone falls.
+  living-while-someone-dies: 5
+
+  # Winner (last standing)
+  win: 200
+
+  # Personal placement bonuses (1st = last alive, descending).
+  placement:
+    1:  250
+    2:  240
+    3:  230
+    4:  220
+    5:  210
+    6:  200
+    7:  190
+    8:  180
+    9:  170
+    10: 160
+    11: 150
+    12: 140
+    13: 130
+    14: 120
+    15: 110
+    16: 100
+    17:  90
+    18:  80
+    19:  70
+    20:  60
+    21:  50
+    22:  40
+    23:  30
+    24:  20
+    25:  10
+    "default": 0
+
+
+# ================================================================
+# Arena (set via /spleef commands)
+# ================================================================
+
+arena:
+  world: ""
+  layers: {}
+  player-spawns: []
+  void-y: 0

@@ -45,6 +45,10 @@ public final class KMCCore extends JavaPlugin {
     private nl.kmc.kmccore.gui.ChatInput chatInput;
     public nl.kmc.kmccore.gui.ChatInput getChatInput() { return chatInput; }
 
+    /** Per-player language (NL/EN) — see {@code /kmclanguage}. */
+    private nl.kmc.kmccore.lang.LanguageManager languageManager;
+    public nl.kmc.kmccore.lang.LanguageManager getLanguageManager() { return languageManager; }
+
     @Override public void onLoad() { instance = this; }
 
     @Override
@@ -72,6 +76,9 @@ public final class KMCCore extends JavaPlugin {
         (megapatchModule  = new MegapatchModule(this)).enable();
         (engagementModule = new EngagementModule(this)).enable();
         (simulationModule = new SimulationModule(this)).enable();
+
+        // Per-player language (needs the preferences manager from MegapatchModule).
+        languageManager = new nl.kmc.kmccore.lang.LanguageManager(this);
 
         registerCommands();
         registerListeners();
@@ -137,6 +144,7 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcstandings",       new GuiCommands.StandingsCommand(this));
         setCmd("kmchelp",            new GuiCommands.HelpCommand(this));
         setCmd("kmcsettings",        new GuiCommands.SettingsCommand(this));
+        setCmd("kmclanguage",        new GuiCommands.LanguageCommand(this));
         setCmd("kmcvalidate",        new ValidateCommand(this));
     }
 

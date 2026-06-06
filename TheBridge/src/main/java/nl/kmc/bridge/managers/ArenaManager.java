@@ -191,7 +191,16 @@ public class ArenaManager {
     // ---- Validity ---------------------------------------------
 
     public boolean isReady() {
-        return world != null && teams.size() >= 2;
+        return world != null && teams.size() >= 2 && allTeamsHaveSpawn();
+    }
+
+    /** Every team must have its spawn set, otherwise players can't be placed. */
+    private boolean allTeamsHaveSpawn() {
+        return teams.values().stream().allMatch(t -> t.getSpawn() != null);
+    }
+
+    private long teamsMissingSpawn() {
+        return teams.values().stream().filter(t -> t.getSpawn() == null).count();
     }
 
     public String getReadinessReport() {
@@ -199,6 +208,8 @@ public class ArenaManager {
         sb.append("World:     ").append(world != null ? "✔ " + world.getName() : "✘").append("\n");
         sb.append("Teams:     ").append(teams.size())
                 .append(teams.size() < 2 ? " &c(min 2)" : "").append("\n");
+        long missing = teamsMissingSpawn();
+        sb.append("Spawns:    ").append(missing == 0 ? "✔ alle teams" : "&c" + missing + " team(s) zonder spawn").append("\n");
         sb.append("Void Y:    ").append(voidYLevel);
         return sb.toString();
     }

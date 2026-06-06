@@ -46,6 +46,11 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
     @Override public PointsApi      points()       { return pointsApi; }
     @Override public GameApi        games()        { return gameApi; }
     @Override public StatsApi       stats()        { return statsApi; }
+
+    @Override public String tr(java.util.UUID player, String key, Object... args) {
+        try { return plugin.getLanguageManager().tr(player, key, args); }
+        catch (Throwable t) { return key; }
+    }
     @Override public AchievementApi achievements() { return new V1AchievementApi(); }
 
     // ── PlayerData (V1) → KMCPlayer (V2) view ─────────────────────────────────

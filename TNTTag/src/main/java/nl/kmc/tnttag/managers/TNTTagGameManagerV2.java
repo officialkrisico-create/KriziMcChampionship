@@ -132,6 +132,25 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.tnttag.round", currentRound));
+        l.add(api.tr(id, "sb.tnttag.time", Math.max(0, remainingRoundSeconds)));
+        long alive = players.values().stream().filter(PlayerState::isAlive).count();
+        l.add(api.tr(id, "sb.common.players-left", alive));
+        PlayerState me = players.get(id);
+        if (me != null) {
+            l.add("");
+            if (!me.isAlive())      l.add(api.tr(id, "sb.tnttag.out"));
+            else if (me.isIt())     l.add(api.tr(id, "sb.tnttag.it"));
+            else                    l.add(api.tr(id, "sb.tnttag.safe"));
+        }
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "TNT Tag"; }

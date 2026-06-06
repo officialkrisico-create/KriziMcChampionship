@@ -60,8 +60,8 @@ public final class LuckyBlockPlugin extends JavaPlugin {
             GameRegistration reg = GameRegistration.builder(GAME_ID, "Lucky Block")
                     .icon(Material.YELLOW_CONCRETE)
                     .minPlayers(2)
-                    .description("Break lucky blocks to get random loot — last player alive wins!")
-                    .objective("Be the last player standing.")
+                    .description("Sla lucky blocks kapot voor willekeurige loot — laatste speler die overleeft wint!")
+                    .objective("Blijf als laatste speler over.")
                     .build();
 
             gameRegistry.register(reg);
@@ -72,10 +72,10 @@ public final class LuckyBlockPlugin extends JavaPlugin {
             if (setupService != null) setupService.register(buildSetup());
 
             GameIntroCardRegistry.register(GameIntroCard.builder(GAME_ID, "Lucky Block")
-                    .objective("Last player alive wins")
-                    .addScoringLine("+pts — Lucky block loot")
-                    .addScoringLine("+35 pts — Elimination")
-                    .addScoringLine("+5 pts — Survival bonus")
+                    .objective("Laatste speler die overleeft wint")
+                    .addScoringLine("+ptn — Lucky block-loot")
+                    .addScoringLine("+35 ptn — Eliminatie")
+                    .addScoringLine("+5 ptn — Overlevingsbonus")
                     .build());
 
             getServer().getPluginManager().registerEvents(new Listener() {

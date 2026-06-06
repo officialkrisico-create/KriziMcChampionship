@@ -267,8 +267,9 @@ public class GameManager {
         }
         String gameId = voteOptions.get(option - 1).getId();
         votes.put(player.getUniqueId(), gameId);
-        player.sendMessage(MessageUtil.get("vote.submit")
-                .replace("{game}", voteOptions.get(option - 1).getDisplayName()));
+        // Per-player language: confirmation is shown in the voter's chosen language.
+        player.sendMessage(plugin.getLanguageManager().tr(player, "vote.confirm",
+                voteOptions.get(option - 1).getDisplayName()));
         return true;
     }
 

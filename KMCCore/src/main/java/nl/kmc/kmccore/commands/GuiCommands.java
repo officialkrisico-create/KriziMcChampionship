@@ -75,4 +75,13 @@ public final class GuiCommands {
             return true;
         }
     }
+
+    /** /kmclanguage — open the personal language picker. */
+    public record LanguageCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.LanguageGui(plugin, (Player) s).open((Player) s);
+            return true;
+        }
+    }
 }

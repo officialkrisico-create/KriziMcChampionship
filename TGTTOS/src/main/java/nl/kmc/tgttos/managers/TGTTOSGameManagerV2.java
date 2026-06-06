@@ -121,6 +121,26 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(org.bukkit.entity.Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        int total = plugin.getConfig().getInt("game.total-rounds", 3);
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.tgttos.round", Math.max(1, currentRound), total));
+        l.add(api.tr(id, "sb.tgttos.time", Math.max(0, remainingRoundSeconds)));
+        long busy = runners.values().stream().filter(r -> !r.isCurrentRoundFinished()).count();
+        l.add(api.tr(id, "sb.tgttos.running", busy));
+        RunnerState me = runners.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(me.isCurrentRoundFinished() ? api.tr(id, "sb.tgttos.you-finished") : api.tr(id, "sb.tgttos.you-running"));
+            l.add(api.tr(id, "sb.tgttos.rounds-done", me.getRoundsFinished()));
+            l.add(api.tr(id, "sb.common.points", me.getTotalPoints()));
+        }
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "TGTTOS"; }
@@ -188,7 +208,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         for (int i = 0; i < online.size(); i++) {
             Player p = online.get(i);
             Location dest = spawns.isEmpty() ? p.getLocation() : spawns.get(i % spawns.size());
-            p.teleport(dest);
+            nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, dest);
             p.setGameMode(GameMode.ADVENTURE);
             p.setHealth(20); p.setFoodLevel(20);
         }

@@ -42,6 +42,15 @@ public abstract class Gui implements InventoryHolder {
         if (action != null) action.accept(p);
     }
 
+    /**
+     * Click variant that also knows the mouse button. Defaults to the plain
+     * {@link #handleClick(Player, int)}; override when a GUI needs left/right
+     * to mean different things (e.g. +1 / -1).
+     */
+    public void handleClick(Player p, int slot, boolean rightClick) {
+        handleClick(p, slot);
+    }
+
     // ── Layout helpers ──────────────────────────────────────────────────────
 
     protected void set(int slot, ItemStack item) { inventory.setItem(slot, item); }

@@ -169,11 +169,55 @@ public abstract class BaseGameManager implements Listener {
 
     /**
      * Per-game sidebar lines (top → bottom), rebuilt each scoreboard tick and
-     * painted onto each player's board (KMC team colours preserved). Return
-     * {@code null} (default) to keep the previous lobby sidebar untouched.
-     * Override to show kills, timers, objectives, etc.
+     * painted onto each player's board (KMC team colours preserved). Defaults to
+     * a live tournament-standings board ({@link #defaultScoreboardLines}) so
+     * every game shows something useful; override to add game-specific info
+     * (kills, timers, objectives, …) — optionally re-using the default lines.
      */
-    protected java.util.List<String> getScoreboardLines(Player viewer) { return null; }
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        return defaultScoreboardLines(viewer);
+    }
+
+    /** Generic live board: phase, round, top teams, and the viewer's team. */
+    protected final java.util.List<String> defaultScoreboardLines(Player viewer) {
+        java.util.List<String> l = new java.util.ArrayList<>();
+        try {
+            java.util.UUID id = viewer.getUniqueId();
+            l.add(api.tr(id, "game.board.phase", phaseLabel(viewer)));
+            int round = api.games().getCurrentRound();
+            if (round > 0) l.add(api.tr(id, "game.board.round", round));
+            l.add("");
+            l.add(api.tr(id, "game.board.top-teams"));
+            java.util.List<nl.kmc.core.domain.KMCTeam> standings = api.teams().getStandings();
+            for (int i = 0; i < Math.min(5, standings.size()); i++) {
+                nl.kmc.core.domain.KMCTeam t = standings.get(i);
+                l.add(" §7" + (i + 1) + ". " + t.getColor() + t.getDisplayName() + " §8- §e" + t.getPoints());
+            }
+            nl.kmc.core.domain.KMCTeam mine = api.teams().getTeamByPlayer(id).orElse(null);
+            if (mine != null) {
+                l.add("");
+                l.add(api.tr(id, "game.board.your-team"));
+                l.add(mine.getColor() + mine.getDisplayName() + " §8- §e" + mine.getPoints() + "p");
+            }
+        } catch (Throwable t) {
+            return null; // never break the board on a transient API hiccup
+        }
+        return l;
+    }
+
+    /** Localised label for the current lifecycle phase, for sidebars. */
+    protected final String phaseLabel(Player viewer) {
+        java.util.UUID id = viewer.getUniqueId();
+        return switch (state) {
+            case IDLE       -> api.tr(id, "game.phase.idle");
+            case PREPARING  -> api.tr(id, "game.phase.preparing");
+            case COUNTDOWN  -> api.tr(id, "game.phase.countdown");
+            case GRACE      -> api.tr(id, "game.phase.grace");
+            case ACTIVE     -> api.tr(id, "game.phase.active");
+            case DEATHMATCH -> api.tr(id, "game.phase.deathmatch");
+            case ENDED      -> api.tr(id, "game.phase.ended");
+        };
+    }
 
     private void installScoreboard() {
         try {

@@ -21,6 +21,9 @@ public final class StandingsGui extends Gui {
         render(plugin, viewer);
     }
 
+    // Podium slots: #1 top-centre, #2 left, #3 right (classic podium feel).
+    private static final int[] PODIUM = {13, 20, 24};
+
     private void render(KMCCore plugin, UUID viewer) {
         List<KMCTeam> teams = plugin.getTeamManager().getTeamsSortedByPoints();
 
@@ -28,33 +31,45 @@ public final class StandingsGui extends Gui {
                 "&7Ronde &e" + plugin.getTournamentManager().getCurrentRound()
                         + " &7• Multiplier &e×" + plugin.getTournamentManager().getMultiplier()));
 
-        int slot = 9;
-        for (int i = 0; i < teams.size() && slot < 45; i++) {
-            KMCTeam t = teams.get(i);
-            String medal = switch (i) { case 0 -> "&6🥇"; case 1 -> "&7🥈"; case 2 -> "&c🥉"; default -> "&7#" + (i + 1); };
-            boolean mine = t.hasMember(viewer);
-            set(slot, item(concrete(t.getColor()),
-                    medal + " " + t.getColor() + "&l" + t.getDisplayName() + (mine ? " &a(jouw team)" : ""),
-                    "&7Punten: &e" + t.getPoints(),
-                    "&7Leden: &f" + t.getMembers().size()));
-            slot++;
-            if (slot % 9 == 8) slot += 1;
+        // ── Top 3 on a podium ───────────────────────────────────────────────
+        for (int i = 0; i < Math.min(3, teams.size()); i++) {
+            set(PODIUM[i], teamItem(teams.get(i), i, viewer));
         }
 
-        // Top players row at the bottom.
+        // ── #4 and below in a centred 7-wide list (rows 3-4) ────────────────
+        int idx = 0;
+        for (int i = 3; i < teams.size(); i++) {
+            int slot = (3 + idx / 7) * 9 + (1 + idx % 7);
+            if (slot >= 45) break;
+            set(slot, teamItem(teams.get(i), i, viewer));
+            idx++;
+        }
+
+        // ── Top players, centred along the bottom row ───────────────────────
         List<PlayerData> top = plugin.getPlayerDataManager().getLeaderboard();
-        int pslot = 47;
         set(45, item(Material.PLAYER_HEAD, "&e&lTop Spelers", "&7De beste individuele scores"));
-        for (int i = 0; i < Math.min(3, top.size()); i++) {
+        int[] playerSlots = {47, 48, 49, 50, 51};
+        for (int i = 0; i < Math.min(playerSlots.length, top.size()); i++) {
             PlayerData pd = top.get(i);
-            String medal = switch (i) { case 0 -> "&6#1"; case 1 -> "&7#2"; default -> "&c#3"; };
-            set(pslot++, head(Bukkit.getOfflinePlayer(pd.getUuid()),
+            String medal = switch (i) { case 0 -> "&6#1"; case 1 -> "&7#2"; case 2 -> "&c#3"; default -> "&7#" + (i + 1); };
+            set(playerSlots[i], head(Bukkit.getOfflinePlayer(pd.getUuid()),
                     medal + " &f" + pd.getName(),
                     "&7Punten: &e" + pd.getPoints(),
                     "&7Kills: &f" + pd.getKills()));
         }
 
         fillEmpty();
+    }
+
+    private org.bukkit.inventory.ItemStack teamItem(KMCTeam t, int rank, UUID viewer) {
+        String medal = switch (rank) {
+            case 0 -> "&6🥇"; case 1 -> "&7🥈"; case 2 -> "&c🥉"; default -> "&7#" + (rank + 1);
+        };
+        boolean mine = t.hasMember(viewer);
+        return item(concrete(t.getColor()),
+                medal + " " + t.getColor() + "&l" + t.getDisplayName() + (mine ? " &a(jouw team)" : ""),
+                "&7Punten: &e" + t.getPoints(),
+                "&7Leden: &f" + t.getMembers().size());
     }
 
     /** Maps a team ChatColor to a coloured concrete block for the icon. */

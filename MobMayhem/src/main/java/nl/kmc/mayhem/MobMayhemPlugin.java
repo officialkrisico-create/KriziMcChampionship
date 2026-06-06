@@ -31,13 +31,13 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "Mob Mayhem"; }
     @Override protected Material icon()       { return Material.ZOMBIE_HEAD; }
     @Override protected int     minPlayers()  { return 4; }
-    @Override protected String  description() { return "Survive 10 escalating waves of mobs — each team in their own arena."; }
-    @Override protected String  objective()   { return "Survive more waves than the other teams."; }
+    @Override protected String  description() { return "Overleef 10 steeds zwaardere golven mobs — elk team in eigen arena."; }
+    @Override protected String  objective()   { return "Overleef meer golven dan de andere teams."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+pts — Per mob kill (scales by wave)",
-                "+100 pts — Wave cleared",
-                "+500 pts — 1st Place (most waves)"
+                "+ptn — Per mob-kill (schaalt per golf)",
+                "+100 ptn — Golf verslagen",
+                "+500 ptn — 1e plaats (meeste golven)"
         );
     }
 

@@ -64,7 +64,11 @@ public final class BingoGameManagerV2 extends BaseGameManager {
             participants.addAll(team.getMembers());
         }
 
-        // Spread teams 20+ blocks apart
+        // Clone a fresh world from the template so the template stays pristine.
+        // (Falls back to the template directly if cloning fails.)
+        plugin.getWorldManager().createGameWorldSync();
+
+        // Spawn inside the freshly-cloned game world (or the template as fallback).
         Location baseSpawn = plugin.getWorldManager().getDefaultSpawn();
         List<Location> anchors = SafeSpawnHelper.findTeamSpawns(baseSpawn, activeTeams.size());
 
@@ -84,7 +88,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p == null) continue;
                 Location spot = m < spots.size() ? spots.get(m) : anchor;
-                p.teleport(spot);
+                GamePlayerUtil.safeTeleport(p, spot);
                 p.setGameMode(GameMode.SURVIVAL);
                 p.getInventory().clear();
                 p.setHealth(20); p.setFoodLevel(20);
@@ -202,6 +206,30 @@ public final class BingoGameManagerV2 extends BaseGameManager {
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
         player.sendMessage("§6[Bingo] State restored!");
+    }
+
+    @Override
+    protected java.util.List<String> getScoreboardLines(org.bukkit.entity.Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        var kt = plugin.getKmcCore().getTeamManager().getTeamByPlayer(id);
+        TeamCardState mine = kt != null ? teamStates.get(kt.getId()) : null;
+        if (mine != null) {
+            l.add("");
+            l.add(api.tr(id, "sb.bingo.your-team"));
+            l.add(api.tr(id, "sb.bingo.squares", mine.getCompletedSquareCount()));
+            l.add(api.tr(id, "sb.bingo.lines", mine.getCompletedLineCount()));
+        }
+        l.add("");
+        l.add(api.tr(id, "sb.bingo.teams"));
+        teamStates.values().stream()
+                .sorted((a, b) -> b.getCompletedLineCount() - a.getCompletedLineCount())
+                .limit(4)
+                .forEach(ts -> l.add(api.tr(id, "sb.bingo.team-entry", ts.getTeamId(),
+                        ts.getCompletedLineCount(), ts.getCompletedSquareCount())));
+        return l;
     }
 
     @Override

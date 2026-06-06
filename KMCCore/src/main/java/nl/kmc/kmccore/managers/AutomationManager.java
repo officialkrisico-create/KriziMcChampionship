@@ -323,9 +323,9 @@ public class AutomationManager {
         }
 
         // AUTO-SKIP check — game must be ready
-        if (!plugin.getArenaManager().isGameReady(game.getId())) {
+        if (!isGameReadyUnified(game.getId())) {
             attemptedThisCycle.add(game.getId());
-            String reason = plugin.getArenaManager().getReadinessReason(game.getId());
+            String reason = readinessReasonUnified(game.getId());
             broadcast("&e[KMC] &7Game &e" + game.getDisplayName()
                     + " &7is niet geconfigureerd (" + reason + "). Overslaan...");
 
@@ -333,7 +333,7 @@ public class AutomationManager {
             KMCGame fallback = pickNextReadyGame();
             if (fallback == null) {
                 broadcast("&c[KMC] Geen enkele game is correct geconfigureerd! Automatisering en toernooi gestopt.");
-                broadcast("&7Configureer arenas via &e/kmcarena &7en probeer opnieuw.");
+                broadcast("&7Controleer de setup via &e/kmcsetup &7of &e/kmcvalidate &7en probeer opnieuw.");
                 stop();
                 stopTournamentCleanly();
                 return;
@@ -388,10 +388,48 @@ public class AutomationManager {
     private KMCGame pickNextReadyGame() {
         for (KMCGame candidate : plugin.getGameManager().getAvailableGames()) {
             if (attemptedThisCycle.contains(candidate.getId())) continue;
-            if (plugin.getArenaManager().isGameReady(candidate.getId())) {
+            if (isGameReadyUnified(candidate.getId())) {
                 return candidate;
             }
             attemptedThisCycle.add(candidate.getId());
+        }
+        return null;
+    }
+
+    /**
+     * Unified game-readiness check — the SINGLE source of truth, shared with
+     * {@code /kmcsetup} and {@code /kmcvalidate}. Prefers the game's own
+     * registered {@link nl.kmc.core.setup.GameSetup} (so games that manage
+     * their own arena, like QuakeCraft via {@code /qc}, report correctly) and
+     * only falls back to the KMCCore {@code /kmcarena} check for games without
+     * a registered setup.
+     */
+    private boolean isGameReadyUnified(String gameId) {
+        var setup = lookupSetup(gameId);
+        if (setup != null) {
+            try { return setup.isReady(); } catch (Throwable ignored) {}
+        }
+        return plugin.getArenaManager().isGameReady(gameId);
+    }
+
+    private String readinessReasonUnified(String gameId) {
+        var setup = lookupSetup(gameId);
+        if (setup != null) {
+            try {
+                var issues = setup.issues();
+                return (issues == null || issues.isEmpty()) ? "klaar" : String.join(", ", issues);
+            } catch (Throwable ignored) {}
+        }
+        return plugin.getArenaManager().getReadinessReason(gameId);
+    }
+
+    private nl.kmc.core.setup.GameSetup lookupSetup(String gameId) {
+        var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
+        if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
+            try {
+                var svc = v2.getContainer().get(nl.kmc.core.setup.SetupService.class);
+                if (svc != null) return svc.get(gameId).orElse(null);
+            } catch (Throwable ignored) {}
         }
         return null;
     }

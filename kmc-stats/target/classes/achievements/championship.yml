@@ -1,0 +1,84 @@
+achievements:
+  - id: first_win
+    name: "First Win"
+    description: "Win your first game in any tournament"
+    category: CHAMPIONSHIP
+    rarity: COMMON
+    icon: GOLD_INGOT
+    hidden: false
+    trigger: GAME_WIN
+
+  - id: hat_trick
+    name: "Hat Trick"
+    description: "Win 3 games in a row without losing one in between"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: PLAYER_HEAD
+    hidden: false
+    trigger: GAME_WIN_STREAK
+    progress_target: 3
+
+  - id: five_streak
+    name: "Dominant"
+    description: "Win 5 games in a row"
+    category: CHAMPIONSHIP
+    rarity: EPIC
+    icon: GOLDEN_HELMET
+    hidden: false
+    trigger: GAME_WIN_STREAK
+    progress_target: 5
+    reward_type: TITLE
+    reward_value: "Dominant"
+
+  - id: untouchable
+    name: "Untouchable"
+    description: "Win a game without dying once"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: SHIELD
+    hidden: false
+    trigger: GAME_WIN_NO_DEATH
+
+  - id: team_champion
+    name: "Team Champion"
+    description: "Win a tournament with your team"
+    category: CHAMPIONSHIP
+    rarity: LEGENDARY
+    icon: GOLDEN_APPLE
+    hidden: false
+    trigger: TOURNAMENT_WIN
+    reward_type: HOF_ENTRY
+    reward_value: "tournament_champion"
+
+  - id: back_to_back
+    name: "Back to Back"
+    description: "Win 2 tournaments in a row"
+    category: CHAMPIONSHIP
+    rarity: LEGENDARY
+    icon: NETHER_STAR
+    hidden: false
+    trigger: TOURNAMENT_WIN
+    progress_target: 2
+    reward_type: TITLE
+    reward_value: "Champion"
+
+  - id: tournament_mvp
+    name: "Tournament MVP"
+    description: "Finish #1 in individual points at a tournament"
+    category: CHAMPIONSHIP
+    rarity: LEGENDARY
+    icon: DIAMOND
+    hidden: false
+    trigger: TOURNAMENT_MVP
+    reward_type: HOF_ENTRY
+    reward_value: "mvp"
+
+  - id: high_scorer
+    name: "High Scorer"
+    description: "Earn 500 points in a single tournament"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: DIAMOND
+    hidden: false
+    trigger: POINTS_IN_TOURNAMENT
+    progress_target: 500

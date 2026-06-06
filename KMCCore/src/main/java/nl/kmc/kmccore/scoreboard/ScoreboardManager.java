@@ -338,14 +338,17 @@ public class ScoreboardManager {
 
         List<KMCTeam> allTeams = plugin.getTeamManager().getTeamsSortedByPoints();
 
+        var lang = plugin.getLanguageManager();
+
         // Status
-        lines.add(active ? "&7Ronde: &e" + round + " &8(&e×" + mul + "&8)" : "&7Status: &cInactief");
-        if (gameName != null) lines.add("&7Game: &b" + gameName);
+        lines.add(active ? lang.tr(player, "scoreboard.round", round, mul)
+                         : lang.tr(player, "scoreboard.inactive"));
+        if (gameName != null) lines.add(lang.tr(player, "scoreboard.game", gameName));
         lines.add("&r");
 
         // Top 5 teams
         if (!allTeams.isEmpty()) {
-            lines.add("&6&lTop Teams:");
+            lines.add(lang.tr(player, "scoreboard.top-teams"));
             int show = Math.min(TOP_TEAM_COUNT, allTeams.size());
             for (int i = 0; i < show; i++) {
                 KMCTeam t = allTeams.get(i);
@@ -362,12 +365,12 @@ public class ScoreboardManager {
 
         // Player's team
         if (myTeam != null) {
-            lines.add("&e&lJouw Team:");
+            lines.add(lang.tr(player, "scoreboard.your-team"));
             lines.add(myTeam.getColor() + myTeam.getDisplayName() + " &8- &e" + myTeam.getPoints() + "p");
         }
 
         lines.add("&r  ");
-        lines.add("&b&lJouw Punten: &e" + (pd != null ? pd.getPoints() : 0));
+        lines.add(lang.tr(player, "scoreboard.your-points", (pd != null ? pd.getPoints() : 0)));
         return lines;
     }
 

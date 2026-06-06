@@ -25,12 +25,12 @@ public final class TNTTagPlugin extends AbstractGamePlugin {
     @Override protected String      displayName() { return "TNT Tag"; }
     @Override protected Material    icon()        { return Material.TNT; }
     @Override protected int         minPlayers()  { return 4; }
-    @Override protected String      description() { return "Don't be the one holding the bomb when time runs out!"; }
-    @Override protected String      objective()   { return "Survive all rounds without getting eliminated."; }
+    @Override protected String      description() { return "Zorg dat jij de bom niet vasthoudt als de tijd om is!"; }
+    @Override protected String      objective()   { return "Overleef alle rondes zonder geëlimineerd te worden."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+20 pts — Survive a round",
-            "+500 pts — 1st Place"
+            "+20 ptn — Ronde overleven",
+            "+500 ptn — 1e plaats"
         );
     }
 

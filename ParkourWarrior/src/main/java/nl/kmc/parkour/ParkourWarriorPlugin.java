@@ -25,13 +25,13 @@ public final class ParkourWarriorPlugin extends AbstractGamePlugin {
     @Override protected String      displayName() { return "Parkour Warrior"; }
     @Override protected Material    icon()        { return Material.FEATHER; }
     @Override protected int         minPlayers()  { return 2; }
-    @Override protected String      description() { return "Race through parkour checkpoints as fast as possible."; }
-    @Override protected String      objective()   { return "Reach the most checkpoints before time runs out."; }
+    @Override protected String      description() { return "Race zo snel mogelijk door de parkour-checkpoints."; }
+    @Override protected String      objective()   { return "Bereik de meeste checkpoints voordat de tijd om is."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+25 pts — Checkpoint reached",
-            "+200 pts — Course finished",
-            "+500 pts — 1st Place"
+            "+25 ptn — Checkpoint bereikt",
+            "+200 ptn — Parcours voltooid",
+            "+500 ptn — 1e plaats"
         );
     }
 

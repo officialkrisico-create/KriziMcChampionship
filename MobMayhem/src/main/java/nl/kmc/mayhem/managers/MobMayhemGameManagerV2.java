@@ -186,6 +186,30 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        var kt = plugin.getKmcCore().getTeamManager().getTeamByPlayer(id);
+        TeamGameState mine = kt != null ? teamStates.get(kt.getId()) : null;
+        if (mine != null) {
+            l.add(api.tr(id, "sb.mob.your-team"));
+            l.add(api.tr(id, "sb.mob.wave", mine.getCurrentWave()));
+            l.add(api.tr(id, "sb.mob.mobs-left", mine.getActiveMobCount()));
+            l.add(api.tr(id, "sb.mob.mob-kills", mine.getMobsKilled()));
+            l.add("");
+        }
+        l.add(api.tr(id, "sb.mob.teams"));
+        teamStates.values().stream()
+                .sorted((a, b) -> Math.max(b.getCurrentWave(), b.getHighestWaveSurvived())
+                        - Math.max(a.getCurrentWave(), a.getHighestWaveSurvived()))
+                .limit(5)
+                .forEach(ts -> l.add(api.tr(id, "sb.mob.team-entry", ts.getTeamId(),
+                        Math.max(ts.getCurrentWave(), ts.getHighestWaveSurvived()))));
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "Mob Mayhem"; }

@@ -126,7 +126,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             if (jumpType != null) p.removePotionEffect(jumpType);
             giveBaseLoadout(p);
             p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
-                    ChatColor.YELLOW + "Good luck and have fun!", 0, 40, 10);
+                    ChatColor.YELLOW + "Veel succes en plezier!", 0, 40, 10);
         }
         nl.kmc.quake.util.Sfx.playGlobal(plugin, "match.start", Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
@@ -154,32 +154,33 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     @Override
     protected List<String> getScoreboardLines(Player viewer) {
+        java.util.UUID id = viewer.getUniqueId();
         List<String> l = new ArrayList<>();
         int killTarget = plugin.getConfig().getInt("game.kill-target", 25);
 
         if (phase != MatchPhase.RUNNING) {
-            l.add("§7Match starting…");
-            l.add("§7First to §e" + killTarget + " §7kills");
+            l.add(api.tr(id, "sb.quake.starting"));
+            l.add(api.tr(id, "sb.quake.first-to", killTarget));
             return l;
         }
 
-        l.add("§7Time §f" + String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60));
-        l.add("§7First to §e" + killTarget + " §7kills");
+        l.add(api.tr(id, "sb.quake.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        l.add(api.tr(id, "sb.quake.first-to", killTarget));
         l.add("");
-        l.add("§e§lTOP PLAYERS");
+        l.add(api.tr(id, "sb.quake.top"));
         List<PlayerState> ranked = new ArrayList<>(players.values());
         ranked.sort((a, b) -> b.getKills() - a.getKills());
         for (int i = 0; i < Math.min(5, ranked.size()); i++) {
             PlayerState ps = ranked.get(i);
-            boolean you = ps.getUuid().equals(viewer.getUniqueId());
+            boolean you = ps.getUuid().equals(id);
             l.add(" §7" + (i + 1) + ". " + (you ? "§a" : "§f") + ps.getName() + " §8- §c" + ps.getKills());
         }
 
-        PlayerState me = players.get(viewer.getUniqueId());
+        PlayerState me = players.get(id);
         if (me != null) {
             l.add("");
-            l.add("§7Kills §a" + me.getKills() + "  §7Deaths §c" + me.getDeaths());
-            if (me.getCurrentStreak() > 1) l.add("§7Streak §6" + me.getCurrentStreak());
+            l.add(api.tr(id, "sb.quake.kd", me.getKills(), me.getDeaths()));
+            if (me.getCurrentStreak() > 1) l.add(api.tr(id, "sb.quake.streak", me.getCurrentStreak()));
         }
         return l;
     }
@@ -224,7 +225,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
     private void showIntroduction() {
         phase = MatchPhase.INTRODUCTION;
         String sub = plugin.getConfig().getString("start-sequence.intro-subtitle",
-                "First to reach the kill limit wins");
+                "Eerste die de kill-limiet haalt wint");
         for (Player p : participants()) {
             p.sendTitle("§c§lQUAKECRAFT", "§e" + sub, 8, 70, 12);
             p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.01);
@@ -233,7 +234,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
     }
 
     private void showCountdownNumber(int n) {
-        for (Player p : participants()) p.sendTitle("§e§l" + n, "§7Get ready...", 0, 22, 4);
+        for (Player p : participants()) p.sendTitle("§e§l" + n, "§7Maak je klaar...", 0, 22, 4);
         nl.kmc.quake.util.Sfx.playGlobal(plugin, "match.countdown", Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.2f);
     }
 
@@ -242,11 +243,11 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         if (cfg != null && !cfg.isEmpty())
             return cfg.stream().map(s -> ChatColor.translateAlternateColorCodes('&', s)).toList();
         return List.of(
-                "§b§l» §fWelcome to §cQuakeCraft§f!",
-                "§b§l» §fLeft-click your §erailgun §fto fire a one-shot beam.",
-                "§b§l» §fGrab §dpowerups §ffor bazookas, grenades and more.",
-                "§b§l» §fYou §ccannot §fharm your own teammates — watch your fire!",
-                "§b§l» §fFirst to §e" + plugin.getConfig().getInt("game.kill-target", 25) + " kills §fwins. Good luck!");
+                "§b§l» §fWelkom bij §cQuakeCraft§f!",
+                "§b§l» §fLinksklik met je §erailgun §fom een one-shot straal te vuren.",
+                "§b§l» §fPak §dpowerups §fvoor bazooka's, granaten en meer.",
+                "§b§l» §fJe kunt je eigen teamgenoten §cniet §fraken — let op je vuur!",
+                "§b§l» §fEerste tot §e" + plugin.getConfig().getInt("game.kill-target", 25) + " kills §fwint. Veel succes!");
     }
 
     private void schedule(long delayTicks, Runnable r) {
@@ -387,7 +388,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§c[QuakeCraft] State restored!");
+        player.sendMessage("§c[QuakeCraft] Status hersteld!");
     }
 
     @Override
@@ -440,7 +441,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             int revengeBonus = plugin.getConfig().getInt("points.revenge-kill-bonus", 25);
             if (revengeBonus > 0)
                 api.points().givePoints(shooter.getUniqueId(), revengeBonus, PointAward.Reason.BONUS, registration.getId());
-            broadcast("§d⚡ REVENGE! §7" + shooter.getName() + " §egot revenge on §7" + target.getName() + "§e!");
+            broadcast("§d⚡ WRAAK! §7" + shooter.getName() + " §enam wraak op §7" + target.getName() + "§e!");
         }
 
         Location deathLoc = target.getLocation().add(0, 1, 0);

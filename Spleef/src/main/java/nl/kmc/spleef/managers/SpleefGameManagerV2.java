@@ -52,7 +52,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         for (int i = 0; i < onlinePlayers.size(); i++) {
             Player p = onlinePlayers.get(i);
             Location spawnLoc = spleefSpawns.isEmpty() ? p.getLocation() : spleefSpawns.get(i % spleefSpawns.size());
-            p.teleport(spawnLoc);
+            nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, spawnLoc);
             p.setGameMode(GameMode.SURVIVAL);
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
@@ -136,6 +136,25 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
         player.sendMessage("§b[Spleef] State restored!");
+    }
+
+    @Override
+    protected java.util.List<String> getScoreboardLines(org.bukkit.entity.Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        long alive = players.values().stream().filter(PlayerState::isAlive).count();
+        l.add(api.tr(id, "sb.common.players-left", alive));
+        PlayerState me = players.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(me.isAlive() ? api.tr(id, "sb.common.alive") : api.tr(id, "sb.common.eliminated"));
+        }
+        l.add("");
+        l.add(api.tr(id, "sb.spleef.tip1"));
+        l.add(api.tr(id, "sb.spleef.tip2"));
+        return l;
     }
 
     @Override

@@ -40,17 +40,52 @@ public class TabListManager {
     // ================================================================
 
     public void updateTabList(Player player) {
+        // Team-coloured list name so the (team-grouped) tab reads like MCC.
         KMCTeam team = plugin.getTeamManager().getTeamByPlayer(player.getUniqueId());
+        String colour = team != null ? team.getColor().toString() : "&7";
+        player.playerListName(fromLegacy(colour + player.getName()));
 
-        String rawHeader = plugin.getConfig().getString("tablist.header", "\n&6&lKMC Tournament\n")
-                .replace("{round}",      String.valueOf(plugin.getTournamentManager().getCurrentRound()))
-                .replace("{multiplier}", String.valueOf(plugin.getTournamentManager().getMultiplier()));
+        player.sendPlayerListHeaderAndFooter(fromLegacy(buildHeader(player)), fromLegacy(buildFooter(player)));
+    }
 
-        String rawFooter = plugin.getConfig().getString("tablist.footer", "\n&7Team: {team_color}{team_name}\n")
-                .replace("{team_color}", team != null ? team.getColor().toString() : "&8")
-                .replace("{team_name}",  team != null ? team.getDisplayName()      : "Geen");
+    /** MCC-style header: championship title + round + active game (in viewer's language). */
+    private String buildHeader(Player viewer) {
+        var lang     = plugin.getLanguageManager();
+        String name  = plugin.getConfig().getString("tournament.name", "Krizi Minecraft Championship");
+        int round    = plugin.getTournamentManager().getCurrentRound();
+        int total    = plugin.getConfig().getInt("tournament.total-rounds", 8);
+        boolean live = plugin.getTournamentManager().isActive();
 
-        player.sendPlayerListHeaderAndFooter(fromLegacy(rawHeader), fromLegacy(rawFooter));
+        String gameLine;
+        var active = plugin.getGameManager().getActiveGame();
+        if (active != null) {
+            gameLine = lang.tr(viewer, "tablist.game", active.getDisplayName(), round, total);
+        } else if (live) {
+            gameLine = lang.tr(viewer, "tablist.intermission", round, total);
+        } else {
+            gameLine = lang.tr(viewer, "tablist.lobby");
+        }
+        return "\n &6&l" + name + "\n " + gameLine + "\n";
+    }
+
+    /** MCC-style footer: live team standings with points (in viewer's language). */
+    private String buildFooter(Player viewer) {
+        var lang = plugin.getLanguageManager();
+        var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+        StringBuilder sb = new StringBuilder("\n ").append(lang.tr(viewer, "tablist.standings")).append("\n ");
+        String[] medals = {"&6①", "&7②", "&c③"};
+        if (teams.isEmpty()) {
+            sb.append(lang.tr(viewer, "tablist.no-points"));
+        } else {
+            for (int i = 0; i < Math.min(3, teams.size()); i++) {
+                KMCTeam t = teams.get(i);
+                if (i > 0) sb.append("  ");
+                sb.append(medals[i]).append(' ').append(t.getColor().toString())
+                  .append(t.getDisplayName()).append(" &f").append(t.getPoints());
+            }
+        }
+        sb.append("\n ").append(lang.tr(viewer, "tablist.vote-hint")).append("\n");
+        return sb.toString();
     }
 
     /**

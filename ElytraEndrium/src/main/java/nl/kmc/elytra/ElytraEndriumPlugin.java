@@ -27,13 +27,13 @@ public final class ElytraEndriumPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "Elytra Endrium"; }
     @Override protected Material icon()       { return Material.ELYTRA; }
     @Override protected int     minPlayers()  { return 2; }
-    @Override protected String  description() { return "Glide through boost hoops and reach the finish line."; }
-    @Override protected String  objective()   { return "Fly through all checkpoints in order — fastest wins."; }
+    @Override protected String  description() { return "Zweef door boost-ringen en bereik de finishlijn."; }
+    @Override protected String  objective()   { return "Vlieg in volgorde door alle checkpoints — snelste wint."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+pts — Per checkpoint (varies)",
-                "+200 pts — Finish bonus",
-                "+500 pts — 1st Place"
+                "+ptn — Per checkpoint (varieert)",
+                "+200 ptn — Finishbonus",
+                "+500 ptn — 1e plaats"
         );
     }
 

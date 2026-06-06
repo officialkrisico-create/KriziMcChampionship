@@ -27,13 +27,13 @@ public final class BingoPlugin extends AbstractGamePlugin {
     @Override protected String      displayName() { return "Bingo"; }
     @Override protected Material    icon()        { return Material.PAPER; }
     @Override protected int         minPlayers()  { return 4; }
-    @Override protected String      description() { return "Collect items to complete your bingo card before other teams!"; }
-    @Override protected String      objective()   { return "Complete a full line (row, column, or diagonal) first."; }
+    @Override protected String      description() { return "Verzamel items om je bingokaart te voltooien vóór de andere teams!"; }
+    @Override protected String      objective()   { return "Voltooi als eerste een volledige lijn (rij, kolom of diagonaal)."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+25 pts — Square completed",
-            "+100 pts — Line completed",
-            "+500 pts — 1st Place"
+            "+25 ptn — Vakje voltooid",
+            "+100 ptn — Lijn voltooid",
+            "+500 ptn — 1e plaats"
         );
     }
 
@@ -63,7 +63,9 @@ public final class BingoPlugin extends AbstractGamePlugin {
                        p.sendMessage("§a[Setup] Template-wereld gezet op " + p.getWorld().getName()); },
                 "Klik: gebruik je huidige wereld als bingo-template"));
 
-        boolean spawnSet = wm.getDefaultSpawn() != null;
+        // Don't force-load the world here — a spawn is available whenever the
+        // template exists (its spawn is the default) or a custom spawn is set.
+        boolean spawnSet = getConfig().isConfigurationSection("world.default-spawn") || wm.templateExists();
         s.add(nl.kmc.core.setup.SetupStep.action("Spawn",
                 spawnSet ? "✓ ingesteld" : "niet ingesteld", spawnSet, org.bukkit.Material.RED_BED,
                 p -> { var loc = p.getLocation();

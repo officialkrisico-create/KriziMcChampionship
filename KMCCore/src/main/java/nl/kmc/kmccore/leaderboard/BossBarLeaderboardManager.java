@@ -48,7 +48,7 @@ public class BossBarLeaderboardManager implements Listener {
     public void start() {
         if (enabled) return;
         enabled = true;
-        bar = Bukkit.createBossBar("Loading...", BarColor.GREEN, BarStyle.SOLID);
+        bar = Bukkit.createBossBar("Laden...", BarColor.GREEN, BarStyle.SOLID);
         bar.setProgress(1.0);
         for (Player p : Bukkit.getOnlinePlayers()) bar.addPlayer(p);
         updateTask = Bukkit.getScheduler().runTaskTimer(plugin, this::refresh, 0L, 40L);
@@ -100,7 +100,7 @@ public class BossBarLeaderboardManager implements Listener {
               .append(t.getColor()).append(t.getDisplayName())
               .append(ChatColor.WHITE).append(" ").append(t.getPoints());
         }
-        if (top.isEmpty()) sb.append(ChatColor.GRAY + "Waiting for tournament to start...");
+        if (top.isEmpty()) sb.append(ChatColor.GRAY + "Wachten tot het toernooi start...");
 
         // Color cycle based on round
         int round = plugin.getTournamentManager().getCurrentRound();
@@ -112,10 +112,10 @@ public class BossBarLeaderboardManager implements Listener {
         } else if (round >= total - 1) {
             color = BarColor.YELLOW;
             sb.insert(0, ChatColor.YELLOW + "" + ChatColor.BOLD
-                    + "FINAL ROUND  " + ChatColor.RESET);
+                    + "LAATSTE RONDE  " + ChatColor.RESET);
         } else {
             color = BarColor.BLUE;
-            sb.insert(0, ChatColor.AQUA + "Round " + round + "/" + total + "  " + ChatColor.RESET);
+            sb.insert(0, ChatColor.AQUA + "Ronde " + round + "/" + total + "  " + ChatColor.RESET);
         }
         bar.setColor(color);
         bar.setTitle(sb.toString());

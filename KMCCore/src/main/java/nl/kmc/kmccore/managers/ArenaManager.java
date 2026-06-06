@@ -156,7 +156,7 @@ public class ArenaManager {
 
     public String getReadinessReason(String gameId) {
         if (plugin.getConfig().getBoolean("games.list." + gameId + ".external-arena", false)) {
-            return "external arena — ready";
+            return "externe arena — klaar";
         }
 
         String schematic = plugin.getSchematicManager().getSchematicForGame(gameId);
@@ -165,10 +165,10 @@ public class ArenaManager {
         int soloSpawns = getSoloSpawns(gameId).size();
 
         List<String> issues = new ArrayList<>();
-        if (schematic != null && origin == null) issues.add("origin not set");
-        if (schematic != null && !plugin.getSchematicManager().isWorldEditAvailable()) issues.add("WorldEdit missing");
-        if (teamSpawns == 0 && soloSpawns == 0) issues.add("no spawns");
-        return issues.isEmpty() ? "ready" : String.join(", ", issues);
+        if (schematic != null && origin == null) issues.add("origin niet ingesteld");
+        if (schematic != null && !plugin.getSchematicManager().isWorldEditAvailable()) issues.add("WorldEdit ontbreekt");
+        if (teamSpawns == 0 && soloSpawns == 0) issues.add("geen spawns");
+        return issues.isEmpty() ? "klaar" : String.join(", ", issues);
     }
 
     // ----------------------------------------------------------------

@@ -152,6 +152,12 @@ commands:
     usage: /kmcsettings
     permission: kmc.admin
 
+  kmclanguage:
+    description: Choose your personal language (NL/EN)
+    usage: /kmclanguage
+    permission: kmc.language
+    aliases: [kmclang, taal]
+
   kmcvalidate:
     description: Open the Event Validation Center (readiness checks)
     usage: /kmcvalidate [test|export]
@@ -215,6 +221,7 @@ permissions:
   kmc.lobby.admin:      { description: Set/move lobby,          default: op }
   kmc.hof:              { description: View Hall of Fame,        default: true }
   kmc.prefs:            { description: Manage own preferences,   default: true }
+  kmc.language:         { description: Choose your language,     default: true }
   kmc.health.admin:     { description: View plugin diagnostics,  default: op }
   kmc.ready:            { description: Use /kmcready,            default: true }
   kmc.map.admin:        { description: Manage map rotation,      default: op }

@@ -144,6 +144,20 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(org.bukkit.entity.Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.players-left", alivePlayers.size()));
+        l.add("");
+        l.add(isAlive(id) ? api.tr(id, "sb.common.alive") : api.tr(id, "sb.common.eliminated"));
+        l.add("");
+        l.add(api.tr(id, "sb.luckyblock.tip1"));
+        l.add(api.tr(id, "sb.luckyblock.tip2"));
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "Lucky Block"; }

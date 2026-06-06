@@ -1,0 +1,17 @@
+name: KMCTournamentEngine
+version: 1.0.0
+main: nl.kmc.tournament.KMCTournamentPlugin
+api-version: '1.21'
+description: Thin /kmc alias forwarding to KMCCore's single tournament engine
+authors: [ Krizicow ]
+
+depend:
+  - KMCCore
+
+commands:
+  kmc:
+    description: Tournament control (alias of /kmcauto)
+    usage: /kmc <start|end|pause|resume|skip|status>
+    permission: kmc.admin
+
+# kmc.admin is declared by KMCCore (hard depend, loads first) — not redeclared here.

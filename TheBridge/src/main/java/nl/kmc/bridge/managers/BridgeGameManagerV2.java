@@ -63,7 +63,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
             }
             Location spawn = bridgeTeams.containsKey(teamId)
                     ? bridgeTeams.get(teamId).getSpawn() : p.getLocation();
-            p.teleport(spawn);
+            nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, spawn);
             p.setGameMode(GameMode.SURVIVAL);
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
@@ -175,6 +175,28 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
     }
 
     @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        int goalsToWin = plugin.getConfig().getInt("game.goals-to-win", 5);
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        l.add(api.tr(id, "sb.bridge.target", goalsToWin));
+        l.add("");
+        l.add(api.tr(id, "sb.bridge.standings"));
+        bridgeTeams.values().stream()
+                .sorted((a, b) -> b.getGoalsScored() - a.getGoalsScored())
+                .limit(4)
+                .forEach(t -> l.add(" " + t.getChatColor() + t.getDisplayName() + " §8- §e" + t.getGoalsScored()));
+        PlayerStats me = stats.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(api.tr(id, "sb.bridge.your-goals", me.getGoals()));
+        }
+        return l;
+    }
+
+    @Override
     protected ArenaValidator getArenaValidator() {
         return new ArenaValidator() {
             @Override public String getGameName() { return "The Bridge"; }
@@ -259,7 +281,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         if (ps == null) return;
         BridgeTeam team = bridgeTeams.get(ps.getTeamId());
         if (team != null) {
-            player.teleport(team.getSpawn());
+            nl.kmc.game.api.GamePlayerUtil.safeTeleport(player, team.getSpawn());
             player.setHealth(20); player.setFoodLevel(20);
             player.getInventory().clear();
             player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));

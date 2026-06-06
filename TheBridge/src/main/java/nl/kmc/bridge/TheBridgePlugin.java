@@ -42,13 +42,13 @@ public final class TheBridgePlugin extends AbstractGamePlugin {
     @Override protected String   displayName() { return "The Bridge"; }
     @Override protected Material icon()        { return Material.BLUE_WOOL; }
     @Override protected int      minPlayers()  { return 4; }
-    @Override protected String   description() { return "Bridge to the enemy goal and score! First team to 5 goals wins."; }
-    @Override protected String   objective()   { return "Score goals by entering the opponent's goal hole."; }
+    @Override protected String   description() { return "Bouw een brug naar het vijandelijke doel en scoor! Eerste team met 5 doelpunten wint."; }
+    @Override protected String   objective()   { return "Scoor doelpunten door in het doelgat van de tegenstander te gaan."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+150 pts — Goal scored",
-            "+50 pts — Kill",
-            "+500 pts — 1st Place"
+            "+150 ptn — Doelpunt",
+            "+50 ptn — Kill",
+            "+500 ptn — 1e plaats"
         );
     }
 

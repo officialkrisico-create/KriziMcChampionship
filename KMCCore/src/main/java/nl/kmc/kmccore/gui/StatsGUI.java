@@ -378,6 +378,7 @@ public class StatsGUI implements Listener {
         String stripped = ChatColor.stripColor(title);
         if (stripped == null) return false;
         return stripped.startsWith("Stats: ")
+            || stripped.startsWith("Per-Game: ")
             || stripped.startsWith("Achievements")
             || stripped.startsWith("Toernooi Historie");
     }

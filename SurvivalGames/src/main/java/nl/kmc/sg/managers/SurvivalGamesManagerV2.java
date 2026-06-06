@@ -60,7 +60,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         for (int i = 0; i < online.size(); i++) {
             Player p = online.get(i);
             Location dest = spawns.isEmpty() ? p.getLocation() : spawns.get(i % spawns.size());
-            p.teleport(dest);
+            GamePlayerUtil.safeTeleport(p, dest);
             p.setGameMode(GameMode.SURVIVAL);
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
@@ -171,6 +171,24 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));
         snapshot.effects.forEach(player::addPotionEffect);
         player.sendMessage("§a[SG] Your state has been restored!");
+    }
+
+    @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        l.add(api.tr(id, "sb.common.time", String.format("%02d:%02d", remainingSeconds / 60, remainingSeconds % 60)));
+        long alive = stats.values().stream().filter(PlayerStats::isAlive).count();
+        l.add(api.tr(id, "sb.common.players-left", alive));
+        PlayerStats me = stats.get(id);
+        if (me != null) {
+            l.add("");
+            l.add(me.isAlive() ? api.tr(id, "sb.common.alive") : api.tr(id, "sb.common.eliminated"));
+            l.add(api.tr(id, "sb.common.kills", me.getKills()));
+        }
+        if (deathmatchActive) { l.add(""); l.add(api.tr(id, "sb.common.deathmatch")); }
+        return l;
     }
 
     @Override

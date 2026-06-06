@@ -29,13 +29,13 @@ public final class SurvivalGamesPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "Survival Games"; }
     @Override protected Material icon()       { return Material.BOW; }
     @Override protected int     minPlayers()  { return 4; }
-    @Override protected String  description() { return "Hunger Games — loot, fight, and be the last one standing."; }
-    @Override protected String  objective()   { return "Eliminate all other players to win."; }
+    @Override protected String  description() { return "Hunger Games — loot, vecht en blijf als laatste over."; }
+    @Override protected String  objective()   { return "Elimineer alle andere spelers om te winnen."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+75 pts — Kill",
-                "+5 pts — Survival bonus (per death)",
-                "+500 pts — 1st Place"
+                "+75 ptn — Kill",
+                "+5 ptn — Overlevingsbonus (per dode)",
+                "+500 ptn — 1e plaats"
         );
     }
 

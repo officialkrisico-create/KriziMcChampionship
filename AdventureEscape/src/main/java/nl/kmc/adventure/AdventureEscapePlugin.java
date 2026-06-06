@@ -73,8 +73,8 @@ public final class AdventureEscapePlugin extends JavaPlugin {
             GameRegistration reg = GameRegistration.builder(GAME_ID, "Adventure Escape")
                     .icon(Material.MAP)
                     .minPlayers(2)
-                    .description("Race through a multi-lap adventure course as fast as possible.")
-                    .objective("Complete all laps first — or be furthest along when time runs out.")
+                    .description("Race zo snel mogelijk door een avonturenparcours met meerdere ronden.")
+                    .objective("Voltooi als eerste alle ronden — of kom het verst als de tijd om is.")
                     .build();
 
             gameRegistry.register(reg);
@@ -85,10 +85,10 @@ public final class AdventureEscapePlugin extends JavaPlugin {
             if (setupService != null) setupService.register(buildSetup());
 
             GameIntroCardRegistry.register(GameIntroCard.builder(GAME_ID, "Adventure Escape")
-                    .objective("Complete all laps first to win")
-                    .addScoringLine("+50 pts — Lap completed")
-                    .addScoringLine("+150 pts — Race finished")
-                    .addScoringLine("+500 pts — 1st Place")
+                    .objective("Voltooi als eerste alle ronden om te winnen")
+                    .addScoringLine("+50 ptn — Ronde voltooid")
+                    .addScoringLine("+150 ptn — Race voltooid")
+                    .addScoringLine("+500 ptn — 1e plaats")
                     .build());
 
             getServer().getPluginManager().registerEvents(new Listener() {

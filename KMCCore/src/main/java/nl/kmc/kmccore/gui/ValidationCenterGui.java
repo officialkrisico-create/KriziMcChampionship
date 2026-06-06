@@ -49,9 +49,14 @@ public final class ValidationCenterGui extends Gui {
                 "&7Status: " + statusLabel,
                 "&7Systemen klaar: &a" + ready + "&7/&f" + validators.size()));
 
-        int slot = 18;
+        // Centered 7-wide grid in rows 1-4 (columns 1-7), leaving columns 0/8
+        // and the top/bottom rows as a clean border.
+        int idx = 0;
         for (Map.Entry<Validator, ValidationReport> e : reports.entrySet()) {
-            if (slot >= 45) break;
+            int row = 1 + idx / 7;
+            int col = 1 + idx % 7;
+            int slot = row * 9 + col;
+            if (slot >= 45) break;            // don't spill into the control row
             Validator v = e.getKey();
             ValidationReport rep = e.getValue();
             Status st = rep.overall();
@@ -62,8 +67,7 @@ public final class ValidationCenterGui extends Gui {
                     "&7Fouten: &c" + rep.countErrors() + " &7• Waarschuwingen: &e" + rep.countWarnings(),
                     "&eKlik voor details"),
                     p -> new ValidationDetailGui(plugin, v).open(p));
-            slot++;
-            if (slot % 9 == 8) slot += 1;
+            idx++;
         }
 
         button(48, item(Material.CLOCK, "&b&lOpnieuw valideren"),

@@ -61,6 +61,12 @@ public final class SettingsGui extends Gui {
                 "&eKlik: +5 (10 → 60)"),
                 p -> { cfg.set("automation.intermission-seconds", inter >= 60 ? 10 : inter + 5); save(p); });
 
+        button(24, item(Material.REPEATING_COMMAND_BLOCK, "&f&lGame-herhalingen",
+                "&7Stel per game in hoe vaak hij",
+                "&7gespeeld wordt (3× SkyWars, 1× Bingo).",
+                "&eKlik om te openen"),
+                p -> new GameRepetitionsGui(plugin).open(p));
+
         fillEmpty();
     }
 

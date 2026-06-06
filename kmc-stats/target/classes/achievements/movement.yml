@@ -1,0 +1,80 @@
+achievements:
+  - id: first_finish
+    name: "First Finish"
+    description: "Finish a race game for the first time (AE, Elytra, or Parkour)"
+    category: MOVEMENT
+    rarity: COMMON
+    icon: GOLDEN_BOOTS
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    objective_type: RACE_FINISHED
+
+  - id: speedrunner
+    name: "Speedrunner"
+    description: "Finish Adventure Escape in under 60 seconds"
+    category: MOVEMENT
+    rarity: RARE
+    icon: FEATHER
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: adventure_escape
+    objective_type: RACE_FINISHED_FAST
+    objective_threshold: 60000
+    reward_type: TITLE
+    reward_value: "Speedrunner"
+
+  - id: perfect_parkour
+    name: "Perfect Run"
+    description: "Complete a Parkour Warrior run without dying"
+    category: MOVEMENT
+    rarity: RARE
+    icon: RABBIT_FOOT
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: parkour_warrior
+    objective_type: PARKOUR_PERFECT_RUN
+
+  - id: elytra_no_crash
+    name: "Sky Ace"
+    description: "Complete an Elytra Endrium run without crashing"
+    category: MOVEMENT
+    rarity: RARE
+    icon: ELYTRA
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: elytra_endrium
+    objective_type: ELYTRA_NO_CRASH
+    reward_type: BADGE
+    reward_value: badge_sky_ace
+
+  - id: photo_finish
+    name: "Photo Finish"
+    description: "Win a race game by finishing just after triggering a checkpoint"
+    category: MOVEMENT
+    rarity: EPIC
+    icon: CLOCK
+    hidden: true
+    trigger: CLUTCH_MOMENT
+    clutch_type: LAST_SECOND_TAG
+
+  - id: tgttos_first
+    name: "The Other Side"
+    description: "Finish 1st in a TGTTOS round"
+    category: MOVEMENT
+    rarity: COMMON
+    icon: DIRT_PATH
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: tgttos
+    objective_type: TGTTOS_FIRST_FINISH
+
+  - id: bingo_line
+    name: "Line It Up"
+    description: "Complete a line on a Bingo card"
+    category: MOVEMENT
+    rarity: COMMON
+    icon: PAPER
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: bingo_teams
+    objective_type: BINGO_LINE

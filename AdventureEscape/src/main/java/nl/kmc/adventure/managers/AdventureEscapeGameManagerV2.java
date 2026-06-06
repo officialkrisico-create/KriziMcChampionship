@@ -50,7 +50,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         for (int i = 0; i < online.size(); i++) {
             Player p = online.get(i);
             Location spawn = grid.isEmpty() ? p.getLocation() : grid.get(i % grid.size());
-            p.teleport(spawn);
+            nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, spawn);
             p.setGameMode(GameMode.ADVENTURE);
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
@@ -167,6 +167,25 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
         player.sendMessage("§a[Adventure Escape] State restored!");
+    }
+
+    @Override
+    protected java.util.List<String> getScoreboardLines(Player viewer) {
+        if (!getState().isRunning()) return defaultScoreboardLines(viewer);
+        java.util.UUID id = viewer.getUniqueId();
+        java.util.List<String> l = new java.util.ArrayList<>();
+        RacerData me = racers.get(id);
+        if (me != null) {
+            l.add(api.tr(id, "sb.ae.your-laps", me.getLapsCompleted()));
+            l.add(me.hasFinished() ? api.tr(id, "sb.ae.finished") : api.tr(id, "sb.ae.busy"));
+            l.add("");
+        }
+        l.add(api.tr(id, "sb.ae.top"));
+        racers.values().stream()
+                .sorted((a, b) -> b.getLapsCompleted() - a.getLapsCompleted())
+                .limit(5)
+                .forEach(r -> l.add(api.tr(id, "sb.ae.entry", r.getName(), r.getLapsCompleted())));
+        return l;
     }
 
     @Override

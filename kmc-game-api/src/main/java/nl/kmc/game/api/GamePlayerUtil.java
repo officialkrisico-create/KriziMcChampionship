@@ -43,6 +43,24 @@ public final class GamePlayerUtil {
     }
 
     /**
+     * Teleports a player to {@code target}, but falls back to their current
+     * location when {@code target} is null or has no world. This prevents the
+     * {@code IllegalArgumentException: location} crash that occurs when an arena
+     * spawn hasn't been configured — the game starts where the players are
+     * instead of crashing during {@code onPrepare}.
+     *
+     * @return true if teleported to the intended target, false if it fell back
+     */
+    public static boolean safeTeleport(Player player, org.bukkit.Location target) {
+        if (target != null && target.getWorld() != null) {
+            player.teleport(target);
+            return true;
+        }
+        player.teleport(player.getLocation()); // no-op fallback — never crashes
+        return false;
+    }
+
+    /**
      * Applies a Slowness 255 (movement-freeze) potion for the given number of
      * ticks.  Used during the countdown / prepare phase to hold players in place.
      *
