@@ -26,24 +26,37 @@ public class PowerupSpawner {
     public static final String SPAWNER_KEY = "quake_powerup_spawn";
 
     private final QuakeCraftPlugin plugin;
-    private BukkitTask spawnTask;
     private final Random random = new Random();
 
     /** Tracks which locations currently have a live powerup item. */
     private final Map<String, Item> activeAt = new HashMap<>();
+    /** One independent spawn timer PER location (rate scales with #locations). */
+    private final Map<String, BukkitTask> locationTasks = new HashMap<>();
 
     public PowerupSpawner(QuakeCraftPlugin plugin) { this.plugin = plugin; }
 
     public void start() {
         stop();
         int interval = plugin.getConfig().getInt("powerup-spawning.interval-seconds", 30);
-        spawnTask = Bukkit.getScheduler().runTaskTimer(plugin,
-                this::trySpawnRandom, 20L * interval, 20L * interval);
-        plugin.getLogger().info("Powerup spawner started (interval " + interval + "s).");
+        var locations = plugin.getArenaManager().getPowerupLocations();
+        long period = Math.max(20L, 20L * interval);
+
+        // Each location runs its OWN cycle: with 1 location powerups are scarce,
+        // with 45 locations they appear far more often. Initial delay is staggered
+        // so they don't all pop at the exact same tick.
+        for (String key : locations.keySet()) {
+            long initial = (long) (random.nextDouble() * period);
+            BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin,
+                    () -> tickLocation(key), initial, period);
+            locationTasks.put(key, task);
+        }
+        plugin.getLogger().info("Powerup spawner started: " + locations.size()
+                + " locaties, elk interval " + interval + "s.");
     }
 
     public void stop() {
-        if (spawnTask != null) { spawnTask.cancel(); spawnTask = null; }
+        for (BukkitTask t : locationTasks.values()) if (t != null) t.cancel();
+        locationTasks.clear();
         // Remove all active items
         for (Item item : activeAt.values()) {
             if (item != null && !item.isDead()) item.remove();
@@ -51,29 +64,15 @@ public class PowerupSpawner {
         activeAt.clear();
     }
 
-    private void trySpawnRandom() {
-        var locations = plugin.getArenaManager().getPowerupLocations();
-        if (locations.isEmpty()) return;
-
-        // Pick a location that doesn't currently have a powerup
-        List<String> available = new ArrayList<>();
-        for (var key : locations.keySet()) {
-            Item existing = activeAt.get(key);
-            if (existing == null || existing.isDead() || !existing.isValid()) {
-                available.add(key);
-            }
-        }
-        if (available.isEmpty()) return;
-
-        String locationKey = available.get(random.nextInt(available.size()));
-        Location loc = locations.get(locationKey);
+    /** Refills one specific location if it's currently empty. */
+    private void tickLocation(String key) {
+        Location loc = plugin.getArenaManager().getPowerupLocations().get(key);
         if (loc == null) return;
-
-        // Pick a powerup type by weight
+        Item existing = activeAt.get(key);
+        if (existing != null && !existing.isDead() && existing.isValid()) return; // still occupied
         PowerupType type = pickWeightedType();
         if (type == null) return;
-
-        spawnAt(loc, locationKey, type);
+        spawnAt(loc, key, type);
     }
 
     private PowerupType pickWeightedType() {

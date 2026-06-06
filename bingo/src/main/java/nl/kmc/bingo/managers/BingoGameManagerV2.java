@@ -36,6 +36,8 @@ public final class BingoGameManagerV2 extends BaseGameManager {
     private BingoCard                   currentCard;
     private final Map<String, TeamCardState> teamStates  = new LinkedHashMap<>();
     private final Set<UUID>             participants = new HashSet<>();
+    /** squareIndex → how many teams have completed it (for "1e/2e/3e" ordinals). */
+    private final Map<Integer, Integer> squareCompletions = new HashMap<>();
 
     private BukkitTask gameTimerTask;
     private BossBar    bossBar;
@@ -50,6 +52,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
     protected void onPrepare() {
         teamStates.clear();
         participants.clear();
+        squareCompletions.clear();
 
         long seed = System.currentTimeMillis();
         currentCard = plugin.getCardGenerator().generate(seed);
@@ -70,6 +73,18 @@ public final class BingoGameManagerV2 extends BaseGameManager {
 
         // Spawn inside the freshly-cloned game world (or the template as fallback).
         Location baseSpawn = plugin.getWorldManager().getDefaultSpawn();
+
+        // Bingo always plays in clear daylight — force day + dry weather and lock it.
+        if (baseSpawn != null && baseSpawn.getWorld() != null) {
+            var w = baseSpawn.getWorld();
+            w.setTime(1000);
+            w.setStorm(false);
+            w.setThundering(false);
+            w.setClearWeatherDuration(Integer.MAX_VALUE);
+            try { w.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false); } catch (Exception ignored) {}
+            try { w.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false); } catch (Exception ignored) {}
+        }
+
         List<Location> anchors = SafeSpawnHelper.findTeamSpawns(baseSpawn, activeTeams.size());
 
         PotionEffectType jumpType;
@@ -105,7 +120,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§6§l[Bingo] §eComplete objectives to fill your card! First line wins!");
+        broadcast("§6§l[Bingo] §eVerzamel items om vakjes op je kaart te voltooien!");
     }
 
     @Override
@@ -121,8 +136,16 @@ public final class BingoGameManagerV2 extends BaseGameManager {
             GamePlayerUtil.unfreezePlayer(p);
             if (jumpType != null) p.removePotionEffect(jumpType);
             p.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "BINGO!",
-                    ChatColor.YELLOW + "Complete your card!", 0, 40, 10);
+                    ChatColor.YELLOW + "Voltooi je kaart!", 0, 40, 10);
         }
+
+        // How-to-play intro.
+        broadcast("§6§l═══════ BINGO ═══════");
+        broadcast("§e• §7Verzamel de items op je §ebingokaart§7.");
+        broadcast("§e• §7Elk voltooid item kleurt een §evakje§7.");
+        broadcast("§e• §7Voltooi een §6lijn§7 (rij, kolom of diagonaal) voor bonuspunten.");
+        broadcast("§e• §7Het team met de meeste lijnen/vakjes wint!");
+        broadcast("§6§l═════════════════════");
 
         bossBar.setColor(BarColor.GREEN);
         updateBossBar();
@@ -261,8 +284,10 @@ public final class BingoGameManagerV2 extends BaseGameManager {
         int squarePts = plugin.getConfig().getInt("points.per-square", 25);
         api.points().givePoints(player.getUniqueId(), squarePts, PointAward.Reason.OBJECTIVE, registration.getId());
 
-        broadcast("§6[Bingo] §eTeam " + kmcTeam.getDisplayName() + " §7completed: §e"
-                + objective.getDisplayName() + " §8(+" + squarePts + " pts)");
+        // Ordinal: how manieth team completed THIS item (1e/2e/3e ...).
+        int ordinal = squareCompletions.merge(squareIndex, 1, Integer::sum);
+        broadcast("§e" + player.getName() + " §7van " + kmcTeam.getColor() + kmcTeam.getDisplayName()
+                + " §7heeft §b" + objective.getDisplayName() + " §7als §6" + ordinal + "e §7voltooid! §8(+" + squarePts + " ptn)");
 
         // Check for line completion (lines are recalculated automatically inside addProgress)
         int newLines = ts.getCompletedLineCount();

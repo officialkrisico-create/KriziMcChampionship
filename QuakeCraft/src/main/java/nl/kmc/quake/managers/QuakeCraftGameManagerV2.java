@@ -407,6 +407,10 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
     // ── Public API ────────────────────────────────────────────────────────────
 
     public void handleHit(Player shooter, Player target, String weapon) {
+        handleHit(shooter, target, weapon, false);
+    }
+
+    public void handleHit(Player shooter, Player target, String weapon, boolean headshot) {
         if (!isCombatEnabled()) return;
         if (shooter == null || target == null || shooter.equals(target)) return;
         if (target.isDead() || target.getGameMode() == GameMode.SPECTATOR) return;
@@ -434,8 +438,17 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         lastKilledBy.put(target.getUniqueId(), shooter.getUniqueId());
         lastKilledAt.put(target.getUniqueId(), System.currentTimeMillis());
 
-        int perKill = plugin.getConfig().getInt("points.per-kill", 10);
-        api.points().givePoints(shooter.getUniqueId(), perKill, PointAward.Reason.KILL, registration.getId());
+        int perKill  = plugin.getConfig().getInt("points.per-kill", 10);
+        int headPts  = plugin.getConfig().getInt("points.headshot", 12);
+        int award    = headshot ? headPts : perKill;
+        api.points().givePoints(shooter.getUniqueId(), award, PointAward.Reason.KILL, registration.getId());
+
+        // Hit/kill feed: "<shooter> heeft <target> geraakt met een <weapon>".
+        if (plugin.getConfig().getBoolean("game.hit-messages", true)) {
+            String wpn = weaponDisplay(weapon);
+            broadcast("§e" + shooter.getName() + " §7heeft §e" + target.getName()
+                    + " §7geraakt met een §b" + wpn + (headshot ? " §c§l✪ HEADSHOT" : ""));
+        }
 
         if (isRevenge) {
             int revengeBonus = plugin.getConfig().getInt("points.revenge-kill-bonus", 25);
@@ -460,6 +473,20 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
     public boolean isPvpAllowed() { return getState().isRunning(); }
 
     // ── Internals ─────────────────────────────────────────────────────────────
+
+    private String weaponDisplay(String weapon) {
+        return switch (weapon) {
+            case "railgun"     -> "Railgun";
+            case "sniper"      -> "Sniper";
+            case "shotgun"     -> "Shotgun";
+            case "machine_gun" -> "Machine Gun";
+            case "grenade"     -> "Granaat";
+            case "bazooka"     -> "Bazooka";
+            case "airstrike"   -> "Airstrike";
+            case "proximity_mine" -> "Proximity Mine";
+            default            -> weapon;
+        };
+    }
 
     private boolean checkKillTargetReached() {
         int target = plugin.getConfig().getInt("game.kill-target", 25);

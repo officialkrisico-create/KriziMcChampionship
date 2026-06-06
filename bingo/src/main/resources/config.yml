@@ -15,10 +15,18 @@
 # pristine world without affecting the main server world.
 # ================================================================
 
+# Generic lifecycle (BaseGameManager). The game starts RIGHT at "GO" — no grace
+# delay afterwards. Keep grace-period at 0 unless you want a pause after the
+# countdown.
+games:
+  bingo_teams:
+    countdown: 5
+    grace-period: 0
+
 game:
   # Game duration in seconds — 15 minutes
   max-duration-seconds: 900
-  
+
   # Pre-game countdown
   countdown-seconds: 15
   

@@ -46,13 +46,15 @@ public final class GrenadeWeapon {
         thrower.getWorld().playSound(origin, Sound.ENTITY_SNOWBALL_THROW, 1f, 1f);
 
         int fuse = plugin.getConfig().getInt("powerups.grenade.fuse-ticks", 40);
-        double radius = plugin.getConfig().getDouble("powerups.grenade.explosion-radius", 4.0);
+        double rayLength = plugin.getConfig().getDouble("powerups.grenade.ray-length", 5);
+        int    rayCount  = plugin.getConfig().getInt("powerups.grenade.ray-count", 18);
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (item.isDead() || !item.isValid()) return;
             Location boomLoc = item.getLocation();
             item.remove();
-            detonate(plugin, thrower, boomLoc, radius);
+            // Burst into standard railgun fragments in a ~5-block sphere.
+            RailgunNova.fire(plugin, thrower, boomLoc, rayLength, rayCount, "grenade");
         }, fuse);
 
         // Visual fuse particles

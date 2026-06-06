@@ -139,6 +139,29 @@ public class QuakeCommand implements CommandExecutor, TabCompleter {
                 plugin.getArenaManager().load();
                 sender.sendMessage(ChatColor.GREEN + "Config herladen.");
             }
+            case "give" -> {
+                if (!(sender instanceof org.bukkit.entity.Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /qc give <powerup> [uses]"); return true; }
+                String name = args[1].toLowerCase();
+                org.bukkit.inventory.ItemStack item;
+                if (name.equals("railgun")) {
+                    item = nl.kmc.quake.util.WeaponFactory.buildRailgun(plugin);
+                } else {
+                    nl.kmc.quake.models.PowerupType type;
+                    try { type = nl.kmc.quake.models.PowerupType.fromConfigKey(name); }
+                    catch (Exception e) { type = null; }
+                    if (type == null) {
+                        sender.sendMessage(ChatColor.RED + "Onbekende powerup: " + name);
+                        return true;
+                    }
+                    int uses = plugin.getConfig().getInt("powerups." + type.getConfigKey() + ".uses", 1);
+                    if (args.length >= 3) { try { uses = Integer.parseInt(args[2]); } catch (NumberFormatException ignored) {} }
+                    item = nl.kmc.quake.util.WeaponFactory.buildPowerup(plugin, type, uses);
+                }
+                p.getInventory().addItem(item);
+                p.sendMessage(ChatColor.GREEN + "Gegeven: " + ChatColor.YELLOW + name
+                        + ChatColor.GRAY + " (test je powerup!)");
+            }
             default -> usage(sender);
         }
         return true;
@@ -156,9 +179,15 @@ public class QuakeCommand implements CommandExecutor, TabCompleter {
             return List.of("start","stop","setworld","setspawn","clearspawns",
                     "setpowerup","removepowerup","clearpowerups","listpowerups",
                     "setjumppad","removejumppad","clearjumppads","listjumppads",
-                    "status","reload").stream()
+                    "give","status","reload").stream()
                     .filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
+        if (args.length == 2 && args[0].equalsIgnoreCase("give")) {
+            List<String> names = new java.util.ArrayList<>();
+            names.add("railgun");
+            for (var t : nl.kmc.quake.models.PowerupType.values()) names.add(t.getConfigKey());
+            return names.stream().filter(n -> n.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+        }
         if (args.length == 2 && args[0].equalsIgnoreCase("setworld"))
             return Bukkit.getWorlds().stream().map(World::getName)
                     .filter(n -> n.toLowerCase().startsWith(args[1].toLowerCase()))

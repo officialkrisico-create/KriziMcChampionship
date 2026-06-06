@@ -31,6 +31,9 @@ game:
   
   # Whether to allow friendly fire (teammates damage each other)
   friendly-fire: false
+
+  # Broadcast "X heeft Y geraakt met een <wapen>" on each hit/kill
+  hit-messages: true
   
   # Whether the wooden hoe (base railgun) is given to all players
   give-base-railgun: true
@@ -130,7 +133,10 @@ powerups:
     uses: 1
     cooldown-ms: 0
     bonus-coins: 50
-    explosion-radius: 4.0
+    # On detonation the grenade bursts into a RAILGUN NOVA of fragments:
+    #   ray-count railgun rays in every direction, ray-length blocks each (~5).
+    ray-length: 5
+    ray-count: 18
     fuse-ticks: 40
 
   bazooka:
@@ -143,7 +149,7 @@ powerups:
     # On impact the rocket bursts into a RAILGUN NOVA (no AoE blast):
     #   ray-count railgun rays fly out in every direction, ray-length blocks each.
     # Any enemy a ray crosses takes a railgun hit. Teammates are ignored.
-    ray-length: 10
+    ray-length: 7
     ray-count: 24
     # How far the rocket travels before bursting (blocks)
     max-range: 60
@@ -360,7 +366,9 @@ killstreaks:
 
 points:
   # Per kill
-  per-kill: 12
+  per-kill: 10
+  # Bonus kill via headshot (railgun hit at/above eye height)
+  headshot: 12
 
   # Win-game bonus — the individual player with the most kills at
   # game end (1st place ranked by kills) gets this.

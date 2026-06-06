@@ -154,7 +154,11 @@ public final class RailgunWeapon {
         if (result != null && result.getHitEntity() != null) {
             var hitEntity = result.getHitEntity();
             if (hitEntity instanceof Player target) {
-                if (plugin.getGameManagerV2() != null) plugin.getGameManagerV2().handleHit(shooter, target, reason);
+                // Headshot: the ray crossed the target at (or above) eye height.
+                boolean headshot = result.getHitPosition() != null
+                        && result.getHitPosition().getY() >= target.getEyeLocation().getY() - 0.25;
+                if (plugin.getGameManagerV2() != null)
+                    plugin.getGameManagerV2().handleHit(shooter, target, reason, headshot);
             } else if (plugin.getDecoyManager().isDecoy(hitEntity)) {
                 // Shot absorbed by a hologram decoy — it pops, no kill.
                 plugin.getDecoyManager().popDecoy(hitEntity, shooter);

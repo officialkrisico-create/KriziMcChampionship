@@ -49,19 +49,19 @@ public final class SetupDashboardGui extends Gui {
             return;
         }
 
-        int slot = 18; // start on the 3rd row
+        // Centered 7-wide grid (columns 1-7, rows 1-4) — clean & balanced.
+        int idx = 0;
         for (GameSetup gs : setup.getAll()) {
-            if (slot >= 53) break;
+            int slot = (1 + idx / 7) * 9 + (1 + idx % 7);
+            if (slot >= 45) break;
             boolean ready = safeReady(gs);
-            String mat = ready ? "&a" : "&c";
             button(slot, item(gs.icon(),
                     "&f&l" + gs.displayName(),
                     ready ? "&aKlaar om te spelen ✓" : "&cNog niet klaar ✗",
                     "&7",
                     "&eKlik om in te stellen"),
                     p -> new GameSetupGui(plugin, gs).open(p));
-            slot++;
-            if (slot % 9 == 8) slot += 1; // keep a margin column
+            idx++;
         }
 
         // Summary tile.

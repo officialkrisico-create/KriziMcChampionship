@@ -93,56 +93,10 @@ public final class BazookaWeapon {
     }
 
     /**
-     * The nova: a visual explosion flash followed by {@code rayCount} railgun
-     * rays fired outward in an even spherical spread, each up to {@code rayLength}
-     * blocks. The first enemy each ray crosses (line-of-sight gated by blocks)
-     * takes a railgun hit credited to the shooter. Teammates are skipped.
+     * The nova is the shared {@link RailgunNova} fragment burst.
      */
     private static void burst(QuakeCraftPlugin plugin, Player shooter, Location center,
                               double rayLength, int rayCount) {
-        World world = center.getWorld();
-        if (world == null) return;
-
-        // Visual + audio flash (no AoE damage — the rays do the damage).
-        world.spawnParticle(Particle.EXPLOSION, center, 1);
-        world.spawnParticle(Particle.FLASH, center, 1);
-        world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 1.1f);
-
-        int rays = Math.max(1, rayCount);
-        final double golden = Math.PI * (3.0 - Math.sqrt(5.0)); // golden angle for even sphere spread
-        for (int i = 0; i < rays; i++) {
-            double y = 1.0 - (i / (double) Math.max(1, rays - 1)) * 2.0; // 1 → -1
-            double r = Math.sqrt(Math.max(0, 1.0 - y * y));
-            double theta = golden * i;
-            Vector rayDir = new Vector(Math.cos(theta) * r, y, Math.sin(theta) * r).normalize();
-            fireRay(plugin, shooter, center, rayDir, rayLength);
-        }
-    }
-
-    /** A single railgun ray from {@code center} along {@code dir}, up to {@code length} blocks. */
-    private static void fireRay(QuakeCraftPlugin plugin, Player shooter, Location center,
-                                Vector dir, double length) {
-        World world = center.getWorld();
-        if (world == null) return;
-
-        // Hitscan for the first enemy along the ray (pass through teammates & shooter).
-        RayTraceResult hit = world.rayTrace(center, dir, length, FluidCollisionMode.NEVER, true, 0.35,
-                e -> e instanceof Player p && !p.isDead() && TeamUtil.isEnemy(plugin, shooter, p));
-
-        double drawTo = length;
-        if (hit != null && hit.getHitEntity() instanceof Player target) {
-            drawTo = hit.getHitPosition().distance(center.toVector());
-            if (plugin.getGameManagerV2() != null)
-                plugin.getGameManagerV2().handleHit(shooter, target, "bazooka");
-        } else if (hit != null && hit.getHitBlock() != null) {
-            drawTo = hit.getHitPosition().distance(center.toVector());
-        }
-
-        // Tracer particles along the (possibly shortened) ray — railgun look.
-        for (double d = 0.5; d <= drawTo; d += 0.6) {
-            Location p = center.clone().add(dir.clone().multiply(d));
-            world.spawnParticle(Particle.CRIT, p, 1, 0, 0, 0, 0);
-            world.spawnParticle(Particle.END_ROD, p, 1, 0, 0, 0, 0);
-        }
+        RailgunNova.fire(plugin, shooter, center, rayLength, rayCount, "bazooka");
     }
 }

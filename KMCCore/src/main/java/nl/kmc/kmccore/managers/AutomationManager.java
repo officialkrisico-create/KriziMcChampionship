@@ -163,10 +163,19 @@ public class AutomationManager {
         return seconds + "s";
     }
 
+    private long lastGameEndMs = 0;
+
     public void onGameEnd(String winnerName) {
         if (state != State.GAME_ACTIVE && state != State.PAUSED) {
             if (state == State.IDLE) return;
         }
+        // De-dupe: a game-end can be signalled from several paths in the same
+        // moment (result-event bridge, stopGame, health monitor). Only handle
+        // the first within a short window so the end ceremony/leaderboards
+        // don't get broadcast twice.
+        long now = System.currentTimeMillis();
+        if (now - lastGameEndMs < 3000) return;
+        lastGameEndMs = now;
         // Winner ceremony cinematic for the game that just finished, then continue.
         // (Active game is already cleared by stopGame, so use the tracked rep id.)
         String winnerRoute = currentRepGameId != null ? "winner-" + currentRepGameId : "winner";
