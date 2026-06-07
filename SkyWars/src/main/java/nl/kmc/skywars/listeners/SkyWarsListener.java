@@ -172,4 +172,33 @@ public class SkyWarsListener implements Listener {
         block.getWorld().playSound(block.getLocation(),
                 Sound.ENTITY_TNT_PRIMED, 1f, 1f);
     }
+
+    /** When a chest is looted empty during the match, break it so players can see it's done. */
+    @EventHandler
+    public void onChestEmptied(org.bukkit.event.inventory.InventoryCloseEvent e) {
+        SkyWarsGameManagerV2 m = gm();
+        if (m == null || !m.getState().isRunning()) return;
+
+        var inv = e.getInventory();
+        var holder = inv.getHolder();
+        java.util.List<Block> blocks = new java.util.ArrayList<>();
+        if (holder instanceof org.bukkit.block.Chest c) {
+            blocks.add(c.getBlock());
+        } else if (holder instanceof org.bukkit.block.DoubleChest dc) {
+            if (dc.getLeftSide()  instanceof org.bukkit.block.Chest lc) blocks.add(lc.getBlock());
+            if (dc.getRightSide() instanceof org.bukkit.block.Chest rc) blocks.add(rc.getBlock());
+        } else {
+            return;
+        }
+        for (ItemStack it : inv.getContents())
+            if (it != null && it.getType() != Material.AIR) return; // not empty yet
+
+        for (Block b : blocks) {
+            if (b.getType() != Material.CHEST && b.getType() != Material.TRAPPED_CHEST) continue;
+            var data = b.getBlockData();
+            b.getWorld().spawnParticle(org.bukkit.Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 20, data);
+            b.getWorld().playSound(b.getLocation(), Sound.BLOCK_WOOD_BREAK, 1f, 1f);
+            b.setType(Material.AIR);
+        }
+    }
 }

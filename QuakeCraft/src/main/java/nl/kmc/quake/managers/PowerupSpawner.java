@@ -160,20 +160,7 @@ public class PowerupSpawner {
                 "powerups." + type.getConfigKey() + ".rarity", "common").toLowerCase();
         if (rarity.equals("common")) return;
 
-        String display = ChatColor.translateAlternateColorCodes('&',
-                plugin.getConfig().getString("powerups." + type.getConfigKey() + ".display-name", type.name()));
-
-        String tierLabel = switch (rarity) {
-            case "legendary" -> "&6&lLEGENDARY";
-            case "epic"      -> "&5&lEPIC";
-            case "rare"      -> "&b&lRARE";
-            default          -> "&f" + rarity;
-        };
-
-        String msg = ChatColor.translateAlternateColorCodes('&',
-                tierLabel + " &7powerup gespawnd: " + display + " &7@ &e" + locationKey);
-        Bukkit.broadcastMessage(msg);
-
+        // No chat broadcast — just an audio stinger so it isn't spammy.
         // Legendary gets a global stinger; epic/rare a softer ping.
         if (rarity.equals("legendary")) {
             nl.kmc.quake.util.Sfx.playGlobal(plugin, "rarity.legendary",

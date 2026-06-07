@@ -75,6 +75,21 @@ public final class SkyWarsPlugin extends AbstractGamePlugin {
                 p -> { am.addIsland("island_" + (am.getIslands().size() + 1), p.getLocation(), radius);
                        p.sendMessage("§a[Setup] Eiland #" + am.getIslands().size() + " toegevoegd (radius " + radius + ")."); },
                 "Klik: voeg een eiland-spawn toe op jouw locatie"));
+
+        double ringStart = getConfig().getDouble("game.deathmatch-ring-start", 40);
+        s.add(nl.kmc.core.setup.SetupStep.action("Deathmatch-ring",
+                "radius " + (int) ringStart, ringStart > 0, org.bukkit.Material.MAGMA_BLOCK,
+                p -> {
+                    var mid = am.getMiddleSpawn();
+                    if (mid == null || mid.getWorld() == null) { p.sendMessage("§c[Setup] Zet eerst het midden."); return; }
+                    double dx = p.getLocation().getX() - mid.getX();
+                    double dz = p.getLocation().getZ() - mid.getZ();
+                    double r = Math.max(8, Math.round(Math.sqrt(dx * dx + dz * dz)));
+                    getConfig().set("game.deathmatch-ring-start", r);
+                    saveConfig();
+                    p.sendMessage("§a[Setup] Deathmatch-ring radius gezet: §e" + (int) r);
+                },
+                "Klik terwijl je op de gewenste RAND staat: radius = afstand tot het midden"));
         return s;
     }
 

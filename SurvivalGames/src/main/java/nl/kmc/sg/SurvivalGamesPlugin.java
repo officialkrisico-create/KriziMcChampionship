@@ -74,6 +74,25 @@ public final class SurvivalGamesPlugin extends AbstractGamePlugin {
                        p.sendMessage("§a[Setup] Pedestal #" + am.getSpawnLocations().size() + " toegevoegd."); },
                 "Klik: voeg een start-pedestal toe op jouw locatie"));
 
+        double bR = am.getArena() != null ? am.getArena().getBorderRadius() : 0;
+        double bM = am.getArena() != null ? am.getArena().getBorderMinRadius() : 0;
+        boolean borderSet = bR > 0;
+        steps.add(nl.kmc.core.setup.SetupStep.action("Border-ring",
+                borderSet ? "radius " + (int) bR + " → " + (int) bM : "niet ingesteld",
+                borderSet, org.bukkit.Material.MAGMA_BLOCK,
+                p -> {
+                    var arena = am.getArena();
+                    var c = arena != null ? arena.getCornucopiaCenter() : null;
+                    if (c == null || c.getWorld() == null) { p.sendMessage("§c[Setup] Zet eerst de cornucopia."); return; }
+                    double dx = p.getLocation().getX() - c.getX();
+                    double dz = p.getLocation().getZ() - c.getZ();
+                    double r = Math.max(8, Math.round(Math.sqrt(dx * dx + dz * dz)));
+                    double minR = Math.max(3, Math.round(r * 0.1));
+                    am.setBorder(r, minR);
+                    p.sendMessage("§a[Setup] Border-ring gezet: radius §e" + (int) r + "§a → §e" + (int) minR);
+                },
+                "Klik terwijl je op de gewenste RAND staat: radius = afstand tot de cornucopia"));
+
         return steps;
     }
 

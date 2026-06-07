@@ -43,7 +43,7 @@ public final class BazookaWeapon {
 
         final double range     = plugin.getConfig().getDouble("powerups.bazooka.max-range", 60);
         final double speed     = plugin.getConfig().getDouble("powerups.bazooka.projectile-speed", 1.2);
-        final double rayLength = plugin.getConfig().getDouble("powerups.bazooka.ray-length", 10);
+        final double rayLength = plugin.getConfig().getDouble("powerups.bazooka.ray-length", 7);
         final int    rayCount  = plugin.getConfig().getInt("powerups.bazooka.ray-count", 24);
 
         World world = shooter.getWorld();
@@ -68,9 +68,12 @@ public final class BazookaWeapon {
                     world.spawnParticle(Particle.FLAME, point, 2, 0.05, 0.05, 0.05, 0);
                     world.spawnParticle(Particle.SMOKE, point, 1, 0.05, 0.05, 0.05, 0);
 
-                    // Hit a solid block?
+                    // Hit a solid block? Burst slightly BACK in the air so the
+                    // fragment rays don't start inside the block (which would
+                    // block them all instantly = no visible fragments).
                     if (point.getBlock().getType().isSolid()) {
-                        burst(plugin, shooter, point.clone(), rayLength, rayCount);
+                        Location burstAt = point.clone().subtract(dir.clone().multiply(0.8));
+                        burst(plugin, shooter, burstAt, rayLength, rayCount);
                         cancel(); return;
                     }
                     // Near an enemy (teammates don't trigger it)?

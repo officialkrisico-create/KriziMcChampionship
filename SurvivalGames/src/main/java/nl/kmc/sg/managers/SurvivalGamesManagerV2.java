@@ -28,6 +28,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
     private BukkitTask gameTimerTask;
     private BukkitTask voidCheckTask;
+    private BukkitTask restockTask;
+    private BukkitTask borderRingTask;
+    private nl.kmc.game.api.ShrinkingBorderRing borderRing;
     private BossBar    bossBar;
 
     private int  remainingSeconds;
@@ -102,12 +105,54 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         }, 20L, 20L);
 
         voidCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkVoid, 5L, 5L);
+
+        // Damaging particle ring that slowly closes toward the cornucopia.
+        startBorderRing();
+
+        // Optional periodic chest restock (0 = off). Pauses during deathmatch.
+        int restockSec = plugin.getConfig().getInt("game.chest-restock-seconds", 0);
+        if (restockSec > 0) {
+            restockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                if (!getState().isRunning() || deathmatchActive) return;
+                plugin.getChestStocker().stockAllAsync(() ->
+                        broadcast("§6[SG] §eDe kisten zijn opnieuw gevuld! §7("
+                                + plugin.getChestStocker().getStockedCount() + ")"));
+            }, restockSec * 20L, restockSec * 20L);
+        }
+    }
+
+    /** Starts a damaging particle ring that slowly closes toward the cornucopia. */
+    private void startBorderRing() {
+        var arena = plugin.getArenaManager().getArena();
+        if (arena == null) return;
+        Location center = arena.getCornucopiaCenter();
+        double start = arena.getBorderRadius();
+        if (center == null || start <= 0) return;
+
+        double min = arena.getBorderMinRadius() > 0 ? arena.getBorderMinRadius() : 5;
+        int shrinkSec = plugin.getConfig().getInt("game.border-shrink-seconds", 0);
+        if (shrinkSec <= 0) shrinkSec = Math.max(30, remainingSeconds - 20);
+        double perSec  = (start - min) / shrinkSec;
+        double damage  = plugin.getConfig().getDouble("game.border-damage", 1.0);
+        double buffer  = plugin.getConfig().getDouble("game.border-buffer", 2.0);
+
+        borderRing = new ShrinkingBorderRing(center, start, min, perSec, damage, buffer, org.bukkit.Particle.FLAME);
+        borderRingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!getState().isRunning()) return;
+            var alive = stats.values().stream().filter(PlayerStats::isAlive)
+                    .map(ps -> Bukkit.getPlayer(ps.getUuid()))
+                    .filter(java.util.Objects::nonNull).toList();
+            borderRing.tick(alive);
+        }, 20L, 20L);
     }
 
     @Override
     protected void onGameEnd() {
-        if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
-        if (voidCheckTask != null) { voidCheckTask.cancel(); voidCheckTask = null; }
+        if (gameTimerTask   != null) { gameTimerTask.cancel();   gameTimerTask   = null; }
+        if (voidCheckTask   != null) { voidCheckTask.cancel();   voidCheckTask   = null; }
+        if (restockTask     != null) { restockTask.cancel();     restockTask     = null; }
+        if (borderRingTask  != null) { borderRingTask.cancel();  borderRingTask  = null; }
+
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
         var world = plugin.getArenaManager().getWorld();
@@ -261,7 +306,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
     private void startDeathmatch() {
         deathmatchActive = true;
-        broadcast("§c§l[DEATHMATCH] §eWorld border closes in!");
+        broadcast("§c§l[DEATHMATCH] §eDe ring sluit nu snel naar het midden!");
         PotionEffectType glow = GamePlayerUtil.glowing();
         if (glow != null) {
             stats.values().stream().filter(PlayerStats::isAlive).forEach(ps -> {

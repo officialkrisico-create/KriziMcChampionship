@@ -1,0 +1,8 @@
+nl\kmc\tnttag\listeners\TagListener.class
+nl\kmc\tnttag\managers\ArenaManager.class
+nl\kmc\tnttag\TNTTagPlugin.class
+nl\kmc\tnttag\commands\TagCommand.class
+nl\kmc\tnttag\models\PlayerState.class
+nl\kmc\tnttag\managers\TNTTagGameManagerV2$1.class
+nl\kmc\tnttag\models\Arena.class
+nl\kmc\tnttag\managers\TNTTagGameManagerV2.class

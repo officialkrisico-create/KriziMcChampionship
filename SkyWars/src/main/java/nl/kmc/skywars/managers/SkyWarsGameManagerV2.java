@@ -40,6 +40,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     private BukkitTask gameTimerTask;
     private BukkitTask voidCheckTask;
     private BukkitTask deathmatchRingTask;
+    private BukkitTask restockTask;
     private BossBar    bossBar;
 
     private int  remainingSeconds;
@@ -122,6 +123,16 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         }, 20L, 20L);
 
         voidCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkVoidFalls, 5L, 5L);
+
+        // Optional periodic chest restock (0 = off). Pauses during deathmatch.
+        int restockSec = plugin.getConfig().getInt("game.chest-restock-seconds", 0);
+        if (restockSec > 0) {
+            restockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                if (!getState().isRunning() || deathmatchActive) return;
+                int n = plugin.getChestStocker().stockAll();
+                broadcast("§6[SkyWars] §eDe kisten zijn opnieuw gevuld! §7(" + n + ")");
+            }, restockSec * 20L, restockSec * 20L);
+        }
     }
 
     @Override
@@ -408,8 +419,26 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             });
         }
         ringRenderer.reset();
-        deathmatchRingTask = Bukkit.getScheduler().runTaskTimer(plugin,
-                () -> ringRenderer.tick(plugin.getArenaManager().getMiddleSpawn()), 20L, 20L);
+        double dmg    = plugin.getConfig().getDouble("game.deathmatch-ring-damage", 2.0);
+        double buffer = plugin.getConfig().getDouble("game.deathmatch-ring-buffer", 1.0);
+        deathmatchRingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            Location mid = plugin.getArenaManager().getMiddleSpawn();
+            ringRenderer.tick(mid);
+            if (mid == null || dmg <= 0) return;
+            // Damage anyone outside the closing ring (horizontal distance).
+            double limit = Math.max(1, ringRenderer.getCurrentRadius() - buffer);
+            double limitSq = limit * limit;
+            stats.values().stream().filter(PlayerStats::isAlive).forEach(ps -> {
+                Player p = Bukkit.getPlayer(ps.getUuid());
+                if (p == null || p.isDead()) return;
+                double dx = p.getLocation().getX() - mid.getX();
+                double dz = p.getLocation().getZ() - mid.getZ();
+                if (dx * dx + dz * dz > limitSq) {
+                    p.damage(dmg);
+                    p.getWorld().spawnParticle(org.bukkit.Particle.DAMAGE_INDICATOR, p.getEyeLocation(), 4, 0.2, 0.2, 0.2, 0);
+                }
+            });
+        }, 20L, 20L);
     }
 
     private void checkVoidFalls() {
@@ -462,6 +491,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         cancel(gameTimerTask);      gameTimerTask      = null;
         cancel(voidCheckTask);      voidCheckTask      = null;
         cancel(deathmatchRingTask); deathmatchRingTask = null;
+        cancel(restockTask);        restockTask        = null;
     }
 
     private void cancel(BukkitTask t) { if (t != null) t.cancel(); }

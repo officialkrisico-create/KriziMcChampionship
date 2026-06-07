@@ -1,0 +1,105 @@
+# ============================================================
+#   KMC Core - Ceremonie & Fase Configuratie
+#
+#   Stel in wat er gezegd en getoond wordt, en hoe lang elke
+#   toernooifase duurt. Bewerk dit bestand of gebruik
+#   /kmcceremonies in-game.
+#
+#   Ondersteunde placeholders in messages/titles:
+#     {tournament_name}  — bijv. "Krizi Minecraft Championship"
+#     {round}            — huidig rondenummer
+#     {multiplier}       — huidige punten-multiplier (bijv. 1.5)
+#     {team_count}       — aantal actieve teams
+#     {game_name}        — weergavenaam van de huidige game
+#     {game_objective}   — doel van de huidige game (één regel)
+#     {winner}           — naam van het winnende team (alleen slotceremonie)
+#
+#   Kleurcodes: gebruik & gevolgd door de Minecraft-kleurcode.
+#   Titels/subtitels ondersteunen ook kleurcodes.
+#   Zet title of subtitle op "" om deze niet te tonen.
+# ============================================================
+
+# ── Openingsceremonie (eenmalig bij start van het toernooi) ───────────────────
+opening:
+  duration-seconds: 20
+  title: "&6&lKMC TOERNOOI"
+  subtitle: "&eLaat de spelen beginnen!"
+  messages:
+    - "&8§m                                    "
+    - "  &6&lWelkom bij de &e{tournament_name}&6&l!"
+    - "  &7{team_count} teams strijden in 13 mini-games."
+    - "  &eMoge het beste team winnen!"
+    - "&8§m                                    "
+
+# ── Team-showcase (toont alle teamnamen) ──────────────────────────────────────
+team-showcase:
+  duration-seconds: 15
+  title: "&b&lTEAM-SHOWCASE"
+  subtitle: "&7Leer je tegenstanders kennen"
+  messages:
+    - "&b&l▸ DEELNEMENDE TEAMS ◂"
+
+# ── Toernooi-overzicht (onthulling van de game-line-up) ───────────────────────
+tournament-overview:
+  duration-seconds: 12
+  title: "&d&lDE GAMES VAN VANDAAG"
+  subtitle: ""
+  messages:
+    - "&d&l▸ TOERNOOI-OVERZICHT ◂"
+    - "  &7Punten vermenigvuldigen elke ronde — latere rondes leveren meer op!"
+    - "  &7Ronde {round} multiplier: &e{multiplier}x"
+
+# ── Game-line-up (toont alle games voordat het stemmen begint) ────────────────
+game-lineup:
+  duration-seconds: 10
+  title: "&a&lGAME-LINE-UP"
+  subtitle: ""
+  messages:
+    - "&a&l▸ GAMES DEZE RONDE ◂"
+
+# ── Stemfase ──────────────────────────────────────────────────────────────────
+voting:
+  duration-seconds: 30    # ook geregeld door automation.voting.duration
+  title: "&6&lSTEM NU"
+  subtitle: "&eTyp het nummer in de chat"
+  messages:
+    - "&6&l▸ STEM OP DE VOLGENDE GAME ◂"
+
+# ── Game-intro (getoond voordat elke game start) ──────────────────────────────
+game-intro:
+  duration-seconds: 15
+  title: "&e&l{game_name}"
+  subtitle: "&7Maak je klaar!"
+  messages:
+    - "&e&l▸ {game_name} ◂"
+    - "  &7Doel: &f{game_objective}"
+    - "  &7Ronde {round} — &e{multiplier}x &7punten"
+
+# ── Game-einde ceremonie (na elke game, voor de volgende stemronde) ───────────
+game-end:
+  duration-seconds: 10
+  title: "&a&lGAME VOLTOOID"
+  subtitle: "&7Resultaten worden berekend..."
+  messages:
+    - "&a&l▸ GAME VOLTOOID ◂"
+
+# ── Ronde-einde ceremonie (nadat alle games in een ronde klaar zijn) ──────────
+round-end:
+  duration-seconds: 20
+  title: "&6&lRONDE {round} VOLTOOID"
+  subtitle: "&7Standen hieronder"
+  messages:
+    - "&6&l▸ EINDE VAN RONDE {round} ◂"
+    - "  &7Multiplier volgende ronde: &e{multiplier}x"
+
+# ── Slot- / winnaarsceremonie ─────────────────────────────────────────────────
+closing:
+  duration-seconds: 40
+  title: "&6&l★ TOERNOOI VOLTOOID ★"
+  subtitle: "&eGefeliciteerd!"
+  messages:
+    - "&8§m                                    "
+    - "  &6&l★ {tournament_name} — VOLTOOID ★"
+    - "  &aGefeliciteerd &6{winner}&a!"
+    - "  &7Bedankt allemaal voor het spelen!"
+    - "&8§m                                    "
