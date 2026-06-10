@@ -78,6 +78,35 @@ public class TagCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(ChatColor.RED + "Ongeldig getal.");
                 }
             }
+            case "setcenter" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().setCenter(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Midden gezet (voor border & chaos events).");
+            }
+            case "setborder" -> {
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /tnttag setborder <radius>"); return true; }
+                try {
+                    double r = Double.parseDouble(args[1]);
+                    if (r < 8) { sender.sendMessage(ChatColor.RED + "Radius moet minstens 8 zijn."); return true; }
+                    plugin.getArenaManager().setBorderRadius(r);
+                    sender.sendMessage(ChatColor.GREEN + "Border-radius gezet op " + (int) r + " (rond het midden).");
+                } catch (NumberFormatException e) { sender.sendMessage(ChatColor.RED + "Ongeldig getal."); }
+            }
+            case "setspectator" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().setSpectatorSpawn(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Spectator-spawn gezet.");
+            }
+            case "addpowerup" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().addPowerupSpawn(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Powerup-spot #"
+                        + plugin.getArenaManager().getArena().getPowerupSpawns().size() + " toegevoegd.");
+            }
+            case "clearpowerups" -> {
+                plugin.getArenaManager().clearPowerupSpawns();
+                sender.sendMessage(ChatColor.GREEN + "Powerup-spots gewist.");
+            }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== TNT Tag Status ===");
                 String stateStr = plugin.getTntManagerV2() != null
@@ -103,13 +132,16 @@ public class TagCommand implements CommandExecutor, TabCompleter {
         s.sendMessage(ChatColor.YELLOW + "/tnttag setworld <world>");
         s.sendMessage(ChatColor.YELLOW + "/tnttag addspawn | clearspawns");
         s.sendMessage(ChatColor.YELLOW + "/tnttag setvoidy <y>");
+        s.sendMessage(ChatColor.YELLOW + "/tnttag setcenter | setborder <radius> | setspectator");
+        s.sendMessage(ChatColor.YELLOW + "/tnttag addpowerup | clearpowerups");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1) {
             return List.of("start", "stop", "setworld", "addspawn", "clearspawns",
-                    "setvoidy", "status", "reload").stream()
+                    "setvoidy", "setcenter", "setborder", "setspectator",
+                    "addpowerup", "clearpowerups", "status", "reload").stream()
                     .filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }

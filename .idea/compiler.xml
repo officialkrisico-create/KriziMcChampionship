@@ -17,6 +17,7 @@
         <module name="TNTTag" />
         <module name="ParkourWarrior" />
         <module name="kmc-stats" />
+        <module name="SpeedBuild" />
         <module name="TGTTOS" />
         <module name="AdventureEscape" />
         <module name="SurvivalGames" />
@@ -24,6 +25,7 @@
         <module name="LuckyBlock" />
         <module name="kmc-storage" />
         <module name="Bingo" />
+        <module name="BlockParty" />
         <module name="ElytraEndrium" />
       </profile>
     </annotationProcessing>

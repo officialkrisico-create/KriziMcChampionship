@@ -1,0 +1,47 @@
+achievements:
+  - id: blockparty_color_master
+    name: "Color Master"
+    description: "Win a game of Block Party"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: RED_CONCRETE
+    hidden: false
+    trigger: MANUAL
+
+  - id: blockparty_clutch_king
+    name: "Clutch King"
+    description: "Reach the correct colour with under a second remaining"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: CLOCK
+    hidden: false
+    trigger: MANUAL
+
+  - id: blockparty_untouchable
+    name: "Untouchable"
+    description: "Win Block Party without a single clutch save"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: TOTEM_OF_UNDYING
+    hidden: true
+    trigger: MANUAL
+
+  - id: blockparty_survivor
+    name: "Survivor"
+    description: "Finish in the Top 5 of a Block Party game"
+    category: PROGRESSION
+    rarity: RARE
+    icon: LIME_CONCRETE
+    hidden: false
+    trigger: MANUAL
+
+  - id: blockparty_block_legend
+    name: "Block Legend"
+    description: "Win 10 games of Block Party"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: BEACON
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: block_party
+    progress_target: 10

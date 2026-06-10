@@ -97,6 +97,11 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
         public void awardPlayerPlacement(UUID uuid, int placement, int totalPlayers, String gameId) {
             plugin.getPlayerDataManager().getOrCreate(uuid, null);
             plugin.getPointsManager().awardPlayerPlacement(uuid, placement);
+            // Top-3 in a minigame earns a medal (centralised — every game gets it for free).
+            if (placement >= 1 && placement <= 3) {
+                var pd = plugin.getPlayerDataManager().get(uuid);
+                plugin.getTournamentDataStore().awardMedal(uuid, pd != null ? pd.getName() : null, placement);
+            }
         }
 
         @Override
@@ -154,6 +159,20 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
             if (gameId.equals(scoreboardOwner)) scoreboardOwner = null;
             plugin.getScoreboardManager().clearGameBoard(gameId);
             plugin.getApi().releaseScoreboard(gameId);
+        }
+        @Override public void recordGameMvp(java.util.UUID mvp, String name, String gameId) {
+            if (mvp == null) return;
+            plugin.getTournamentDataStore().recordGameMvp(mvp, name);
+            var team = plugin.getTeamManager().getTeamByPlayer(mvp);
+            String teamPart = team != null ? " §7(" + team.getColor() + team.getDisplayName() + "§7)" : "";
+            String mvpName = name != null ? name : plugin.getTournamentDataStore().getMvpName(mvp);
+            org.bukkit.Bukkit.broadcastMessage(nl.kmc.kmccore.util.MessageUtil.color("&8&m                              "));
+            org.bukkit.Bukkit.broadcastMessage(nl.kmc.kmccore.util.MessageUtil.color("  &6&l★ GAME MVP ★  &e" + mvpName + teamPart));
+            org.bukkit.Bukkit.broadcastMessage(nl.kmc.kmccore.util.MessageUtil.color("&8&m                              "));
+            org.bukkit.entity.Player mp = org.bukkit.Bukkit.getPlayer(mvp);
+            if (mp != null) mp.sendTitle("§6§l★ MVP ★", "§eJij was de MVP van deze game!", 8, 50, 12);
+            for (org.bukkit.entity.Player pl : org.bukkit.Bukkit.getOnlinePlayers())
+                pl.playSound(pl.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
         @Override public void setScoreboard(String gameId, nl.kmc.core.api.GameScoreboard board) {
             plugin.getScoreboardManager().setGameBoard(gameId, board);

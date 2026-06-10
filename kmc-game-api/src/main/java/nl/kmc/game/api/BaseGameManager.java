@@ -368,6 +368,10 @@ public abstract class BaseGameManager implements Listener {
                 registration, winnerDescription, mvpUuid, mvpName, stats, finishOrder);
         plugin.getServer().getPluginManager().callEvent(event);
 
+        // Record the game MVP (drives the reveal + tournament/lifetime tracking).
+        try { if (mvpUuid != null) api.games().recordGameMvp(mvpUuid, mvpName, registration.getId()); }
+        catch (Throwable t) { log.warning("recordGameMvp failed: " + t); }
+
         // Signal tournament engine
         api.games().signalGameEnd(registration.getId(), winnerDescription);
     }

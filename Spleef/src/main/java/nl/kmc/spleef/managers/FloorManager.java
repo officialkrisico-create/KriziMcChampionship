@@ -152,6 +152,12 @@ public class FloorManager {
         floorBlocks.remove(encodePos(b.getX(), b.getY(), b.getZ()));
     }
 
+    /** Clears the tracked breakable-floor set. */
+    public void clear() { floorBlocks.clear(); }
+
+    /** Marks a position as a breakable floor block (used when the floor is restored). */
+    public void register(int x, int y, int z) { floorBlocks.add(encodePos(x, y, z)); }
+
     public int getRemainingBlockCount() { return floorBlocks.size(); }
 
     // ----------------------------------------------------------------

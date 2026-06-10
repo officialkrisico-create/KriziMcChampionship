@@ -53,6 +53,32 @@ public class RunnerState {
         return count;
     }
 
+    // ---- DNF / finish statistics ----
+
+    private int dnfCount;
+    private int consecutiveDnf;
+
+    public int getDnfCount()        { return dnfCount; }
+    public int getConsecutiveDnf()  { return consecutiveDnf; }
+    public int getMapsFinished()    { return getRoundsFinished(); }
+    public int getMapsPlayed()      { return roundPlacements.size(); }
+    public int getMapsWon()         { int c = 0; for (int p : roundPlacements.values()) if (p == 1) c++; return c; }
+    public double getFinishRate()   { int played = getMapsPlayed(); return played == 0 ? 0 : (double) getMapsFinished() / played; }
+    public double getDnfPercent()   { int played = getMapsPlayed(); return played == 0 ? 0 : 100.0 * dnfCount / played; }
+    public double getAveragePlacement() {
+        int sum = 0, n = 0;
+        for (int p : roundPlacements.values()) if (p > 0) { sum += p; n++; }
+        return n == 0 ? 0 : (double) sum / n;
+    }
+
+    /** Marks this map as Did-Not-Finish: no placement, no points. */
+    public void recordDnf(int map) {
+        roundPlacements.put(map, 0);   // 0 = DNF
+        currentRoundFinished = false;
+        dnfCount++;
+        consecutiveDnf++;
+    }
+
     // ---- Round lifecycle ----
 
     public void startRound() {
@@ -69,6 +95,7 @@ public class RunnerState {
         roundPlacements.put(round, placement);
         currentRoundFinished = true;
         totalPoints += pointsAwarded;
+        consecutiveDnf = 0;   // a finish resets the DNF streak
     }
 
     public void giveBonusPoints(int amount) {

@@ -49,6 +49,10 @@ public final class KMCCore extends JavaPlugin {
     private nl.kmc.kmccore.lang.LanguageManager languageManager;
     public nl.kmc.kmccore.lang.LanguageManager getLanguageManager() { return languageManager; }
 
+    /** Central store for tournament-presentation data (medals, future MVP/ELO/momentum). */
+    private nl.kmc.kmccore.tournament.TournamentDataStore tournamentDataStore;
+    public nl.kmc.kmccore.tournament.TournamentDataStore getTournamentDataStore() { return tournamentDataStore; }
+
     @Override public void onLoad() { instance = this; }
 
     @Override
@@ -79,6 +83,7 @@ public final class KMCCore extends JavaPlugin {
 
         // Per-player language (needs the preferences manager from MegapatchModule).
         languageManager = new nl.kmc.kmccore.lang.LanguageManager(this);
+        tournamentDataStore = new nl.kmc.kmccore.tournament.TournamentDataStore(this);
 
         registerCommands();
         registerListeners();
@@ -90,6 +95,14 @@ public final class KMCCore extends JavaPlugin {
         // Welcome broadcast fires once when /kmctournament start runs
         WelcomeBroadcaster welcome = new WelcomeBroadcaster(this);
         getApi().onTournamentStart(welcome::broadcast);
+
+        // Reset per-tournament presentation tallies (MVP + momentum) at start,
+        // then reveal the historical power rankings.
+        getApi().onTournamentStart(() -> {
+            tournamentDataStore.resetTournamentMvp();
+            tournamentDataStore.resetMomentum();
+            nl.kmc.kmccore.tournament.PowerRankings.reveal(this);
+        });
 
         getLogger().info("KMCCore v" + getDescription().getVersion() + " enabled!");
     }
@@ -145,6 +158,11 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmchelp",            new GuiCommands.HelpCommand(this));
         setCmd("kmcsettings",        new GuiCommands.SettingsCommand(this));
         setCmd("kmclanguage",        new GuiCommands.LanguageCommand(this));
+        setCmd("kmcmedals",          new GuiCommands.MedalsCommand(this));
+        setCmd("kmcmvp",             new GuiCommands.MvpCommand(this));
+        setCmd("kmcmomentum",        new GuiCommands.MomentumCommand(this));
+        setCmd("kmcpowerrank",       new GuiCommands.PowerRankCommand(this));
+        setCmd("kmcwinner",          new GuiCommands.WinnerCeremonyCommand(this));
         setCmd("kmcvalidate",        new ValidateCommand(this));
     }
 

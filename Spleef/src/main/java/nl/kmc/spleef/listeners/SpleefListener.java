@@ -54,6 +54,9 @@ public class SpleefListener implements Listener {
         SpleefGameManagerV2 gm = gm(); if (gm == null || !gm.isRunningGame()) return;
         Player p = event.getPlayer();
 
+        // No digging until the game is truly live (blocks breaks during countdown/grace).
+        if (!gm.isActivePhase()) { event.setCancelled(true); return; }
+
         PlayerState ps = gm.getPlayersMap().get(p.getUniqueId());
         if (ps == null) {
             // Non-participant — no breaking during a game

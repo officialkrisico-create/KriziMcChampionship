@@ -161,6 +161,15 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
                 int n = plugin.getChestStocker().stockAll();
                 sender.sendMessage(ChatColor.GREEN + "" + n + " chests gevuld.");
             }
+            case "setring" -> {
+                if (args.length < 2) { sender.sendMessage(ChatColor.RED + "Gebruik: /skywars setring <radius>"); return true; }
+                int r = parseInt(args[1], -1);
+                if (r < 4) { sender.sendMessage(ChatColor.RED + "Radius moet minstens 4 zijn."); return true; }
+                plugin.getConfig().set("game.deathmatch-ring-start", (double) r);
+                plugin.saveConfig();
+                sender.sendMessage(ChatColor.GREEN + "Deathmatch-ring radius gezet op " + r
+                        + " (rond het midden).");
+            }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== SkyWars Status ===");
                 var gm = plugin.getSkyWarsGameManagerV2();
@@ -190,7 +199,7 @@ public class SkyWarsCommand implements CommandExecutor, TabCompleter {
         s.sendMessage(ChatColor.YELLOW + "/skywars start | stop | status | reload | stockchests");
         s.sendMessage(ChatColor.YELLOW + "/skywars setworld <world> | setvoidy <y>");
         s.sendMessage(ChatColor.YELLOW + "/skywars addisland <id> [radius] | removeisland <id> | listislands");
-        s.sendMessage(ChatColor.YELLOW + "/skywars setmiddle | setmidradius <r>");
+        s.sendMessage(ChatColor.YELLOW + "/skywars setmiddle | setmidradius <r> | setring <radius>");
     }
 
     @Override

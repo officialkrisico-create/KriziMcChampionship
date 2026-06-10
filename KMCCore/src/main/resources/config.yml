@@ -227,6 +227,18 @@ games:
       min-players: 2
       repetitions: 1
 
+    block_party:
+      display-name: "Block Party"
+      icon: RED_CONCRETE
+      min-players: 2
+      repetitions: 1
+
+    speed_build:
+      display-name: "Speed Build"
+      icon: BRICKS
+      min-players: 1
+      repetitions: 1
+
 # -----------------------------------------------------------------------
 # Points
 # -----------------------------------------------------------------------

@@ -2,32 +2,57 @@
 # TNT Tag — Configuration
 # ================================================================
 
+# Generic lifecycle (BaseGameManager). Players are frozen during the countdown
+# and the first round starts right at "GO" — no grace delay.
+games:
+  tnt_tag:
+    countdown: 5
+    grace-period: 0
+
+# ── Cinematic start (intro → tutorial → countdown → GO) ─────────────────────
+start-flow:
+  introduction: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 5
+  tutorial-seconds: 10
+  countdown-seconds: 5
+
 game:
-  # Pre-game countdown (seconds)
-  countdown-seconds: 10
-  
-  # Per-round duration (seconds). When this hits 0, all current "it"
-  # players explode + are eliminated.
-  round-seconds: 30
-  
   # Time between rounds (seconds)
-  intermission-seconds: 5
-  
-  # 1 "it" player per N alive players. So with ratio 5: 5 players = 1 it,
-  # 10 players = 2 it, 15 = 3, etc. Capped so survivors > "it".
-  it-ratio: 5
-  
-  # Tag-pass cooldown (ms). Prevents bomb-flickering between two adjacent
-  # players. Both giver AND receiver have to be off cooldown for a tag
-  # to pass.
-  tag-cooldown-ms: 1500
-  
-  # Range (blocks) within which "it" players auto-tag others
-  tag-range: 1.5
-  
+  intermission-seconds: 4
+
+  # Dynamic per-round timers (round 1, 2, 3, ... ; last value repeats).
+  round-timers: [30, 28, 26, 24, 20]
+
+  # Base number of TNT holders. Scales DOWN automatically in the late game
+  # (≤7 alive → 1, showdown → 1).
+  tnt-holders-base: 2
+
+  # Final Showdown (2 players): one bomb, faster timer, shrinking border.
+  showdown-round-seconds: 15
+  showdown-border-seconds: 25
+
+  # Tag-pass cooldown (ms) — prevents instant bomb flicker.
+  tag-cooldown-ms: 1200
+
+  # Range (blocks) within which "it" players auto-tag others (also melee hit).
+  tag-range: 1.6
+
   # Visuals on "it" players
   tnt-helmet: true
   glowing: true
+
+# ── Powerups (spawn at /tnttag addpowerup spots) ────────────────────────────
+powerups:
+  spawn-interval-seconds: 12
+
+# ── Chaos events ────────────────────────────────────────────────────────────
+chaos:
+  enabled: true
+  min-interval-seconds: 60
+  max-interval-seconds: 90
 
 points:
   # Per round survived (alive at end of round, not "it" when bomb went off)
@@ -76,4 +101,6 @@ points:
 arena:
   world: ""
   spawns: []
+  powerups: []
   void-y: 0
+  border-radius: 0

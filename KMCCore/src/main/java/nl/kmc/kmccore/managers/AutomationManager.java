@@ -474,15 +474,12 @@ public class AutomationManager {
                 .findFirst().map(t -> t.getColor() + t.getDisplayName())
                 .orElse("Onbekend");
 
-        // Finale cinematic (no-op if unconfigured), then closing ceremony + winner.
+        // Finale cinematic (no-op if unconfigured), then the staged Winner
+        // Ceremony 2.0 (reveal #3 → #2 → champions + MVP + records + fireworks).
         playCinematic("closing", () -> {
             ceremony("closing");
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                p.sendTitle(MessageUtil.color("&6&lToernooi Afgelopen!"),
-                        MessageUtil.color("&eWinnaar: " + topTeam), 10, 100, 30);
-                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-            }
             broadcast("&6&l[KMC] &eHet toernooi is afgelopen! Winnaar: " + topTeam);
+            nl.kmc.kmccore.tournament.WinnerCeremony.run(plugin, null);
         });
     }
 

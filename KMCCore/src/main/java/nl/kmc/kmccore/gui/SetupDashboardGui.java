@@ -64,6 +64,12 @@ public final class SetupDashboardGui extends Gui {
             idx++;
         }
 
+        // Flyovers — cinematic camera sweeps before each game.
+        button(47, item(Material.ELYTRA, "&b&lFlyovers",
+                "&7Cinematische camerasweep vóór elke game.",
+                "&eKlik om te beheren"),
+                p -> new FlyoverDashboardGui(plugin).open(p));
+
         // Summary tile.
         long ready = setup.getAll().stream().filter(this::safeReady).count();
         long total = setup.getAll().size();

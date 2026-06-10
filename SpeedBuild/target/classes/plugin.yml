@@ -1,0 +1,20 @@
+name: SpeedBuild
+version: 1.0.0
+main: nl.kmc.speedbuild.SpeedBuildPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+softdepend: [WorldEdit, FastAsyncWorldEdit]
+description: Speed Build Challenge — 10-stage schematic-accuracy build minigame for KMC tournaments
+
+commands:
+  speedbuild:
+    description: Speed Build control + setup
+    aliases: [sb, sbuild]
+    usage: /speedbuild <start|stop|anchor|spawn|addbuild|listbuilds|status>
+    permission: speedbuild.admin
+
+permissions:
+  speedbuild.admin:
+    description: Speed Build admin commands
+    default: op

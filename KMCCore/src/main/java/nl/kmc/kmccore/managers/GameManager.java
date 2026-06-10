@@ -167,6 +167,14 @@ public class GameManager {
         plugin.getScoreboardManager().refreshAll();
         plugin.getApi().fireGameEnd(gameName, winnerName);
 
+        // Momentum: snapshot team standings after this game's points settled.
+        try {
+            java.util.List<String> ranked = plugin.getTeamManager().getTeamsSortedByPoints()
+                    .stream().map(nl.kmc.core.domain.KMCTeam::getId).collect(java.util.stream.Collectors.toList());
+            plugin.getTournamentDataStore().recordGameStandings(ranked);
+            plugin.getTournamentDataStore().updateElo(ranked);
+        } catch (Exception ignored) {}
+
         if (plugin.getAutomationManager().isRunning()) {
             plugin.getAutomationManager().onGameEnd(winnerName);
         }

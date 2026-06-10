@@ -84,4 +84,57 @@ public final class GuiCommands {
             return true;
         }
     }
+
+    /** /kmcmedals — open your medal cabinet + the Most Decorated leaderboard. */
+    public record MedalsCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.MedalsGui(plugin, ((Player) s).getUniqueId()).open((Player) s);
+            return true;
+        }
+    }
+
+    /** /kmcmvp — game MVPs (this tournament + all-time). */
+    public record MvpCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.MvpGui(plugin, ((Player) s).getUniqueId()).open((Player) s);
+            return true;
+        }
+    }
+
+    /** /kmcmomentum — biggest rise/fall + hot streaks. */
+    public record MomentumCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.MomentumGui(plugin).open((Player) s);
+            return true;
+        }
+    }
+
+    /** /kmcpowerrank — team power rankings (ELO). */
+    public record PowerRankCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.PowerRankGui(plugin).open((Player) s);
+            return true;
+        }
+    }
+
+    /** /kmcwinner [test|skip] — preview or skip the Winner Ceremony 2.0 (admin). */
+    public record WinnerCeremonyCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!s.hasPermission("kmc.admin") && !s.hasPermission("kmc.tournament.admin")) {
+                s.sendMessage("§cGeen toestemming."); return true;
+            }
+            if (a.length >= 1 && a[0].equalsIgnoreCase("skip")) {
+                nl.kmc.kmccore.tournament.WinnerCeremony.skip();
+                s.sendMessage("§a[KMC] Winnaarsceremonie overgeslagen.");
+            } else {
+                s.sendMessage("§a[KMC] Winnaarsceremonie (preview) gestart...");
+                nl.kmc.kmccore.tournament.WinnerCeremony.run(plugin, null);
+            }
+            return true;
+        }
+    }
 }

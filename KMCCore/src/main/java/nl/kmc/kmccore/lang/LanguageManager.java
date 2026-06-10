@@ -19,7 +19,7 @@ import java.util.*;
 public final class LanguageManager {
 
     private static final String DEFAULT = "nl";
-    private static final String[] BUNDLED = {"nl", "en"};
+    private static final String[] BUNDLED = {"nl", "en", "tr"};
     private static final String PREF_GAME = "core";
     private static final String PREF_KEY  = "language";
 
@@ -35,11 +35,21 @@ public final class LanguageManager {
         bundles.clear();
         File dir = new File(plugin.getDataFolder(), "lang");
         if (!dir.exists()) dir.mkdirs();
-        for (String code : BUNDLED) {
-            plugin.saveResource("lang/" + code + ".yml", false); // copies if absent
-            File f = new File(dir, code + ".yml");
-            if (f.exists()) bundles.put(code, YamlConfiguration.loadConfiguration(f));
+
+        // Write the built-in defaults if they're missing...
+        for (String code : BUNDLED) plugin.saveResource("lang/" + code + ".yml", false);
+
+        // ...then load EVERY .yml in the folder. Adding a new language is just
+        // dropping a "<code>.yml" file here (e.g. fr.yml) — no recompile needed.
+        File[] files = dir.listFiles((d, n) -> n.toLowerCase().endsWith(".yml"));
+        if (files != null) {
+            for (File f : files) {
+                String code = f.getName().substring(0, f.getName().length() - 4).toLowerCase();
+                try { bundles.put(code, YamlConfiguration.loadConfiguration(f)); }
+                catch (Exception e) { plugin.getLogger().warning("Bad language file: " + f.getName()); }
+            }
         }
+        plugin.getLogger().info("Languages loaded: " + bundles.keySet());
     }
 
     /** Language codes that have a loaded bundle (e.g. "nl", "en"). */

@@ -1,0 +1,19 @@
+name: BlockParty
+version: 1.0.0
+main: nl.kmc.blockparty.BlockPartyPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Block Party — colour-elimination championship minigame for KMC tournaments
+
+commands:
+  blockparty:
+    description: Block Party control + setup
+    aliases: [bp, blockp]
+    usage: /blockparty <start|stop|pos1|pos2|spectator|status>
+    permission: blockparty.admin
+
+permissions:
+  blockparty.admin:
+    description: Block Party admin commands
+    default: op

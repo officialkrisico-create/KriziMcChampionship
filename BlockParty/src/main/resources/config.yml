@@ -1,0 +1,75 @@
+# ================================================================
+# Block Party — Configuration
+# ================================================================
+# Colour-elimination minigame. Players stand on an auto-generated
+# concrete floor; each round one colour survives and the rest is
+# removed. Last player standing wins. The floor is regenerated every
+# round — admins never place blocks by hand.
+
+arena:
+  # Set via /blockparty pos1 / pos2 / spectator (or the Setup Dashboard).
+  # world / pos1 / pos2 define the floor rectangle (the layer is the
+  # LOWEST y of the two corners). spectator = where eliminated players watch.
+  world: ""
+  void-y: 0          # players below this Y are considered fallen
+  pos1: {}
+  pos2: {}
+  spectator: {}
+
+game:
+  # ── Round timers per phase (seconds) ──────────────────────────────
+  timer:
+    phase1: 8        # rounds 1-4   (early game)
+    phase2: 6        # rounds 5-8   (mid game)
+    phase3: 5        # rounds 9-12  (advanced)
+    phase4: 4        # rounds 13-16 (late game)
+    phase5: 3        # rounds 17+   (endgame)
+    endgame: 3       # < 8 players alive
+    final-showdown: 2 # < 4 players alive
+
+  # ── Floor generation per phase ────────────────────────────────────
+  # colours = how many distinct colours appear; cluster-size = average
+  # blocks per colour blob (smaller = more fragmented / harder).
+  colours:
+    phase1: 4
+    phase2: 6
+    phase3: 8
+    phase4: 10
+    phase5: 13
+  cluster-size:
+    phase1: 48
+    phase2: 30
+    phase3: 18
+    phase4: 10
+    phase5: 6
+
+  # Seconds the floor stays cleared before the next round regenerates.
+  regen-delay-seconds: 2
+
+  # Thresholds that switch the match into harder modes.
+  endgame-threshold: 8
+  final-showdown-threshold: 4
+
+chaos:
+  enabled: true
+  # Chaos events can start once this round is reached.
+  start-round: 5
+  # Base chance per round (0-1) before endgame, raised in endgame.
+  base-chance: 0.22
+  endgame-chance: 0.45
+
+scoring:
+  # Placement points: 1st gets base, each lower place loses 'step'.
+  base: 250
+  step: 10
+  floor: 25         # minimum placement points
+  # Optional bonus for the last team with a player still alive.
+  last-team-bonus: 150
+  last-team-bonus-enabled: true
+
+countdown: 10
+grace-period: 5
+post-game-reset-ticks: 100
+
+reconnect:
+  timeout-seconds: 120

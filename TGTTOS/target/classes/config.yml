@@ -5,16 +5,26 @@
 # players race from start to a finish region; deaths respawn at start.
 
 game:
-  # Number of rounds per game (default 3)
-  round-count: 3
-  
-  # Per-round race timer (seconds)
-  round-duration-seconds: 90
-  
-  # Pre-round countdown
+  # One TGTTOS game = this many maps, played in sequence (Map 1..5).
+  # Points accumulate across all maps; final standings are calculated only
+  # after the last map, and KMC points are awarded once at that point.
+  maps-per-game: 5
+
+  # Dynamic map finish: once this % of the field has crossed the finish line,
+  # a countdown starts for the remaining racers.
+  finish-threshold-percent: 50
+
+  # Length of that countdown (seconds). 120 = "2 minutes to finish".
+  finish-countdown-seconds: 120
+
+  # Safety cap: if NOBODY hits the 50% threshold, force the countdown after
+  # this many seconds of racing so a map can never stall forever. 0 disables.
+  max-map-seconds: 300
+
+  # Pre-game countdown
   countdown-seconds: 10
-  
-  # Time between rounds (seconds)
+
+  # Time between maps (seconds)
   intermission-seconds: 8
 
 points:

@@ -1,0 +1,41 @@
+achievements:
+  - id: tnt_bomb_squad
+    name: "Bomb Squad"
+    description: "Win a game of TNT Tag"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: TNT
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: tnt_tag
+
+  - id: tnt_hot_potato
+    name: "Hot Potato"
+    description: "Transfer the TNT 25 times in TNT Tag"
+    category: PROGRESSION
+    rarity: RARE
+    icon: BAKED_POTATO
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: tnt_tag
+    progress_target: 25
+
+  - id: tnt_clutch_master
+    name: "Clutch Master"
+    description: "Transfer the TNT in the final second of a round"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: CLOCK
+    hidden: false
+    trigger: CLUTCH_MOMENT
+    clutch_type: LAST_SECOND_TAG
+
+  - id: tnt_untouchable
+    name: "Untouchable"
+    description: "Win TNT Tag without ever holding the bomb"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: TOTEM_OF_UNDYING
+    hidden: true
+    trigger: CLUTCH_MOMENT
+    clutch_type: PERFECT_GAME

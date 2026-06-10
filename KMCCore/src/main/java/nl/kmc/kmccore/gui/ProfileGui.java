@@ -54,6 +54,14 @@ public final class ProfileGui extends Gui {
                 "&7Favoriete game: &f" + (fav != null ? fav : "—"),
                 "&7Speeltijd: &f" + pd.getTotalPlayTimeMinutes() + " min"));
 
+        // Medals (top-3 finishes across mini-games).
+        int[] medals = plugin.getTournamentDataStore().getMedals(uuid);
+        set(31, item(Material.GOLD_INGOT, "&6&lMedailles",
+                "&6🥇 Goud: &f" + medals[0],
+                "&f🥈 Zilver: &f" + medals[1],
+                "&c🥉 Brons: &f" + medals[2],
+                "&7Gebruik &e/kmcmedals &7voor de ranglijst"));
+
         // Achievements (V2).
         var ach = plugin.getAchievementServiceV2();
         if (ach != null) {

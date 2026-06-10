@@ -1,0 +1,12 @@
+nl\kmc\blockparty\commands\BlockPartyCommand.class
+nl\kmc\blockparty\managers\BlockPartyGameManagerV2.class
+nl\kmc\blockparty\managers\BlockPartyGameManagerV2$2.class
+nl\kmc\blockparty\models\BPPlayer.class
+nl\kmc\blockparty\listeners\BlockPartyListener.class
+nl\kmc\blockparty\managers\BlockPartyGameManagerV2$1.class
+nl\kmc\blockparty\models\ChaosEvent.class
+nl\kmc\blockparty\managers\FloorGenerator$Result.class
+nl\kmc\blockparty\managers\FloorGenerator.class
+nl\kmc\blockparty\models\Colors.class
+nl\kmc\blockparty\BlockPartyPlugin.class
+nl\kmc\blockparty\managers\ArenaManager.class

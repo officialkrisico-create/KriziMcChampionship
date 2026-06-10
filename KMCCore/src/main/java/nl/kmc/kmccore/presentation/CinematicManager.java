@@ -112,6 +112,20 @@ public final class CinematicManager {
         save();
     }
 
+    /**
+     * Appends a single waypoint to a route (creating it if needed) and persists.
+     * Used by the Setup Dashboard's Flyover editor so admins can build a flyover
+     * by clicking at each camera position — without a recording session.
+     *
+     * @return the new waypoint count for that route
+     */
+    public int appendWaypoint(String routeId, String description, CameraWaypoint wp) {
+        CameraRoute route = routes.computeIfAbsent(routeId, id -> new CameraRoute(id, description));
+        route.addWaypoint(wp);
+        save();
+        return route.size();
+    }
+
     // ── WIP recording API (used by /kmccamera) ────────────────────────────────
 
     /** Starts recording a new route for the player. Any previous WIP is discarded. */

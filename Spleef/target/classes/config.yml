@@ -5,11 +5,18 @@
 # fall into the void. Solo or team scoring.
 # ================================================================
 
+# Generic lifecycle (BaseGameManager). The game starts right at "GO" — players
+# are frozen during the countdown and can only dig once it's live.
+games:
+  spleef_teams:
+    countdown: 5
+    grace-period: 0
+
 game:
   # Maximum game duration. When timer expires, ranking is by blocks
   # broken (most = best, then alive players win over eliminated)
   max-duration-seconds: 300        # 5 minutes
-  
+
   # Pre-game countdown
   countdown-seconds: 15
   

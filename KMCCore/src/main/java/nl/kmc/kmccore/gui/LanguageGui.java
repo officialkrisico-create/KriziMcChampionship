@@ -1,14 +1,26 @@
 package nl.kmc.kmccore.gui;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.kmccore.lang.LanguageManager;
+import org.bukkit.ChatColor;
+import org.bukkit.DyeColor;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.block.banner.Pattern;
+import org.bukkit.block.banner.PatternType;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BannerMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** Language picker — choose your personal language (e.g. Nederlands / English). */
+/** Language picker — pick your language via a recognisable flag banner. */
 public final class LanguageGui extends Gui {
 
     private final KMCCore plugin;
@@ -31,12 +43,12 @@ public final class LanguageGui extends Gui {
                 "&7" + lang.tr(viewer, "language.current", lang.displayName(current))));
 
         List<String> codes = new ArrayList<>(lang.available());
-        int[] slots = {11, 12, 13, 14, 15}; // centred row of options
-        for (int i = 0; i < codes.size() && i < slots.length; i++) {
+        int n = codes.size();
+        int start = 13 - n / 2;               // centred on the middle row
+        for (int i = 0; i < n; i++) {
             String code = codes.get(i);
             boolean active = code.equals(current);
-            button(slots[i], item(iconFor(code),
-                    (active ? "&a&l" : "&e&l") + lang.displayName(code),
+            button(start + i, flagItem(code, lang.displayName(code), active,
                     active ? "&a✔ Actief" : "&7Klik om te kiezen"),
                     p -> {
                         lang.setLanguage(p.getUniqueId(), code);
@@ -50,11 +62,59 @@ public final class LanguageGui extends Gui {
         fillEmpty();
     }
 
-    private static Material iconFor(String code) {
-        return switch (code) {
-            case "nl" -> Material.ORANGE_BANNER;
-            case "en" -> Material.RED_BANNER;
-            default   -> Material.WHITE_BANNER;
-        };
+    // ── Flag banners ────────────────────────────────────────────────────────
+
+    private ItemStack flagItem(String code, String displayName, boolean active, String statusLore) {
+        ItemStack it = flagBanner(code);
+        ItemMeta m = it.getItemMeta();
+        if (m != null) {
+            m.setDisplayName(ChatColor.translateAlternateColorCodes('&',
+                    (active ? "&a&l" : "&e&l") + displayName));
+            m.setLore(List.of(ChatColor.translateAlternateColorCodes('&', statusLore)));
+            if (active) {
+                m.addEnchant(Enchantment.UNBREAKING, 1, true);
+                m.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+            it.setItemMeta(m);
+        }
+        return it;
+    }
+
+    /** Builds a banner that approximates the country's flag. Falls back to a plain banner. */
+    private ItemStack flagBanner(String code) {
+        Material base;
+        List<Pattern> patterns = new ArrayList<>();
+        switch (code) {
+            case "nl" -> { base = Material.WHITE_BANNER;
+                addPattern(patterns, DyeColor.RED,  "stripe_top");
+                addPattern(patterns, DyeColor.BLUE, "stripe_bottom"); }
+            case "en" -> { base = Material.WHITE_BANNER;
+                addPattern(patterns, DyeColor.RED,  "straight_cross"); }
+            case "tr" -> { base = Material.RED_BANNER;
+                addPattern(patterns, DyeColor.WHITE, "circle"); }
+            default   -> base = Material.WHITE_BANNER;
+        }
+        ItemStack it = new ItemStack(base);
+        if (it.getItemMeta() instanceof BannerMeta bm) {
+            for (Pattern p : patterns) { try { bm.addPattern(p); } catch (Throwable ignored) {} }
+            it.setItemMeta(bm);
+        }
+        return it;
+    }
+
+    private void addPattern(List<Pattern> list, DyeColor color, String key) {
+        PatternType type = patternType(key);
+        if (type != null) list.add(new Pattern(color, type));
+    }
+
+    /** Looks up a banner pattern by key — version-safe (no enum constant references). */
+    private static PatternType patternType(String key) {
+        try {
+            return RegistryAccess.registryAccess()
+                    .getRegistry(RegistryKey.BANNER_PATTERN)
+                    .get(NamespacedKey.minecraft(key));
+        } catch (Throwable t) {
+            return null;
+        }
     }
 }

@@ -158,6 +158,35 @@ commands:
     permission: kmc.language
     aliases: [kmclang, taal]
 
+  kmcmedals:
+    description: View your medals + the Most Decorated leaderboard
+    usage: /kmcmedals
+    permission: kmc.medals
+    aliases: [medals, medailles]
+
+  kmcmvp:
+    description: View game MVPs (this tournament + all-time)
+    usage: /kmcmvp
+    permission: kmc.medals
+    aliases: [mvp]
+
+  kmcmomentum:
+    description: View team momentum (biggest rise/fall, hot streaks)
+    usage: /kmcmomentum
+    permission: kmc.medals
+    aliases: [momentum]
+
+  kmcpowerrank:
+    description: View team power rankings (ELO)
+    usage: /kmcpowerrank
+    permission: kmc.medals
+    aliases: [powerrank, powerrankings]
+
+  kmcwinner:
+    description: Preview or skip the Winner Ceremony 2.0 (admin)
+    usage: /kmcwinner [test|skip]
+    permission: kmc.tournament.admin
+
   kmcvalidate:
     description: Open the Event Validation Center (readiness checks)
     usage: /kmcvalidate [test|export]
@@ -222,6 +251,7 @@ permissions:
   kmc.hof:              { description: View Hall of Fame,        default: true }
   kmc.prefs:            { description: Manage own preferences,   default: true }
   kmc.language:         { description: Choose your language,     default: true }
+  kmc.medals:           { description: View medals,              default: true }
   kmc.health.admin:     { description: View plugin diagnostics,  default: op }
   kmc.ready:            { description: Use /kmcready,            default: true }
   kmc.map.admin:        { description: Manage map rotation,      default: op }

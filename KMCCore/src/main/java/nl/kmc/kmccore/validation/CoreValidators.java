@@ -26,6 +26,7 @@ public final class CoreValidators {
         List<Validator> all = new ArrayList<>();
         all.add(new TournamentValidator(plugin));
         all.add(new PresentationValidator(plugin));
+        all.add(new FlyoverValidator(plugin));
         all.add(new NpcValidator(plugin));
         all.add(new AchievementValidator(plugin));
         all.add(new DatabaseValidator(plugin));
@@ -117,6 +118,35 @@ public final class CoreValidators {
                 if (rt.size() < 2) r.warn("Route: " + rt.getId(), "Te weinig waypoints (" + rt.size() + ")",
                         "/kmccamera addpoint");
             });
+            return r;
+        }
+    }
+
+    // ── Flyovers (per-game cinematic flyover routes) ──────────────────────────
+
+    public record FlyoverValidator(KMCCore plugin) implements Validator {
+        @Override public String  id()          { return "flyover"; }
+        @Override public String  displayName() { return "Flyovers"; }
+        @Override public Material icon()        { return Material.ELYTRA; }
+        @Override public ValidationReport validate() {
+            ValidationReport r = new ValidationReport();
+            var cm = plugin.getCinematicManager();
+            int min = plugin.getConfig().getInt("flyover.min-points", 2);
+            SetupService setup = service(plugin, SetupService.class);
+            if (setup == null || setup.getAll().isEmpty()) {
+                r.warn("Games", "Geen games geregistreerd", null);
+                return r;
+            }
+            for (GameSetup gs : setup.getAll()) {
+                String route = "arena-" + gs.gameId();
+                var opt = cm.getRoute(route);
+                if (opt.isEmpty())
+                    r.warn(gs.displayName(), "Geen flyover (optioneel)", "/kmcsetup → Flyovers");
+                else if (opt.get().size() < min)
+                    r.warn(gs.displayName(), "Te weinig camerapunten (" + opt.get().size() + "/" + min + ")", "/kmcsetup → Flyovers");
+                else
+                    r.ok(gs.displayName(), "✔ " + opt.get().size() + " camerapunten");
+            }
             return r;
         }
     }

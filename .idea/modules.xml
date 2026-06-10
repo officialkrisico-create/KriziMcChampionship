@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" filepath="$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" />
       <module fileurl="file://$PROJECT_DIR$/bingo/Bingo.iml" filepath="$PROJECT_DIR$/bingo/Bingo.iml" />
+      <module fileurl="file://$PROJECT_DIR$/BlockParty/BlockParty.iml" filepath="$PROJECT_DIR$/BlockParty/BlockParty.iml" />
       <module fileurl="file://$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" filepath="$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" />
       <module fileurl="file://$PROJECT_DIR$/KMCCore/KMCCore.iml" filepath="$PROJECT_DIR$/KMCCore/KMCCore.iml" />
       <module fileurl="file://$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" filepath="$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" />
@@ -11,6 +12,7 @@
       <module fileurl="file://$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" filepath="$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" />
       <module fileurl="file://$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" filepath="$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" />
       <module fileurl="file://$PROJECT_DIR$/SkyWars/SkyWars.iml" filepath="$PROJECT_DIR$/SkyWars/SkyWars.iml" />
+      <module fileurl="file://$PROJECT_DIR$/SpeedBuild/SpeedBuild.iml" filepath="$PROJECT_DIR$/SpeedBuild/SpeedBuild.iml" />
       <module fileurl="file://$PROJECT_DIR$/Spleef/Spleef.iml" filepath="$PROJECT_DIR$/Spleef/Spleef.iml" />
       <module fileurl="file://$PROJECT_DIR$/SurvivalGames/SurvivalGames.iml" filepath="$PROJECT_DIR$/SurvivalGames/SurvivalGames.iml" />
       <module fileurl="file://$PROJECT_DIR$/TGTTOS/TGTTOS.iml" filepath="$PROJECT_DIR$/TGTTOS/TGTTOS.iml" />

@@ -29,6 +29,13 @@ public interface GameApi {
     /** Clears any per-game sidebar previously set by {@code gameId}. */
     default void clearScoreboard(String gameId) {}
 
+    /**
+     * Records the MVP of a finished mini-game (the game's own top performer).
+     * Drives the "GAME MVP" reveal and tournament/lifetime MVP tracking.
+     * No-op by default. {@code mvp} may be null (no MVP this game).
+     */
+    default void recordGameMvp(java.util.UUID mvp, String name, String gameId) {}
+
     boolean isScoreboardOwnedBy(String gameId);
 
     Optional<String> getScoreboardOwner();

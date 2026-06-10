@@ -1,0 +1,117 @@
+# Türkçe metinler. Renk kodları için & ve değişkenler için {0}, {1}, ... kullanın.
+language:
+  name: "Türkçe"
+  gui-title: "&1&lDilini seç"
+  choose: "&7Aşağıdan dilini seç."
+  set: "&aDil &e{0}&a olarak ayarlandı."
+  current: "&7Şu anki dil: &e{0}"
+
+common:
+  players-only: "&cBunu yalnızca oyuncular kullanabilir."
+  no-permission: "&cBuna iznin yok."
+
+vote:
+  confirm: "&a✔ &e{0}&a için oy verdin!"
+
+scoreboard:
+  round: "&7Tur: &e{0} &8(&e×{1}&8)"
+  inactive: "&7Durum: &cPasif"
+  game: "&7Oyun: &b{0}"
+  top-teams: "&6&lEn İyi Takımlar:"
+  your-team: "&e&lTakımın:"
+  your-points: "&b&lPuanların: &e{0}"
+
+game:
+  board:
+    phase: "&7Aşama &e{0}"
+    round: "&7Tur &e{0}"
+    top-teams: "&6&lEN İYİ TAKIMLAR"
+    your-team: "&e&lTakımın"
+  phase:
+    idle: "Bekleniyor"
+    preparing: "Hazırlanıyor"
+    countdown: "Geri sayım"
+    grace: "Başlangıç"
+    active: "Aktif"
+    deathmatch: "Ölüm maçı"
+    ended: "Bitti"
+
+tablist:
+  game: "&7Oyun: &a{0} &8| &7Tur &e{1}&7/&e{2}"
+  intermission: "&7Tur &e{0}&7/&e{1} &8| &eAra"
+  lobby: "&aLobi &8| &7Başlangıç bekleniyor"
+  standings: "&6&lSIRALAMA"
+  no-points: "&7Henüz puan yok"
+  vote-hint: "&7Sonraki oyuna oy ver: &e/kmcvote"
+
+sb:
+  common:
+    time: "&7Süre &f{0}"
+    players-left: "&7Kalan oyuncu &a{0}"
+    teams-left: "&7Kalan takım &a{0}"
+    alive: "&7Durum &aHayatta"
+    eliminated: "&7Durum &cElendi"
+    kills: "&7Öldürme &c{0}"
+    points: "&7Puan &a{0}"
+    deathmatch: "&c&l⚔ ÖLÜM MAÇI"
+  spleef:
+    tip1: "&7Rakiplerinin altındaki"
+    tip2: "&7zemini kır!"
+  luckyblock:
+    tip1: "&7Şanslı blokları kır"
+    tip2: "&7rastgele ganimet için!"
+  tnttag:
+    round: "&7Tur &e{0}"
+    time: "&7Süre &f{0}s"
+    out: "&7Sen &cElendin"
+    it: "&c&l⚠ BOMBA SENDE!"
+    safe: "&a&lGüvende — kaç!"
+  bridge:
+    target: "&7İlk &e{0} &7gole ulaşan"
+    standings: "&e&lSIRALAMA"
+    your-goals: "&7Gollerin &b{0}"
+  mob:
+    your-team: "&e&lTAKIMIN"
+    wave: "&7Dalga &e{0}"
+    mobs-left: "&7Kalan yaratık &c{0}"
+    mob-kills: "&7Yaratık öldürme &a{0}"
+    teams: "&6&lTAKIMLAR — dalgalar"
+    team-entry: " &7{0} &8- &edalga {1}"
+  tgttos:
+    round: "&7Tur &e{0}&7/&e{1}"
+    time: "&7Süre &f{0}s"
+    running: "&7Hâlâ koşuyor &a{0}"
+    you-finished: "&7Sen: &aBitirdin"
+    you-running: "&7Sen: &eKoşuyor"
+    rounds-done: "&7Biten tur &e{0}"
+  ae:
+    your-laps: "&7Turların &e{0}"
+    finished: "&7Durum &aBitirdin"
+    busy: "&7Durum &eKoşuyor"
+    top: "&e&lEN İYİ YARIŞÇILAR"
+    entry: " &7{0} &8- &e{1} tur"
+  parkour:
+    checkpoint: "&7Kontrol noktası &e{0}"
+    checkpoint-of: "&7Kontrol noktası &e{0}&7/&e{1}"
+    stage: "&7Bölüm &e{0}"
+    finished: "&7Durum &aBitirdin"
+    busy: "&7Durum &eKoşuyor"
+  elytra:
+    checkpoints: "&7Kontrol noktaları &e{0}"
+    checkpoints-of: "&7Kontrol noktaları &e{0}&7/&e{1}"
+    finished: "&7Durum &aBitirdin"
+    flying: "&7Durum &eUçuyor"
+  bingo:
+    your-team: "&e&lTAKIMIN"
+    squares: "&7Kareler &a{0}"
+    lines: "&7Çizgiler &6{0}"
+    teams: "&6&lTAKIMLAR — çizgiler"
+    team-entry: " &7{0} &8- &6{1}Ç &7/ &a{2}K"
+  quake:
+    title: "&c&lQUAKECRAFT"
+    starting: "&7Maç birazdan başlıyor…"
+    first-to: "&7İlk &e{0} &7öldürmeye ulaşan"
+    time: "&7Süre &f{0}"
+    top: "&e&lEN İYİ OYUNCULAR"
+    kd: "&7Öldürme &a{0}  &7Ölüm &c{1}"
+    streak: "&7Seri &6{0}"

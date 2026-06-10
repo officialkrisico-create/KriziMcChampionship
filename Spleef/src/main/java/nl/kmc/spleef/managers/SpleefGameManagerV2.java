@@ -57,6 +57,8 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
             giveShovel(p);
+            // Hold players in place until "GO" so nobody digs during the countdown.
+            nl.kmc.game.api.GamePlayerUtil.freezePlayer(p, 20 * 60);
             players.put(p.getUniqueId(), new PlayerState(p.getUniqueId(), p.getName()));
         }
 
@@ -67,12 +69,22 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§b§l[Spleef] §eBreak the floor! Last one standing wins.");
+        broadcast("§b§l[Spleef] §eBreek de vloer! Laatste die overblijft wint.");
     }
 
     @Override
     protected void onGameStart() {
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 300);
+
+        // Release players and signal GO.
+        for (UUID id : players.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null) continue;
+            nl.kmc.game.api.GamePlayerUtil.unfreezePlayer(p);
+            p.sendTitle("§b§lSPLEEF", "§eBreek de vloer!", 0, 35, 10);
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
+        }
+
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
             updateBossBar();
@@ -135,7 +147,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§b[Spleef] State restored!");
+        player.sendMessage("§b[Spleef] Status hersteld!");
     }
 
     @Override
@@ -222,6 +234,8 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
     }
 
     public boolean isRunningGame() { return getState().isRunning(); }
+    /** True only once the floor is live (ACTIVE/DEATHMATCH) — gates digging. */
+    public boolean isActivePhase() { return getState().isPvPActive(); }
     public Map<UUID, PlayerState> getPlayersMap() { return Collections.unmodifiableMap(players); }
 
     // ── Internals ─────────────────────────────────────────────────────────────

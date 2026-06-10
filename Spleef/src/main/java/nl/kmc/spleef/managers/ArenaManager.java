@@ -174,11 +174,16 @@ public class ArenaManager {
         World world = arena.getWorld();
         if (world == null) return;
         Material floorMaterial = Material.valueOf(
-                plugin.getConfig().getString("arena.floor-material", "SNOW_BLOCK").toUpperCase());
+                plugin.getConfig().getString("game.floor-material", "SNOW_BLOCK").toUpperCase());
+
+        // Rebuild AND re-register every floor block, otherwise FloorManager's
+        // breakable-block set stays empty and players can't dig the floor.
+        plugin.getFloorManager().clear();
         for (Arena.Layer layer : arena.getLayers()) {
             for (int x = layer.getMinX(); x <= layer.getMaxX(); x++) {
                 for (int z = layer.getMinZ(); z <= layer.getMaxZ(); z++) {
                     world.getBlockAt(x, layer.getYLevel(), z).setType(floorMaterial);
+                    plugin.getFloorManager().register(x, layer.getYLevel(), z);
                 }
             }
         }

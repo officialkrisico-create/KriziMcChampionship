@@ -1,0 +1,42 @@
+# ================================================================
+# Speed Build Challenge — Configuration
+# ================================================================
+# Solo, deterministic schematic-accuracy minigame. Each player builds
+# 10 schematics in sequence in their own isolated, auto-laid-out region.
+# Scoring is 100% objective (block-by-block schematic comparison) — no
+# voting and no human judging.
+#
+# Schematic files (.schem) live in plugins/KMCCore/schematics/ (shared
+# with the rest of KMC's WorldEdit integration).
+
+arena:
+  world: ""
+  # Min corner of player 0's build slot. Other players are auto-offset
+  # along +X so nobody interferes (slot size derived from the schematics).
+  anchor: {}
+  # Where players spawn / return when idle.
+  spawn: {}
+  # Empty blocks between adjacent player slots (and between build + blueprint).
+  slot-gap: 4
+
+scoring:
+  # Final per-build score = accuracy%·100·weight + timeBonus − penalty.
+  accuracy-points: 100      # multiplier applied to accuracy fraction (0..1)
+  penalty-per-block: 2      # points lost per missing/incorrect block
+  time-bonus-per-second: 3  # points per second saved under par
+  max-time-bonus: 120
+  # Par seconds = base + difficulty·perDifficulty (faster than par = bonus).
+  par-base-seconds: 60
+  par-per-difficulty: 20
+
+# The 10 builds, in order. 'schematic' is a filename in the KMCCore
+# schematics folder. difficulty 1-10, weight scales that build's value.
+# Admins can also append builds in-game with /speedbuild addbuild.
+builds: []
+
+countdown: 10
+grace-period: 5
+post-game-reset-ticks: 100
+
+reconnect:
+  timeout-seconds: 180
