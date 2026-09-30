@@ -14,7 +14,8 @@
       "Bash(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\krish\\\\Videos\\\\kmc-tournament\\\\KMCCore\\\\src\\\\main\\\\java\\\\nl\\\\kmc\\\\kmccore\" -Directory)",
       "Bash(Select-Object -ExpandProperty Name)",
       "Bash(Get-Unique)",
-      "Bash(grep -v '^$')"
+      "Bash(grep -v '^$')",
+      "WebSearch"
     ]
   }
 }
