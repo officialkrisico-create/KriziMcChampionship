@@ -21,6 +21,7 @@ public class Arena {
     private final String         id;
     private final Location       playerSpawn;
     private final List<Location> mobSpawns = new ArrayList<>();
+    private final List<Location> powerupSpawns = new ArrayList<>();
     private Location              shrinkCenter;
     private int                   shrinkMaxRadius;
 
@@ -40,6 +41,9 @@ public class Arena {
         if (mobSpawns.isEmpty()) return null;
         return mobSpawns.get((int) (Math.random() * mobSpawns.size())).clone();
     }
+
+    public void addPowerupSpawn(Location loc) { powerupSpawns.add(loc.clone()); }
+    public List<Location> getPowerupSpawns()  { return Collections.unmodifiableList(powerupSpawns); }
 
     public Location getShrinkCenter()       { return shrinkCenter != null ? shrinkCenter.clone() : null; }
     public void     setShrinkCenter(Location c) { this.shrinkCenter = c != null ? c.clone() : null; }

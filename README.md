@@ -1,7 +1,7 @@
 # KMC Tournament — Wiki & Setup Guide
 
-A multi-game tournament system for Paper 1.21.4 / Java 21. One core plugin
-manages teams, points, and tournament flow; 13 mini-game plugins plug in
+A multi-game tournament system for Paper 26.3 / Java 25. One core plugin
+manages teams, points, and tournament flow; 15 mini-game plugins plug in
 as the rotation.
 
 > **Audience:** server operators setting this up for the first time,
@@ -32,6 +32,8 @@ as the rotation.
   - [Adventure Escape](#adventure-escape)
   - [Bingo](#bingo)
   - [Lucky Block](#lucky-block)
+  - [Block Party](#block-party)
+  - [Speed Build](#speed-build)
 - [Scoring reference](#scoring-reference)
 - [Admin commands cheat sheet](#admin-commands-cheat-sheet)
 - [QuakeCraft arsenal & gadgets](#quakecraft-arsenal--gadgets)
@@ -45,7 +47,7 @@ as the rotation.
 ### Core features (KMCCore)
 
 - **Team system** — players assigned to colored teams, persistent across games
-- **Tournament mode** — chains all 13 games with round multipliers (×1 up to ×5)
+- **Tournament mode** — chains all 15 games with round multipliers (×1 up to ×5)
 - **Points system** — all per-game scoring funnels through a central API; team aggregation automatic
 - **Leaderboards** — `/kmclb teams` and `/kmclb players` (paginated)
 - **Hall of Fame** — top-stat NPCs permanently displayed in lobby (kills / wins / streak)
@@ -62,7 +64,7 @@ as the rotation.
 - **Server health monitor** — TPS, RAM, online count — `/kmchealth`
 - **Discord integration** — automatic webhook posts for game results and achievements
 
-### The 13 mini-games
+### The 15 mini-games
 
 | Game | Style | Players |
 |---|---|---|
@@ -79,6 +81,8 @@ as the rotation.
 | **Adventure Escape** | Puzzle escape room with effect blocks | Teams |
 | **Bingo** | Collect items to complete a bingo card | Teams |
 | **Lucky Block** | Break lucky blocks, fight with random loot | Teams |
+| **Block Party** | Colour-elimination, last standing | Solo with team scoring |
+| **Speed Build** | Solo schematic-accuracy build challenge | Solo |
 
 ---
 
@@ -86,8 +90,8 @@ as the rotation.
 
 | Software | Version |
 |---|---|
-| Paper | 1.21.4 |
-| Java | 21 |
+| Paper | 26.3 |
+| Java | 25 |
 | RAM | 6 GB minimum, 8 GB+ recommended for 32+ players |
 
 ### Soft dependencies (highly recommended)
@@ -127,7 +131,7 @@ Copy all JARs from each module's `target/` folder into your server's `plugins/` 
 KMCCore/target/KMCCore-*.jar
 SkyWars/target/SkyWars-*.jar
 bingo/target/bingo-*.jar
-... (all 13 game JARs)
+... (all 15 game JARs)
 ```
 
 ### 2. Plugin load order
@@ -143,7 +147,7 @@ The order is:
 | 4 | `kmc-game-api` | Base game manager and plugin template |
 | 5 | `kmc-tournament-engine` | Tournament lifecycle engine |
 | 6 | `KMCCore` | Main plugin — teams, points, lobby, commands |
-| 7+ | All 13 game plugins | Any order |
+| 7+ | All 15 game plugins | Any order |
 
 ### 3. First startup
 
@@ -284,9 +288,13 @@ If you want to pick games manually instead of voting:
 /kmcgame start
 ```
 
-Available game IDs: `skywars`, `survival_games`, `quake_craft`, `spleef`,
+Available game IDs: `team_skywars`, `survival_games`, `quake_craft`, `spleef_teams`,
 `tgttos`, `mob_mayhem`, `tnt_tag`, `elytra_endrium`, `parkour_warrior`,
-`the_bridge`, `adventure_escape`, `bingo`, `lucky_block`
+`the_bridge`, `adventure_escape`, `bingo_teams`, `lucky_block`, `block_party`,
+`speed_build`
+
+(These are the exact keys from `games.list` in `plugins/KMCCore/config.yml` —
+the source of truth for what `/kmcauto` and `/kmcgame set` actually accept.)
 
 ### Skipping a stuck game
 
@@ -304,6 +312,14 @@ rotation as if the game ended normally.
 /kmcauto pause     ← pause between games
 /kmcauto resume    ← continue
 ```
+
+Run by a player, `/kmcauto start` first opens a **setup menu** — toggle
+which games are in this tournament's rotation, adjust the intermission and
+voting durations, optionally schedule the start for a later clock time or
+delay, then click **START TOERNOOI NU** to actually launch. Use
+`/kmcauto start force` to skip the menu and start immediately (also skips
+the validation check below) — this is what console/scripted starts and the
+`/kmcauto schedule` auto-start use, since there's no player to show a menu to.
 
 `/kmcauto start` is the main entry point. It drives the complete championship
 flow end-to-end:
@@ -702,6 +718,81 @@ Lucky Block uses team spawns from KMCCore — no separate arena commands.
 
 ---
 
+### Block Party
+
+Colour-elimination — stand on the announced colour before time runs out;
+wrong colour (or no colour) means you fall through the void. Last player
+standing wins. Every alive player gets the round's colour as a plain,
+unusable item (`BLAUW`, `ROOD`, ... — never "concrete"/"beton") in a fixed
+hotbar slot, replaced each round, as a visual reference alongside the
+title/actionbar/scoreboard. Only players currently on an active KMC team
+take part. The floor regenerates every round with a fresh random
+Voronoi-style colour pattern, and gets harder (smaller clusters, less
+time) as rounds progress. From round 5 onward, random "chaos events" can
+modify a round (low gravity, darkness, a fake colour hint, etc.).
+
+**Colour palette:**
+- **Round 1** is a fixed layout — either a pattern you build and capture
+  yourself (`/blockparty presetfloor`, like a schematic), or, if none is
+  captured, a random floor using only Yellow/White/Light Gray/Black concrete.
+- **Every round after that** always draws from all 16 concrete colours,
+  fully random each time — never a captured layout, no exceptions. The
+  target colour tries not to repeat the previous round's, and always has
+  room for every player still alive (plus a configurable floor,
+  `minimum-target-blocks`).
+
+Fires `BlockPartyGameStartEvent`, `BlockPartyRoundStartEvent`,
+`BlockPartyRoundEndEvent`, `BlockPartyPlayerEliminateEvent`,
+`BlockPartyPlayerSurviveEvent`, and `BlockPartyGameEndEvent` so other
+systems can hook into specific moments, not just the final result.
+
+**Setup:**
+```
+/blockparty pos1         ← stand at one corner of a flat floor area
+/blockparty pos2         ← stand at the opposite corner
+/blockparty spectator    ← stand where eliminated players should watch
+/blockparty voidy        ← stand below the floor, at "fell through" height
+```
+
+Minimum floor size is 64 blocks. Check readiness with `/blockparty status`.
+
+**Optional — fixed round 1 layout:**
+```
+/blockparty presetfloor  ← build a pattern by hand, then capture it as round 1's layout
+/blockparty clearpreset  ← remove it (round 1 falls back to the random 4-colour default)
+```
+
+**Run:** `/blockparty start`
+
+---
+
+### Speed Build
+
+Solo, fully objective schematic-accuracy challenge. Each player builds up
+to 10 schematics in sequence inside their own isolated region — no voting,
+no human judging, score is a block-by-block comparison against the
+schematic plus a time bonus for finishing under par. Requires WorldEdit or
+FastAsyncWorldEdit.
+
+**Setup:**
+```
+/speedbuild anchor                          ← stand at the min corner of player 0's build slot
+/speedbuild spawn                           ← stand where players spawn / return when idle
+/speedbuild gap 4                           ← blocks of empty space between player slots
+/speedbuild addbuild <id> <schematic.schem> [difficulty] [weight] [naam...]
+/speedbuild listbuilds                      ← verify (up to 10 builds)
+```
+
+Schematic files go in `plugins/KMCCore/schematics/` (shared WorldEdit
+integration). `difficulty` (1-10) and `weight` scale that build's score
+contribution; par time scales with difficulty too
+(`par-base-seconds` + `par-per-difficulty` × difficulty in
+`plugins/SpeedBuild/config.yml`).
+
+**Run:** `/speedbuild start`
+
+---
+
 ## Scoring reference
 
 Quick reference for all point values. All values are before the round
@@ -747,6 +838,22 @@ multiplier (which applies to placement points only).
 |---|---|
 | Lucky bonus event | 50 |
 
+### Block Party
+
+Uses its own placement curve instead of the global one above (base score
+minus a per-place step, floored at a minimum):
+
+| Action | Points |
+|---|---|
+| Placement | `250 − (place × 10)`, minimum 25 |
+| Last-team-standing bonus | +150 (team) |
+
+### Speed Build
+
+Fully objective per-build score, no fixed point table — see
+`plugins/SpeedBuild/config.yml`: `accuracy% × 100` minus 2 per
+missing/incorrect block, plus up to 120 bonus for finishing under par time.
+
 All values are configurable in `plugins/KMCCore/points.yml` and each
 game's own `config.yml`.
 
@@ -770,7 +877,8 @@ game's own `config.yml`.
 | `/kmcgame forceskip` | Abort current game, return to lobby |
 | `/kmcgame list` | Show all games and their statuses |
 | `/kmcvote` | Open the voting GUI |
-| `/kmcauto start` | Start automation engine (full ceremony flow) |
+| `/kmcauto start` | Opens the setup menu (games/timers/schedule), then starts on confirm |
+| `/kmcauto start force` | Skips the setup menu and validation, starts immediately |
 | `/kmcauto pause` | Pause between games |
 | `/kmcauto resume` | Resume automation |
 | `/kmcauto schedule 20:00` | Auto-start the whole tournament at a clock time |
@@ -813,7 +921,7 @@ game's own `config.yml`.
 
 | Command | What it does |
 |---|---|
-| `/event simulate <rounds> <players>` | Run a fake tournament for math testing |
+| `/event simulate <rounds> <players>` | Runs a REAL tournament with fake bot players — same rotation/multiplier/endTournament() as a live event. Refuses if a real tournament is already active. Fewer rounds than `tournament.total-rounds` = ends early (no book, scores not reset), like a real `/kmctournament stop`. |
 | `/event snapshot` | Take a snapshot of current state |
 | `/event listsnapshots` | Show available snapshots |
 | `/event rollback <snapshot-id>` | Restore from a snapshot |
@@ -866,7 +974,9 @@ game's own `config.yml`.
 
 ### Per-game shortcuts
 
-Every game supports these four commands:
+Every game supports `start | stop | status | reload`, **except Block Party
+and Speed Build**, which don't have a `reload` subcommand yet (change their
+`config.yml` and restart the plugin/server to apply edits):
 
 ```
 /skywars        start | stop | status | reload
@@ -882,6 +992,8 @@ Every game supports these four commands:
 /adventure      start | stop | status | reload
 /bingo          start | stop | status | reload
 /luckyblock     start | stop | status | reload
+/blockparty     start | stop | status              (no reload)
+/speedbuild     start | stop | status              (no reload)
 ```
 
 `reload` re-reads the per-game `config.yml` without restarting the server.

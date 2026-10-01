@@ -4,13 +4,16 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import nl.kmc.mayhem.MobMayhemPlugin;
 import nl.kmc.mayhem.managers.MobMayhemGameManagerV2;
+import nl.kmc.mayhem.managers.PowerupSpawner;
 import nl.kmc.mayhem.managers.WaveExecutor;
+import nl.kmc.mayhem.models.PowerupType;
 import nl.kmc.mayhem.models.TeamGameState;
-import nl.kmc.mayhem.waves.WaveLibrary;
+import nl.kmc.mayhem.waves.WaveDefinition;
 import nl.kmc.mayhem.waves.WaveModifier;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -18,6 +21,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
@@ -76,6 +80,12 @@ public class MobListener implements Listener {
         Integer waveNum = pdc.get(waveKey, PersistentDataType.INTEGER);
         if (waveNum == null) waveNum = 0;
 
+        var lastDamage = entity.getLastDamageCause();
+        plugin.getLogger().info("[MobMayhem] " + entity.getType() + " (team " + teamId
+                + ", wave " + waveNum + ") died — cause: "
+                + (lastDamage != null ? lastDamage.getCause() : "UNKNOWN")
+                + ", killer: " + (entity.getKiller() != null ? entity.getKiller().getName() : "none"));
+
         TeamGameState ts = gm.getTeamStates().get(teamId);
         if (ts == null) return;
 
@@ -89,14 +99,12 @@ public class MobListener implements Listener {
 
         // Route kill to V2 manager
         Player killer = entity.getKiller();
-        boolean wasBoss = ts.getCurrentWave() > 0
-                && !WaveLibrary.defaultWaves().isEmpty()
-                && ts.getCurrentWave() <= WaveLibrary.defaultWaves().size()
-                && WaveLibrary.defaultWaves().get(ts.getCurrentWave() - 1).isBossWave();
-        int mobPoints = WaveLibrary.defaultPointsForKill(entity.getType(), wasBoss);
+        WaveDefinition currentWaveDef = gm.getWaveByNumber(ts.getCurrentWave());
+        boolean wasBoss = currentWaveDef != null && currentWaveDef.isBossWave();
+        int mobPoints = nl.kmc.mayhem.waves.WaveLibrary.defaultPointsForKill(entity.getType(), wasBoss);
 
         if (killer != null) {
-            gm.onMobKill(killer.getUniqueId(), mobPoints);
+            gm.onMobKill(killer.getUniqueId(), mobPoints, wasBoss);
         }
 
         // Strip XP drops — keeps things clean
@@ -124,6 +132,32 @@ public class MobListener implements Listener {
         p.setGameMode(GameMode.SPECTATOR);
         Bukkit.broadcastMessage(org.bukkit.ChatColor.RED + "☠ " + org.bukkit.ChatColor.GRAY
                 + p.getName() + " is uitgeschakeld op wave " + ts.getCurrentWave());
+        gm.checkLastStanding();
+    }
+
+    // ----------------------------------------------------------------
+    // Powerup pickup
+    // ----------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPowerupPickup(EntityPickupItemEvent event) {
+        MobMayhemGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (!(event.getEntity() instanceof Player p)) return;
+
+        Item item = event.getItem();
+        PowerupType type = PowerupSpawner.getPowerupType(plugin, item);
+        if (type == null) return;
+
+        event.setCancelled(true);
+
+        TeamGameState ts = getTeamStateForPlayer(p.getUniqueId());
+        if (ts == null) return;
+
+        PowerupSpawner spawner = gm.getPowerupSpawner(ts.getTeamId());
+        if (spawner != null) spawner.onPickedUp(item);
+        item.remove();
+        PowerupSpawner.apply(p, type);
     }
 
     // ----------------------------------------------------------------

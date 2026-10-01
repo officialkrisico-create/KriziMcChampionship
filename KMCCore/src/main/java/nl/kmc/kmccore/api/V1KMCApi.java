@@ -33,19 +33,22 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
     private final PointsApi      pointsApi;
     private final GameApi        gameApi;
     private final StatsApi       statsApi;
+    private final CinematicApi   cinematicApi;
 
     public V1KMCApi(KMCCore plugin) {
-        this.plugin    = plugin;
-        this.teamApi   = new V1TeamApi();
-        this.pointsApi = new V1PointsApi();
-        this.gameApi   = new V1GameApi();
-        this.statsApi  = new V1StatsApi();
+        this.plugin       = plugin;
+        this.teamApi      = new V1TeamApi();
+        this.pointsApi    = new V1PointsApi();
+        this.gameApi      = new V1GameApi();
+        this.statsApi     = new V1StatsApi();
+        this.cinematicApi = new V1CinematicApi();
     }
 
     @Override public TeamApi        teams()        { return teamApi; }
     @Override public PointsApi      points()       { return pointsApi; }
     @Override public GameApi        games()        { return gameApi; }
     @Override public StatsApi       stats()        { return statsApi; }
+    @Override public CinematicApi   cinematics()   { return cinematicApi; }
 
     @Override public String tr(java.util.UUID player, String key, Object... args) {
         try { return plugin.getLanguageManager().tr(player, key, args); }
@@ -80,7 +83,10 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
             // Ensure the player is loaded so the award isn't dropped.
             plugin.getPlayerDataManager().getOrCreate(uuid, null);
             var pm = plugin.getPointsManager();
-            boolean useMultiplier = reason != PointAward.Reason.KILL || pm.killsUseMultiplier();
+            // Assists follow the same flat-rate rule as kills — they're kill-adjacent,
+            // not a placement reward, so the round multiplier shouldn't apply either.
+            boolean isKillLike = reason == PointAward.Reason.KILL || reason == PointAward.Reason.ASSIST;
+            boolean useMultiplier = !isKillLike || pm.killsUseMultiplier();
             int finalAmount = useMultiplier
                     ? (int) Math.round(amount * pm.getCurrentMultiplier())
                     : amount;
@@ -223,6 +229,23 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
             List<KMCTeam> s = plugin.getTeamManager().getTeamsSortedByPoints();
             for (int i = 0; i < s.size(); i++) if (s.get(i).getId().equals(teamId)) return i + 1;
             return -1;
+        }
+    }
+
+    // ── Cinematics ───────────────────────────────────────────────────────────────
+
+    private final class V1CinematicApi implements CinematicApi {
+        @Override
+        public boolean playArenaFlyover(String gameId, Collection<org.bukkit.entity.Player> players,
+                                        org.bukkit.Location center, double radius, double height, Runnable onComplete) {
+            try {
+                return plugin.getCinematicManager()
+                        .playOrAutoGenerateArenaFlyover(gameId, players, center, radius, height, onComplete);
+            } catch (Throwable t) {
+                plugin.getLogger().warning("[KMC] Arena flyover failed for '" + gameId + "': " + t);
+                if (onComplete != null) onComplete.run();
+                return false;
+            }
         }
     }
 

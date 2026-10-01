@@ -34,6 +34,14 @@ game:
   showdown-round-seconds: 15
   showdown-border-seconds: 25
 
+  # Progressive arena shrink: after every round, the border permanently
+  # tightens by this percentage of whatever's left (compounds each round —
+  # 0.08 = ~8% smaller per round). Never shrinks below the minimum radius.
+  # Separate from the temporary chaos-event squeeze and the showdown's own
+  # shrink (which takes over once only 2 players remain). Set to 0 to disable.
+  progressive-shrink-percent: 0.08
+  progressive-shrink-min-radius: 12
+
   # Tag-pass cooldown (ms) — prevents instant bomb flicker.
   tag-cooldown-ms: 1200
 

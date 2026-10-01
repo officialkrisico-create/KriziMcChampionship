@@ -20,7 +20,8 @@ public enum WaveModifier {
     LOW_VISIBILITY("Lage Zicht",     "&8Fog"),
     EXPLOSIVE_MOBS("Explosieve Mobs","&4Boom"),
     HEALTHY_MOBS  ("Sterke Mobs",    "&5×2 HP"),
-    POISON_TOUCH  ("Gif Mobs",       "&2Poison");
+    POISON_TOUCH  ("Gif Mobs",       "&2Poison"),
+    BLOOD_MOON    ("Bloedmaan",      "&4🌕 Blood Moon");
 
     public final String displayName;
     public final String shortLabel;

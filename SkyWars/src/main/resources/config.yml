@@ -35,6 +35,11 @@ points:
   # Per kill — unchanged from previous config
   per-kill: 25
 
+  # Assist: if someone else hit the victim within 10s before the finishing
+  # blow, this fraction of the kill reward goes to them instead of the killer
+  # (0.2 = killer keeps 80%, assist gets 20%). Set to 0 to disable.
+  assist-fraction: 0.2
+
   # Living-while-someone-dies — every still-alive player gets this
   # each time someone is eliminated.
   living-while-someone-dies: 5

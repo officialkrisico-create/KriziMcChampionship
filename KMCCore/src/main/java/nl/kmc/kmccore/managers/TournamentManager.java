@@ -36,6 +36,10 @@ public class TournamentManager {
     private int     currentRound;
     private int     totalRounds;
 
+    /** The one round this tournament that gets a surprise Golden Hour (picked fresh on every start()). */
+    private Integer goldenRound;
+    private final java.util.Random random = new java.util.Random();
+
     public TournamentManager(KMCCore plugin) {
         this.plugin      = plugin;
         this.totalRounds = plugin.getConfig().getInt("tournament.total-rounds", 5);
@@ -84,6 +88,9 @@ public class TournamentManager {
         active       = true;
         currentRound = 1;
         incrementEventNumber();   // KMC #1, #2, ...
+        plugin.getPointsManager().deactivateGoldenHour();
+        goldenRound = plugin.getConfig().getBoolean("golden-hour.enabled", true)
+                ? 1 + random.nextInt(Math.max(1, totalRounds)) : null;
         save();
 
         AnnouncementUtil.broadcastTitle(plugin, "announcements.tournament-start", null);
@@ -92,6 +99,35 @@ public class TournamentManager {
         plugin.getTabListManager().refreshAll();
         plugin.getApi().fireTournamentStart();
         return true;
+    }
+
+    /**
+     * If the current round is this tournament's (secretly pre-picked) Golden
+     * Hour round, activates it and reveals it with fanfare — a no-op if it's
+     * not this round, or if it already fired.
+     *
+     * <p><b>Call this right before the round's first game actually starts</b>
+     * (e.g. from {@code AutomationManager} once its whole ceremony sequence —
+     * opening, team showcase, intermission, voting, countdown — has finished).
+     * Calling it from {@link #start()}/{@link #nextRound()} themselves fires
+     * it too early: those run instantly, long before the ceremony reaches the
+     * point where a round "really" begins for the players watching, so the
+     * reveal would visually collide with the opening ceremony.
+     */
+    public void revealGoldenHourIfDue() {
+        if (goldenRound == null || currentRound != goldenRound) return;
+        double multiplier = plugin.getConfig().getDouble("golden-hour.multiplier", 2.0);
+        plugin.getPointsManager().activateGoldenHour(multiplier);
+        goldenRound = null; // one-shot — never trigger again this tournament
+
+        Bukkit.broadcastMessage(MessageUtil.color("&e&m                                        "));
+        Bukkit.broadcastMessage(MessageUtil.color("        &6&l✨ GOLDEN HOUR ✨"));
+        Bukkit.broadcastMessage(MessageUtil.color("  &eAlle punten deze ronde tellen &6×" + multiplier + "&e!"));
+        Bukkit.broadcastMessage(MessageUtil.color("&e&m                                        "));
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.sendTitle(MessageUtil.color("&6&l✨ GOLDEN HOUR ✨"), MessageUtil.color("&e×" + multiplier + " punten!"), 10, 70, 20);
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.3f);
+        }
     }
 
     public boolean stop() {
@@ -110,6 +146,8 @@ public class TournamentManager {
      */
     public void endTournament() {
         active = false;
+        goldenRound = null;
+        plugin.getPointsManager().deactivateGoldenHour();
         save();
 
         int eventNumber = getEventNumber();
@@ -135,6 +173,9 @@ public class TournamentManager {
 
         // Phase 2: top 3 players (5 seconds later)
         Bukkit.getScheduler().runTaskLater(plugin, () -> announceTopPlayers(), 100L);
+
+        // Phase 2b: Fan Favorite crowd vote (6 seconds later, runs 20s — finishes well before the reset)
+        Bukkit.getScheduler().runTaskLater(plugin, () -> plugin.getFanFavoriteManager().startVote(20), 120L);
 
         // Phase 3: hand out books (8 seconds later)
         Bukkit.getScheduler().runTaskLater(plugin, () -> handOutBooks(eventNumber), 160L);
@@ -209,9 +250,15 @@ public class TournamentManager {
 
     public boolean nextRound() {
         if (currentRound >= totalRounds) return false;
+        plugin.getPointsManager().deactivateGoldenHour(); // clear last round's boost before moving on
         currentRound++;
         save();
-        double mul = plugin.getPointsManager().getMultiplierForRound(currentRound);
+        // NOTE: Golden Hour is NOT revealed here — see revealGoldenHourIfDue().
+        // This broadcast always shows the round's own plain multiplier; the
+        // Golden Hour reveal (if this is the round) comes later with its own
+        // distinct announcement, once the ceremony sequence actually reaches
+        // the real game start.
+        double mul = plugin.getPointsManager().getCurrentMultiplier();
         AnnouncementUtil.broadcastTitle(plugin, "announcements.round-start",
                 new String[]{"{round}", "{multiplier}"},
                 new String[]{String.valueOf(currentRound), String.valueOf(mul)});
@@ -238,6 +285,8 @@ public class TournamentManager {
     public void reset() {
         active       = false;
         currentRound = 1;
+        goldenRound  = null;
+        plugin.getPointsManager().deactivateGoldenHour();
         save();
         plugin.getDatabaseManager().resetAll(false);
         plugin.getTeamManager().resetScores();
@@ -249,6 +298,8 @@ public class TournamentManager {
     public void hardReset() {
         active       = false;
         currentRound = 1;
+        goldenRound  = null;
+        plugin.getPointsManager().deactivateGoldenHour();
         save();
         for (KMCTeam t : plugin.getTeamManager().getAllTeams()) {
             List<UUID> members = new ArrayList<>(t.getMembers());
@@ -268,5 +319,5 @@ public class TournamentManager {
     public boolean isActive()        { return active; }
     public int     getCurrentRound() { return currentRound; }
     public int     getTotalRounds()  { return totalRounds; }
-    public double  getMultiplier()   { return plugin.getPointsManager().getMultiplierForRound(currentRound); }
+    public double  getMultiplier()   { return plugin.getPointsManager().getCurrentMultiplier(); }
 }

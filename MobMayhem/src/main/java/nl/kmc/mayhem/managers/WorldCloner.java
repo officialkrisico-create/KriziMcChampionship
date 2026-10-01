@@ -2,6 +2,7 @@ package nl.kmc.mayhem.managers;
 
 import nl.kmc.mayhem.MobMayhemPlugin;
 import org.bukkit.Bukkit;
+import org.bukkit.Difficulty;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.event.world.WorldUnloadEvent;
@@ -46,8 +47,20 @@ public class WorldCloner {
     }
 
     public boolean templateExists() {
+        // Ask Bukkit directly if it's already loaded — e.g. via Multiverse —
+        // rather than guessing its on-disk path from getWorldContainer(),
+        // which doesn't always match where a world manager actually put it.
+        World loaded = Bukkit.getWorld(getTemplateWorldName());
+        if (loaded != null) return loaded.getWorldFolder().isDirectory();
         File templateDir = new File(Bukkit.getWorldContainer(), getTemplateWorldName());
         return templateDir.isDirectory();
+    }
+
+    /** The template's actual folder — the loaded world's own folder if it's loaded, else a guess via getWorldContainer(). */
+    private File templateFolder() {
+        World loaded = Bukkit.getWorld(getTemplateWorldName());
+        return loaded != null ? loaded.getWorldFolder()
+                : new File(Bukkit.getWorldContainer(), getTemplateWorldName());
     }
 
     /**
@@ -78,7 +91,7 @@ public class WorldCloner {
         Map<String, World> result = Collections.synchronizedMap(new LinkedHashMap<>());
         AtomicInteger remaining = new AtomicInteger(teamIds.size());
 
-        File source = new File(Bukkit.getWorldContainer(), getTemplateWorldName());
+        File source = templateFolder();
 
         for (String teamId : teamIds) {
             String worldName = "mm_game_" + sanitize(teamId) + "_"
@@ -119,6 +132,13 @@ public class WorldCloner {
                             loaded.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
                             loaded.setTime(18000); // midnight — lets Mob Mayhem own all spawns
                             loaded.setPVP(plugin.getConfig().getBoolean("game.pvp-enabled", false));
+                            // Force a real difficulty regardless of what the template world happens
+                            // to have saved — a cloned world otherwise inherits the template's
+                            // level.dat difficulty verbatim, and on Peaceful, Minecraft force-removes
+                            // hostile mobs almost immediately even when spawned via the API, making
+                            // every wave appear to "clear" instantly with no mobs ever surviving.
+                            loaded.setDifficulty(parseDifficulty(
+                                    plugin.getConfig().getString("game.difficulty", "NORMAL")));
                             result.put(teamId, loaded);
                             activeClones.put(worldName, loaded);
                             plugin.getLogger().info("Cloned world ready: " + worldName + " (team " + teamId + ")");
@@ -208,6 +228,11 @@ public class WorldCloner {
             if (kids != null) for (File k : kids) deleteRecursive(k);
         }
         f.delete();
+    }
+
+    private static Difficulty parseDifficulty(String name) {
+        try { return Difficulty.valueOf(name.toUpperCase()); }
+        catch (Exception e) { return Difficulty.NORMAL; }
     }
 
     private static String sanitize(String s) {

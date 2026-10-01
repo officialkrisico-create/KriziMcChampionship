@@ -132,6 +132,12 @@ commands:
     usage: /kmcsetup
     permission: kmc.arena.admin
 
+  tutorial:
+    description: Open the KMC tutorial hub (how the tournament and its systems work)
+    usage: /tutorial
+    permission: kmc.stats
+    aliases: [kmctutorial]
+
   kmcprofile:
     description: Open your (or another player's) profile GUI
     usage: /kmcprofile [player]

@@ -45,6 +45,9 @@ public class ArenaManager {
     /** Mob spawn locations IN THE TEMPLATE WORLD (coords only). */
     private final List<double[]> mobSpawnsRaw = new ArrayList<>();
 
+    /** Powerup spawn locations IN THE TEMPLATE WORLD (coords only). */
+    private final List<double[]> powerupSpawnsRaw = new ArrayList<>();
+
     public ArenaManager(MobMayhemPlugin plugin) {
         this.plugin = plugin;
         load();
@@ -76,8 +79,23 @@ public class ArenaManager {
             }
         }
 
+        powerupSpawnsRaw.clear();
+        var powerupList = cfg.getList("arena.powerup-spawns");
+        if (powerupList != null) {
+            for (Object o : powerupList) {
+                if (!(o instanceof java.util.Map<?, ?> m)) continue;
+                Object x = m.get("x"), y = m.get("y"), z = m.get("z");
+                if (x == null || y == null || z == null) continue;
+                powerupSpawnsRaw.add(new double[]{
+                        ((Number) x).doubleValue(),
+                        ((Number) y).doubleValue(),
+                        ((Number) z).doubleValue()
+                });
+            }
+        }
+
         plugin.getLogger().info("Arena loaded: spawn=" + (playerSpawnSet ? "✔" : "✘")
-                + ", " + mobSpawnsRaw.size() + " mob spawns");
+                + ", " + mobSpawnsRaw.size() + " mob spawns, " + powerupSpawnsRaw.size() + " powerup spawns");
     }
 
     public void save() {
@@ -95,6 +113,13 @@ public class ArenaManager {
             serialized.add(java.util.Map.of("x", arr[0], "y", arr[1], "z", arr[2]));
         }
         cfg.set("arena.mob-spawns", serialized);
+
+        List<java.util.Map<String, Double>> serializedPowerups = new ArrayList<>();
+        for (double[] arr : powerupSpawnsRaw) {
+            serializedPowerups.add(java.util.Map.of("x", arr[0], "y", arr[1], "z", arr[2]));
+        }
+        cfg.set("arena.powerup-spawns", serializedPowerups);
+
         plugin.saveConfig();
     }
 
@@ -118,8 +143,19 @@ public class ArenaManager {
         save();
     }
 
-    public boolean isPlayerSpawnSet()   { return playerSpawnSet; }
-    public int     getMobSpawnCount()   { return mobSpawnsRaw.size(); }
+    public void addPowerupSpawn(Location loc) {
+        powerupSpawnsRaw.add(new double[]{loc.getX(), loc.getY(), loc.getZ()});
+        save();
+    }
+
+    public void clearPowerupSpawns() {
+        powerupSpawnsRaw.clear();
+        save();
+    }
+
+    public boolean isPlayerSpawnSet()      { return playerSpawnSet; }
+    public int     getMobSpawnCount()      { return mobSpawnsRaw.size(); }
+    public int     getPowerupSpawnCount()  { return powerupSpawnsRaw.size(); }
 
     /**
      * Builds a runtime {@link Arena} for the given cloned world by
@@ -132,6 +168,9 @@ public class ArenaManager {
         for (double[] coords : mobSpawnsRaw) {
             arena.addMobSpawn(new Location(world, coords[0], coords[1], coords[2]));
         }
+        for (double[] coords : powerupSpawnsRaw) {
+            arena.addPowerupSpawn(new Location(world, coords[0], coords[1], coords[2]));
+        }
         return arena;
     }
 
@@ -143,7 +182,9 @@ public class ArenaManager {
         StringBuilder sb = new StringBuilder();
         sb.append("Player spawn: ").append(playerSpawnSet ? "✔" : "✘").append("\n");
         sb.append("Mob spawns:   ").append(mobSpawnsRaw.size())
-                .append(mobSpawnsRaw.size() < 4 ? " &c(min 4)" : "");
+                .append(mobSpawnsRaw.size() < 4 ? " &c(min 4)" : "").append("\n");
+        sb.append("Powerup spawns: ").append(powerupSpawnsRaw.size())
+                .append(powerupSpawnsRaw.isEmpty() ? " &7(optioneel)" : "");
         return sb.toString();
     }
 }

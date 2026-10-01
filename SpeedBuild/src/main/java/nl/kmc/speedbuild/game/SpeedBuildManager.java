@@ -39,6 +39,7 @@ public final class SpeedBuildManager extends BaseGameManager {
 
     private final Map<UUID, SpeedBuildSession> sessions = new LinkedHashMap<>();
     private final Set<UUID> readyToFinish = new HashSet<>();
+    private StandardStartFlow startFlow;
 
     // Uniform slot dimensions (max across all schematics) so slots never overlap.
     private int slotDx = 16, slotDy = 16, slotDz = 16;
@@ -67,22 +68,38 @@ public final class SpeedBuildManager extends BaseGameManager {
             PlayerTeleportUtil.toSpawn(p, arena.getSpawn());
             bossBars.show(p);
         }
-        broadcastTitle("§e§lSPEED BUILD", "§710 builds — bouw zo accuraat mogelijk!", 10, 50, 15);
+
+        List<Player> parts = sessions.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§e§lSPEED BUILD"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§e§lSPEED BUILD CHALLENGE",
+                                "§710 builds. Kopieer elke §fblueprint §7zo precies mogelijk.",
+                                "§aGroene wol §7= voltooi · §cRode wol §7= blueprint · §6Goud §7= klaar",
+                                "§7Score = nauwkeurigheid + snelheid − fouten. §8(100% objectief)");
+                    }
+                    @Override public Location flyoverCenter() { return arena.getSpawn(); }
+                    @Override public void onFinished() {
+                        for (SpeedBuildSession s : sessions.values()) loadBuild(s, 0);
+                    }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§8§m                                        ");
-        broadcast("  §e§lSPEED BUILD CHALLENGE");
-        broadcast("  §710 builds. Kopieer elke §fblueprint §7zo precies mogelijk.");
-        broadcast("  §aGroene wol §7= voltooi · §cRode wol §7= blueprint · §6Goud §7= klaar");
-        broadcast("  §7Score = nauwkeurigheid + snelheid − fouten. §8(100% objectief)");
-        broadcast("§8§m                                        ");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
-        for (SpeedBuildSession s : sessions.values()) loadBuild(s, 0);
+        startFlow.start();
     }
 
     @Override
@@ -105,6 +122,7 @@ public final class SpeedBuildManager extends BaseGameManager {
             PlayerTeleportUtil.toSpawn(p, plugin.getKmcCore().getArenaManager().getLobby());
         }
         bossBars.clearAll();
+        if (startFlow != null) { startFlow.cancel(); startFlow = null; }
 
         SpeedBuildSession winner = ranked.isEmpty() ? null : ranked.get(0);
         String winnerDesc = winner != null ? winner.getName() + " wint Speed Build!" : "Geen winnaar";

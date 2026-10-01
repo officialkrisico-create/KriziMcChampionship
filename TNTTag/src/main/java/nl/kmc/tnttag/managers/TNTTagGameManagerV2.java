@@ -79,6 +79,15 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
 
         bossBar = Bukkit.createBossBar("§c§lTNT TAG", BarColor.RED, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        // Reset the border to full size so the progressive per-round shrink
+        // always starts from a known baseline, regardless of leftover state.
+        var arena0 = plugin.getArenaManager().getArena();
+        if (arena0.getCenter() != null && arena0.getCenter().getWorld() != null && arena0.getBorderRadius() > 0) {
+            WorldBorder wb0 = arena0.getCenter().getWorld().getWorldBorder();
+            wb0.setCenter(arena0.getCenter());
+            wb0.setSize(arena0.getBorderRadius() * 2);
+        }
     }
 
     @Override protected void onCountdownStart() { /* presentation runs from onGameStart */ }
@@ -211,6 +220,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         });
 
         checkFinalStages();
+        applyProgressiveShrink();
 
         if (aliveCount() <= 1) { end(); return; }
         long gap = Math.max(20L, plugin.getConfig().getInt("game.intermission-seconds", 4) * 20L);
@@ -430,6 +440,34 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     }
 
     // ── Border ────────────────────────────────────────────────────────────────
+
+    /**
+     * Permanently shrinks the arena a little after every round (exponential
+     * decay: each round applies the same percentage to whatever's left), so
+     * the map genuinely tightens as the match goes on — distinct from the
+     * temporary chaos-event squeeze (which reopens) and the showdown's own
+     * dedicated full shrink (which this defers to once it kicks in).
+     */
+    private void applyProgressiveShrink() {
+        if (showdown) return;
+        var arena = plugin.getArenaManager().getArena();
+        Location c = arena.getCenter();
+        double baseRadius = arena.getBorderRadius();
+        if (c == null || c.getWorld() == null || baseRadius <= 0) return;
+
+        double shrinkPercent = plugin.getConfig().getDouble("game.progressive-shrink-percent", 0.08);
+        if (shrinkPercent <= 0) return;
+        double minRadius = plugin.getConfig().getDouble("game.progressive-shrink-min-radius", 12);
+
+        double target = Math.max(minRadius, baseRadius * Math.pow(1 - shrinkPercent, currentRound));
+        WorldBorder wb = c.getWorld().getWorldBorder();
+        wb.setCenter(c);
+        wb.setDamageAmount(0.5);
+        wb.setWarningDistance(6);
+        long shrinkSeconds = Math.max(5, plugin.getConfig().getInt("game.intermission-seconds", 4) + 2);
+        wb.setSize(target * 2, shrinkSeconds);
+    }
+
     private void shrinkBorder(int seconds) {
         var arena = plugin.getArenaManager().getArena();
         Location c = arena.getCenter();

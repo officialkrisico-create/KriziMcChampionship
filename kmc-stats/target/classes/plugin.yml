@@ -1,9 +1,0 @@
-name: kmc-stats
-version: '1.0.0'
-main: nl.kmc.stats.StatsPlugin
-api-version: '1.21'
-description: KMC Statistics service — achievements, MVP, Hall of Fame
-authors: [ KMC ]
-
-depend:
-  - KMCCoreV2

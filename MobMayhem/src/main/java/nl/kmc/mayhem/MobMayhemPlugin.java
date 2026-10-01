@@ -31,13 +31,14 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     @Override protected String  displayName() { return "Mob Mayhem"; }
     @Override protected Material icon()       { return Material.ZOMBIE_HEAD; }
     @Override protected int     minPlayers()  { return 4; }
-    @Override protected String  description() { return "Overleef 10 steeds zwaardere golven mobs — elk team in eigen arena."; }
+    @Override protected String  description() { return "Overleef steeds zwaardere golven mobs — elk team in eigen arena. Let op powerups!"; }
     @Override protected String  objective()   { return "Overleef meer golven dan de andere teams."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+ptn — Per mob-kill (schaalt per golf)",
+                "+ptn — Per mob-kill (schaalt per golf, bosses extra)",
                 "+100 ptn — Golf verslagen",
-                "+500 ptn — 1e plaats (meeste golven)"
+                "+500 ptn — 1e plaats (meeste golven)",
+                "Powerups — snelheid, kracht, genezing en meer, verspreid door de arena"
         );
     }
 
@@ -65,6 +66,12 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
                 p -> { am.addMobSpawn(p.getLocation());
                        p.sendMessage("§a[Setup] Mob-spawn #" + am.getMobSpawnCount() + " toegevoegd."); },
                 "Klik: voeg een mob-spawn toe op jouw locatie"));
+        int powerups = am.getPowerupSpawnCount();
+        s.add(nl.kmc.core.setup.SetupStep.action("Powerup spawns (optioneel)", powerups + " stuks", true,
+                org.bukkit.Material.SUGAR,
+                p -> { am.addPowerupSpawn(p.getLocation());
+                       p.sendMessage("§a[Setup] Powerup-spawn #" + am.getPowerupSpawnCount() + " toegevoegd."); },
+                "Klik: voeg een powerup-spawn toe op jouw locatie"));
         return s;
     }
 

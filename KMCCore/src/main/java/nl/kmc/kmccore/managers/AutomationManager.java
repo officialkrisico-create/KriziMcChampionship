@@ -455,6 +455,11 @@ public class AutomationManager {
 
         state = State.GAME_ACTIVE;
         attemptedThisCycle.clear();
+        // Reveal Golden Hour (if this is the secretly-picked round) right as
+        // the real game launches — the whole ceremony sequence (opening, team
+        // showcase, intermission, voting, countdown) has already played by
+        // now, so this can't collide with it.
+        plugin.getTournamentManager().revealGoldenHourIfDue();
         // Hide the automation bossbar entirely while the game runs — the game
         // shows its OWN bossbar + scoreboard, so we don't stack a second one.
         hideBossBar();

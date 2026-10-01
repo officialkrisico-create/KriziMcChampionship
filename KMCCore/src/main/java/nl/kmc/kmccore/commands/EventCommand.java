@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
  * /event — admin tooling for tournament simulation and snapshot rollback.
  *
  * <ul>
- *   <li>/event simulate &lt;rounds&gt; [players] — run a dry-run sim with bots</li>
+ *   <li>/event simulate &lt;rounds&gt; [players] — runs a REAL tournament with
+ *       fake bot players (real rotation/multiplier/endTournament()); refuses
+ *       if a real tournament is already active</li>
  *   <li>/event snapshot [label] — capture current state manually</li>
  *   <li>/event rollback [label] — restore a snapshot (defaults to latest)</li>
  *   <li>/event listsnapshots — list available snapshots</li>
@@ -112,7 +114,7 @@ public class EventCommand implements CommandExecutor, TabCompleter {
     private void usage(CommandSender s) {
         s.sendMessage(ChatColor.GOLD + "=== /event ===");
         s.sendMessage(ChatColor.YELLOW + "/event simulate <rounds> [players]"
-                + ChatColor.GRAY + " — run dry-run sim met bots (default 16 players)");
+                + ChatColor.GRAY + " — ECHT toernooi met bots (default 16 players); weigert als er al één actief is");
         s.sendMessage(ChatColor.YELLOW + "/event snapshot [label]"
                 + ChatColor.GRAY + " — sla huidige state op");
         s.sendMessage(ChatColor.YELLOW + "/event rollback [label]"

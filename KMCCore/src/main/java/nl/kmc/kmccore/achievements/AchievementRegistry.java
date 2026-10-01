@@ -92,6 +92,10 @@ public final class AchievementRegistry {
                 Achievement.Rarity.LEGENDARY, Material.BEACON, 12);
         add(m, "legend",          "Legend",          "Speel 500 games en win minstens 50",
                 Achievement.Rarity.LEGENDARY, Material.DRAGON_EGG, 0);
+        add(m, "fan_favorite",    "Fan Favorite",    "Gekozen door de spelers als favoriet van het toernooi",
+                Achievement.Rarity.LEGENDARY, Material.PLAYER_HEAD, 0);
+        add(m, "easter_egg_hunter", "Easter Egg Hunter", "Vind alle verborgen NPC's in de lobby",
+                Achievement.Rarity.LEGENDARY, Material.MAP, 0);
 
         return m;
     }

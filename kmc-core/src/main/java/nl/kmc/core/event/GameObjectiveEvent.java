@@ -38,7 +38,17 @@ public final class GameObjectiveEvent extends Event {
         /** Generic checkpoint hit (Parkour Warrior, AE, Elytra). */
         CHECKPOINT_HIT,
         /** TGTTOS: player reached finish in 1st place. */
-        TGTTOS_FIRST_FINISH
+        TGTTOS_FIRST_FINISH,
+        /** Player reached a milestone wave/stage without dying yet. */
+        NO_DEATH_MILESTONE,
+        /** Player crossed a kill-count milestone within a single game. */
+        KILL_MILESTONE,
+        /** Player crossed a higher-tier kill-count milestone within a single game. */
+        KILL_MILESTONE_LEGENDARY,
+        /** Player landed the killing blow on a boss-tier mob/entity. */
+        BOSS_KILLED,
+        /** Player was the last one standing among all participants in a co-op game. */
+        LAST_STANDING
     }
 
     private final Player player;

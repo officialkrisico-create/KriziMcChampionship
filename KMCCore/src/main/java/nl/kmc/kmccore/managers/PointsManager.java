@@ -30,6 +30,11 @@ public class PointsManager {
     private File             pointsFile;
     private FileConfiguration pointsCfg;
 
+    // Golden Hour: one surprise round per tournament with a boosted multiplier,
+    // overriding whatever the round's own configured multiplier would be.
+    private boolean goldenHourActive;
+    private double  goldenHourMultiplier = 2.0;
+
     public PointsManager(KMCCore plugin) {
         this.plugin = plugin;
         reload();
@@ -52,8 +57,19 @@ public class PointsManager {
     }
 
     public double getCurrentMultiplier() {
+        if (goldenHourActive) return goldenHourMultiplier;
         return getMultiplierForRound(plugin.getTournamentManager().getCurrentRound());
     }
+
+    /** Activates Golden Hour: every point award uses this multiplier until {@link #deactivateGoldenHour()}. */
+    public void activateGoldenHour(double multiplier) {
+        this.goldenHourMultiplier = multiplier;
+        this.goldenHourActive = true;
+    }
+
+    public void deactivateGoldenHour() { this.goldenHourActive = false; }
+
+    public boolean isGoldenHourActive() { return goldenHourActive; }
 
     // ----------------------------------------------------------------
     // CENTRAL POINT-AWARD METHOD
@@ -77,12 +93,16 @@ public class PointsManager {
         PlayerData pd = plugin.getPlayerDataManager().get(uuid);
         if (pd == null) return 0;
 
+        // Comeback bonus: boost BEFORE crediting, so player and team totals
+        // stay in sync (the same boosted amount goes to both).
+        KMCTeam team = plugin.getTeamManager().getTeamByPlayer(uuid);
+        amount = applyComebackBonus(amount, team);
+
         // Player gets the points
         pd.addPoints(amount);
         plugin.getDatabaseManager().savePlayer(pd);
 
         // Team ALSO gets the same amount (auto-sync)
-        KMCTeam team = plugin.getTeamManager().getTeamByPlayer(uuid);
         if (team != null) {
             team.addPoints(amount);
             plugin.getDatabaseManager().saveTeam(team);
@@ -96,7 +116,12 @@ public class PointsManager {
     // ----------------------------------------------------------------
 
     public int     getPerKill()            { return pointsCfg.getInt("kills.per-kill", 50); }
-    public boolean killsUseMultiplier()    { return pointsCfg.getBoolean("kills.apply-multiplier", true); }
+    public boolean killsUseMultiplier() {
+        // Golden Hour is an absolute "everything is boosted" spectacle — it
+        // overrides the normal flat-kills design for its one special round.
+        if (goldenHourActive) return true;
+        return pointsCfg.getBoolean("kills.apply-multiplier", true);
+    }
 
     /**
      * Awards a kill to the killer. Kill stat increments on the player;
@@ -150,6 +175,31 @@ public class PointsManager {
     }
 
     // ----------------------------------------------------------------
+    // Comeback bonus — keeps a runaway tournament interesting by giving
+    // whichever team is currently in last place a small boost on every
+    // point award, once a meaningful gap has actually formed.
+    // ----------------------------------------------------------------
+
+    /** Boosts {@code amount} if {@code team} is the current last-place team; otherwise returns it unchanged. */
+    private int applyComebackBonus(int amount, KMCTeam team) {
+        if (team == null) return amount;
+        if (!plugin.getConfig().getBoolean("comeback-bonus.enabled", true)) return amount;
+
+        var standings = plugin.getTeamManager().getTeamsSortedByPoints();
+        if (standings.size() < 2) return amount;
+
+        KMCTeam last = standings.get(standings.size() - 1);
+        if (!last.getId().equals(team.getId())) return amount;
+
+        KMCTeam leader = standings.get(0);
+        int minGap = plugin.getConfig().getInt("comeback-bonus.min-gap", 100);
+        if (leader.getPoints() - last.getPoints() < minGap) return amount;
+
+        double multiplier = plugin.getConfig().getDouble("comeback-bonus.multiplier", 1.25);
+        return (int) Math.round(amount * multiplier);
+    }
+
+    // ----------------------------------------------------------------
     // Team-only placement bonus
     // This is a SEPARATE reward on top of player placements — used for
     // team-based games where winning as a team matters even above and
@@ -171,6 +221,7 @@ public class PointsManager {
         double mul = pointsCfg.getBoolean("team-placement.apply-multiplier", true)
                 ? getCurrentMultiplier() : 1.0;
         int award = (int) Math.round(base * mul);
+        award = applyComebackBonus(award, team);
         team.addPoints(award);
         plugin.getDatabaseManager().saveTeam(team);
         return award;

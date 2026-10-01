@@ -39,32 +39,56 @@ import java.util.*;
  */
 public class LobbyNPCManager implements Listener {
 
-    public enum NPCType { STATS, HOF }
+    public enum NPCType { STATS, HOF, EASTER_EGG }
 
     public static final NamespacedKey NPC_KEY = NamespacedKey.minecraft("kmc_lobby_npc");
     public static final NamespacedKey NPC_TYPE_KEY = NamespacedKey.minecraft("kmc_lobby_npc_type");
+    /** Stable per-NPC index for easter eggs — fixes which line it says and lets us track "found" per player. */
+    public static final NamespacedKey EASTER_EGG_ID_KEY = NamespacedKey.minecraft("kmc_easter_egg_id");
+
+    /** Fallback lines if `easter-egg-npc.lines` isn't set in config.yml — one NPC, one fixed line each. */
+    private static final List<String> DEFAULT_EASTER_EGG_LINES = List.of(
+            "&7\"Heb je al geprobeerd het uit en weer aan te zetten?\"",
+            "&7\"Ik heb ooit 500 lucky blocks geopend. Vraag niet wat erin zat.\"",
+            "&7\"De ronde-multiplier is eigenlijk gewoon een schattingsfout van de ontwikkelaar.\"",
+            "&7\"Psst... niemand leest deze tekst, behalve jij nu.\"",
+            "&7\"Fun fact: ik ben gewoon een dorpeling met een identiteitscrisis.\"");
 
     private final KMCCore plugin;
+    private final Map<UUID, Long> lastEasterEggMs = new HashMap<>();
+    /** Cache of each player's found easter-egg IDs — lazily loaded from the DB, then kept in sync. */
+    private final Map<UUID, Set<Integer>> foundEggsCache = new HashMap<>();
 
     public LobbyNPCManager(KMCCore plugin) {
         this.plugin = plugin;
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        ensureEasterEggTable();
     }
 
-    /** Spawns a stats NPC at the given location. */
+    /** Spawns a stats/HoF/easter-egg NPC at the given location. */
     public Villager spawnNPC(Location loc, NPCType type) {
+        int eggId = type == NPCType.EASTER_EGG ? nextEasterEggId() : -1;
         Villager v = loc.getWorld().spawn(loc, Villager.class, npc -> {
             npc.setAI(false);
             npc.setInvulnerable(true);
             npc.setSilent(true);
-            npc.setCustomName(type == NPCType.STATS
-                    ? ChatColor.AQUA + "" + ChatColor.BOLD + "📊 My Stats"
-                    : ChatColor.GOLD + "" + ChatColor.BOLD + "🏆 Hall of Fame");
-            npc.setCustomNameVisible(true);
-            npc.setProfession(type == NPCType.STATS ? Villager.Profession.LIBRARIAN : Villager.Profession.CARTOGRAPHER);
+            npc.setCustomName(switch (type) {
+                case STATS      -> ChatColor.AQUA + "" + ChatColor.BOLD + "📊 My Stats";
+                case HOF        -> ChatColor.GOLD + "" + ChatColor.BOLD + "🏆 Hall of Fame";
+                case EASTER_EGG -> ChatColor.GRAY + "" + ChatColor.ITALIC + "??? ";
+            });
+            npc.setCustomNameVisible(type != NPCType.EASTER_EGG); // hidden — no floating name, find it by exploring
+            npc.setProfession(switch (type) {
+                case STATS      -> Villager.Profession.LIBRARIAN;
+                case HOF        -> Villager.Profession.CARTOGRAPHER;
+                case EASTER_EGG -> Villager.Profession.NITWIT;
+            });
             npc.getPersistentDataContainer().set(NPC_KEY, PersistentDataType.BYTE, (byte) 1);
             npc.getPersistentDataContainer().set(NPC_TYPE_KEY,
                     PersistentDataType.STRING, type.name());
+            if (type == NPCType.EASTER_EGG) {
+                npc.getPersistentDataContainer().set(EASTER_EGG_ID_KEY, PersistentDataType.INTEGER, eggId);
+            }
         });
         return v;
     }
@@ -81,10 +105,119 @@ public class LobbyNPCManager implements Listener {
         NPCType type = typeStr != null ? NPCType.valueOf(typeStr) : NPCType.STATS;
 
         switch (type) {
-            case STATS -> openStatsGUI(p);
-            case HOF -> openHoFGUI(p);
+            case STATS      -> openStatsGUI(p);
+            case HOF        -> openHoFGUI(p);
+            case EASTER_EGG -> handleEasterEgg(p, pdc);
         }
         p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.5f);
+    }
+
+    // ----------------------------------------------------------------
+    // Easter eggs — one fixed line per NPC, "find them all" tracking
+    // ----------------------------------------------------------------
+
+    private void handleEasterEgg(Player p, org.bukkit.persistence.PersistentDataContainer pdc) {
+        long now = System.currentTimeMillis();
+        long last = lastEasterEggMs.getOrDefault(p.getUniqueId(), 0L);
+        if (now - last < 3000) return; // ignore rapid re-clicks
+        lastEasterEggMs.put(p.getUniqueId(), now);
+
+        Integer eggId = pdc.get(EASTER_EGG_ID_KEY, PersistentDataType.INTEGER);
+        if (eggId == null) eggId = 0; // defensive — NPCs spawned before this feature existed
+
+        List<String> lines = plugin.getConfig().getStringList("easter-egg-npc.lines");
+        if (lines.isEmpty()) lines = DEFAULT_EASTER_EGG_LINES;
+        String line = lines.get(eggId % lines.size()); // fixed per NPC — not random
+
+        p.sendMessage(ChatColor.translateAlternateColorCodes('&', "&8[&7???&8] " + line));
+
+        Set<Integer> found = foundEggsFor(p.getUniqueId());
+        if (found.contains(eggId)) return; // already found this one before — just the line, no fanfare
+
+        markFound(p.getUniqueId(), eggId);
+        int total = countEasterEggNpcs();
+        int have  = found.size();
+        p.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                "&6&l✨ Nieuwe easter egg gevonden! &e(" + have + "/" + total + ")"));
+        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.6f);
+
+        if (total > 0 && have >= total) {
+            Bukkit.broadcastMessage(ChatColor.translateAlternateColorCodes('&',
+                    "&6&l✨ " + p.getName() + " heeft ALLE verborgen easter eggs gevonden! ✨"));
+            if (plugin.getAchievementManager() != null) {
+                plugin.getAchievementManager().unlock(p.getUniqueId(), "easter_egg_hunter");
+            }
+        }
+    }
+
+    /** Every easter-egg NPC currently placed in any loaded world. */
+    private int countEasterEggNpcs() {
+        int count = 0;
+        for (World w : Bukkit.getWorlds()) {
+            for (var e : w.getEntities()) {
+                if (e instanceof Villager v && v.getPersistentDataContainer().has(EASTER_EGG_ID_KEY, PersistentDataType.INTEGER)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /** Next free easter-egg ID — scans existing NPCs so IDs stay unique across restarts. */
+    private int nextEasterEggId() {
+        int max = -1;
+        for (World w : Bukkit.getWorlds()) {
+            for (var e : w.getEntities()) {
+                if (!(e instanceof Villager v)) continue;
+                Integer id = v.getPersistentDataContainer().get(EASTER_EGG_ID_KEY, PersistentDataType.INTEGER);
+                if (id != null) max = Math.max(max, id);
+            }
+        }
+        return max + 1;
+    }
+
+    private void ensureEasterEggTable() {
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (var st = c.createStatement()) {
+                st.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS player_easter_eggs (
+                        uuid VARCHAR(36) NOT NULL,
+                        egg_id INT NOT NULL,
+                        found_at BIGINT NOT NULL,
+                        PRIMARY KEY (uuid, egg_id)
+                    )""");
+            }
+        });
+    }
+
+    private Set<Integer> foundEggsFor(UUID uuid) {
+        return foundEggsCache.computeIfAbsent(uuid, this::loadFoundEggs);
+    }
+
+    private Set<Integer> loadFoundEggs(UUID uuid) {
+        Set<Integer> out = new HashSet<>();
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (var ps = c.prepareStatement("SELECT egg_id FROM player_easter_eggs WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (var rs = ps.executeQuery()) {
+                    while (rs.next()) out.add(rs.getInt("egg_id"));
+                }
+            }
+        });
+        return out;
+    }
+
+    private void markFound(UUID uuid, int eggId) {
+        foundEggsFor(uuid).add(eggId);
+        plugin.getDatabaseManager().runWithConnection(c -> {
+            try (var ps = c.prepareStatement(
+                    "INSERT OR IGNORE INTO player_easter_eggs (uuid, egg_id, found_at) VALUES (?, ?, ?)")) {
+                ps.setString(1, uuid.toString());
+                ps.setInt(2, eggId);
+                ps.setLong(3, System.currentTimeMillis());
+                ps.executeUpdate();
+            }
+        });
     }
 
     // ----------------------------------------------------------------

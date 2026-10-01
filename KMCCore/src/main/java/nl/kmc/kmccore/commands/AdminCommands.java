@@ -254,21 +254,21 @@ public class AdminCommands {
                 return true;
             }
             if (args.length == 0) {
-                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc spawn <stats|hof>");
+                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc spawn <stats|hof|easter_egg>");
                 sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc despawnall");
                 return true;
             }
             switch (args[0].toLowerCase()) {
                 case "spawn" -> {
                     if (args.length < 2) {
-                        sender.sendMessage(ChatColor.RED + "Specify type: stats or hof");
+                        sender.sendMessage(ChatColor.RED + "Specify type: stats, hof, or easter_egg");
                         return true;
                     }
                     LobbyNPCManager.NPCType type;
                     try {
                         type = LobbyNPCManager.NPCType.valueOf(args[1].toUpperCase());
                     } catch (IllegalArgumentException e) {
-                        sender.sendMessage(ChatColor.RED + "Invalid type. Use: stats or hof");
+                        sender.sendMessage(ChatColor.RED + "Invalid type. Use: stats, hof, or easter_egg");
                         return true;
                     }
                     plugin.getLobbyNPCManager().spawnNPC(p.getLocation(), type);

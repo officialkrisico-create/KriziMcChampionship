@@ -1,13 +1,17 @@
 package nl.kmc.blockparty.managers;
 
 import nl.kmc.blockparty.BlockPartyPlugin;
+import nl.kmc.blockparty.models.Colors;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Stores and validates the Block Party arena: the floor rectangle (two
@@ -22,6 +26,8 @@ public final class ArenaManager {
     private Location pos1, pos2;
     private Location spectator;
     private int      voidY;
+    /** Round 1's fixed floor (schematic-like — built by hand, then captured), keyed by "dx,dz". Empty = round 1 falls back to the random 4-colour default. */
+    private Map<String, Material> presetFloor = new HashMap<>();
 
     public ArenaManager(BlockPartyPlugin plugin) {
         this.plugin = plugin;
@@ -30,24 +36,67 @@ public final class ArenaManager {
 
     // ── Loading / saving ──────────────────────────────────────────────────────
 
+    private static final String BASE = "block-party.arena.";
+    /** Where this data lived before config.yml was restructured under block-party.* — migrated automatically if found. */
+    private static final String OLD_BASE = "arena.";
+
     public void load() {
         var cfg = plugin.getConfig();
-        String worldName = cfg.getString("arena.world", "");
+        migrateOldFlatLayout(cfg);
+        String worldName = cfg.getString(BASE + "world", "");
         world = (worldName == null || worldName.isEmpty()) ? null : Bukkit.getWorld(worldName);
-        voidY = cfg.getInt("arena.void-y", 0);
-        pos1      = readLoc(cfg.getConfigurationSection("arena.pos1"));
-        pos2      = readLoc(cfg.getConfigurationSection("arena.pos2"));
-        spectator = readLoc(cfg.getConfigurationSection("arena.spectator"));
+        voidY = cfg.getInt(BASE + "void-y", 0);
+        pos1      = readLoc(cfg.getConfigurationSection(BASE + "pos1"));
+        pos2      = readLoc(cfg.getConfigurationSection(BASE + "pos2"));
+        spectator = readLoc(cfg.getConfigurationSection(BASE + "spectator"));
+        presetFloor = readPreset(cfg.getStringList(BASE + "preset-floor"));
     }
 
     public void save() {
         var cfg = plugin.getConfig();
-        cfg.set("arena.world", world != null ? world.getName() : "");
-        cfg.set("arena.void-y", voidY);
-        writeLoc("arena.pos1", pos1);
-        writeLoc("arena.pos2", pos2);
-        writeLoc("arena.spectator", spectator);
+        cfg.set(BASE + "world", world != null ? world.getName() : "");
+        cfg.set(BASE + "void-y", voidY);
+        writeLoc(BASE + "pos1", pos1);
+        writeLoc(BASE + "pos2", pos2);
+        writeLoc(BASE + "spectator", spectator);
         plugin.saveConfig();
+    }
+
+    /**
+     * One-time migration: before config.yml was restructured under
+     * {@code block-party.*}, this data lived directly at {@code arena.*}.
+     * If that old section is still there and the new one is empty, copy it
+     * over so an existing setup (pos1/pos2/spectator/void-y/preset-floor)
+     * isn't silently lost on upgrade.
+     */
+    private void migrateOldFlatLayout(org.bukkit.configuration.file.FileConfiguration cfg) {
+        if (cfg.contains(BASE + "world") || !cfg.isConfigurationSection(OLD_BASE.substring(0, OLD_BASE.length() - 1))) {
+            return; // already on the new layout, or nothing old to migrate
+        }
+        plugin.getLogger().info("[BlockParty] Migrating old arena.* config layout to block-party.arena.* ...");
+        cfg.set(BASE + "world", cfg.getString(OLD_BASE + "world", ""));
+        cfg.set(BASE + "void-y", cfg.getInt(OLD_BASE + "void-y", 0));
+        for (String key : new String[]{"pos1", "pos2", "spectator"}) {
+            ConfigurationSection old = cfg.getConfigurationSection(OLD_BASE + key);
+            if (old != null) cfg.set(BASE + key, old.getValues(true));
+        }
+        if (cfg.contains(OLD_BASE + "preset-floor")) {
+            cfg.set(BASE + "preset-floor", cfg.getStringList(OLD_BASE + "preset-floor"));
+        }
+        cfg.set(OLD_BASE.substring(0, OLD_BASE.length() - 1), null); // drop the old section
+        plugin.saveConfig();
+    }
+
+    private Map<String, Material> readPreset(List<String> lines) {
+        Map<String, Material> out = new HashMap<>();
+        for (String line : lines) {
+            int i = line.indexOf('=');
+            if (i < 0) continue;
+            Material mat = Material.matchMaterial(line.substring(i + 1));
+            if (mat != null) out.put(line.substring(0, i), mat);
+            // else: stale/renamed material — skip
+        }
+        return out;
     }
 
     private Location readLoc(ConfigurationSection s) {
@@ -72,6 +121,32 @@ public final class ArenaManager {
     public void setCorner2(Location l) { this.world = l.getWorld(); this.pos2 = l.clone(); save(); }
     public void setSpectator(Location l) { this.spectator = l.clone(); save(); }
     public void setVoidY(int y) { this.voidY = y; save(); }
+
+    /** Captures whatever concrete is currently on the floor as round 1's fixed layout. */
+    public void savePresetFloor() {
+        presetFloor = new HashMap<>();
+        int y = floorY();
+        for (int x = minX(); x <= maxX(); x++) {
+            for (int z = minZ(); z <= maxZ(); z++) {
+                Material m = world.getBlockAt(x, y, z).getType();
+                if (Colors.isConcrete(m)) presetFloor.put((x - minX()) + "," + (z - minZ()), m);
+            }
+        }
+        var cfg = plugin.getConfig();
+        List<String> lines = new ArrayList<>();
+        presetFloor.forEach((k, v) -> lines.add(k + "=" + v.name()));
+        cfg.set(BASE + "preset-floor", lines);
+        plugin.saveConfig();
+    }
+
+    public void clearPresetFloor() {
+        presetFloor = new HashMap<>();
+        plugin.getConfig().set(BASE + "preset-floor", null);
+        plugin.saveConfig();
+    }
+
+    public boolean hasPresetFloor() { return !presetFloor.isEmpty(); }
+    public Map<String, Material> getPresetFloor() { return presetFloor; }
 
     // ── Geometry ──────────────────────────────────────────────────────────────
 

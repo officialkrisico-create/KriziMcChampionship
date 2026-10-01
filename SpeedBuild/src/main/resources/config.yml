@@ -6,6 +6,30 @@
 # Scoring is 100% objective (block-by-block schematic comparison) — no
 # voting and no human judging.
 #
+
+# Start presentation — intro title, arena flyover (auto-generated if you
+# haven't recorded one via /kmccamera), tutorial tips, then a countdown,
+# THEN the match actually begins. Toggle a stage off by setting it false.
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "10 builds — bouw zo accuraat mogelijk"
+  flyover-radius: 20
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+# Shortened from the global defaults (10s / 15s) — the start-sequence above
+# already provides the ceremonial buildup, so the generic pre-game wait
+# doesn't need to add a second, silent ~25s on top of it.
+games:
+  speed_build:
+    countdown: 5
+    grace-period: 3
 # Schematic files (.schem) live in plugins/KMCCore/schematics/ (shared
 # with the rest of KMC's WorldEdit integration).
 

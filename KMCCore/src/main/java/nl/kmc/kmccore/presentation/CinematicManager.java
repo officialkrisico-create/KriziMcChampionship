@@ -5,10 +5,13 @@ import nl.kmc.kmccore.presentation.camera.CameraController;
 import nl.kmc.kmccore.presentation.camera.CameraRoute;
 import nl.kmc.kmccore.presentation.camera.CameraWaypoint;
 import nl.kmc.kmccore.presentation.camera.InterpolationType;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.util.Vector;
 
 import java.io.File;
 import java.util.*;
@@ -267,6 +270,82 @@ public final class CinematicManager {
     public void onPlayerQuit(UUID uuid) {
         CameraController c = playerInCinematic.remove(uuid);
         if (c != null) c.removePlayer(uuid);
+    }
+
+    /**
+     * Plays the {@code arena-{gameId}} flyover for the given players. If no
+     * route has been recorded yet and {@code center} is non-null, a simple
+     * circular orbit around {@code center} is generated and saved first —
+     * so every arena gets a flyover automatically, with no admin recording
+     * step required. An admin can still record a nicer one later via
+     * {@code /kmccamera}; that recording simply replaces the auto-generated
+     * one the next time it's saved.
+     *
+     * @return true if a flyover (recorded or auto-generated) actually played
+     */
+    public boolean playOrAutoGenerateArenaFlyover(String gameId, Collection<Player> players,
+                                                   Location center, double radius, double height,
+                                                   Runnable onComplete) {
+        String routeId = "arena-" + gameId;
+        if (!routeExists(routeId) && center != null && center.getWorld() != null) {
+            CameraRoute generated = buildOrbitRoute(routeId, center, radius, height);
+            if (!generated.isEmpty()) {
+                routes.put(routeId, generated);
+                save();
+                LOG.info("[Cinematic] Auto-generated orbit flyover '" + routeId + "' ("
+                        + generated.size() + " waypoints, radius " + radius + ").");
+            }
+        }
+        return playRoute(routeId, players, onComplete);
+    }
+
+    /**
+     * Builds a closed circular camera orbit around {@code center}, looking
+     * inward the whole way around. 6 evenly-spaced waypoints, ~1.75s per
+     * segment (~10.5s total loop — kept short since it's one of several
+     * stages before a match can actually start). {@code height} (in blocks
+     * above {@code center}) is used verbatim when &gt; 0; otherwise it scales
+     * with {@code radius} so wider arenas get a higher vantage point.
+     */
+    private CameraRoute buildOrbitRoute(String id, Location center, double radius, double height) {
+        CameraRoute route = new CameraRoute(id, "Auto-generated arena orbit");
+        World world = center.getWorld();
+        if (world == null) return route;
+
+        int    points          = 6;
+        int    ticksPerSegment = 35; // ~1.75s per segment @ 20 ticks/s
+        double safeRadius      = Math.max(6.0, radius);
+        double heightOffset    = height > 0 ? height : Math.max(6.0, safeRadius * 0.6);
+
+        for (int i = 0; i <= points; i++) { // i == points closes the loop back to i == 0
+            double angle = (2 * Math.PI * i) / points;
+            double x = center.getX() + safeRadius * Math.cos(angle);
+            double z = center.getZ() + safeRadius * Math.sin(angle);
+            double y = center.getY() + heightOffset;
+
+            Location point = new Location(world, x, y, z);
+            Vector toCenter = center.toVector().subtract(point.toVector());
+            if (toCenter.lengthSquared() > 0.0001) point.setDirection(toCenter);
+
+            String title = i == 0 ? "§6§l" + prettify(gameIdFromRouteId(id)) : "";
+            route.addWaypoint(new CameraWaypoint(point, ticksPerSegment, InterpolationType.LINEAR,
+                    title, i == 0 ? "§7De arena..." : "", ""));
+        }
+        return route;
+    }
+
+    private static String gameIdFromRouteId(String routeId) {
+        return routeId.startsWith("arena-") ? routeId.substring("arena-".length()) : routeId;
+    }
+
+    private static String prettify(String snakeCase) {
+        StringBuilder sb = new StringBuilder();
+        boolean cap = true;
+        for (char c : snakeCase.toCharArray()) {
+            if (c == '_') { sb.append(' '); cap = true; }
+            else { sb.append(cap ? Character.toUpperCase(c) : c); cap = false; }
+        }
+        return sb.toString();
     }
 
     /**

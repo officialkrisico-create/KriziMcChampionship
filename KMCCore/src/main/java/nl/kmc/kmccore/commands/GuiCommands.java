@@ -121,6 +121,15 @@ public final class GuiCommands {
         }
     }
 
+    /** /tutorial — the KMC tutorial hub (how the tournament + its systems work). */
+    public record TutorialCommand(KMCCore plugin) implements CommandExecutor {
+        @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+            if (!requirePlayer(s)) return true;
+            new nl.kmc.kmccore.gui.TutorialGui(plugin).open((Player) s);
+            return true;
+        }
+    }
+
     /** /kmcwinner [test|skip] — preview or skip the Winner Ceremony 2.0 (admin). */
     public record WinnerCeremonyCommand(KMCCore plugin) implements CommandExecutor {
         @Override public boolean onCommand(CommandSender s, Command c, String l, String[] a) {

@@ -50,9 +50,8 @@ public class GameManager {
         for (String key : gs.getKeys(false)) {
             ConfigurationSection g = gs.getConfigurationSection(key);
             if (g == null) continue;
-            Material icon;
-            try { icon = Material.valueOf(g.getString("icon", "PAPER").toUpperCase()); }
-            catch (IllegalArgumentException e) { icon = Material.PAPER; }
+            Material icon = Material.matchMaterial(g.getString("icon", "PAPER"));
+            if (icon == null) icon = Material.PAPER;
             games.put(key, new KMCGame(key, g.getString("display-name", key),
                     icon, g.getInt("min-players", 2)));
         }
@@ -212,15 +211,22 @@ public class GameManager {
     // Randomizer / force
     // ----------------------------------------------------------------
 
-    public List<KMCGame> getAvailableGames() {
+    /** Games toggled on for this tournament's rotation (see /kmcauto's setup menu). */
+    public List<KMCGame> getEnabledGames() {
         return games.values().stream()
+                .filter(g -> plugin.getConfig().getBoolean("games.list." + g.getId() + ".enabled", true))
+                .collect(Collectors.toList());
+    }
+
+    public List<KMCGame> getAvailableGames() {
+        return getEnabledGames().stream()
                 .filter(g -> !playedGamesThisTournament.contains(g.getId()))
                 .collect(Collectors.toList());
     }
 
     public KMCGame randomNextGame() {
         List<KMCGame> pool = getAvailableGames();
-        if (pool.isEmpty()) pool = new ArrayList<>(games.values());
+        if (pool.isEmpty()) pool = getEnabledGames();
         if (pool.isEmpty()) return null;
         KMCGame chosen = pool.get(random.nextInt(pool.size()));
         nextGame = chosen;
@@ -247,9 +253,9 @@ public class GameManager {
 
         int durationSecs = plugin.getConfig().getInt("games.voting-duration", 30);
 
-        // ALL unplayed games this tournament — not limited to 3
+        // ALL unplayed, enabled games this tournament — not limited to 3
         voteOptions = new ArrayList<>(getAvailableGames());
-        if (voteOptions.isEmpty()) voteOptions = new ArrayList<>(games.values());
+        if (voteOptions.isEmpty()) voteOptions = getEnabledGames();
         // Shuffle so the order in the GUI varies
         Collections.shuffle(voteOptions, random);
 
@@ -309,6 +315,19 @@ public class GameManager {
 
     public void resetPlayedGames() {
         playedGamesThisTournament.clear();
+        save();
+    }
+
+    /**
+     * Marks a game as played this tournament WITHOUT actually starting it —
+     * no arena load, no broadcasts, no plugin start events. Used by
+     * {@code /event simulate} so the dry-run's game rotation is exactly as
+     * realistic as a live tournament (no repeats until every game has had
+     * a turn) without touching the live server.
+     */
+    public void markGamePlayedForSimulation(String gameId) {
+        if (gameId == null || !games.containsKey(gameId)) return;
+        playedGamesThisTournament.add(gameId);
         save();
     }
 

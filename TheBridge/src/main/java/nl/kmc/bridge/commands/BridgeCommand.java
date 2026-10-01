@@ -85,9 +85,8 @@ public class BridgeCommand implements CommandExecutor, TabCompleter {
                 ChatColor cc;
                 try { cc = ChatColor.valueOf(args[3].toUpperCase()); }
                 catch (IllegalArgumentException e) { sender.sendMessage(ChatColor.RED + "Ongeldige ChatColor."); return true; }
-                Material wool;
-                try { wool = Material.valueOf(args[4].toUpperCase()); }
-                catch (IllegalArgumentException e) { sender.sendMessage(ChatColor.RED + "Ongeldige Material."); return true; }
+                Material wool = Material.matchMaterial(args[4]);
+                if (wool == null) { sender.sendMessage(ChatColor.RED + "Ongeldige Material."); return true; }
                 if (!wool.name().endsWith("_WOOL")) {
                     sender.sendMessage(ChatColor.RED + "Material moet wol zijn (e.g. RED_WOOL).");
                     return true;
@@ -189,11 +188,10 @@ public class BridgeCommand implements CommandExecutor, TabCompleter {
             }
             case "wool" -> {
                 if (args.length < 4) { sender.sendMessage(ChatColor.RED + "Geef wool material op."); return; }
-                try {
-                    Material m = Material.valueOf(args[3].toUpperCase());
-                    if (!m.name().endsWith("_WOOL")) { sender.sendMessage(ChatColor.RED + "Moet wol zijn."); return; }
-                    partial.woolMaterial = m;
-                } catch (IllegalArgumentException e) { sender.sendMessage(ChatColor.RED + "Ongeldige Material."); return; }
+                Material m = Material.matchMaterial(args[3]);
+                if (m == null) { sender.sendMessage(ChatColor.RED + "Ongeldige Material."); return; }
+                if (!m.name().endsWith("_WOOL")) { sender.sendMessage(ChatColor.RED + "Moet wol zijn."); return; }
+                partial.woolMaterial = m;
                 sender.sendMessage(ChatColor.GREEN + "Wool ingesteld op " + partial.woolMaterial);
             }
             case "name" -> {

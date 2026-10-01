@@ -18,6 +18,9 @@ public interface KMCApi {
     StatsApi       stats();
     AchievementApi achievements();
 
+    /** Default no-op implementation — override to back it with a real cinematic engine. */
+    default CinematicApi cinematics() { return new CinematicApi() {}; }
+
     /**
      * Translates {@code key} into the given player's chosen language, with
      * {@code {0}}, {@code {1}}, … placeholder substitution and {@code &} colour

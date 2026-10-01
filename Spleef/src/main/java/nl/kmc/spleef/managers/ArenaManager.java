@@ -173,8 +173,9 @@ public class ArenaManager {
     public void restoreFloor() {
         World world = arena.getWorld();
         if (world == null) return;
-        Material floorMaterial = Material.valueOf(
-                plugin.getConfig().getString("game.floor-material", "SNOW_BLOCK").toUpperCase());
+        Material floorMaterial = Material.matchMaterial(
+                plugin.getConfig().getString("game.floor-material", "SNOW_BLOCK"));
+        if (floorMaterial == null) floorMaterial = Material.SNOW_BLOCK;
 
         // Rebuild AND re-register every floor block, otherwise FloorManager's
         // breakable-block set stays empty and players can't dig the floor.

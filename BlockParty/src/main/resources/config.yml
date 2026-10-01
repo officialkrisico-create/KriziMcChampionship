@@ -5,67 +5,124 @@
 # concrete floor; each round one colour survives and the rest is
 # removed. Last player standing wins. The floor is regenerated every
 # round — admins never place blocks by hand.
+#
+# All Block Party-specific settings live nested under block-party:
+# below. (countdown / grace-period / post-game-reset-ticks / reconnect
+# at the very bottom are read directly by the shared KMC game engine,
+# not by Block Party itself, so they stay at the top level like every
+# other game's config.yml.)
 
-arena:
-  # Set via /blockparty pos1 / pos2 / spectator (or the Setup Dashboard).
-  # world / pos1 / pos2 define the floor rectangle (the layer is the
-  # LOWEST y of the two corners). spectator = where eliminated players watch.
-  world: ""
-  void-y: 0          # players below this Y are considered fallen
-  pos1: {}
-  pos2: {}
-  spectator: {}
+# Start presentation — intro title, arena flyover (auto-generated if you
+# haven't recorded one via /kmccamera), tutorial tips, then a countdown,
+# THEN the match actually begins. Toggle a stage off by setting it false.
+# (Top-level like countdown/grace-period above — read by the shared flow.)
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
 
-game:
-  # ── Round timers per phase (seconds) ──────────────────────────────
-  timer:
-    phase1: 8        # rounds 1-4   (early game)
-    phase2: 6        # rounds 5-8   (mid game)
-    phase3: 5        # rounds 9-12  (advanced)
-    phase4: 4        # rounds 13-16 (late game)
-    phase5: 3        # rounds 17+   (endgame)
-    endgame: 3       # < 8 players alive
-    final-showdown: 2 # < 4 players alive
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Sta op de juiste kleur, of val in de void"
+  flyover-radius: 20
+  flyover-height: 31   # camera stays ~31 blocks above the floor during the flyover
+  tutorial-seconds: 6
+  countdown-seconds: 5
 
-  # ── Floor generation per phase ────────────────────────────────────
-  # colours = how many distinct colours appear; cluster-size = average
-  # blocks per colour blob (smaller = more fragmented / harder).
-  colours:
-    phase1: 4
-    phase2: 6
-    phase3: 8
-    phase4: 10
-    phase5: 13
-  cluster-size:
-    phase1: 48
-    phase2: 30
-    phase3: 18
-    phase4: 10
-    phase5: 6
+# Shortened from the global defaults (10s / 15s) — the start-sequence above
+# already provides the ceremonial buildup, so the generic pre-game wait
+# doesn't need to add a second, silent ~25s on top of it.
+games:
+  block_party:
+    countdown: 5
+    grace-period: 3
 
-  # Seconds the floor stays cleared before the next round regenerates.
-  regen-delay-seconds: 2
+block-party:
+  arena:
+    # Set via /blockparty pos1 / pos2 / spectator (or the Setup Dashboard).
+    # world / pos1 / pos2 define the floor rectangle (the layer is the
+    # LOWEST y of the two corners). spectator = where eliminated players watch.
+    world: ""
+    void-y: 0          # players below this Y are considered fallen
+    pos1: {}
+    pos2: {}
+    spectator: {}
+    # Round 1's fixed layout, set via /blockparty presetfloor (build the pattern
+    # by hand, then run the command to capture it — like a schematic). Every
+    # round after 1 is always fully random regardless of this. Empty = round 1
+    # falls back to the standard random 4-colour (Yellow/White/Light Gray/Black)
+    # generator below instead of a captured layout.
+    preset-floor: []
 
-  # Thresholds that switch the match into harder modes.
-  endgame-threshold: 8
-  final-showdown-threshold: 4
+  game:
+    # ── Round timers per phase (seconds) ──────────────────────────────
+    timer:
+      phase1: 8        # rounds 1-4   (early game)
+      phase2: 6        # rounds 5-8   (mid game)
+      phase3: 5        # rounds 9-12  (advanced)
+      phase4: 4        # rounds 13-16 (late game)
+      phase5: 3        # rounds 17+   (endgame)
+      endgame: 3       # < 8 players alive
+      final-showdown: 2 # < 4 players alive
 
-chaos:
-  enabled: true
-  # Chaos events can start once this round is reached.
-  start-round: 5
-  # Base chance per round (0-1) before endgame, raised in endgame.
-  base-chance: 0.22
-  endgame-chance: 0.45
+    # ── Floor generation per phase ────────────────────────────────────
+    # Round 1 uses the captured preset above if one is set, otherwise a random
+    # layout using only Yellow/White/Light Gray/Black concrete. Every round
+    # after that always uses all 16 concrete colours — only the blob size
+    # (cluster-size) scales with the phase below.
+    cluster-size:
+      phase1: 48
+      phase2: 30
+      phase3: 18
+      phase4: 10
+      phase5: 6
 
-scoring:
-  # Placement points: 1st gets base, each lower place loses 'step'.
-  base: 250
-  step: 10
-  floor: 25         # minimum placement points
-  # Optional bonus for the last team with a player still alive.
-  last-team-bonus: 150
-  last-team-bonus-enabled: true
+    # Seconds the floor stays cleared before the next round regenerates.
+    regen-delay-seconds: 2
+
+    # Thresholds that switch the match into harder modes.
+    endgame-threshold: 8
+    final-showdown-threshold: 4
+
+    # The target colour must have at least this many blocks on the floor —
+    # on top of needing room for every player still alive (whichever of the
+    # two is bigger wins). Prevents picking a near-invisible sliver colour
+    # early in a match even when few players remain.
+    minimum-target-blocks: 8
+
+    # Try not to pick the exact same target colour two rounds in a row
+    # (skipped automatically if too few alternatives are available, e.g.
+    # a 2-colour floor).
+    avoid-repeat-colour: true
+
+  # Which hotbar slot (0-indexed — 4 = the 5th slot) shows the round's
+  # colour block. Replaced every round; cancelled from being moved,
+  # dropped, placed, or used.
+  inventory-slot: 4
+
+  chaos:
+    enabled: true
+    # Chaos events can start once this round is reached.
+    start-round: 5
+    # Base chance per round (0-1) before endgame, raised in endgame.
+    base-chance: 0.22
+    endgame-chance: 0.45
+
+  scoring:
+    # Flat bonus per round actually survived (not just placement).
+    survival-per-round: 10
+    # Placement tiers — checked top to bottom (1st/2nd/3rd are exact
+    # places; top-5 covers 4th-5th; top-10 covers 6th-10th; nothing below
+    # 10th gets a placement bonus, survival-per-round still applies).
+    first: 200
+    second: 150
+    third: 100
+    top-5: 50
+    top-10: 25
+    # Optional bonus for the last team with a player still alive.
+    last-team-bonus: 150
+    last-team-bonus-enabled: true
 
 countdown: 10
 grace-period: 5

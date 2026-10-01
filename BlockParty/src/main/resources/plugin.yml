@@ -10,7 +10,7 @@ commands:
   blockparty:
     description: Block Party control + setup
     aliases: [bp, blockp]
-    usage: /blockparty <start|stop|pos1|pos2|spectator|status>
+    usage: /blockparty <start|stop|pos1|pos2|spectator|voidy|presetfloor|clearpreset|status>
     permission: blockparty.admin
 
 permissions:

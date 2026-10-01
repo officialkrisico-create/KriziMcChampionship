@@ -71,6 +71,30 @@ tournament:
     7: 4.0
     8: 5.0
 
+# -----------------------------------------------------------------------
+# Golden Hour
+# -----------------------------------------------------------------------
+# One random round per tournament (picked fresh on every /kmctournament
+# start, never announced in advance) gets a boosted multiplier on EVERY
+# point award that round — including kills, which are normally flat.
+golden-hour:
+  enabled: true
+  multiplier: 2.0
+
+# -----------------------------------------------------------------------
+# Comeback bonus
+# -----------------------------------------------------------------------
+# Gives the current last-place team a boost on every point award (kills,
+# placements, team placements) once a real gap has formed — keeps a
+# runaway tournament from feeling decided halfway through.
+comeback-bonus:
+  enabled: true
+  # Boost multiplier applied to the award (1.25 = +25%).
+  multiplier: 1.25
+  # Only kicks in once the leader is at least this many points ahead of
+  # last place — avoids boosting during the early, still-tied rounds.
+  min-gap: 100
+
 
 
 # -----------------------------------------------------------------------
@@ -244,6 +268,23 @@ games:
 # -----------------------------------------------------------------------
 # All point rewards (kills, placement, bonuses) are configured in
 # plugins/KMCCore/points.yml — see that file for details.
+
+# -----------------------------------------------------------------------
+# Easter-egg lobby NPCs
+# -----------------------------------------------------------------------
+# Spawn as many as you like with /kmclobbynpc spawn easter_egg — none have
+# a floating name (tuck them away around the lobby). Each NPC gets a FIXED
+# line from the list below (the 1st spawned NPC always says line 1, the
+# 2nd always line 2, etc. — wraps around if you spawn more NPCs than lines).
+# Players get credit the first time they find each one ("X/Y gevonden") and
+# unlock the "Easter Egg Hunter" achievement once they've found them all.
+easter-egg-npc:
+  lines:
+    - "&7\"Heb je al geprobeerd het uit en weer aan te zetten?\""
+    - "&7\"Ik heb ooit 500 lucky blocks geopend. Vraag niet wat erin zat.\""
+    - "&7\"De ronde-multiplier is eigenlijk gewoon een schattingsfout van de ontwikkelaar.\""
+    - "&7\"Psst... niemand leest deze tekst, behalve jij nu.\""
+    - "&7\"Fun fact: ik ben gewoon een dorpeling met een identiteitscrisis.\""
 
 
 # -----------------------------------------------------------------------

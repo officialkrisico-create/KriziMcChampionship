@@ -53,6 +53,10 @@ public final class KMCCore extends JavaPlugin {
     private nl.kmc.kmccore.tournament.TournamentDataStore tournamentDataStore;
     public nl.kmc.kmccore.tournament.TournamentDataStore getTournamentDataStore() { return tournamentDataStore; }
 
+    /** Post-tournament "Fan Favorite" crowd vote. */
+    private nl.kmc.kmccore.tournament.FanFavoriteManager fanFavoriteManager;
+    public nl.kmc.kmccore.tournament.FanFavoriteManager getFanFavoriteManager() { return fanFavoriteManager; }
+
     @Override public void onLoad() { instance = this; }
 
     @Override
@@ -84,6 +88,7 @@ public final class KMCCore extends JavaPlugin {
         // Per-player language (needs the preferences manager from MegapatchModule).
         languageManager = new nl.kmc.kmccore.lang.LanguageManager(this);
         tournamentDataStore = new nl.kmc.kmccore.tournament.TournamentDataStore(this);
+        fanFavoriteManager = new nl.kmc.kmccore.tournament.FanFavoriteManager(this);
 
         registerCommands();
         registerListeners();
@@ -153,6 +158,7 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmccamera",          new CameraCommand(this));
         setCmd("kmcpresentation",    new PresentationCommand(this));
         setCmd("kmcsetup",           new SetupCommand(this));
+        setCmd("tutorial",           new GuiCommands.TutorialCommand(this));
         setCmd("kmcprofile",         new GuiCommands.ProfileCommand(this));
         setCmd("kmcstandings",       new GuiCommands.StandingsCommand(this));
         setCmd("kmchelp",            new GuiCommands.HelpCommand(this));

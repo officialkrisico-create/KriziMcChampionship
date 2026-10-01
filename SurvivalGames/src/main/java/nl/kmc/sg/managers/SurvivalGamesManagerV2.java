@@ -315,6 +315,23 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
             });
         }
         if (bossBar != null) bossBar.setColor(BarColor.PURPLE);
+
+        spawnFeast();
+    }
+
+    /** One-time top-loot chest at the cornucopia, timed with deathmatch — draws survivors together. */
+    private void spawnFeast() {
+        if (!plugin.getConfig().getBoolean("game.feast-enabled", true)) return;
+        var arena = plugin.getArenaManager().getArena();
+        Location cor = arena != null ? arena.getCornucopiaCenter() : null;
+        if (cor == null || !plugin.getChestStocker().spawnFeastChest(cor)) return;
+
+        broadcast("§6§l🍗 THE FEAST §eis verschenen bij de cornucopia — topspul, kom en haal het!");
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.sendTitle("§6§l🍗 THE FEAST", "§eTop-loot bij de cornucopia!", 10, 60, 15);
+            p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 0.8f);
+        }
+        cor.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, cor.clone().add(0, 1.5, 0), 40, 1, 1, 1, 0.3);
     }
 
     private void checkWin() {

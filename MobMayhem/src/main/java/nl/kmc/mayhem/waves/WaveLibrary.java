@@ -1,8 +1,10 @@
 package nl.kmc.mayhem.waves;
 
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -77,6 +79,60 @@ public final class WaveLibrary {
                 true, 180));
 
         return waves;
+    }
+
+    /**
+     * Loads waves from a {@code waves:} config section, e.g.:
+     * <pre>
+     * waves:
+     *   1:
+     *     name: "Easy Zombies"   # optional
+     *     duration: 60           # optional, seconds
+     *     boss: false            # optional
+     *     mobs:
+     *       ZOMBIE: 8
+     *       SPIDER: 4
+     * </pre>
+     * Falls back to {@link #defaultWaves()} if the section is missing, empty,
+     * or every entry fails to parse (e.g. unknown EntityType names).
+     */
+    public static List<WaveDefinition> loadWaves(ConfigurationSection cfg) {
+        if (cfg == null) return defaultWaves();
+
+        List<String> keys = new ArrayList<>(cfg.getKeys(false));
+        List<WaveDefinition> waves = new ArrayList<>();
+
+        List<Integer> numbers = new ArrayList<>();
+        for (String key : keys) {
+            try { numbers.add(Integer.parseInt(key)); } catch (NumberFormatException ignored) {}
+        }
+        numbers.sort(Comparator.naturalOrder());
+
+        for (int num : numbers) {
+            ConfigurationSection section = cfg.getConfigurationSection(String.valueOf(num));
+            if (section == null) continue;
+            ConfigurationSection mobsSection = section.getConfigurationSection("mobs");
+            if (mobsSection == null) continue;
+
+            List<WaveDefinition.SpawnEntry> spawns = new ArrayList<>();
+            for (String mobKey : mobsSection.getKeys(false)) {
+                try {
+                    EntityType type = EntityType.valueOf(mobKey.toUpperCase());
+                    int count = mobsSection.getInt(mobKey);
+                    if (count > 0) spawns.add(new WaveDefinition.SpawnEntry(type, count));
+                } catch (IllegalArgumentException ignored) {
+                    // Unknown entity type name — skip this entry, keep the rest of the wave.
+                }
+            }
+            if (spawns.isEmpty()) continue;
+
+            String name      = section.getString("name", "Wave " + num);
+            boolean boss      = section.getBoolean("boss", false);
+            int duration      = section.getInt("duration", 60);
+            waves.add(new WaveDefinition(num, name, spawns, boss, duration));
+        }
+
+        return waves.isEmpty() ? defaultWaves() : waves;
     }
 
     public static int defaultPointsForKill(EntityType type, boolean wasBoss) {

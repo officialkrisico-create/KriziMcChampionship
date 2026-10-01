@@ -34,16 +34,25 @@ public final class FloorGenerator {
      * @param clusterSize  average blocks per colour blob (smaller = harder)
      */
     public Result generate(int colourCount, int clusterSize) {
+        List<Material> palette = new ArrayList<>(Colors.ALL);
+        Collections.shuffle(palette, random);
+        palette = new ArrayList<>(palette.subList(0, Math.max(2, Math.min(colourCount, palette.size()))));
+        return generate(palette, clusterSize);
+    }
+
+    /**
+     * Repaints the entire floor using exactly the given colours (in a fixed
+     * order — no random subset picking). Used for round 1's restricted palette.
+     *
+     * @param palette      the exact colours to use
+     * @param clusterSize  average blocks per colour blob (smaller = harder)
+     */
+    public Result generate(List<Material> palette, int clusterSize) {
         World world = arena.getWorld();
         int minX = arena.minX(), maxX = arena.maxX();
         int minZ = arena.minZ(), maxZ = arena.maxZ();
         int y    = arena.floorY();
         int area = arena.area();
-
-        // Pick the palette.
-        List<Material> palette = new ArrayList<>(Colors.ALL);
-        Collections.shuffle(palette, random);
-        palette = new ArrayList<>(palette.subList(0, Math.max(2, Math.min(colourCount, palette.size()))));
 
         // Seeds: enough that the average blob ≈ clusterSize, but at least one per colour.
         int seedCount = Math.max(palette.size(), Math.min(area / 2, Math.max(1, area / Math.max(1, clusterSize))));
@@ -68,6 +77,36 @@ public final class FloorGenerator {
                     Block above = world.getBlockAt(x, y + dy, z);
                     if (above.getType() != Material.AIR) above.setType(Material.AIR, false);
                 }
+                counts.merge(colour, 1, Integer::sum);
+            }
+        }
+        return new Result(palette, counts);
+    }
+
+    /**
+     * Paints the fixed round-1 layout captured by {@link ArenaManager#savePresetFloor()}
+     * instead of a random one. Any floor cell missing from the preset (e.g. the arena
+     * was resized after capture) falls back to the first palette colour.
+     */
+    public Result generatePreset(Map<String, Material> preset) {
+        World world = arena.getWorld();
+        int minX = arena.minX(), maxX = arena.maxX();
+        int minZ = arena.minZ(), maxZ = arena.maxZ();
+        int y    = arena.floorY();
+        Material fallback = Colors.ALL.get(0);
+
+        List<Material> palette = new ArrayList<>();
+        Map<Material, Integer> counts = new HashMap<>();
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                Material colour = preset.getOrDefault((x - minX) + "," + (z - minZ), fallback);
+                Block b = world.getBlockAt(x, y, z);
+                b.setType(colour, false);
+                for (int dy = 1; dy <= 2; dy++) {
+                    Block above = world.getBlockAt(x, y + dy, z);
+                    if (above.getType() != Material.AIR) above.setType(Material.AIR, false);
+                }
+                if (!palette.contains(colour)) palette.add(colour);
                 counts.merge(colour, 1, Integer::sum);
             }
         }

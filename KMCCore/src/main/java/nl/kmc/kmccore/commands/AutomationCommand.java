@@ -65,46 +65,18 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
 
             case "start" -> {
-                // ── Tournament start protection (EVS) ─────────────────────────
-                // Block on critical validation issues unless 'force' is given.
-                boolean force = args.length >= 2 && args[1].equalsIgnoreCase("force");
-                java.util.List<String> critical = ValidateCommand.criticalIssues(plugin);
-                if (!critical.isEmpty() && !force) {
-                    sender.sendMessage(MessageUtil.color("&c&l⚠ Tournament Validation Failed"));
-                    sender.sendMessage(MessageUtil.color("&c" + critical.size() + " kritieke problemen gevonden:"));
-                    critical.stream().limit(8).forEach(i ->
-                            sender.sendMessage(MessageUtil.color("&7 - &f" + i)));
-                    if (critical.size() > 8)
-                        sender.sendMessage(MessageUtil.color("&7   ...en nog " + (critical.size() - 8) + " meer."));
-                    sender.sendMessage(MessageUtil.color("&7Open &e/kmcvalidate &7voor details, of"));
-                    sender.sendMessage(MessageUtil.color("&7gebruik &e/kmcauto start force &7om toch te starten."));
-                    return true;
-                }
-                if (force && !critical.isEmpty())
-                    sender.sendMessage(MessageUtil.color("&e[KMC] Geforceerde start ondanks " + critical.size() + " problemen."));
-
-                // Eager warmup — touches every manager that AutomationManager
-                // might lazy-resolve, so the first call doesn't NPE.
-                warmup(sender);
-
-                if (!plugin.getTournamentManager().isActive()) {
-                    plugin.getTournamentManager().start();
-                }
                 if (am.isRunning()) {
                     sender.sendMessage(MessageUtil.color("&c[KMC] Automatisering draait al."));
                     return true;
                 }
-                am.start();
-
-                // Reset HealthMonitor's hang-check baseline so it doesn't
-                // think the tournament is hung the moment it starts
-                try {
-                    if (plugin.getHealthMonitor() != null) {
-                        plugin.getHealthMonitor().notifyAutomationStarted();
-                    }
-                } catch (Throwable ignored) { /* older builds don't have the method */ }
-
-                sender.sendMessage(MessageUtil.color("&a[KMC] Automatisering gestart!"));
+                boolean force = args.length >= 2 && args[1].equalsIgnoreCase("force");
+                // 'force' is the scripted/no-menu escape hatch (also skips validation);
+                // a plain start from a player opens the setup menu first.
+                if (!force && sender instanceof org.bukkit.entity.Player p) {
+                    new nl.kmc.kmccore.gui.AutomationSetupGui(plugin, viewer -> doStart(viewer, false)).open(p);
+                    return true;
+                }
+                doStart(sender, force);
             }
 
             case "stop" -> {
@@ -154,6 +126,54 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
             default -> usage(sender);
         }
         return true;
+    }
+
+    /**
+     * The actual start logic — shared by a plain console/force start and by
+     * the "Start Tournament Now" button in {@link nl.kmc.kmccore.gui.AutomationSetupGui}.
+     */
+    private void doStart(CommandSender sender, boolean force) {
+        // ── Tournament start protection (EVS) ─────────────────────────
+        // Block on critical validation issues unless 'force' is given.
+        java.util.List<String> critical = ValidateCommand.criticalIssues(plugin);
+        if (!critical.isEmpty() && !force) {
+            sender.sendMessage(MessageUtil.color("&c&l⚠ Tournament Validation Failed"));
+            sender.sendMessage(MessageUtil.color("&c" + critical.size() + " kritieke problemen gevonden:"));
+            critical.stream().limit(8).forEach(i ->
+                    sender.sendMessage(MessageUtil.color("&7 - &f" + i)));
+            if (critical.size() > 8)
+                sender.sendMessage(MessageUtil.color("&7   ...en nog " + (critical.size() - 8) + " meer."));
+            sender.sendMessage(MessageUtil.color("&7Open &e/kmcvalidate &7voor details, of"));
+            sender.sendMessage(MessageUtil.color("&7gebruik &e/kmcauto start force &7om toch te starten."));
+            return;
+        }
+        if (force && !critical.isEmpty())
+            sender.sendMessage(MessageUtil.color("&e[KMC] Geforceerde start ondanks " + critical.size() + " problemen."));
+
+        AutomationManager am = plugin.getAutomationManager();
+        if (am.isRunning()) {
+            sender.sendMessage(MessageUtil.color("&c[KMC] Automatisering draait al."));
+            return;
+        }
+
+        // Eager warmup — touches every manager that AutomationManager
+        // might lazy-resolve, so the first call doesn't NPE.
+        warmup(sender);
+
+        if (!plugin.getTournamentManager().isActive()) {
+            plugin.getTournamentManager().start();
+        }
+        am.start();
+
+        // Reset HealthMonitor's hang-check baseline so it doesn't
+        // think the tournament is hung the moment it starts
+        try {
+            if (plugin.getHealthMonitor() != null) {
+                plugin.getHealthMonitor().notifyAutomationStarted();
+            }
+        } catch (Throwable ignored) { /* older builds don't have the method */ }
+
+        sender.sendMessage(MessageUtil.color("&a[KMC] Automatisering gestart!"));
     }
 
     /**

@@ -1,6 +1,7 @@
 package nl.kmc.blockparty.managers;
 
 import nl.kmc.blockparty.BlockPartyPlugin;
+import nl.kmc.blockparty.events.*;
 import nl.kmc.blockparty.models.BPPlayer;
 import nl.kmc.blockparty.models.ChaosEvent;
 import nl.kmc.blockparty.models.Colors;
@@ -14,6 +15,15 @@ import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
@@ -30,6 +40,14 @@ import java.util.*;
  */
 public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
+    /** Round 1 always uses exactly this fixed palette — every later round uses all 16. */
+    private static final List<Material> ROUND1_PALETTE = List.of(
+            Material.YELLOW_CONCRETE, Material.WHITE_CONCRETE,
+            Material.LIGHT_GRAY_CONCRETE, Material.BLACK_CONCRETE);
+
+    /** Tags the round's colour-display item so it can be told apart from anything else in a slot. */
+    private final NamespacedKey colourItemKey;
+
     private final BlockPartyPlugin plugin;
     private final ArenaManager     arena;
     private final FloorGenerator   floor;
@@ -39,6 +57,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     private final List<UUID>          eliminationOrder = new ArrayList<>(); // first eliminated first
 
     private int        round;
+    private Material   lastTargetColour;                     // this round's target, remembered so next round can avoid repeating it
     private Set<Material> keepColours = new HashSet<>();   // colour(s) that survive this round
     private Material   displayColour;                       // shown to players (may be fake)
     private ChaosEvent chaos;                               // active chaos event, or null
@@ -46,12 +65,14 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     private int        secondsLeft;
     private BukkitTask roundTask;
     private BossBar    bossBar;
+    private StandardStartFlow startFlow;
 
     public BlockPartyGameManagerV2(BlockPartyPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
         this.plugin = plugin;
         this.arena  = plugin.getArenaManager();
         this.floor  = plugin.floorGen();
+        this.colourItemKey = new NamespacedKey(plugin, "blockparty_colour_item");
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -62,7 +83,17 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         eliminationOrder.clear();
         round = 0;
 
+        // Paint round 1's floor immediately so players have solid ground during
+        // the countdown/grace period — without this the floor is still empty
+        // from the previous game and players fall straight through into the
+        // void. startRound() repaints it again for real once round 1 begins.
+        paintRound1Floor();
+
+        // Only players currently on an active KMC team take part — matches
+        // every other game's participant rule, so a teamless spectator/admin
+        // standing around doesn't accidentally get swept into the match.
         for (Player p : Bukkit.getOnlinePlayers()) {
+            if (api.teams().getTeamByPlayer(p.getUniqueId()).isEmpty()) continue;
             players.put(p.getUniqueId(), new BPPlayer(p.getUniqueId(), p.getName()));
             GamePlayerUtil.resetPlayer(p);
             p.setGameMode(GameMode.ADVENTURE);
@@ -72,30 +103,52 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar("§d§lBLOCK PARTY", BarColor.PINK, BarStyle.SEGMENTED_10);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
 
-        broadcastTitle("§d§lBLOCK PARTY", "§7Maak je klaar...", 10, 50, 15);
+        List<Player> parts = players.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+        Location center = arena.getPos1() != null && arena.getPos2() != null
+                ? new Location(arena.getWorld(),
+                        (arena.minX() + arena.maxX()) / 2.0, arena.floorY(),
+                        (arena.minZ() + arena.maxZ()) / 2.0)
+                : null;
+        double radius = center != null
+                ? Math.max(arena.maxX() - arena.minX(), arena.maxZ() - arena.minZ()) / 2.0 : 0;
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§d§lBLOCK PARTY"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§d§lBLOCK PARTY",
+                                "§7Vind de §fjuiste kleur §7voordat de tijd om is.",
+                                "§7Ga op de getoonde kleur staan.",
+                                "§cVerkeerde kleur = §4eliminatie§c.");
+                    }
+                    @Override public Location flyoverCenter() { return center; }
+                    @Override public void onFinished() {
+                        Bukkit.getPluginManager().callEvent(new BlockPartyGameStartEvent(new ArrayList<>(players.keySet())));
+                        startRound();
+                    }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        // Tutorial card during the grace period.
-        broadcast("§8§m                                        ");
-        broadcast("  §d§lBLOCK PARTY");
-        broadcast("  §7Vind de §fjuiste kleur §7voordat de tijd om is.");
-        broadcast("  §7Ga op de getoonde kleur staan.");
-        broadcast("  §cVerkeerde kleur = §4eliminatie§c.");
-        broadcast("§8§m                                        ");
-        for (Player p : alivePlayers()) p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.3f);
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
-        startRound();
+        startFlow.start();
     }
 
     @Override
     protected void onGameEnd() {
         if (roundTask != null) { roundTask.cancel(); roundTask = null; }
         if (bossBar  != null) { bossBar.removeAll(); bossBar = null; }
+        if (startFlow != null) { startFlow.cancel(); startFlow = null; }
         floor.clear();
 
         // Whoever is still alive is the winner; append to the elimination order last.
@@ -108,6 +161,9 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
         BPPlayer winner = placement.isEmpty() ? null : players.get(placement.get(0));
         awardAndRecord(placement, winner);
+
+        Bukkit.getPluginManager().callEvent(
+                new BlockPartyGameEndEvent(winner != null ? winner.getUuid() : null, placement));
 
         broadcastFinalStandings(placement, winner);
 
@@ -131,15 +187,30 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         int phase = phaseFor(round);
         clearChaos();
 
-        // Generate the floor for this round's difficulty.
-        FloorGenerator.Result result = floor.generate(coloursFor(phase, aliveCount), clusterFor(phase));
+        // Round 1 uses the captured preset (if any) or the fixed 4-colour
+        // fallback; every round after that is fully random across all 16.
+        FloorGenerator.Result result = (round == 1)
+                ? paintRound1Floor()
+                : floor.generate(Colors.ALL.size(), clusterFor(phase));
 
         // Decide on a chaos event (may tweak timer/colours/display below).
         chaos = rollChaos(aliveCount);
 
-        // Pick a target colour that is guaranteed survivable (enough blocks for everyone alive).
-        Material target = pickSafeColour(result, (int) aliveCount);
-        keepColours = new HashSet<>(Set.of(target));
+        // Target needs room for everyone alive AND at least minimum-target-blocks
+        // (whichever is bigger), and tries to avoid repeating last round's colour.
+        int minTarget = plugin.getConfig().getInt("block-party.game.minimum-target-blocks", 8);
+        int needed    = (int) Math.max(aliveCount, minTarget);
+        Material target = pickTargetColour(result, needed);
+
+        if (chaos == ChaosEvent.MIRROR) {
+            // Inverted round: the announced colour is the ONE to avoid — every
+            // other colour on the floor survives.
+            keepColours = new HashSet<>(result.palette());
+            keepColours.remove(target);
+            if (keepColours.isEmpty()) keepColours.add(target); // degenerate single-colour floor
+        } else {
+            keepColours = new HashSet<>(Set.of(target));
+        }
 
         // DOUBLE_COLOR: a second colour also survives (more room, but more confusing).
         if (chaos == ChaosEvent.DOUBLE_COLOR) {
@@ -156,12 +227,74 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         roundSeconds = timerFor(phase, aliveCount);
         if (chaos == ChaosEvent.RAPID_FIRE) roundSeconds = Math.max(2, roundSeconds - 2);
         secondsLeft  = roundSeconds;
+        lastTargetColour = target;
 
         players.values().stream().filter(BPPlayer::isAlive).forEach(BPPlayer::beginRound);
         applyChaosEffects();
+        giveColourItem();
         announceRound(target);
 
+        Bukkit.getPluginManager().callEvent(new BlockPartyRoundStartEvent(round, target, displayColour, aliveCount));
+
         roundTask = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    /** Picks a target, preferring to avoid repeating last round's colour — falls back to allowing it if no alternative fits. */
+    private Material pickTargetColour(FloorGenerator.Result result, int needed) {
+        boolean avoidRepeat = plugin.getConfig().getBoolean("block-party.game.avoid-repeat-colour", true);
+        if (avoidRepeat && lastTargetColour != null) {
+            Material avoided = pickSafeColour(result, needed, lastTargetColour);
+            if (avoided != null) return avoided;
+        }
+        return pickSafeColour(result, needed);
+    }
+
+    /** Gives every alive player the round's colour block — pure visual reference, replaces whatever was in that slot. */
+    private void giveColourItem() {
+        int slot = plugin.getConfig().getInt("block-party.inventory-slot", 4);
+        ItemStack item = new ItemStack(displayColour, 1);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(Colors.label(displayColour));
+            meta.addItemFlags(ItemFlag.values());
+            meta.getPersistentDataContainer().set(colourItemKey, PersistentDataType.BYTE, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        for (Player p : alivePlayers()) p.getInventory().setItem(slot, item.clone());
+    }
+
+    /** True only for the round's own colour-display item (tagged), never a player's own matching concrete. */
+    private boolean isColourItem(ItemStack item) {
+        if (item == null) return false;
+        ItemMeta meta = item.getItemMeta();
+        return meta != null && meta.getPersistentDataContainer().has(colourItemKey, PersistentDataType.BYTE);
+    }
+
+    // ── Colour item protection — cancel every way it could be moved/used ──────
+
+    @EventHandler(ignoreCancelled = true)
+    public void onInventoryClick(InventoryClickEvent e) {
+        if (!getState().isRunning()) return;
+        if (!(e.getWhoClicked() instanceof Player p) || !players.containsKey(p.getUniqueId())) return;
+        if (isColourItem(e.getCurrentItem()) || isColourItem(e.getCursor())) e.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onDropItem(PlayerDropItemEvent e) {
+        if (!getState().isRunning() || !players.containsKey(e.getPlayer().getUniqueId())) return;
+        if (isColourItem(e.getItemDrop().getItemStack())) e.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onPlaceBlock(BlockPlaceEvent e) {
+        if (!getState().isRunning() || !players.containsKey(e.getPlayer().getUniqueId())) return;
+        if (isColourItem(e.getItemInHand())) e.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onSwapHands(PlayerSwapHandItemsEvent e) {
+        if (!getState().isRunning() || !players.containsKey(e.getPlayer().getUniqueId())) return;
+        if (isColourItem(e.getMainHandItem()) || isColourItem(e.getOffHandItem())) e.setCancelled(true);
     }
 
     /** One-second tick: update displays, track clutch positions, fire elimination at zero. */
@@ -181,6 +314,12 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         updateDisplays();
 
         if (secondsLeft <= 0) { eliminate(); return; }
+
+        // Big on-screen countdown number, same cadence as the tick itself.
+        for (Player p : alivePlayers()) {
+            p.sendTitle("§e§l" + secondsLeft, "", 0, 18, 2);
+            if (secondsLeft == 1) p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1f, 0.6f); // warning
+        }
         if (secondsLeft <= 3) {
             for (Player p : alivePlayers()) p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.6f);
         }
@@ -189,6 +328,8 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private void eliminate() {
         if (roundTask != null) { roundTask.cancel(); roundTask = null; }
+
+        for (Player p : alivePlayers()) p.sendTitle("§4§lVERDWIJN!", "", 0, 15, 5);
 
         List<BPPlayer> survivors = new ArrayList<>();
         List<BPPlayer> dropped   = new ArrayList<>();
@@ -205,6 +346,8 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         boolean chaosActive = chaos != null;
         for (BPPlayer bp : survivors) {
             bp.surviveRound(round, chaosActive);
+            Bukkit.getPluginManager().callEvent(
+                    new BlockPartyPlayerSurviveEvent(bp.getUuid(), round, bp.isClutchThisRound()));
             Player p = Bukkit.getPlayer(bp.getUuid());
             if (p == null) continue;
             if (bp.isClutchThisRound()) {
@@ -217,6 +360,10 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         }
         for (BPPlayer bp : dropped) eliminatePlayer(bp);
 
+        Bukkit.getPluginManager().callEvent(new BlockPartyRoundEndEvent(round,
+                survivors.stream().map(BPPlayer::getUuid).toList(),
+                dropped.stream().map(BPPlayer::getUuid).toList()));
+
         long alive = alivePlayers().size();
         if (!dropped.isEmpty())
             broadcast("§c☠ §7" + dropped.size() + " speler(s) geëlimineerd §8— §a" + alive + " §7over");
@@ -225,7 +372,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             Bukkit.getScheduler().runTaskLater(plugin, this::end, 40L);
             return;
         }
-        long delay = Math.max(1, plugin.getConfig().getInt("game.regen-delay-seconds", 2)) * 20L;
+        long delay = Math.max(1, plugin.getConfig().getInt("block-party.game.regen-delay-seconds", 2)) * 20L;
         Bukkit.getScheduler().runTaskLater(plugin, this::startRound, delay);
     }
 
@@ -234,15 +381,26 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         eliminationOrder.add(bp.getUuid());
         statsService.recordPlacement(bp.getUuid(), alivePlayers().size() + 1);
         statsService.recordSurvivalSeconds(bp.getUuid(), bp.getRoundsSurvived());
+        Bukkit.getPluginManager().callEvent(
+                new BlockPartyPlayerEliminateEvent(bp.getUuid(), round, bp.getRoundsSurvived()));
 
         Player p = Bukkit.getPlayer(bp.getUuid());
         if (p == null) return;
-        p.sendTitle("§c§lGEËLIMINEERD", "§7Ronde " + round + " §8• §7je overleefde " + bp.getRoundsSurvived() + " rondes", 5, 45, 10);
+        p.sendTitle("§c§l✖ JE BENT UITGESCHAKELD!", "§7Ronde " + round + " §8• §7je overleefde " + bp.getRoundsSurvived() + " rondes", 5, 45, 10);
         p.playSound(p.getLocation(), Sound.ENTITY_BLAZE_DEATH, 1f, 0.8f);
+        int slot = plugin.getConfig().getInt("block-party.inventory-slot", 4);
+        p.getInventory().setItem(slot, null); // remove the colour-display item on elimination
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             p.setGameMode(GameMode.SPECTATOR);
             if (arena.getSpectator() != null) p.teleport(arena.getSpectator());
         }, 15L);
+    }
+
+    /** Round 1's floor: the admin-captured preset if one is set, else the fixed 4-colour default. */
+    private FloorGenerator.Result paintRound1Floor() {
+        return arena.hasPresetFloor()
+                ? floor.generatePreset(arena.getPresetFloor())
+                : floor.generate(ROUND1_PALETTE, clusterFor(1));
     }
 
     // ── Difficulty / phase ────────────────────────────────────────────────────
@@ -257,19 +415,13 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private int timerFor(int phase, long alive) {
         var cfg = plugin.getConfig();
-        if (alive < cfg.getInt("game.final-showdown-threshold", 4)) return cfg.getInt("game.timer.final-showdown", 2);
-        if (alive < cfg.getInt("game.endgame-threshold", 8))        return cfg.getInt("game.timer.endgame", 3);
-        return cfg.getInt("game.timer.phase" + phase, 8 - phase);
-    }
-
-    private int coloursFor(int phase, long alive) {
-        int base = plugin.getConfig().getInt("game.colours.phase" + phase, 2 + phase * 2);
-        if (alive < plugin.getConfig().getInt("game.endgame-threshold", 8)) base += 2; // more variety in endgame
-        return Math.min(16, Math.max(2, base));
+        if (alive < cfg.getInt("block-party.game.final-showdown-threshold", 4)) return cfg.getInt("block-party.game.timer.final-showdown", 2);
+        if (alive < cfg.getInt("block-party.game.endgame-threshold", 8))        return cfg.getInt("block-party.game.timer.endgame", 3);
+        return cfg.getInt("block-party.game.timer.phase" + phase, 8 - phase);
     }
 
     private int clusterFor(int phase) {
-        return plugin.getConfig().getInt("game.cluster-size.phase" + phase, Math.max(6, 56 - phase * 10));
+        return plugin.getConfig().getInt("block-party.game.cluster-size.phase" + phase, Math.max(6, 56 - phase * 10));
     }
 
     /** Picks a colour with enough blocks for every alive player; falls back to the largest. */
@@ -290,11 +442,11 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private ChaosEvent rollChaos(long alive) {
         var cfg = plugin.getConfig();
-        if (!cfg.getBoolean("chaos.enabled", true)) return null;
-        if (round < cfg.getInt("chaos.start-round", 5)) return null;
-        double chance = alive < cfg.getInt("game.endgame-threshold", 8)
-                ? cfg.getDouble("chaos.endgame-chance", 0.45)
-                : cfg.getDouble("chaos.base-chance", 0.22);
+        if (!cfg.getBoolean("block-party.chaos.enabled", true)) return null;
+        if (round < cfg.getInt("block-party.chaos.start-round", 5)) return null;
+        double chance = alive < cfg.getInt("block-party.game.endgame-threshold", 8)
+                ? cfg.getDouble("block-party.chaos.endgame-chance", 0.45)
+                : cfg.getDouble("block-party.chaos.base-chance", 0.22);
         if (random.nextDouble() > chance) return null;
         ChaosEvent[] all = ChaosEvent.values();
         return all[random.nextInt(all.length)];
@@ -332,29 +484,36 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.4f);
             }
         }
+        boolean mirror = chaos == ChaosEvent.MIRROR;
+        String doelWoord = mirror ? "§c§lVERMIJD" : "§7Doel:";
+
         broadcast("§8§m                ");
-        broadcast("  §7Ronde §f" + round + " §8• §7Doel: " + (colorBlind() ? "§8§o(geen hint — kijk goed!)" : label));
+        broadcast("  §7Ronde §f" + round + " §8• " + doelWoord + " " + (colorBlind() ? "§8§o(geen hint — kijk goed!)" : label));
         if (chaos == ChaosEvent.FAKE_COLOR)
             broadcast("  §c⚠ §7Verborgen hint — de échte kleur is §o" + Colors.plain(actual).charAt(0) + "...");
+        if (mirror)
+            broadcast("  §5⇄ §7Sta op ELKE ANDERE kleur — deze is dodelijk!");
         broadcast("§8§m                ");
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (colorBlind()) return;
             for (Player p : alivePlayers())
-                p.sendTitle("§7DOELKLEUR", label, 2, 25, 6);
+                p.sendTitle(mirror ? "§c§lVERMIJD" : "§7DOELKLEUR", label, 2, 25, 6);
         }, chaos != null ? 35L : 1L);
     }
 
     private void updateDisplays() {
         long alive = alivePlayers().size();
         String label = colorBlind() ? "§8???" : Colors.label(displayColour);
+        boolean mirror = chaos == ChaosEvent.MIRROR;
+        String doelLabel = mirror ? "§c§lVERMIJD" : "§7Doel";
 
         if (bossBar != null) {
-            bossBar.setColor(secondsLeft <= 2 ? BarColor.RED : BarColor.PINK);
+            bossBar.setColor(mirror ? BarColor.PURPLE : (secondsLeft <= 2 ? BarColor.RED : BarColor.PINK));
             bossBar.setProgress(Math.max(0, Math.min(1, secondsLeft / (double) Math.max(1, roundSeconds))));
-            bossBar.setTitle("§d§lBLOCK PARTY §8| §7Doel " + label + " §8| §c⏱ " + secondsLeft + "s §8| §a" + alive + " over");
+            bossBar.setTitle("§d§lBLOCK PARTY §8| " + doelLabel + " " + label + " §8| §c⏱ " + secondsLeft + "s §8| §a" + alive + " over");
         }
-        String hud = "§7Sta op §r" + label + " §8| §c" + secondsLeft + "s §8| §a" + alive + " spelers over";
+        String hud = (mirror ? "§c§lVERMIJD " : "§7Sta op ") + "§r" + label + " §8| §c" + secondsLeft + "s §8| §a" + alive + " spelers over";
         for (Player p : Bukkit.getOnlinePlayers())
             p.sendActionBar(net.kyori.adventure.text.Component.text(hud));
     }
@@ -368,7 +527,8 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
                 .distinct().count();
         java.util.List<String> l = new java.util.ArrayList<>();
         l.add("§7Ronde §f" + round + (chaos != null ? " §8(§d" + chaos.name() + "§8)" : ""));
-        l.add("§7Doelkleur: " + (colorBlind() ? "§8???" : Colors.label(displayColour)));
+        l.add((chaos == ChaosEvent.MIRROR ? "§c§lVermijd: " : "§7Doelkleur: ")
+                + (colorBlind() ? "§8???" : Colors.label(displayColour)));
         l.add("§7Tijd: §c" + Math.max(0, secondsLeft) + "s");
         l.add("");
         l.add("§7Spelers over: §a" + alive);
@@ -386,15 +546,24 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private void awardAndRecord(List<UUID> placement, BPPlayer winner) {
         var cfg = plugin.getConfig();
-        int base = cfg.getInt("scoring.base", 250);
-        int step = cfg.getInt("scoring.step", 10);
-        int floorPts = cfg.getInt("scoring.floor", 25);
-        int total = placement.size();
+        int survivalPerRound = cfg.getInt("block-party.scoring.survival-per-round", 10);
+        int first  = cfg.getInt("block-party.scoring.first", 200);
+        int second = cfg.getInt("block-party.scoring.second", 150);
+        int third  = cfg.getInt("block-party.scoring.third", 100);
+        int top5   = cfg.getInt("block-party.scoring.top-5", 50);
+        int top10  = cfg.getInt("block-party.scoring.top-10", 25);
 
         for (int i = 0; i < placement.size(); i++) {
             UUID u = placement.get(i);
             BPPlayer bp = players.get(u);
-            int pts = Math.max(floorPts, base - i * step);
+            int place = i + 1;
+            int placementPts = switch (place) {
+                case 1 -> first;
+                case 2 -> second;
+                case 3 -> third;
+                default -> place <= 5 ? top5 : (place <= 10 ? top10 : 0);
+            };
+            int pts = placementPts + survivalPerRound * (bp != null ? bp.getRoundsSurvived() : 0);
             api.points().givePoints(u, pts, PointAward.Reason.PLACEMENT, registration.getId());
             statsService.recordPointsEarned(u, pts);
             api.games().recordGameParticipation(u, bp != null ? bp.getName() : "?", registration.getId(), i == 0);
@@ -406,9 +575,9 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         }
 
         // Last-team-standing bonus.
-        if (cfg.getBoolean("scoring.last-team-bonus-enabled", true) && winner != null) {
+        if (cfg.getBoolean("block-party.scoring.last-team-bonus-enabled", true) && winner != null) {
             api.teams().getTeamByPlayer(winner.getUuid()).ifPresent(t ->
-                    api.points().giveTeamPoints(t.getId(), cfg.getInt("scoring.last-team-bonus", 150),
+                    api.points().giveTeamPoints(t.getId(), cfg.getInt("block-party.scoring.last-team-bonus", 150),
                             PointAward.Reason.BONUS, registration.getId()));
         }
     }

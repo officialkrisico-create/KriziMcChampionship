@@ -1,0 +1,69 @@
+achievements:
+  - id: mobmayhem_survivor
+    name: "Survivor"
+    description: "Bereik golf 10 in Mob Mayhem"
+    category: PROGRESSION
+    rarity: RARE
+    icon: TOTEM_OF_UNDYING
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: WAVE_SURVIVED
+    progress_target: 10
+
+  - id: mobmayhem_untouchable
+    name: "Untouchable"
+    description: "Bereik golf 5 in Mob Mayhem zonder dood te gaan"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: SHIELD
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: NO_DEATH_MILESTONE
+
+  - id: mobmayhem_exterminator
+    name: "Exterminator"
+    description: "Behaal 50 mob-kills in één Mob Mayhem-potje"
+    category: PROGRESSION
+    rarity: RARE
+    icon: IRON_SWORD
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: KILL_MILESTONE
+    progress_target: 50
+
+  - id: mobmayhem_mob_slayer
+    name: "Mob Slayer"
+    description: "Behaal 100 mob-kills in één Mob Mayhem-potje"
+    category: LEGENDARY
+    rarity: LEGENDARY
+    icon: NETHERITE_SWORD
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: KILL_MILESTONE_LEGENDARY
+    progress_target: 100
+
+  - id: mobmayhem_boss_slayer
+    name: "Boss Slayer"
+    description: "Versla een Mob Mayhem boss"
+    category: PROGRESSION
+    rarity: RARE
+    icon: WITHER_SKELETON_SKULL
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: BOSS_KILLED
+
+  - id: mobmayhem_last_stand
+    name: "Last Stand"
+    description: "Wees de laatst overlevende speler in Mob Mayhem"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: NETHER_STAR
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: mob_mayhem
+    objective_type: LAST_STANDING

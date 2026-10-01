@@ -34,6 +34,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private int        remainingSeconds;
     private long       gameStartMs;
+    private StandardStartFlow startFlow;
 
     public ParkourGameManagerV2(ParkourWarriorPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -57,15 +58,39 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.GREEN + "" + ChatColor.BOLD + "Parkour Warrior",
                 BarColor.GREEN, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = runners.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§a§lPARKOUR WARRIOR"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§a§l» §fRen zo ver mogelijk door het parkour.",
+                                "§a§l» §fElk checkpoint geeft punten.",
+                                "§a§l» §fVal je? Je respawnt bij je laatste checkpoint.",
+                                "§a§l» §fAls finishen geblokkeerd lijkt: genoeg fails geeft een skip.");
+                    }
+                    @Override public Location flyoverCenter() { return plugin.getCourseManager().getStartSpawn(); }
+                    @Override public void onFinished() { beginRun(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§a§l[Parkour] §eRun! Reach as many checkpoints as possible!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginRun() {
         gameStartMs      = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.duration-seconds", 180);
 
@@ -90,6 +115,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
         if (tickTask      != null) { tickTask.cancel();      tickTask      = null; }
         if (bossBar       != null) { bossBar.removeAll();    bossBar       = null; }
+        if (startFlow     != null) { startFlow.cancel();     startFlow     = null; }
 
         // Rank by: finished first (by time), then by checkpoints reached, then by score
         List<RunnerState> ranked = new ArrayList<>(runners.values());

@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -39,6 +40,18 @@ import java.util.*;
 public class StatsGUI implements Listener {
 
     private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd");
+
+    /**
+     * Marker holder so this GUI can be identified by inventory holder
+     * identity rather than by matching the rendered title string — title
+     * matching is fragile (color-code stripping edge cases, and
+     * {@code InventoryView#getTitle()} behaviour has shifted across Paper
+     * versions) and was letting clicks through uncancelled, allowing
+     * players to take the display items out of the GUI.
+     */
+    private static final class Holder implements InventoryHolder {
+        @Override public Inventory getInventory() { throw new UnsupportedOperationException(); }
+    }
 
     private final KMCCore plugin;
     private final NamespacedKey markerKey;
@@ -79,7 +92,7 @@ public class StatsGUI implements Listener {
     // ----------------------------------------------------------------
 
     private Inventory buildOverviewPage(PlayerData pd) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_AQUA
+        Inventory inv = Bukkit.createInventory(new Holder(), 54, ChatColor.DARK_AQUA
                 + "Stats: " + ChatColor.WHITE + pd.getName());
 
         // Player head — slot 4 (top center)
@@ -127,7 +140,7 @@ public class StatsGUI implements Listener {
     }
 
     private Inventory buildGameBreakdownPage(PlayerData pd) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_AQUA
+        Inventory inv = Bukkit.createInventory(new Holder(), 54, ChatColor.DARK_AQUA
                 + "Per-Game: " + ChatColor.WHITE + pd.getName());
 
         Map<String, Integer> wpg = pd.getWinsPerGame();
@@ -171,7 +184,7 @@ public class StatsGUI implements Listener {
     }
 
     private Inventory buildAchievementsPage(UUID uuid) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_AQUA + "Achievements");
+        Inventory inv = Bukkit.createInventory(new Holder(), 54, ChatColor.DARK_AQUA + "Achievements");
 
         AchievementManager am = plugin.getAchievementManager();
         Set<String> unlocked = am.getUnlocked(uuid);
@@ -197,7 +210,7 @@ public class StatsGUI implements Listener {
     }
 
     private Inventory buildHistoryPage(UUID uuid) {
-        Inventory inv = Bukkit.createInventory(null, 54, ChatColor.DARK_AQUA + "Toernooi Historie");
+        Inventory inv = Bukkit.createInventory(new Holder(), 54, ChatColor.DARK_AQUA + "Toernooi Historie");
 
         TournamentHistoryManager hm = plugin.getTournamentHistoryManager();
         var history = hm != null ? hm.getPlayerHistory(uuid, 28) : List.<TournamentHistoryManager.PlayerResult>of();
@@ -330,11 +343,11 @@ public class StatsGUI implements Listener {
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
 
-        // Identify our GUIs by title prefix. Cancel ALL clicks (including
-        // shift-clicks, hotbar swaps, and drags) if it's one of ours,
-        // so players can't yoink display items out.
-        String title = e.getView().getTitle();
-        if (!isStatsGuiTitle(title)) return;
+        // Identify our GUIs by inventory holder identity (not title string —
+        // that was fragile and let clicks through uncancelled, letting
+        // players take the display items out). Cancel ALL clicks (including
+        // shift-clicks, hotbar swaps, and double-clicks) if it's one of ours.
+        if (!(e.getInventory().getHolder() instanceof Holder)) return;
 
         e.setCancelled(true);
 
@@ -367,20 +380,8 @@ public class StatsGUI implements Listener {
     @EventHandler
     public void onDrag(org.bukkit.event.inventory.InventoryDragEvent e) {
         if (!(e.getWhoClicked() instanceof Player)) return;
-        if (!isStatsGuiTitle(e.getView().getTitle())) return;
+        if (!(e.getInventory().getHolder() instanceof Holder)) return;
         e.setCancelled(true);
-    }
-
-    /** True if {@code title} is one of our stats GUIs (overview/stats page/achievements/history). */
-    private boolean isStatsGuiTitle(String title) {
-        if (title == null) return false;
-        // Strip color codes for matching
-        String stripped = ChatColor.stripColor(title);
-        if (stripped == null) return false;
-        return stripped.startsWith("Stats: ")
-            || stripped.startsWith("Per-Game: ")
-            || stripped.startsWith("Achievements")
-            || stripped.startsWith("Toernooi Historie");
     }
 
     // ----------------------------------------------------------------

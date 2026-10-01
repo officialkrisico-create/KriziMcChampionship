@@ -12,6 +12,8 @@ import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
@@ -37,6 +39,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     private int  mapElapsed;          // seconds the current map has been running
     private int  finishThreshold;     // # finishers that triggers the countdown (50%)
     private MapPhase mapPhase = MapPhase.RACING;
+    private boolean fogOfWarActive;    // this map's random "restricted visibility" twist
 
     private BukkitTask mapTickTask;
     private BossBar    bossBar;
@@ -256,6 +259,15 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         broadcast("§7De map eindigt §e" + minSec(countdownSeconds()) + " §7nadat §e" + pct + "% §7gefinisht is.");
         for (Player p : Bukkit.getOnlinePlayers()) p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 1.2f);
 
+        fogOfWarActive = Math.random() < plugin.getConfig().getDouble("game.fog-of-war-chance", 0.15);
+        if (fogOfWarActive) {
+            broadcast("§8§l🌫 FOG OF WAR §7— je ziet nu maar een klein stukje voor je!");
+            for (Player p : online) {
+                p.sendTitle("§8§l🌫 FOG OF WAR", "§7Beperkt zicht deze map!", 8, 50, 12);
+                applyFogOfWar(p);
+            }
+        }
+
         mapTickTask = Bukkit.getScheduler().runTaskTimer(plugin, this::mapTick, 20L, 20L);
     }
 
@@ -263,6 +275,14 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     private void mapTick() {
         if (!getState().isRunning()) return;
         mapElapsed++;
+
+        if (fogOfWarActive) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                RunnerState rs = runners.get(p.getUniqueId());
+                if (rs != null && !rs.isCurrentRoundFinished()) applyFogOfWar(p);
+            }
+        }
+        applyRubberBanding();
 
         if (mapPhase == MapPhase.RACING) {
             int maxSec = plugin.getConfig().getInt("game.max-map-seconds", 300);
@@ -325,20 +345,80 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         long finished = mapFinishCounter;
         long racing   = activeRacers();
         boolean cd    = mapPhase == MapPhase.COUNTDOWN;
+        List<java.util.Map.Entry<Player, Double>> raceOrder = liveRaceOrder();
 
         if (bossBar != null) {
             bossBar.setColor(cd ? BarColor.RED : BarColor.YELLOW);
             if (cd) bossBar.setProgress(Math.max(0, Math.min(1, countdownRemaining / (double) Math.max(1, countdownSeconds()))));
             else bossBar.setProgress(Math.max(0, Math.min(1, finished / (double) Math.max(1, runners.size()))));
+            String leaderTag = raceOrder.isEmpty() ? "" : " §8| §6🏁 " + raceOrder.get(0).getKey().getName();
             bossBar.setTitle("§e§lTGTTOS §8| §7Map §e" + currentMap + "/" + mapsPerGame()
                     + " §8| §aGefinisht " + finished + "/" + runners.size()
-                    + " §8| §cRacet " + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : ""));
+                    + " §8| §cRacet " + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : "") + leaderTag);
         }
 
         String hud = "§eGefinisht §a" + finished + "§7/§a" + runners.size()
                 + " §8| §eRacet §c" + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : " §8| §7race naar de finish!");
         for (Player p : Bukkit.getOnlinePlayers())
-            p.sendActionBar(net.kyori.adventure.text.Component.text(hud));
+            p.sendActionBar(net.kyori.adventure.text.Component.text(hud + raceGapSuffix(p, raceOrder)));
+    }
+
+    /** Per-player "you're closest / X blocks behind the leader" tag for the action bar. */
+    private String raceGapSuffix(Player viewer, List<java.util.Map.Entry<Player, Double>> raceOrder) {
+        if (raceOrder.isEmpty()) return "";
+        if (raceOrder.get(0).getKey().equals(viewer)) return " §8| §6👑 KOPLOPER";
+        for (var entry : raceOrder) {
+            if (entry.getKey().equals(viewer)) {
+                double gap = entry.getValue() - raceOrder.get(0).getValue();
+                return " §8| §7-" + Math.round(gap) + "m";
+            }
+        }
+        return "";
+    }
+
+    // ── Fog of War / rubber-banding ────────────────────────────────────────────
+
+    /** Short, refreshed Blindness — players only make out what's right in front of them. */
+    private void applyFogOfWar(Player p) {
+        p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, true, false, false));
+    }
+
+    /**
+     * Gives whoever is currently furthest from the finish a brief Speed II —
+     * recomputed every tick, so it always follows whoever is actually last
+     * (never sticks to a player who has since caught up).
+     */
+    private void applyRubberBanding() {
+        if (!plugin.getConfig().getBoolean("game.rubber-banding", true)) return;
+        List<java.util.Map.Entry<Player, Double>> order = liveRaceOrder();
+        // Needs a real field to matter — with 1-2 racers left it'd just flip-flop uselessly.
+        if (order.size() < 3) return;
+        Player last = order.get(order.size() - 1).getKey();
+        last.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 40, 1, true, false, false));
+    }
+
+    /**
+     * Still-racing players on the current map with their live distance (in
+     * blocks) to the finish centre, closest first. Shared by rubber-banding
+     * and the live race-position display.
+     */
+    private List<java.util.Map.Entry<Player, Double>> liveRaceOrder() {
+        Map map = getCurrentMap();
+        if (map == null || map.getFinishPos1() == null || map.getFinishPos2() == null) return List.of();
+        Location f1 = map.getFinishPos1(), f2 = map.getFinishPos2();
+        if (f1.getWorld() == null) return List.of();
+        Location finishCenter = new Location(f1.getWorld(),
+                (f1.getX() + f2.getX()) / 2.0, (f1.getY() + f2.getY()) / 2.0, (f1.getZ() + f2.getZ()) / 2.0);
+
+        List<java.util.Map.Entry<Player, Double>> out = new ArrayList<>();
+        for (var entry : runners.entrySet()) {
+            if (entry.getValue().isCurrentRoundFinished()) continue;
+            Player p = Bukkit.getPlayer(entry.getKey());
+            if (p != null && p.getWorld().equals(finishCenter.getWorld()))
+                out.add(java.util.Map.entry(p, p.getLocation().distance(finishCenter)));
+        }
+        out.sort(java.util.Map.Entry.comparingByValue());
+        return out;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -349,6 +429,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     private static String minSec(int s) { return (s / 60) + ":" + String.format("%02d", s % 60); }
 
     private void returnToLobby() {
+        fogOfWarActive = false;
         Location lobby = plugin.getKmcCore().getArenaManager().getLobby();
         runners.keySet().forEach(uuid -> {
             Player p = Bukkit.getPlayer(uuid);

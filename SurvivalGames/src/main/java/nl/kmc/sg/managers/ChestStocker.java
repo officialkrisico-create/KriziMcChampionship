@@ -33,7 +33,7 @@ import java.util.*;
  */
 public class ChestStocker {
 
-    public enum Tier { CORNUCOPIA, OUTER }
+    public enum Tier { CORNUCOPIA, OUTER, FEAST }
 
     public record LootEntry(Material material, int minAmount, int maxAmount,
                             double chance, Map<String, Integer> enchants, String customName) {}
@@ -51,12 +51,15 @@ public class ChestStocker {
     public void loadLootTables() {
         lootTables.put(Tier.CORNUCOPIA, new ArrayList<>());
         lootTables.put(Tier.OUTER, new ArrayList<>());
+        lootTables.put(Tier.FEAST, new ArrayList<>());
         var cfg = plugin.getConfig();
         loadTier(cfg, "loot.cornucopia", Tier.CORNUCOPIA);
         loadTier(cfg, "loot.outer", Tier.OUTER);
+        loadTier(cfg, "loot.feast", Tier.FEAST);
         plugin.getLogger().info("Loaded loot tables: cornucopia="
                 + lootTables.get(Tier.CORNUCOPIA).size() + ", outer="
-                + lootTables.get(Tier.OUTER).size());
+                + lootTables.get(Tier.OUTER).size() + ", feast="
+                + lootTables.get(Tier.FEAST).size());
     }
 
     private void loadTier(org.bukkit.configuration.file.FileConfiguration cfg,
@@ -66,7 +69,9 @@ public class ChestStocker {
         for (Object o : list) {
             if (!(o instanceof java.util.Map<?, ?> m)) continue;
             try {
-                Material mat = Material.valueOf(String.valueOf(m.get("material")).toUpperCase());
+                String matName = String.valueOf(m.get("material"));
+                Material mat = Material.matchMaterial(matName);
+                if (mat == null) throw new IllegalArgumentException("Unknown material: " + matName);
                 int minA = m.containsKey("min") ? ((Number) m.get("min")).intValue() : 1;
                 int maxA = m.containsKey("max") ? ((Number) m.get("max")).intValue() : minA;
                 double chance = m.containsKey("chance") ? ((Number) m.get("chance")).doubleValue() : 1.0;
@@ -207,6 +212,21 @@ public class ChestStocker {
             }
         }
         return stack;
+    }
+
+    /**
+     * Places (or re-fills, if one's already there) a single chest of
+     * guaranteed top-tier "Feast" loot directly at the given centre —
+     * the one-time deathmatch reward that draws every survivor back to
+     * the cornucopia. Returns false if the location's world is missing.
+     */
+    public boolean spawnFeastChest(Location center) {
+        if (center == null || center.getWorld() == null) return false;
+        Block b = center.clone().add(0, 1, 0).getBlock();
+        b.setType(Material.CHEST);
+        if (!(b.getState() instanceof Chest chest)) return false;
+        fillChest(chest, Tier.FEAST);
+        return true;
     }
 
     public void cancelTasks() {

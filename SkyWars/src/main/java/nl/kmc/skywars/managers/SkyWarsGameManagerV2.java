@@ -46,8 +46,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     private int  remainingSeconds;
     private long gameStartMs;
 
-    private final Map<UUID, UUID> lastAttacker   = new HashMap<>();
-    private final Map<UUID, Long> lastAttackerMs = new HashMap<>();
+    private final AssistTracker assistTracker = new AssistTracker();
 
     private ShrinkingRingRenderer ringRenderer;
     private boolean deathmatchActive = false;
@@ -64,8 +63,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         stats.clear();
         teams.clear();
         eliminationCounter = 0;
-        lastAttacker.clear();
-        lastAttackerMs.clear();
+        assistTracker.clearAll();
         deathmatchActive   = false;
         ringRenderer = new ShrinkingRingRenderer(
                 plugin.getConfig().getDouble("game.deathmatch-ring-start", 40),
@@ -283,15 +281,11 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     // ── Public game events ────────────────────────────────────────────────────
 
     public void recordAttack(UUID victim, UUID attacker) {
-        if (victim.equals(attacker)) return;
-        lastAttacker.put(victim, attacker);
-        lastAttackerMs.put(victim, System.currentTimeMillis());
+        assistTracker.recordHit(victim, attacker);
     }
 
     public Player getRecentAttacker(UUID victim) {
-        Long when = lastAttackerMs.get(victim);
-        if (when == null || System.currentTimeMillis() - when > 10_000) return null;
-        UUID id = lastAttacker.get(victim);
+        UUID id = assistTracker.getKiller(victim);
         return id != null ? Bukkit.getPlayer(id) : null;
     }
 
@@ -311,9 +305,23 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             PlayerStats ks = stats.get(killer.getUniqueId());
             if (ks != null) ks.incrementKills();
             int killPts = plugin.getConfig().getInt("points.per-kill", 50);
-            api.points().givePoints(killer.getUniqueId(), killPts, PointAward.Reason.KILL, registration.getId());
+
+            UUID assistId = assistTracker.getAssist(victim.getUniqueId());
+            double assistFraction = plugin.getConfig().getDouble("points.assist-fraction", 0.2);
+            var split = AssistTracker.split(killPts, assistId, assistFraction);
+
+            api.points().givePoints(killer.getUniqueId(), split.killerAmount(), PointAward.Reason.KILL, registration.getId());
+            if (assistId != null && split.assistAmount() > 0) {
+                api.points().givePoints(assistId, split.assistAmount(), PointAward.Reason.ASSIST, registration.getId());
+                Player assistPlayer = Bukkit.getPlayer(assistId);
+                if (assistPlayer != null)
+                    assistPlayer.sendMessage("§e+ " + split.assistAmount() + " §7punten voor de assist op §f" + victim.getName());
+            }
+            assistTracker.clear(victim.getUniqueId());
+
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         } else {
+            assistTracker.clear(victim.getUniqueId());
             broadcast("§c☠ §7" + victim.getName() + " §7" + reason);
         }
 

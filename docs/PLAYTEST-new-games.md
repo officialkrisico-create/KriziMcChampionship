@@ -1,4 +1,4 @@
-# Playtest Runbook — New / Reworked Games
+![img.png](img.png)# Playtest Runbook — New / Reworked Games
 
 Covers the three games changed this cycle:
 - **TGTTOS V2** (reworked) — 5-map rounds + dynamic 50% finish

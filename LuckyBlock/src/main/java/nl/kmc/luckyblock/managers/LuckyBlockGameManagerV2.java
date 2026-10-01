@@ -31,6 +31,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
 
     private BukkitTask timeLimitTask;
     private BossBar    bossBar;
+    private StandardStartFlow startFlow;
 
     public LuckyBlockGameManagerV2(LuckyBlockPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -63,24 +64,43 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.GOLD + "" + ChatColor.BOLD + "Lucky Block",
                 BarColor.YELLOW, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = alivePlayers.stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§6§lLUCKY BLOCK"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§6§l» §fSla lucky blocks kapot voor willekeurige loot.",
+                                "§6§l» §fSoms goed, soms... minder goed.",
+                                "§6§l» §fEen gevecht eliminert spelers permanent.",
+                                "§6§l» §fLaatste speler die overblijft wint!");
+                    }
+                    @Override public Location flyoverCenter() {
+                        return plugin.getKmcCore().getSchematicManager().getOriginForGame("lucky_block");
+                    }
+                    @Override public void onFinished() { beginTimer(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§6§l[Lucky Block] §eBreak lucky blocks! Last player alive wins!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginTimer() {
         bossBar.setColor(BarColor.GREEN);
         updateBossBar();
-
-        for (UUID uuid : alivePlayers) {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p == null) continue;
-            p.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "Lucky Block!",
-                    ChatColor.YELLOW + "Last player alive wins!", 10, 60, 20);
-        }
 
         int maxDuration = plugin.getConfig().getInt("game.max-duration-seconds", 300);
         if (maxDuration > 0) {
@@ -94,6 +114,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
     protected void onGameEnd() {
         if (timeLimitTask != null) { timeLimitTask.cancel(); timeLimitTask = null; }
         if (bossBar       != null) { bossBar.removeAll();   bossBar       = null; }
+        if (startFlow     != null) { startFlow.cancel();    startFlow     = null; }
 
         // Build finish order: survivors first (sorted by UUID insertion), then eliminated in reverse order
         List<UUID> finishOrder = new ArrayList<>();

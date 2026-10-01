@@ -51,6 +51,10 @@ public abstract class BaseGameManager implements Listener {
     // Participants who joined this game instance
     private final List<UUID> participants = new ArrayList<>();
 
+    // Live MVP-crown particle effect (follows the current tournament points leader).
+    private org.bukkit.scheduler.BukkitTask mvpCrownTask;
+    private double mvpCrownAngle;
+
     protected BaseGameManager(JavaPlugin plugin, GameRegistration registration,
                                StatisticsService statsService) {
         this.plugin       = plugin;
@@ -272,6 +276,7 @@ public abstract class BaseGameManager implements Listener {
     private void abortToIdle() {
         cancelTask(countdownTask);
         cancelTask(graceTask);
+        stopMvpCrown();
         try { HandlerList.unregisterAll(this); }                       catch (Exception ignored) {}
         try { api.games().clearScoreboard(registration.getId()); }     catch (Exception ignored) {}
         try { api.games().releaseScoreboard(registration.getId()); }   catch (Exception ignored) {}
@@ -318,6 +323,9 @@ public abstract class BaseGameManager implements Listener {
                 "games." + registration.getId() + ".grace-period", 15);
         graceTask = Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, () -> {
             transitionTo(GameState.ACTIVE);
+            GameSfx.playToAll(plugin, participantPlayers(), "game-start",
+                    org.bukkit.Sound.EVENT_RAID_HORN, 1f, 1f);
+            startMvpCrown();
             onGameStart();
             graceTask = -1;
         }, graceSeconds * 20L);
@@ -334,7 +342,10 @@ public abstract class BaseGameManager implements Listener {
         if (state == GameState.ENDED) return;
         cancelTask(countdownTask);
         cancelTask(graceTask);
+        stopMvpCrown();
         transitionTo(GameState.ENDED);
+        GameSfx.playToAll(plugin, participantPlayers(), "game-end",
+                org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         try { statsService.onGameEnd(); }                            catch (Throwable t) { log.warning("statsService.onGameEnd failed: " + t); }
         try { api.games().clearScoreboard(registration.getId()); }   catch (Throwable t) { log.warning("clearScoreboard failed: " + t); }
         try { api.games().releaseScoreboard(registration.getId()); } catch (Throwable t) { log.warning("releaseScoreboard failed: " + t); }
@@ -439,6 +450,49 @@ public abstract class BaseGameManager implements Listener {
                 .map(Bukkit::getPlayer)
                 .filter(Objects::nonNull)
                 .forEach(p -> p.sendMessage(message));
+    }
+
+    /** Currently-online participants, for sound/effect fan-out. */
+    private List<Player> participantPlayers() {
+        return participants.stream()
+                .map(Bukkit::getPlayer)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Starts a small rotating gold-dust "crown" above whichever participant
+     * currently has the most tournament points — live, so it follows the
+     * lead as it changes mid-game. Runs for every game via this shared base,
+     * no per-game wiring needed.
+     */
+    private void startMvpCrown() {
+        mvpCrownTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            List<Player> online = participantPlayers();
+            if (online.isEmpty()) return;
+            Player leader = null;
+            int best = -1;
+            for (Player p : online) {
+                int pts = api.stats().getPoints(p.getUniqueId());
+                if (pts > best) { best = pts; leader = p; }
+            }
+            if (leader == null || best <= 0) return;
+
+            mvpCrownAngle += 0.35;
+            org.bukkit.World world = leader.getWorld();
+            org.bukkit.Location head = leader.getLocation().add(0, 2.5, 0);
+            int points = 6;
+            for (int i = 0; i < points; i++) {
+                double a = mvpCrownAngle + (2 * Math.PI * i / points);
+                double x = Math.cos(a) * 0.4, z = Math.sin(a) * 0.4;
+                world.spawnParticle(org.bukkit.Particle.DUST, head.clone().add(x, 0, z), 1, 0, 0, 0, 0,
+                        new org.bukkit.Particle.DustOptions(org.bukkit.Color.fromRGB(255, 215, 0), 1.1f));
+            }
+        }, 10L, 2L);
+    }
+
+    private void stopMvpCrown() {
+        if (mvpCrownTask != null) { mvpCrownTask.cancel(); mvpCrownTask = null; }
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────

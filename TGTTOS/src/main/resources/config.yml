@@ -27,6 +27,16 @@ game:
   # Time between maps (seconds)
   intermission-seconds: 8
 
+  # Chance (0-1) that a map rolls "Fog of War": refreshed short Blindness
+  # for every still-racing player, so you only make out what's right in
+  # front of you. Set to 0 to disable.
+  fog-of-war-chance: 0.15
+
+  # Whoever is currently furthest from the finish gets a brief Speed II,
+  # recalculated every second (never sticks to someone who caught up).
+  # Only kicks in with 3+ players still racing. Set to false to disable.
+  rubber-banding: true
+
 points:
   # Per-round placement (top 5 explicitly specified; 6th+ get 0)
   round-placement:

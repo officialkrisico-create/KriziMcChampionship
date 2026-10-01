@@ -2,6 +2,7 @@ package nl.kmc.kmccore.simulation;
 
 import nl.kmc.kmccore.KMCCore;
 import nl.kmc.core.domain.KMCTeam;
+import nl.kmc.kmccore.models.KMCGame;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.snapshot.SnapshotManager;
 import org.bukkit.Bukkit;
@@ -11,36 +12,32 @@ import org.bukkit.command.CommandSender;
 import java.util.*;
 
 /**
- * Dry-run simulator — runs a fake tournament without real players or
- * minigames. Generates fake game-end events and feeds them through the
- * standard point-award pipeline so admins can verify:
+ * Dry-run simulator — runs a tournament with fake bot players instead of
+ * real ones, but through the EXACT same pipeline a live tournament uses:
+ * {@link nl.kmc.kmccore.managers.TournamentManager#start()}, the real
+ * {@link nl.kmc.kmccore.managers.GameManager} rotation (respects enabled
+ * games and never repeats one until every game has had a turn, same as
+ * {@code /kmcauto}), real {@code awardPlayerPlacement}/{@code awardKill}
+ * calls (so the round multiplier and points.yml curve apply exactly as in
+ * a real game), and the real {@code endTournament()} — so you get a real
+ * post-event book, a real Fan Favorite vote, and a real tournament-history
+ * entry, exactly as if 13+ people had actually played it out.
  *
- * <ul>
- *   <li>Scoring math (placement, kills, multipliers)</li>
- *   <li>Round transitions (multiplier escalation across rounds)</li>
- *   <li>Finals/winner detection</li>
- *   <li>End-of-tournament cleanup</li>
- * </ul>
+ * <p><b>This means it has real, lasting effects</b> — unlike the old
+ * version of this tool, nothing is snapshotted-and-restored afterward.
+ * A full run (reaches the last configured round) ends through the real
+ * {@code endTournament()}, which itself resets points/team scores as its
+ * normal last step — same as any real tournament. A short run (you asked
+ * for fewer rounds than {@code tournament.total-rounds}) ends through the
+ * real {@code stop()} instead (no book, scores NOT reset), exactly like an
+ * admin running {@code /kmctournament stop} early for real.
  *
- * <p><b>Important:</b> the simulator uses your EXISTING configured teams
- * (it can't create new ones — TeamManager doesn't expose that API).
- * Fake players are temporarily assigned to your real teams. The
- * pre-simulation snapshot restores the real state when the sim ends, so
- * your real player/team rosters are not affected.
- *
- * <p><b>Caveat:</b> if no teams are configured, the simulator can't run
- * properly. You need at least 2 configured teams.
+ * <p>Refuses to run if a real tournament is already active, so it can
+ * never hijack a live event.
  */
 public class SimulationEngine {
 
     private static final String SIM_PREFIX = "[SIM] ";
-
-    /** Game IDs to randomly pick from each round. */
-    private static final List<String> GAME_IDS = List.of(
-            "adventure_escape", "skywars", "survival_games", "quakecraft",
-            "parkour_warrior", "tgttos", "the_bridge", "elytra_endrium",
-            "spleef", "meltdown_mayhem", "mob_mayhem", "lucky_block", "bingo"
-    );
 
     private final KMCCore plugin;
     private boolean running = false;
@@ -50,15 +47,21 @@ public class SimulationEngine {
     public boolean isRunning() { return running; }
 
     /**
-     * Runs a full simulation. Schedules round-by-round on the main
-     * thread via Bukkit scheduler so we don't fight thread safety.
+     * Runs the simulation. Schedules round-by-round on the main thread via
+     * the Bukkit scheduler so we don't fight thread safety, and so each
+     * round's broadcasts are readable instead of dumped all at once.
+     *
+     * @param requestedRounds how many rounds to simulate; clamped to
+     *                        {@code tournament.total-rounds} — running fewer
+     *                        than that stops the tournament early (like
+     *                        {@code /kmctournament stop}) instead of ending it.
      */
-    public void run(CommandSender sender, int rounds, int playerN) {
+    public void run(CommandSender sender, int requestedRounds, int playerN) {
         if (running) {
             sender.sendMessage(ChatColor.RED + SIM_PREFIX + "Simulatie draait al.");
             return;
         }
-        if (rounds < 1 || rounds > 20) {
+        if (requestedRounds < 1 || requestedRounds > 20) {
             sender.sendMessage(ChatColor.RED + SIM_PREFIX + "Rounds moet tussen 1 en 20 zijn.");
             return;
         }
@@ -66,8 +69,12 @@ public class SimulationEngine {
             sender.sendMessage(ChatColor.RED + SIM_PREFIX + "Players moet tussen 4 en 256 zijn.");
             return;
         }
+        if (plugin.getTournamentManager().isActive()) {
+            sender.sendMessage(ChatColor.RED + SIM_PREFIX
+                    + "Er draait al een ECHT toernooi — simulatie zou dat kapen. Stop of beëindig dat eerst.");
+            return;
+        }
 
-        // Need at least 2 existing teams
         Collection<KMCTeam> teams = plugin.getTeamManager().getAllTeams();
         if (teams.size() < 2) {
             sender.sendMessage(ChatColor.RED + SIM_PREFIX
@@ -75,73 +82,103 @@ public class SimulationEngine {
                     + teams.size());
             return;
         }
+        if (plugin.getGameManager().getEnabledGames().isEmpty()) {
+            sender.sendMessage(ChatColor.RED + SIM_PREFIX
+                    + "Geen enkele game staat aan in de rotatie (games.list.*.enabled) — niks om te simuleren.");
+            return;
+        }
 
         running = true;
+
+        int totalRounds = plugin.getConfig().getInt("tournament.total-rounds", 5);
+        int roundsToRun = Math.min(requestedRounds, totalRounds);
+        boolean fullRun = roundsToRun >= totalRounds;
+
         send(sender, "&6═══════════════════════════════════════");
         send(sender, "&6&l    DRY-RUN SIMULATION STARTING");
         send(sender, "&6═══════════════════════════════════════");
-        send(sender, "&7Rounds: &e" + rounds + "  &7Players: &e" + playerN
-                + "  &7Teams: &e" + teams.size() + " &7(uses existing)");
+        send(sender, "&7Simuleert &e" + roundsToRun + "&7/&e" + totalRounds
+                + " &7rondes  &7Players: &e" + playerN + "  &7Teams: &e" + teams.size() + " &7(bestaande teams)");
+        if (!fullRun) {
+            send(sender, "&eLet op: &7minder rondes dan het echte toernooi (" + totalRounds
+                    + ") — dit eindigt als een vroegtijdige /kmctournament stop: GEEN boek, punten blijven staan.");
+        } else {
+            send(sender, "&eDit draait het ECHTE endTournament()&7: boek, Fan Favorite-stemming, geschiedenis, puntenreset.");
+        }
 
-        // 1. Snapshot real state so we can restore after sim
+        // Safety checkpoint an admin can manually roll back to with /event rollback
+        // (not auto-restored — that would undo the very realism you asked for).
         SnapshotManager sm = plugin.getSnapshotManager();
-        var snap = sm.snapshot("sim-pre-" + System.currentTimeMillis());
+        var preSnap = sm.snapshot("sim-pre-" + System.currentTimeMillis());
+        send(sender, "&7(Veiligheids-snapshot &f" + preSnap.label + "&7 gemaakt — handmatig terug te draaien met /event rollback.)");
 
-        // 2. Build fake state — distribute fake players across real teams
+        // Fake bots, attached to your real teams.
         SimState st = generateFakeState(playerN, new ArrayList<>(teams));
         registerFakePlayersInDB(st);
         attachFakePlayersToTeams(st);
 
-        // 3. Schedule rounds with 5s spacing for log readability
-        int delayPerRound = 100;  // 5 seconds (in ticks)
-        for (int round = 1; round <= rounds; round++) {
+        // Real tournament start — increments the real KMC event number.
+        plugin.getTournamentManager().start();
+
+        int delayPerRound = 100; // 5 seconds (in ticks), for readable logs
+        for (int round = 1; round <= roundsToRun; round++) {
             final int finalRound = round;
+            final boolean isLastSimulatedRound = (round == roundsToRun);
             Bukkit.getScheduler().runTaskLater(plugin,
-                    () -> simulateRound(sender, st, finalRound, rounds),
+                    () -> simulateRound(sender, st, finalRound, roundsToRun, isLastSimulatedRound),
                     (long) round * delayPerRound);
         }
 
-        // 4. Wrap up + restore
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            printFinalStandings(sender, st);
-            send(sender, "&7Restoring pre-simulation state...");
-            sm.restore(snap.label);
+            if (fullRun) {
+                send(sender, "&7Laatste ronde bereikt — echte endTournament() wordt aangeroepen...");
+                plugin.getTournamentManager().endTournament();
+            } else {
+                send(sender, "&7Simulatie gestopt vóór het einde — echte stop() wordt aangeroepen (geen boek).");
+                plugin.getTournamentManager().stop();
+            }
             cleanupFakePlayers(st);
-            send(sender, "&aSimulation complete. Real state restored.");
+            send(sender, "&aSimulatie klaar.");
             running = false;
-        }, (long) (rounds + 1) * delayPerRound);
+        }, (long) (roundsToRun + 1) * delayPerRound);
     }
 
     // ----------------------------------------------------------------
     // Round simulation
     // ----------------------------------------------------------------
 
-    private void simulateRound(CommandSender sender, SimState st, int round, int totalRounds) {
-        Random rng = new Random(System.nanoTime() + round);
+    private void simulateRound(CommandSender sender, SimState st, int round, int roundsToRun, boolean isLastSimulatedRound) {
+        Random rng = new Random();
 
-        String gameId = GAME_IDS.get(rng.nextInt(GAME_IDS.size()));
-        double mul = plugin.getPointsManager().getMultiplierForRound(round);
+        KMCGame game = plugin.getGameManager().randomNextGame();
+        if (game == null) {
+            send(sender, "&c[SIM] Geen beschikbare game gevonden voor ronde " + round + " — overgeslagen.");
+            return;
+        }
+        String gameId = game.getId();
+        plugin.getGameManager().markGamePlayedForSimulation(gameId);
 
+        // Same reveal point as a real /kmcauto game launch — see AutomationManager.launchGame().
+        plugin.getTournamentManager().revealGoldenHourIfDue();
+
+        double mul = plugin.getTournamentManager().getMultiplier();
         send(sender, "");
-        send(sender, "&6── Round " + round + "/" + totalRounds + " — &e" + gameId
+        send(sender, "&6── Round " + plugin.getTournamentManager().getCurrentRound() + "/"
+                + plugin.getTournamentManager().getTotalRounds() + " — &e" + game.getDisplayName()
                 + " &6(×" + mul + " multiplier) ──");
 
         List<UUID> playerOrder = new ArrayList<>(st.fakePlayers);
         Collections.shuffle(playerOrder, rng);
 
-        int basePerSlot      = 100;
-        int decreasePerPlace = 10;
-
         for (int i = 0; i < playerOrder.size(); i++) {
             UUID uuid = playerOrder.get(i);
-            int placement  = i + 1;
-            int basePoints = Math.max(10, basePerSlot - (i * decreasePerPlace));
+            int placement = i + 1;
 
-            // Apply multiplier — same path as real games via KMCApi.givePoints
-            plugin.getApi().givePoints(uuid, basePoints);
+            // Real scoring path — same points.yml placement curve + round
+            // multiplier a real game's awardPlayerPlacement() call applies.
+            plugin.getPointsManager().awardPlayerPlacement(uuid, placement);
 
-            // Random 0-3 kills
-            int kills = rng.nextInt(4);
+            int kills = rng.nextInt(4); // 0-3 simulated kills
             for (int k = 0; k < kills; k++) {
                 plugin.getPointsManager().awardKill(uuid);
             }
@@ -153,16 +190,17 @@ public class SimulationEngine {
             }
         }
 
-        // Advance the tournament round
-        try { plugin.getTournamentManager().setRound(round); } catch (Exception ignored) {}
+        // Advance the REAL tournament round — exactly what /kmcauto does between
+        // games, except we don't advance past the last round we're simulating
+        // (that's left to endTournament()/stop() in the wrap-up).
+        if (!isLastSimulatedRound) {
+            plugin.getTournamentManager().nextRound();
+        }
 
-        // Snapshot at round-start
-        plugin.getSnapshotManager().snapshot("sim-round-" + round);
-
-        printRoundStandings(sender, st, round);
+        printRoundStandings(sender, round);
     }
 
-    private void printRoundStandings(CommandSender sender, SimState st, int round) {
+    private void printRoundStandings(CommandSender sender, int round) {
         send(sender, "&7Top 3 teams na round " + round + ":");
         List<KMCTeam> teams = new ArrayList<>(plugin.getTeamManager().getAllTeams());
         teams.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
@@ -174,44 +212,12 @@ public class SimulationEngine {
         }
     }
 
-    private void printFinalStandings(CommandSender sender, SimState st) {
-        send(sender, "");
-        send(sender, "&6═══════════════════════════════════════");
-        send(sender, "&6&l   FINAL STANDINGS (Simulated)");
-        send(sender, "&6═══════════════════════════════════════");
-
-        List<KMCTeam> teams = new ArrayList<>(plugin.getTeamManager().getAllTeams());
-        teams.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
-        send(sender, "&eTeams:");
-        for (int i = 0; i < teams.size(); i++) {
-            KMCTeam t = teams.get(i);
-            send(sender, "  &7#" + (i + 1) + " &f" + t.getDisplayName()
-                    + " &7- &e" + t.getPoints() + " pts");
-        }
-
-        // Top 5 fake players
-        List<PlayerData> players = new ArrayList<>();
-        for (UUID uuid : st.fakePlayers) {
-            PlayerData pd = plugin.getPlayerDataManager().get(uuid);
-            if (pd != null) players.add(pd);
-        }
-        players.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
-        send(sender, "&eTop 5 spelers:");
-        for (int i = 0; i < Math.min(5, players.size()); i++) {
-            PlayerData pd = players.get(i);
-            send(sender, "  &7#" + (i + 1) + " &f" + pd.getName()
-                    + " &7- &e" + pd.getPoints() + " pts &7("
-                    + pd.getKills() + " kills, " + pd.getWins() + " wins)");
-        }
-    }
-
     // ----------------------------------------------------------------
     // Fake state generation
     // ----------------------------------------------------------------
 
     private SimState generateFakeState(int playerN, List<KMCTeam> teams) {
         SimState st = new SimState();
-        Random rng = new Random();
 
         // Distribute playerN across teams as evenly as possible
         for (int p = 0; p < playerN; p++) {

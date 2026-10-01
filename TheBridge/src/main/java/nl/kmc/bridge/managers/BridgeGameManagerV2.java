@@ -34,6 +34,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private int        remainingSeconds;
     private long       gameStartMs;
+    private StandardStartFlow startFlow;
 
     private final Map<UUID, Long> goalCooldown   = new HashMap<>();
     private final Map<UUID, UUID> lastAttacker   = new HashMap<>();
@@ -68,21 +69,56 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
             stats.put(p.getUniqueId(), new PlayerStats(p.getUniqueId(), p.getName(), teamId));
-            plugin.getKitManager().giveKit(p, bridgeTeams.get(teamId));
+            // Kit is given once the start presentation finishes (see startFlow below),
+            // not immediately — players shouldn't be holding blocks during the intro/flyover.
         }
 
         bossBar = Bukkit.createBossBar(ChatColor.BLUE + "" + ChatColor.BOLD + "The Bridge",
                 BarColor.BLUE, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = stats.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+        Location center = bridgeTeams.values().stream()
+                .map(BridgeTeam::getSpawn).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+        int goalsToWin = plugin.getConfig().getInt("game.goals-to-win", 5);
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§9§lTHE BRIDGE"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§9§l» §fBouw een brug naar het doel van de tegenstander.",
+                                "§9§l» §fScoor door in hun doelgat te stappen.",
+                                "§9§l» §fVal in de void? Dan respawn je bij je eigen team.",
+                                "§9§l» §fEerste team tot §e" + goalsToWin + " §fdoelpunten wint!");
+                    }
+                    @Override public Location flyoverCenter() { return center; }
+                    @Override public void onFinished() {
+                        for (var e : stats.entrySet()) {
+                            Player p = Bukkit.getPlayer(e.getKey());
+                            if (p != null) plugin.getKitManager().giveKit(p, bridgeTeams.get(e.getValue().getTeamId()));
+                        }
+                        beginRoundTimers();
+                    }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§9§l[The Bridge] §eStart building bridges to the enemy's goal!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginRoundTimers() {
         gameStartMs      = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480);
 
@@ -99,6 +135,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
         if (voidCheckTask != null) { voidCheckTask.cancel(); voidCheckTask = null; }
         if (bossBar       != null) { bossBar.removeAll();    bossBar       = null; }
+        if (startFlow     != null) { startFlow.cancel();     startFlow     = null; }
 
         // Rank teams by goals, tiebreak: kills
         List<BridgeTeam> ranked = new ArrayList<>(bridgeTeams.values());

@@ -54,11 +54,11 @@ public final class BlockPartyPlugin extends AbstractGamePlugin {
         List<SetupStep> s = new ArrayList<>();
         s.add(SetupStep.action("Vloer-hoek 1", a.getPos1() != null ? "✓ gezet" : "niet gezet", a.getPos1() != null,
                 Material.RED_CONCRETE,
-                p -> { a.setCorner1(p.getLocation()); p.sendMessage("§a[Setup] Vloer-hoek 1 gezet."); },
+                p -> { a.setCorner1(p.getLocation().subtract(0, 1, 0)); p.sendMessage("§a[Setup] Vloer-hoek 1 gezet."); },
                 "Klik: zet de eerste hoek van de vloer"));
         s.add(SetupStep.action("Vloer-hoek 2", a.getPos2() != null ? "✓ gezet" : "niet gezet", a.getPos2() != null,
                 Material.BLUE_CONCRETE,
-                p -> { a.setCorner2(p.getLocation()); p.sendMessage("§a[Setup] Vloer-hoek 2 gezet (oppervlak: " + a.area() + ")."); },
+                p -> { a.setCorner2(p.getLocation().subtract(0, 1, 0)); p.sendMessage("§a[Setup] Vloer-hoek 2 gezet (oppervlak: " + a.area() + ")."); },
                 "Klik: zet de tweede hoek van de vloer"));
         s.add(SetupStep.action("Spectator-spawn", a.getSpectator() != null ? "✓ gezet" : "niet gezet", a.getSpectator() != null,
                 Material.ENDER_EYE,

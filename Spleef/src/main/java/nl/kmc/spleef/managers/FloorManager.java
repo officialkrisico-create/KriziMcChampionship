@@ -180,7 +180,7 @@ public class FloorManager {
     }
 
     private static Material parseMaterial(String name, Material fallback) {
-        try { return Material.valueOf(name.toUpperCase()); }
-        catch (Exception e) { return fallback; }
+        Material m = Material.matchMaterial(name);
+        return m != null ? m : fallback;
     }
 }

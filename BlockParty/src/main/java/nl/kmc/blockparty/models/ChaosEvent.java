@@ -15,7 +15,8 @@ public enum ChaosEvent {
     FAKE_COLOR    ("§c⚠ FAKE COLOR",    "§7De getoonde kleur is FOUT — let op de hint"),
     RANDOM_TP     ("§d✦ RANDOM TELEPORT","§7Iedereen wordt herplaatst"),
     COLOR_BLIND   ("§7◑ COLOR BLIND",    "§7Geen kleurnaam — herken het zelf"),
-    RAPID_FIRE    ("§6⚡ RAPID FIRE",     "§7Extra korte timer");
+    RAPID_FIRE    ("§6⚡ RAPID FIRE",     "§7Extra korte timer"),
+    MIRROR        ("§5⇄ MIRROR",         "§7De getoonde kleur is juist FOUT om op te staan!");
 
     private final String title;
     private final String subtitle;

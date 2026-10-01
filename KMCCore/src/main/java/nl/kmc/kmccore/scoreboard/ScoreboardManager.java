@@ -72,6 +72,11 @@ public class ScoreboardManager {
 
     private BukkitTask updateTask;
 
+    /** Leadership-flash: briefly recolour the sidebar title when the #1 team changes. */
+    private String    lastLeaderId;
+    private ChatColor flashColor = ChatColor.WHITE;
+    private long      flashUntilMs = 0L;
+
     /** Called by the game API when a game wants to render its own sidebar. */
     public void setGameBoard(String gameId, nl.kmc.core.api.GameScoreboard board) {
         this.gameBoardOwner = gameId;
@@ -102,6 +107,7 @@ public class ScoreboardManager {
     // ====================================================================
 
     private void tickAll() {
+        checkLeaderChange();
         // While a game owns the board we keep ticking ONLY if it supplied a
         // per-game sidebar; otherwise leave the lobby sidebar as-is.
         if (plugin.getApi().isScoreboardOwnedByMinigame() && gameBoard == null) return;
@@ -158,7 +164,9 @@ public class ScoreboardManager {
             lines = safeLines(player);
             if (lines == null) return;               // game opted out for this tick → freeze
         } else {
-            title = MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC"));
+            title = isFlashing()
+                    ? flashColor + "" + ChatColor.BOLD + "⬆ NIEUWE KOPLOPER ⬆"
+                    : MessageUtil.color(plugin.getConfig().getString("scoreboard.title", "&6&lKMC"));
             lines = buildLines(player);
         }
 
@@ -270,6 +278,33 @@ public class ScoreboardManager {
         int index = plugin.getTeamManager().getTeamsInOrder().indexOf(kmcTeam);
         return String.format("%02d_%s", index, kmcTeam.getId());
     }
+
+    // ====================================================================
+    // Leadership-flash
+    // ====================================================================
+
+    /** Detects a change of #1 team and starts a brief title-colour flash if so. */
+    private void checkLeaderChange() {
+        List<KMCTeam> standings = plugin.getTeamManager().getTeamsSortedByPoints();
+        if (standings.isEmpty()) return;
+        KMCTeam leader = standings.get(0);
+
+        // Nobody has scored yet — don't flash on tie-break reshuffles at 0 points.
+        if (leader.getPoints() <= 0) { lastLeaderId = leader.getId(); return; }
+
+        if (lastLeaderId != null && !lastLeaderId.equals(leader.getId())) {
+            flashColor   = leader.getColor();
+            flashUntilMs = System.currentTimeMillis() + 3000L;
+            for (Player p : Bukkit.getOnlinePlayers())
+                p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
+            Bukkit.broadcastMessage(MessageUtil.color(
+                    leader.getColor() + "" + ChatColor.BOLD + "⬆ " + leader.getDisplayName()
+                            + " &r&eneemt de leiding over!"));
+        }
+        lastLeaderId = leader.getId();
+    }
+
+    private boolean isFlashing() { return System.currentTimeMillis() < flashUntilMs; }
 
     // ====================================================================
     // Lifecycle

@@ -72,7 +72,8 @@ public class ChestStocker {
             if (!(o instanceof java.util.Map<?, ?> m)) continue;
             try {
                 String matName = String.valueOf(m.get("material"));
-                Material mat = Material.valueOf(matName.toUpperCase());
+                Material mat = Material.matchMaterial(matName);
+                if (mat == null) throw new IllegalArgumentException("Unknown material: " + matName);
                 int minA = m.containsKey("min") ? ((Number) m.get("min")).intValue() : 1;
                 int maxA = m.containsKey("max") ? ((Number) m.get("max")).intValue() : minA;
                 double chance = m.containsKey("chance") ? ((Number) m.get("chance")).doubleValue() : 1.0;

@@ -55,10 +55,8 @@ public class EffectBlockManager {
             ConfigurationSection b = sec.getConfigurationSection(id);
             if (b == null) continue;
 
-            Material mat;
-            try {
-                mat = Material.valueOf(b.getString("material", "STONE").toUpperCase());
-            } catch (IllegalArgumentException e) {
+            Material mat = Material.matchMaterial(b.getString("material", "STONE"));
+            if (mat == null) {
                 plugin.getLogger().warning("Invalid material for effect block " + id);
                 continue;
             }

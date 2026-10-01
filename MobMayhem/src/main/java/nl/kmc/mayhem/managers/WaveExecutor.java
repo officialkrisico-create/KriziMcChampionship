@@ -43,6 +43,10 @@ public class WaveExecutor {
 
     private BukkitTask  watchTask;
     private boolean     completed;
+    private boolean     bloodMoonActive;
+    private World       bloodMoonWorld;
+    private boolean     bloodMoonPrevStorm;
+    private long        bloodMoonPrevTime;
 
     public WaveExecutor(MobMayhemPlugin plugin, TeamGameState state, Arena arena,
                         WaveDefinition wave, Consumer<Boolean> onComplete) {
@@ -69,13 +73,34 @@ public class WaveExecutor {
         // Apply player-side modifier effects (e.g. blindness)
         applyPlayerModifiers(modifiers);
 
+        if (modifiers.contains(WaveModifier.BLOOD_MOON)) startBloodMoon();
+
         // Spawn mobs
         int multiplier = modifiers.contains(WaveModifier.DOUBLE_MOBS) ? 2 : 1;
+        int attempted = 0;
         for (var entry : wave.getSpawns()) {
             int count = entry.count() * multiplier;
+            attempted += count;
             for (int i = 0; i < count; i++) {
                 spawnOne(entry.type(), modifiers);
             }
+        }
+
+        // Diagnostic: confirm the spawn loop actually produced live, tracked mobs.
+        // If this ever logs 0/N, the spawnEntity() calls themselves are failing
+        // (wrong world, invalid location, etc.) rather than mobs dying after spawn.
+        int actuallyTracked = state.getActiveMobs().size();
+        plugin.getLogger().info("[MobMayhem] Team " + state.getTeamId() + " wave "
+                + wave.getWaveNumber() + ": attempted " + attempted + " spawns, "
+                + actuallyTracked + " tracked as active mobs, "
+                + arena.getMobSpawns().size() + " spawn point(s) available, world="
+                + (arena.getPlayerSpawn() != null && arena.getPlayerSpawn().getWorld() != null
+                        ? arena.getPlayerSpawn().getWorld().getName() : "NULL"));
+        if (attempted > 0 && actuallyTracked == 0) {
+            plugin.getLogger().severe("[MobMayhem] Wave " + wave.getWaveNumber()
+                    + " spawned ZERO trackable mobs out of " + attempted + " attempts — "
+                    + "check the warnings above/below for the cause (invalid spawn location, "
+                    + "wrong world, or entities dying instantly after spawn).");
         }
 
         // Watch task — checks for wave complete every second
@@ -104,6 +129,16 @@ public class WaveExecutor {
                 return;
             }
 
+            // Blood Moon atmosphere: red dust raining near every alive player.
+            if (bloodMoonActive) {
+                for (UUID uuid : state.getAlivePlayers()) {
+                    Player p = Bukkit.getPlayer(uuid);
+                    if (p == null) continue;
+                    p.getWorld().spawnParticle(Particle.DUST, p.getLocation().add(0, 2.2, 0),
+                            8, 0.8, 0.4, 0.8, new Particle.DustOptions(Color.RED, 1.6f));
+                }
+            }
+
             // Time up?
             if (System.currentTimeMillis() >= deadline) {
                 if (plugin.getConfig().getBoolean("game.force-end-wave-on-timeout", true)) {
@@ -129,6 +164,7 @@ public class WaveExecutor {
         state.getActiveMobs().clear();
         // Clear any blindness effects
         clearPlayerModifiers();
+        endBloodMoon();
         completed = true;
     }
 
@@ -138,9 +174,29 @@ public class WaveExecutor {
 
     private void spawnOne(EntityType type, Set<WaveModifier> modifiers) {
         Location spawn = arena.randomMobSpawn();
-        if (spawn == null) return;
+        if (spawn == null) {
+            plugin.getLogger().warning("[MobMayhem] randomMobSpawn() returned null for team "
+                    + state.getTeamId() + " — arena has no mob spawn points?");
+            return;
+        }
 
-        Entity ent = arena.getPlayerSpawn().getWorld().spawnEntity(spawn, type);
+        World spawnWorld = arena.getPlayerSpawn().getWorld();
+        if (spawn.getBlock().getType().isSolid()) {
+            plugin.getLogger().severe("[MobMayhem] Mob spawn point " + fmt(spawn) + " for team "
+                    + state.getTeamId() + " is INSIDE solid terrain (" + spawn.getBlock().getType()
+                    + ") — re-run /mm addmobspawn there while standing in open air in the TEMPLATE world.");
+        }
+        Entity ent = spawnWorld.spawnEntity(spawn, type);
+        if (ent == null) {
+            plugin.getLogger().severe("[MobMayhem] spawnEntity(" + type + ") returned null at "
+                    + fmt(spawn) + " in world '" + spawnWorld.getName() + "'.");
+            return;
+        }
+        if (!ent.isValid() || ent.isDead()) {
+            plugin.getLogger().warning("[MobMayhem] " + type + " spawned at " + fmt(spawn)
+                    + " but was immediately invalid/dead (valid=" + ent.isValid()
+                    + ", dead=" + ent.isDead() + "). Check for suffocation/void/lava at that spot.");
+        }
         if (!(ent instanceof LivingEntity le)) {
             ent.remove();
             return;
@@ -166,6 +222,17 @@ public class WaveExecutor {
                 le.setHealth(maxHealth.getBaseValue());
             }
         }
+        if (modifiers.contains(WaveModifier.BLOOD_MOON)) {
+            var maxHealth = le.getAttribute(Attribute.MAX_HEALTH);
+            if (maxHealth != null) {
+                maxHealth.setBaseValue(maxHealth.getBaseValue() * 3);
+                le.setHealth(maxHealth.getBaseValue());
+            }
+            PotionEffectType speedType = lookup("speed");
+            if (speedType != null) {
+                le.addPotionEffect(new PotionEffect(speedType, Integer.MAX_VALUE, 0, true, false, false));
+            }
+        }
         // Boss extra HP
         if (wave.isBossWave()) {
             var maxHealth = le.getAttribute(Attribute.MAX_HEALTH);
@@ -185,6 +252,10 @@ public class WaveExecutor {
         }
 
         state.addMob(le.getUniqueId());
+    }
+
+    private static String fmt(Location l) {
+        return "(" + l.getBlockX() + ", " + l.getBlockY() + ", " + l.getBlockZ() + ")";
     }
 
     private boolean isBossEntity(EntityType type) {
@@ -225,6 +296,12 @@ public class WaveExecutor {
     private Set<WaveModifier> pickModifiers() {
         Set<WaveModifier> result = new HashSet<>();
         var cfg = plugin.getConfig();
+
+        // Blood Moon is rolled separately — rarer and more dramatic than the
+        // regular modifier pool, so it isn't crowded out by common ones.
+        double bloodMoonChance = cfg.getDouble("modifiers.blood-moon-chance", 0.08);
+        if (Math.random() < bloodMoonChance) result.add(WaveModifier.BLOOD_MOON);
+
         double chance = cfg.getDouble("modifiers.chance", 0.4);
         if (Math.random() >= chance) return result;
 
@@ -285,8 +362,44 @@ public class WaveExecutor {
         completed = true;
         if (watchTask != null) { watchTask.cancel(); watchTask = null; }
         clearPlayerModifiers();
+        endBloodMoon();
         state.completeWave();
         onComplete.accept(survived);
+    }
+
+    // ----------------------------------------------------------------
+    // Blood Moon — rare, dramatic wave modifier: dark stormy sky,
+    // ×3 HP + permanent Speed I on every mob, red dust raining on players.
+    // ----------------------------------------------------------------
+
+    private void startBloodMoon() {
+        World world = arena.getPlayerSpawn().getWorld();
+        if (world == null) return;
+        bloodMoonWorld     = world;
+        bloodMoonPrevTime  = world.getTime();
+        bloodMoonPrevStorm = world.hasStorm();
+        world.setTime(18000L); // midnight
+        world.setStorm(true);
+        world.setThundering(true);
+        bloodMoonActive = true;
+
+        for (UUID uuid : state.getAllPlayers()) {
+            Player p = Bukkit.getPlayer(uuid);
+            if (p == null) continue;
+            p.sendTitle(ChatColor.DARK_RED + "" + ChatColor.BOLD + "🌕 BLOOD MOON",
+                    ChatColor.RED + "De mobs zijn nu véél gevaarlijker...", 10, 60, 20);
+            p.playSound(p.getLocation(), Sound.AMBIENT_CAVE, 1f, 0.6f);
+            p.playSound(p.getLocation(), Sound.ENTITY_WOLF_GROWL, 1f, 0.5f);
+        }
+    }
+
+    private void endBloodMoon() {
+        if (!bloodMoonActive || bloodMoonWorld == null) return;
+        bloodMoonWorld.setStorm(bloodMoonPrevStorm);
+        bloodMoonWorld.setThundering(false);
+        bloodMoonWorld.setTime(bloodMoonPrevTime);
+        bloodMoonActive = false;
+        bloodMoonWorld  = null;
     }
 
     private PotionEffectType lookup(String key) {

@@ -7,7 +7,7 @@ public final class PointAward {
 
     public enum Reason {
         KILL, PLACEMENT, TEAM_PLACEMENT, BONUS, MANUAL, LUCKY_BLOCK,
-        DOUBLE_KILL, TRIPLE_KILL, MEGA_KILL, OBJECTIVE, SURVIVAL_BONUS
+        DOUBLE_KILL, TRIPLE_KILL, MEGA_KILL, OBJECTIVE, SURVIVAL_BONUS, ASSIST
     }
 
     private final UUID   playerUuid;

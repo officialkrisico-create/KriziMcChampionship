@@ -91,6 +91,16 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
                 plugin.getArenaManager().clearMobSpawns();
                 sender.sendMessage(ChatColor.GREEN + "Alle mob spawns gewist.");
             }
+            case "addpowerupspawn" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().addPowerupSpawn(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Powerup-spawn #"
+                        + plugin.getArenaManager().getPowerupSpawnCount() + " toegevoegd.");
+            }
+            case "clearpowerupspawns" -> {
+                plugin.getArenaManager().clearPowerupSpawns();
+                sender.sendMessage(ChatColor.GREEN + "Alle powerup-spawns gewist.");
+            }
             case "status" -> {
                 sender.sendMessage(ChatColor.GOLD + "=== Mob Mayhem Status ===");
                 sender.sendMessage(ChatColor.YELLOW + "State: " + (plugin.getGameManagerV2() != null ? plugin.getGameManagerV2().getState().toString() : "IDLE"));
@@ -121,13 +131,16 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
         s.sendMessage(ChatColor.YELLOW + "/mm setspawn (player)");
         s.sendMessage(ChatColor.YELLOW + "/mm addmobspawn (mob spawn point)");
         s.sendMessage(ChatColor.YELLOW + "/mm clearmobspawns");
+        s.sendMessage(ChatColor.YELLOW + "/mm addpowerupspawn (optioneel)");
+        s.sendMessage(ChatColor.YELLOW + "/mm clearpowerupspawns");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1) {
             return List.of("start", "stop", "settemplate", "setspawn",
-                    "addmobspawn", "clearmobspawns", "status", "reload").stream()
+                    "addmobspawn", "clearmobspawns", "addpowerupspawn", "clearpowerupspawns",
+                    "status", "reload").stream()
                     .filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }

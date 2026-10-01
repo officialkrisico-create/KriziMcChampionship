@@ -115,8 +115,8 @@ public class ArenaManager {
         catch (Exception e) { return fb; }
     }
     private Material parseMaterial(String s, Material fb) {
-        try { return Material.valueOf(s.toUpperCase()); }
-        catch (Exception e) { return fb; }
+        Material m = Material.matchMaterial(s);
+        return m != null ? m : fb;
     }
 
     // ---- Public accessors --------------------------------------

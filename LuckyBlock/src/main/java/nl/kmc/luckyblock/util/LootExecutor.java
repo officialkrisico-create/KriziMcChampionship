@@ -112,10 +112,10 @@ public class LootExecutor {
             case FULL_ARMOR -> {
                 Material base = entry.getArmorMaterial();
                 String prefix = base.name().split("_")[0]; // e.g. DIAMOND
-                giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_HELMET")));
-                giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_CHESTPLATE")));
-                giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_LEGGINGS")));
-                giveOrDrop(player, new ItemStack(Material.valueOf(prefix + "_BOOTS")));
+                for (String suffix : new String[]{"_HELMET", "_CHESTPLATE", "_LEGGINGS", "_BOOTS"}) {
+                    Material piece = Material.matchMaterial(prefix + suffix);
+                    if (piece != null) giveOrDrop(player, new ItemStack(piece));
+                }
                 spawnParticles(location, Particle.FIREWORK, 40);
             }
 

@@ -1,103 +1,150 @@
 # ================================================================
-# Parkour Warrior — Configuration
+# Mob Mayhem — Configuration
 # ================================================================
+# Co-op wave survival. Each team fights waves of mobs in its own cloned
+# copy of the template world; last team standing (or furthest wave
+# reached) wins.
+
+# ----------------------------------------------------------------------
+# Start presentation — same staged "riedeltje" as QuakeCraft/TNTTag: intro
+# title, arena flyover (auto-generated if you haven't recorded one via
+# /kmccamera), tutorial tips, then a countdown, THEN wave 1 begins. Toggle
+# a stage off entirely by setting it to false below.
+# ----------------------------------------------------------------------
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Overleef samen met je team zoveel mogelijk golven mobs"
+  flyover-radius: 20
+  tutorial-seconds: 6
+  countdown-seconds: 5
+  #tutorial-messages: ["Eigen regel 1", "Eigen regel 2"]  # overrides the built-in default lines
+
+# Shortened from the global defaults (10s / 15s) — the start-sequence above
+# already provides the ceremonial buildup, so the generic pre-game wait
+# doesn't need to add a second, silent ~25s on top of it.
+games:
+  mob_mayhem:
+    countdown: 5
+    grace-period: 3
+
+world:
+  # Template world cloned fresh per team at game start — never modified.
+  template-name: "mm_template"
+
+arena:
+  # If > 0, every cloned arena gets everything OUTSIDE the arena's bounding
+  # box (player spawn + all mob/powerup spawns, this many blocks of margin)
+  # cleared to air — stops mobs/players wandering off into the rest of the
+  # template world's terrain. 0 = disabled (default — leaves the clone as-is).
+  # Only ever touches the disposable per-team clone, never the template.
+  voidify-margin: 0
+  # Vertical range cleared, relative to the average spawn Y.
+  voidify-floor-below: 10
+  voidify-ceiling-above: 60
+  # How many columns to clear per tick — lower this if the server stutters
+  # during world cloning with a large margin.
+  voidify-columns-per-tick: 150
 
 game:
-  # Game duration (seconds) — your spec said 8-12 minutes
-  max-duration-seconds: 720    # 12 minutes
-  
-  # Pre-game countdown
-  countdown-seconds: 15
-  
-  # Should the game end immediately when the first player finishes?
-  # false = game runs until timer; players who finish wait in spectator
-  end-on-first-finish: false
+  # Force-kill any mobs still alive when a wave's timer runs out (so a
+  # stalled wave doesn't block the game forever). If false, the team just
+  # waits until the mobs are dead, however long that takes.
+  force-end-wave-on-timeout: true
 
-  # Bonus points for completing the entire course
-  finish-bonus: 100
-  
-  # Speed effect for all players (Speed I), helps movement feel fluid
-  base-speed: true
+  # Highest wave number this game will run to (defaults to however many
+  # waves are defined below, or WaveLibrary's built-in 10 if "waves:" is empty).
+  max-waves: 10
 
-# ================================================================
-# Skip mechanic — admin-decided, see questions in patch notes
-# Defaults below assume "3 fails → /pkw skip available, 0 points for skip"
-# ================================================================
+  # Short break between a team clearing a wave and their next wave starting.
+  intermission-seconds: 5
 
-skip:
-  enabled: true
-  fails-required: 3      # number of times you must die on the same stage
-  cooldown-seconds: 5    # cooldown after using skip before you can again
+  # Cloned-world behaviour during the game.
+  keep-inventory: false
+  pvp-enabled: false
 
-# ================================================================
-# Detection — pressure plate or region (or both)
-# ================================================================
-
-detection:
-  # Use pressure plates as checkpoint triggers? When a player steps on
-  # a plate inside a checkpoint region, it counts.
-  pressure-plates: false
-  
-  # Use region-box detection? (PlayerMoveEvent in trigger box)
-  region-boxes: true
-
-# ================================================================
-# Scoring (awarded via KMCCore PointsManager)
-# ================================================================
+  # Forced on every cloned arena (PEACEFUL/EASY/NORMAL/HARD), regardless of
+  # whatever difficulty the template world itself is saved at. Needed because
+  # Peaceful force-removes hostile mobs almost instantly even when spawned
+  # via the plugin API — without this, waves would appear to "clear" with
+  # no mobs ever actually surviving.
+  difficulty: "NORMAL"
 
 points:
-  # Per-checkpoint by difficulty (overrides cp.getAwardedPoints() multiplier)
-  by-difficulty:
-    EASY:    8
-    MEDIUM: 12
-    HARD:   15
-    MAIN:   10
+  # Awarded to every alive player on a team when their team clears a wave.
+  per-wave: 100
 
-  # Bonus when a player completes a SECTION (any non-finish CP).
-  # Awarded ON TOP of the checkpoint's own points.
-  section-complete: 15
+# ----------------------------------------------------------------------
+# Wave content — optional. Leave this section empty (or remove it) to use
+# the built-in 10-wave progression (WaveLibrary.defaultWaves()). Uncomment
+# and edit below to fully override it with your own waves.
+# ----------------------------------------------------------------------
+#waves:
+#  1:
+#    name: "Easy Zombies"
+#    duration: 60
+#    boss: false
+#    mobs:
+#      ZOMBIE: 8
+#      SPIDER: 4
+#  2:
+#    name: "Skeleton Squad"
+#    duration: 60
+#    mobs:
+#      ZOMBIE: 10
+#      SPIDER: 6
+#      SKELETON: 3
+#  3:
+#    name: "Creeper Wave"
+#    duration: 75
+#    mobs:
+#      ZOMBIE: 12
+#      SKELETON: 5
+#      CREEPER: 2   # tip: zet mob-griefing/explosies uit zodat de arena heel blijft
 
-  # Per-finish placement: 1st=250, -10/place, floor 25.
-  placement:
-    1:  250
-    2:  240
-    3:  230
-    4:  220
-    5:  210
-    6:  200
-    7:  190
-    8:  180
-    9:  170
-    10: 160
-    11: 150
-    12: 140
-    13: 130
-    14: 120
-    15: 110
-    16: 100
-    17:  90
-    18:  80
-    19:  70
-    20:  60
-    21:  50
-    22:  40
-    23:  30
-    "default": 25      # 24th and beyond all get 25 (floor)
+# ----------------------------------------------------------------------
+# Powerups — optional pickups that spawn around each team's arena while
+# they're fighting (same idea as QuakeCraft's powerups). Leave a team's
+# arena without any "/mm addpowerupspawn" points to disable this entirely.
+# ----------------------------------------------------------------------
+powerups:
+  interval-seconds: 30
+  despawn-seconds: 45
+  weights:
+    speed: 20
+    strength: 15
+    regeneration: 15
+    resistance: 15
+    absorption: 15
+    instant_health: 20
 
-  # Legacy fallback for CPs without difficulty tag (shouldn't happen now)
-  default-checkpoint-points: 10
+# ----------------------------------------------------------------------
+# Wave modifiers — random twists applied to a wave's mobs/players.
+# See WaveModifier.java for the full list (DOUBLE_MOBS, SPEED_MOBS,
+# LOW_VISIBILITY, EXPLOSIVE_MOBS, HEALTHY_MOBS, POISON_TOUCH). BLOOD_MOON
+# is NOT listed here — it's rolled separately below since it's meant to
+# be rarer and more dramatic than the regular pool.
+# ----------------------------------------------------------------------
+modifiers:
+  # Chance (0-1) that a wave rolls a modifier from the pool below at all.
+  chance: 0.4
+  # Once one modifier is rolled, chance it rolls a SECOND one too.
+  second-chance: 0.15
+  enabled:
+    - DOUBLE_MOBS
+    - SPEED_MOBS
+    - LOW_VISIBILITY
+    - EXPLOSIVE_MOBS
+    - HEALTHY_MOBS
+    - POISON_TOUCH
 
-  # Final tournament placement bonuses (kept for compatibility)
-  first-place: 200
-  second-place: 125
-  third-place: 75
-  participation: 25
-
-# ================================================================
-# Course definition (set via /pkw commands)
-# ================================================================
-
-course:
-  world: ""
-  start-spawn: null
-  checkpoints: {}
+  # Blood Moon: independent roll (stacks with the pool above). Forces
+  # night + a thunderstorm in the arena world, triples mob health, gives
+  # every mob permanent Speed I, and rains red dust particles on players
+  # for the whole wave. Set to 0 to disable entirely.
+  blood-moon-chance: 0.08

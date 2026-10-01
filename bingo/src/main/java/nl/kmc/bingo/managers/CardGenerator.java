@@ -43,8 +43,9 @@ public class CardGenerator {
         List<BingoObjective> out = new ArrayList<>();
         for (String entry : plugin.getConfig().getStringList("card.collect-pool")) {
             String[] parts = entry.split(":");
+            Material m = Material.matchMaterial(parts[0]);
+            if (m == null) { plugin.getLogger().warning("Bad collect entry in config: " + entry); continue; }
             try {
-                Material m = Material.valueOf(parts[0].toUpperCase());
                 int amount = parts.length > 1 ? Integer.parseInt(parts[1]) : 1;
                 out.add(new CollectObjective(m, amount));
             } catch (Exception e) {

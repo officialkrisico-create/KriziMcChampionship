@@ -51,7 +51,8 @@ public final class AchievementLoader {
         "achievements/secret.yml",
         "achievements/legendary.yml",
         "achievements/tnttag.yml",
-        "achievements/blockparty.yml"
+        "achievements/blockparty.yml",
+        "achievements/mobmayhem.yml"
     };
 
     private final JavaPlugin plugin;

@@ -132,11 +132,12 @@ public class LootTableManager {
     // ----------------------------------------------------------------
 
     private Material parseMaterial(String name, String context) {
-        try { return Material.valueOf(name.toUpperCase()); }
-        catch (IllegalArgumentException e) {
+        Material m = Material.matchMaterial(name);
+        if (m == null) {
             plugin.getLogger().warning("Invalid material '" + name + "' for loot entry: " + context);
             return Material.STONE;
         }
+        return m;
     }
 
     public List<LootEntry> getEntries() { return Collections.unmodifiableList(entries); }
