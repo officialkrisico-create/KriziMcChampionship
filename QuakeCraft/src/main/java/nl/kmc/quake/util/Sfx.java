@@ -96,10 +96,7 @@ public final class Sfx {
         return new Parsed(vanilla, name, vol, pitch);
     }
 
-    private static Sound tryVanilla(String s) {
-        try { return Sound.valueOf(s.toUpperCase()); }
-        catch (IllegalArgumentException e) { return null; }
-    }
+    private static Sound tryVanilla(String s) { return nl.kmc.game.api.GameSfx.lookupVanillaSound(s); }
 
     private static float parseFloat(String s, float def) {
         try { return Float.parseFloat(s); } catch (NumberFormatException e) { return def; }

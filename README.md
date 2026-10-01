@@ -16,6 +16,8 @@ as the rotation.
 - [First-time install](#first-time-install)
 - [Running a tournament](#running-a-tournament)
 - [How the tournament works (player view)](#how-the-tournament-works-player-view)
+- [Special moments](#special-moments)
+- [The tutorial hub](#the-tutorial-hub)
 - [Teams](#teams)
 - [Points & scoring](#points--scoring)
 - [Per-game setup guides](#per-game-setup-guides)
@@ -52,10 +54,19 @@ as the rotation.
 - **Leaderboards** — `/kmclb teams` and `/kmclb players` (paginated)
 - **Hall of Fame** — top-stat NPCs permanently displayed in lobby (kills / wins / streak)
 - **Achievements** — built-in achievements with server-wide unlock broadcasts
+- **Tutorial hub** — `/tutorial` explains every system (points, teams, voting,
+  achievements, your own progress) and links straight into the real GUI for each
 - **Stats GUI** — multi-page per-player stats with `/kmcstats`
 - **Tournament history** — completed tournaments archived and queryable
 - **Voting** — players vote for the next game via `/kmcvote`
 - **Automation** — auto-progresses the rotation when each game ends
+- **Per-game start presentation** — teleport+freeze, intro title, an arena
+  camera flyover (auto-generated if none is recorded), tutorial tips, then a
+  countdown — see [Special moments](#special-moments)
+- **Golden Hour** — one random, unannounced round per tournament doubles every point award
+- **Comeback bonus** — the last-place team gets a scoring boost once a real gap has formed
+- **Fan Favorite vote** — players vote for their favourite moment after the tournament ends
+- **Easter egg NPCs** — hidden lobby NPCs with their own line; find them all for an achievement
 - **Simulation** — test scoring math without running real games (`/event simulate`)
 - **Snapshots / rollback** — recover from disasters with `/event rollback`
 - **Map rotation** — multi-map games (TGTTOS, Bridge, etc.) cycle automatically
@@ -348,10 +359,13 @@ always continues safely.
 Between every game, all players return to the central **Lobby**. The lobby
 is a protected zone — no PvP, no block breaking.
 
-Before each game there is a **ready-up** phase. Players confirm they are
-ready, then a 15-second countdown fires and everyone teleports to the arena
-with their kit already in their inventory. Players are frozen in place until
-the countdown ends.
+Before each game there is a **ready-up** phase, then players are teleported
+to the arena. Several games (MobMayhem, Block Party, The Bridge, Parkour
+Warrior, Lucky Block, Speed Build — more being added over time) run a full
+start presentation at this point instead of a bare countdown — see
+[Special moments](#special-moments). The rest still use a plain countdown.
+Players are frozen in place until their game's countdown/presentation ends,
+with their kit already in their inventory.
 
 Once the game starts, points are earned live and shown on the **boss bar**
 at the top of the screen. The **sidebar scoreboard** (right side) always
@@ -360,6 +374,37 @@ shows total team points.
 After the game everyone returns to the lobby and results are announced.
 This repeats until all rounds are complete. The team with the highest
 total points at the end wins.
+
+---
+
+## Special moments
+
+A few tournament-wide systems add drama and replay value on top of the
+base points/placement scoring:
+
+| Moment | What happens | Config |
+|---|---|---|
+| **Golden Hour** | One random round per tournament (picked fresh each `/kmctournament start`, never announced in advance) doubles every point award that round — including kills, which are normally flat. Revealed right before that round's game actually launches. | `plugins/KMCCore/config.yml` → `golden-hour` |
+| **Comeback bonus** | Once the leading team is at least `min-gap` points ahead, the last-place team gets a `×1.25` boost on every point award — keeps a lopsided tournament interesting. | `plugins/KMCCore/config.yml` → `comeback-bonus` |
+| **Fan Favorite vote** | After the tournament ends, players vote for their favourite moment of the event. | `FanFavoriteManager` (KMCCore) |
+| **MVP crown** | A rotating gold particle crown follows the current points leader during a live game. | automatic, every game (`BaseGameManager`) |
+| **Easter egg NPCs** | Hidden lobby NPCs (`/kmclobbynpc spawn easter_egg`), each with its own fixed line. Find every spawned one for the "Easter Egg Hunter" achievement — tracked per player, persists across restarts. | `plugins/KMCCore/config.yml` → `easter-egg-npc` |
+| **Game start presentation** | Teleport+freeze → intro title → arena camera flyover (auto-generated around the arena if you haven't recorded one via `/kmccamera`) → tutorial tips → countdown → GO. Rolled out per game — see each game's own `config.yml` → `start-flow` / `start-sequence`. | per-game `config.yml` |
+
+---
+
+## The tutorial hub
+
+```
+/tutorial            (alias /kmctutorial)
+```
+
+Opens a menu covering: Basis & Teams, Puntensysteem, Speciale momenten
+(the table above), Spellen (links into `/kmchelp`'s per-game explanations),
+Stemmen & rondes, Achievements & Records, Jouw voortgang (profile/MVP/
+momentum), and Taal/Language. Every category links straight into the real
+GUI for that system instead of duplicating its data — e.g. "Achievements"
+opens the real achievements view, it doesn't re-render a copy.
 
 ---
 
@@ -453,7 +498,10 @@ Every game supports:
 
 ### SkyWars
 
-Sky islands with chests. Last team alive wins.
+Sky islands with chests. Last team alive wins. If a player hits someone
+within 10 seconds before a teammate finishes them off, that assist gets a
+share of the kill points (`assist-fraction`, default 20% — set to 0 to
+disable). SkyWars is currently the only game with assist points wired in.
 
 **Setup:**
 ```
@@ -473,6 +521,9 @@ Sky islands with chests. Last team alive wins.
 ### Survival Games
 
 Hunger Games style. Pedestals at start, world border shrinks for deathmatch.
+Once the deathmatch trigger time hits, a one-time "🍗 THE FEAST" chest
+appears at the cornucopia stocked with top-tier loot (`feast-enabled`,
+`loot.feast`).
 
 **Setup:**
 ```
@@ -509,6 +560,10 @@ Kill streaks (×3, ×5, ×7, ×10) and multi-kill bonuses are in
 
 **Run:** `/quakecraft start`
 
+> Also runs the full start presentation (intro → arena flyover → tutorial →
+> countdown) via its own hand-built flow — one of the two games (with TNT
+> Tag) this was modelled on before being generalised for other games.
+
 ---
 
 ### Spleef
@@ -530,6 +585,11 @@ Last alive on a snow floor. Break blocks under opponents.
 ### TGTTOS
 
 Race to the other side — multi-map sequence with start/finish lines.
+Occasionally a map rolls "🌫 Fog of War" (blurs everyone's vision for the
+whole map, `fog-of-war-chance`). Whoever is actually in last place gets a
+rubber-banding speed boost that follows the real last-place racer live
+(`rubber-banding`), and a bossbar/actionbar always shows the current leader
+or your gap to them.
 
 **Setup (repeat for each map you want in rotation):**
 ```
@@ -550,22 +610,54 @@ Race to the other side — multi-map sequence with start/finish lines.
 
 ### Mob Mayhem
 
-Wave-based co-op survival. Each team gets a clone of a template world.
+Wave-based co-op survival. Each team gets its own cloned copy of a template
+world and fights through waves of mobs independently — the team that
+survives the most waves wins. Difficulty escalates every wave (more mob
+types, two boss waves by default, random modifiers like Blood Moon,
+Double Mobs, Low Visibility), and points scale with mob type and wave
+reached.
 
 **Setup:**
 ```
-/mobmayhem settemplate <template-world>  ← template is cloned per team at game start
-/mobmayhem setspawn                       ← stand at spawn point in the template
-/mobmayhem addmobspawn                    ← add mob spawn points, repeat
+/mm settemplate <template-world>  ← template is cloned per team at game start
+/mm setspawn                      ← stand at spawn point in the template (open air!)
+/mm addmobspawn                   ← add mob spawn points, repeat (need 4+, open air)
+/mm addpowerupspawn                ← optional — add spots for speed/strength/heal pickups
+/mm status                        ← verify readiness before testing
 ```
 
-**Run:** `/mobmayhem start`
+> **Open-air check:** the cloned arena is a byte-for-byte copy of the
+> template, so a spawn point recorded underground stays underground in
+> every clone. `/mm start` now warns loudly (console + chat) if a player or
+> mob spawn point turns out to be inside solid terrain.
+
+**Waves:** 10 built-in waves by default. Override them entirely with a
+`waves:` section in `plugins/MobMayhem/config.yml` (`waves.<n>.mobs.<TYPE>:
+<count>`) — leave it unset/commented to keep the built-in progression.
+
+**Achievements:** Survivor (wave 10), Untouchable (wave 5 with no deaths),
+Exterminator / Mob Slayer (50 / 100 kills in one game), Boss Slayer, Last
+Stand (last player standing).
+
+**Optional — void everything outside the arena:**
+```yaml
+arena:
+  voidify-margin: 40   # 0 = disabled (default)
+```
+Clears everything outside the arena's bounding box to air in every cloned
+world, so mobs/players can't wander into the rest of the template's
+terrain. Never touches the template itself.
+
+**Run:** `/mm start` (aliases `/mobmayhem`, `/mayhem`)
 
 ---
 
 ### TNT Tag
 
 Hot-potato with TNT. Survive each round — tag others to pass the bomb.
+The world border shrinks progressively every round
+(`progressive-shrink-percent`, floored at `progressive-shrink-min-radius`),
+separate from the dedicated Final Showdown shrink once only 2 players remain.
 
 **Setup:**
 ```
@@ -984,7 +1076,7 @@ and Speed Build**, which don't have a `reload` subcommand yet (change their
 /quakecraft     start | stop | status | reload
 /spleef         start | stop | status | reload
 /tgttos         start | stop | status | reload
-/mobmayhem      start | stop | status | reload
+/mm             start | stop | status | reload   (aliases /mobmayhem, /mayhem)
 /tnttag         start | stop | status | reload
 /elytraendrium  start | stop | status | reload
 /parkourwarrior start | stop | status | reload
@@ -1016,6 +1108,16 @@ title cards, and per-game intros — all driven automatically by `/kmcauto`.
 
 All three are **optional** — anything unconfigured is skipped, and the
 tournament continues normally.
+
+> **Arena flyovers auto-generate.** If no `arena-<gameId>` route has been
+> recorded, a short circular camera orbit around the arena is generated and
+> saved automatically the first time it's needed — you get a flyover with
+> zero setup, and can still record a nicer one later via `/kmccamera`
+> (replaces the auto-generated one). Games running the shared start
+> presentation (see [Special moments](#special-moments)) also play their
+> arena flyover when started **directly** (`/<game> start`), not only
+> through `/kmcauto` — previously flyovers only ever played as part of the
+> automated tournament rotation.
 
 ### Camera routes — naming convention
 
@@ -1180,12 +1282,21 @@ built-in, so nothing is ever silent.
 
 | Command | What it does |
 |---|---|
+| `/tutorial` (alias `/kmctutorial`) | Explains every system and links to the real GUI for each |
 | `/tc <message>` | Team-only chat |
+| `/kmcprofile [player]` | Your (or another player's) profile GUI |
 | `/kmcstats` | Your personal stats GUI |
 | `/kmcstats <player>` | Another player's stats |
+| `/kmcstandings` | Live standings GUI |
 | `/kmclb` | Tournament leaderboard |
+| `/kmcmedals` | Medal cabinet + Most Decorated leaderboard |
+| `/kmcmvp` | Game MVPs (this tournament + all-time) |
+| `/kmcmomentum` | Biggest rise/fall + hot streaks |
+| `/kmcpowerrank` | Team power rankings (ELO) |
+| `/kmchof` | Hall of Fame GUI |
 | `/kmcvote` | Vote for the next game (when vote is open) |
 | `/kmcachievements` | Your unlocked achievements |
+| `/kmclanguage` (aliases `/taal`, `/kmclang`) | Choose your personal UI language |
 | `/kmcprefs` | Personal preferences (scoreboard, chat style, etc.) |
 
 ---
