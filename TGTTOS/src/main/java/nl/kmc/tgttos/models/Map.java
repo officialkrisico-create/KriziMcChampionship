@@ -17,10 +17,17 @@ import java.util.List;
  */
 public class Map {
 
+    /** Sentinel for voidYLevel meaning "no void floor configured for this map". */
+    public static final int NO_VOID = Integer.MIN_VALUE;
+
+    /** How close (blocks) a player needs to be to a checkpoint to trigger it. */
+    private static final double CHECKPOINT_RADIUS = 2.5;
+
     private final String   id;
     private final String   displayName;
     private final World    world;
     private final List<Location> startSpawns;
+    private final List<Location> checkpoints;
     private final Location finishPos1;
     private final Location finishPos2;
     private final int      voidYLevel;
@@ -29,10 +36,18 @@ public class Map {
                List<Location> startSpawns,
                Location finishPos1, Location finishPos2,
                int voidYLevel) {
+        this(id, displayName, world, startSpawns, List.of(), finishPos1, finishPos2, voidYLevel);
+    }
+
+    public Map(String id, String displayName, World world,
+               List<Location> startSpawns, List<Location> checkpoints,
+               Location finishPos1, Location finishPos2,
+               int voidYLevel) {
         this.id           = id;
         this.displayName  = displayName;
         this.world        = world;
         this.startSpawns  = new ArrayList<>(startSpawns);
+        this.checkpoints  = new ArrayList<>(checkpoints);
         this.finishPos1   = finishPos1;
         this.finishPos2   = finishPos2;
         this.voidYLevel   = voidYLevel;
@@ -42,9 +57,42 @@ public class Map {
     public String   getDisplayName() { return displayName; }
     public World    getWorld()       { return world; }
     public List<Location> getStartSpawns() { return Collections.unmodifiableList(startSpawns); }
+    public List<Location> getCheckpoints() { return Collections.unmodifiableList(checkpoints); }
     public Location getFinishPos1()  { return finishPos1; }
     public Location getFinishPos2()  { return finishPos2; }
     public int      getVoidYLevel()  { return voidYLevel; }
+    public boolean  hasVoidFloor()   { return voidYLevel != NO_VOID; }
+
+    /** True once the player has fallen below this map's configured void floor. */
+    public boolean isBelowVoid(Location loc) {
+        return hasVoidFloor() && loc != null && loc.getY() < voidYLevel;
+    }
+
+    /**
+     * Index (0-based) of the checkpoint the player is standing in/near, or -1.
+     * Only checkpoints AFTER the player's current one matter to callers —
+     * this just reports proximity, the caller decides whether it's progress.
+     */
+    public int checkpointIndexAt(Location loc) {
+        if (loc == null || loc.getWorld() == null) return -1;
+        for (int i = 0; i < checkpoints.size(); i++) {
+            Location cp = checkpoints.get(i);
+            if (cp.getWorld() != null && cp.getWorld().equals(loc.getWorld())
+                    && cp.distanceSquared(loc) <= CHECKPOINT_RADIUS * CHECKPOINT_RADIUS) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Best known respawn point for a runner currently at checkpoint index (-1 = none reached). */
+    public Location respawnPointFor(int lastCheckpointIndex, List<Location> fallbackStartSpawns, int fallbackIndex) {
+        if (lastCheckpointIndex >= 0 && lastCheckpointIndex < checkpoints.size()) {
+            return checkpoints.get(lastCheckpointIndex);
+        }
+        if (fallbackStartSpawns.isEmpty()) return null;
+        return fallbackStartSpawns.get(Math.floorMod(fallbackIndex, fallbackStartSpawns.size()));
+    }
 
     /** Did the player just enter the finish region? */
     public boolean isInFinishRegion(Location loc) {

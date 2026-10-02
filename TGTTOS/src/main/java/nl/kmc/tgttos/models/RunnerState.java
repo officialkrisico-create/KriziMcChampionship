@@ -28,6 +28,11 @@ public class RunnerState {
     private boolean currentRoundFinished;
     private int     currentRoundDeaths;
 
+    /** Last checkpoint reached this round (-1 = none yet, respawn at a start spawn). */
+    private int  lastCheckpointIndex = -1;
+    private long roundStartMillis;
+    private long roundFinishMillis;
+
     public RunnerState(UUID uuid, String name) {
         this.uuid = uuid;
         this.name = name;
@@ -42,6 +47,16 @@ public class RunnerState {
     }
     public boolean isCurrentRoundFinished() { return currentRoundFinished; }
     public int     getCurrentRoundDeaths()  { return currentRoundDeaths; }
+
+    public int  getLastCheckpointIndex()          { return lastCheckpointIndex; }
+    public void setLastCheckpointIndex(int index) { this.lastCheckpointIndex = index; }
+
+    /** Elapsed race time in ms: frozen once finished, live otherwise. Survives void falls/respawns. */
+    public long getRoundElapsedMillis() {
+        if (roundStartMillis == 0) return 0;
+        long end = currentRoundFinished && roundFinishMillis > 0 ? roundFinishMillis : System.currentTimeMillis();
+        return Math.max(0, end - roundStartMillis);
+    }
 
     public int getRoundPlacement(int round) {
         return roundPlacements.getOrDefault(round, 0);
@@ -84,6 +99,9 @@ public class RunnerState {
     public void startRound() {
         currentRoundFinished = false;
         currentRoundDeaths   = 0;
+        lastCheckpointIndex  = -1;
+        roundStartMillis     = System.currentTimeMillis();
+        roundFinishMillis    = 0;
     }
 
     public void recordDeath() {
@@ -94,6 +112,7 @@ public class RunnerState {
     public void finishRound(int round, int placement, int pointsAwarded) {
         roundPlacements.put(round, placement);
         currentRoundFinished = true;
+        roundFinishMillis = System.currentTimeMillis();
         totalPoints += pointsAwarded;
         consecutiveDnf = 0;   // a finish resets the DNF streak
     }

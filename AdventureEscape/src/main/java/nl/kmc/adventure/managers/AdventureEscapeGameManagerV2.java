@@ -33,6 +33,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
     private BukkitTask tickTask;
     private BukkitTask timeLimitTask;
     private BossBar    bossBar;
+    private StandardStartFlow startFlow;
 
     public AdventureEscapeGameManagerV2(AdventureEscapePlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -65,15 +66,40 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.GREEN + "" + ChatColor.BOLD + "Adventure Escape",
                 BarColor.GREEN, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = racers.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+        Location center = !grid.isEmpty() ? grid.get(0) : null;
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§a§lADVENTURE ESCAPE"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§a§l» §fRace door de puzzel-ontsnappingsroute.",
+                                "§a§l» §fRaak checkpoints om je voortgang te bewaren.",
+                                "§a§l» §fBuiten de route? Je respawnt bij je laatste checkpoint.",
+                                "§a§l» §fAls eerste alle rondes voltooien wint!");
+                    }
+                    @Override public Location flyoverCenter() { return center; }
+                    @Override public void onFinished() { beginRace(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§a§l[Adventure Escape] §eRace to the finish! Complete all laps!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginRace() {
         long now = System.currentTimeMillis();
 
         for (RacerData rd : racers.values()) {
@@ -81,8 +107,6 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             rd.startFirstLap(now);
             Player p = Bukkit.getPlayer(rd.getUuid());
             if (p == null) continue;
-            p.removePotionEffect(PotionEffectType.SLOWNESS);
-            p.removePotionEffect(PotionEffectType.JUMP_BOOST);
             p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
                     ChatColor.YELLOW + "Race is live!", 0, 40, 10);
         }
@@ -117,6 +141,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         if (tickTask      != null) { tickTask.cancel();      tickTask      = null; }
         if (timeLimitTask != null) { timeLimitTask.cancel(); timeLimitTask = null; }
         if (bossBar       != null) { bossBar.removeAll();    bossBar       = null; }
+        if (startFlow     != null) { startFlow.cancel();     startFlow     = null; }
 
         // Rank: finishers by time, then non-finishers by laps + progress
         List<RacerData> ranked = new ArrayList<>(racers.values());

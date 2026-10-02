@@ -115,3 +115,46 @@ sb:
     top: "&e&lEN İYİ OYUNCULAR"
     kd: "&7Öldürme &a{0}  &7Ölüm &c{1}"
     streak: "&7Seri &6{0}"
+
+# Büyük an yorumları ({0} = oyuncu adı)
+commentary:
+  outnumbered_victory:
+    title: "&c&lTÜM ZORLUKLARA RAĞMEN"
+    line1: "&e{0} &7büyük bir sayısal azınlığa rağmen kazandı!"
+    line2: "&e{0} &7kalabalığa boyun eğmiyor!"
+  last_survivor:
+    title: "&6&lSON HAYATTA KALAN"
+    line1: "&e{0} &7ayakta kalan tek kişi!"
+    line2: "&e{0} &7herkesten uzun dayandı!"
+  comeback_win:
+    title: "&a&lMUHTEŞEM GERİ DÖNÜŞ"
+    line1: "&e{0} &7maçı tamamen tersine çevirdi!"
+    line2: "&e{0} &7çok gerilerden geri geldi!"
+  kill_streak:
+    title: "&c&lÖLDÜRME SERİSİ"
+    line1: "&e{0} &7durdurulamıyor!"
+    line2: "&e{0} &7hareket eden her şeyi temizliyor!"
+  last_second_tag:
+    title: "&e&lSON SANİYE"
+    line1: "&e{0} &7bombayı son saniyede devretti!"
+    line2: "&e{0} &7kıl payı kurtuldu!"
+  large_scoring_swing:
+    title: "&d&lBÜYÜK SARSINTI"
+    line1: "&e{0} &7sıralamayı altüst etti!"
+    line2: "&e{0} &7tüm skor tablosunu karıştırdı!"
+  perfect_game:
+    title: "&b&lKUSURSUZ OYUN"
+    line1: "&e{0} &7hatasız oynadı!"
+    line2: "&e{0} &7tek bir fırsatı bile kaçırmadı!"
+  boss_killed:
+    title: "&4&lBOSS YENİLDİ"
+    line1: "&e{0} &7boss'u bitirdi!"
+    line2: "&e{0} &7boss'a son darbeyi vurdu!"
+  kill_milestone_legendary:
+    title: "&6&lEFSANEVİ"
+    line1: "&e{0} &7efsanevi bir öldürme sayısına ulaştı!"
+    line2: "&e{0} &7bir öldürme dönüm noktasıyla tarih yazdı!"
+  last_standing:
+    title: "&a&lSON AYAKTA KALAN"
+    line1: "&e{0} &7sonuna kadar dayandı!"
+    line2: "&e{0} &7ayakta kalan tek kişi!"

@@ -148,6 +148,32 @@ public final class FloorGenerator {
             }
     }
 
+    /**
+     * Resets the floor to a plain, solid appearance for when no game is
+     * active — used instead of {@link #clear()} at game end so the arena
+     * doesn't sit there as a void hole between games. Uses the captured
+     * preset floor if one exists (so idle BlockParty shows off the admin's
+     * custom layout), otherwise a single neutral colour.
+     */
+    public void resetToIdle() {
+        World world = arena.getWorld();
+        int y = arena.floorY();
+        Map<String, Material> preset = arena.getPresetFloor();
+        if (!preset.isEmpty()) {
+            for (var entry : preset.entrySet()) {
+                String[] parts = entry.getKey().split(",");
+                int x = arena.minX() + Integer.parseInt(parts[0]);
+                int z = arena.minZ() + Integer.parseInt(parts[1]);
+                world.getBlockAt(x, y, z).setType(entry.getValue(), false);
+            }
+            return;
+        }
+        for (int x = arena.minX(); x <= arena.maxX(); x++)
+            for (int z = arena.minZ(); z <= arena.maxZ(); z++) {
+                world.getBlockAt(x, y, z).setType(Material.WHITE_CONCRETE, false);
+            }
+    }
+
     /** A random standing location centred on a floor block (used by RANDOM_TP). */
     public org.bukkit.Location randomFloorLocation() {
         int x = arena.minX() + random.nextInt(arena.maxX() - arena.minX() + 1);

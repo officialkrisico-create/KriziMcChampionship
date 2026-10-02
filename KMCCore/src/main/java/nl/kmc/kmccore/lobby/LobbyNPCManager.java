@@ -7,8 +7,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -40,6 +43,16 @@ import java.util.*;
 public class LobbyNPCManager implements Listener {
 
     public enum NPCType { STATS, HOF, EASTER_EGG }
+
+    /**
+     * Marker holder so these display-only GUIs can be identified by
+     * inventory holder identity (not title string) and have their clicks
+     * cancelled — without this, nothing stopped players taking the stat
+     * display items out of the inventory.
+     */
+    private static final class DisplayGuiHolder implements InventoryHolder {
+        @Override public Inventory getInventory() { throw new UnsupportedOperationException(); }
+    }
 
     public static final NamespacedKey NPC_KEY = NamespacedKey.minecraft("kmc_lobby_npc");
     public static final NamespacedKey NPC_TYPE_KEY = NamespacedKey.minecraft("kmc_lobby_npc_type");
@@ -221,11 +234,28 @@ public class LobbyNPCManager implements Listener {
     }
 
     // ----------------------------------------------------------------
+    // GUI item-theft protection — these are display-only, nothing should
+    // ever leave or enter them.
+    // ----------------------------------------------------------------
+
+    @EventHandler
+    public void onDisplayGuiClick(InventoryClickEvent e) {
+        if (!(e.getInventory().getHolder() instanceof DisplayGuiHolder)) return;
+        e.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onDisplayGuiDrag(InventoryDragEvent e) {
+        if (!(e.getInventory().getHolder() instanceof DisplayGuiHolder)) return;
+        e.setCancelled(true);
+    }
+
+    // ----------------------------------------------------------------
     // GUIs
     // ----------------------------------------------------------------
 
     private void openStatsGUI(Player p) {
-        Inventory inv = Bukkit.createInventory(null, 27,
+        Inventory inv = Bukkit.createInventory(new DisplayGuiHolder(), 27,
                 ChatColor.AQUA + "" + ChatColor.BOLD + "📊 Your Stats");
 
         PlayerData data = plugin.getPlayerDataManager().get(p.getUniqueId());
@@ -270,7 +300,7 @@ public class LobbyNPCManager implements Listener {
     }
 
     private void openHoFGUI(Player p) {
-        Inventory inv = Bukkit.createInventory(null, 54,
+        Inventory inv = Bukkit.createInventory(new DisplayGuiHolder(), 54,
                 ChatColor.GOLD + "" + ChatColor.BOLD + "🏆 Hall of Fame");
 
         var leaderboard = plugin.getPlayerDataManager().getLeaderboard();

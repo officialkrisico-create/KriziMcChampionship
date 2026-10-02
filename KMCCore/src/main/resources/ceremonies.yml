@@ -13,23 +13,53 @@
 #     {game_name}        — weergavenaam van de huidige game
 #     {game_objective}   — doel van de huidige game (één regel)
 #     {winner}           — naam van het winnende team (alleen slotceremonie)
+#     {total_rounds}     — totaal aantal rondes van het toernooi
+#     {games_per_round}  — aantal games per ronde
+#     {game_count}       — aantal beschikbare (ingeschakelde) games
 #
 #   Kleurcodes: gebruik & gevolgd door de Minecraft-kleurcode.
 #   Titels/subtitels ondersteunen ook kleurcodes.
 #   Zet title of subtitle op "" om deze niet te tonen.
+#
+#   De openingspresentatie (/kmcauto start) speelt deze fases af, in volgorde:
+#     opening → how-it-works → tournament-overview → team-showcase → game-lineup
+#   Overslaan tijdens het testen kan met /kmcauto skip.
 # ============================================================
+
+# ── Tempo van de presentatie ──────────────────────────────────────────────────
+pacing:
+  # Ticks tussen twee chatregels die één voor één verschijnen (20 ticks = 1 seconde)
+  line-delay-ticks: 50
+  # Minimale leestijd (ticks) na de laatste regel van een fase, voor de volgende begint
+  read-buffer-ticks: 70
 
 # ── Openingsceremonie (eenmalig bij start van het toernooi) ───────────────────
 opening:
-  duration-seconds: 20
+  duration-seconds: 12
   title: "&6&lKMC TOERNOOI"
   subtitle: "&eLaat de spelen beginnen!"
   messages:
     - "&8§m                                    "
     - "  &6&lWelkom bij de &e{tournament_name}&6&l!"
-    - "  &7{team_count} teams strijden in 13 mini-games."
-    - "  &eMoge het beste team winnen!"
+    - "  &7{team_count} teams · {game_count} mini-games · {total_rounds} rondes"
+    - "  &7Eerst leggen we rustig uit hoe alles werkt."
     - "&8§m                                    "
+
+# ── Uitleg van het toernooi-format ────────────────────────────────────────────
+how-it-works:
+  duration-seconds: 10
+  title: "&b&lZO WERKT HET"
+  subtitle: "&7Even de spelregels"
+  messages:
+    - "&b&l▸ HOE WERKT HET TOERNOOI? ◂"
+    - "  &e1. &7Jullie spelen in &fteams&7. Alles wat jij scoort telt mee voor je team."
+    - "  &e2. &7Het toernooi heeft &f{total_rounds} rondes&7 van elk &f{games_per_round} mini-games&7."
+    - "  &e3. &7Na elke game stemmen jullie &fsamen&7 welke game er daarna komt."
+    - "  &e4. &7Punten verdien je met &fplaatsingen&7, &fkills&7 en het halen van &fdoelen&7."
+    - "  &e5. &7Elke ronde telt &fzwaarder&7 mee dan de vorige: de punten worden &fvermenigvuldigd&7."
+    - "  &e6. &7Het team met de meeste punten na ronde {total_rounds} is &6&lkampioen&7!"
+    - "  &7Elke game krijgt vlak voor de start nog een &feigen uitleg&7."
+    - "  &8Tip: typ &e/tutorial &8om alles op elk moment terug te lezen."
 
 # ── Team-showcase (toont alle teamnamen) ──────────────────────────────────────
 team-showcase:
@@ -41,21 +71,25 @@ team-showcase:
 
 # ── Toernooi-overzicht (onthulling van de game-line-up) ───────────────────────
 tournament-overview:
-  duration-seconds: 12
-  title: "&d&lDE GAMES VAN VANDAAG"
-  subtitle: ""
+  duration-seconds: 10
+  title: "&d&lRONDES & PUNTEN"
+  subtitle: "&7Latere rondes leveren meer op"
   messages:
     - "&d&l▸ TOERNOOI-OVERZICHT ◂"
     - "  &7Punten vermenigvuldigen elke ronde — latere rondes leveren meer op!"
     - "  &7Ronde {round} multiplier: &e{multiplier}x"
+    # Hieronder komt automatisch een overzicht van de multiplier per ronde (uit config.yml).
 
 # ── Game-line-up (toont alle games voordat het stemmen begint) ────────────────
 game-lineup:
-  duration-seconds: 10
-  title: "&a&lGAME-LINE-UP"
-  subtitle: ""
+  duration-seconds: 6
+  # Hoeveel seconden elke game in de schijnwerpers staat (titel + doel)
+  seconds-per-game: 4
+  title: "&a&lDE GAMES"
+  subtitle: "&7Dit gaan we spelen"
   messages:
-    - "&a&l▸ GAMES DEZE RONDE ◂"
+    - "&a&l▸ ALLE {game_count} GAMES ◂"
+    - "  &7Je ziet ze hieronder één voor één, met het doel van elke game."
 
 # ── Stemfase ──────────────────────────────────────────────────────────────────
 voting:

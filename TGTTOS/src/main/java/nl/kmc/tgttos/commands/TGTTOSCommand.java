@@ -115,7 +115,7 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
     /** /tgttos editmap <id> <world|addspawn|clearspawns|finishpos1|finishpos2|voidy|name> [val] */
     private void handleEditMap(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Gebruik: /tgttos editmap <id> <world|addspawn|clearspawns|finishpos1|finishpos2|voidy|name> [val]");
+            sender.sendMessage(ChatColor.RED + "Gebruik: /tgttos editmap <id> <world|addspawn|clearspawns|addcheckpoint|clearcheckpoints|finishpos1|finishpos2|voidy|name> [val]");
             return;
         }
         String id = args[1];
@@ -127,9 +127,10 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
             if (partial.displayName == null) partial.displayName = existing.getDisplayName();
             if (partial.world == null)       partial.world       = existing.getWorld();
             if (partial.startSpawns.isEmpty()) partial.startSpawns.addAll(existing.getStartSpawns());
+            if (partial.checkpoints.isEmpty()) partial.checkpoints.addAll(existing.getCheckpoints());
             if (partial.finishPos1 == null)  partial.finishPos1  = existing.getFinishPos1();
             if (partial.finishPos2 == null)  partial.finishPos2  = existing.getFinishPos2();
-            if (partial.voidY == null)       partial.voidY       = existing.getVoidYLevel();
+            if (partial.voidY == null && existing.hasVoidFloor()) partial.voidY = existing.getVoidYLevel();
         }
 
         String field = args[2].toLowerCase();
@@ -149,6 +150,15 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
             case "clearspawns" -> {
                 partial.startSpawns.clear();
                 sender.sendMessage(ChatColor.GREEN + "Start spawns gewist.");
+            }
+            case "addcheckpoint" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return; }
+                partial.checkpoints.add(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Checkpoint #" + partial.checkpoints.size() + " toegevoegd.");
+            }
+            case "clearcheckpoints" -> {
+                partial.checkpoints.clear();
+                sender.sendMessage(ChatColor.GREEN + "Checkpoints gewist.");
             }
             case "finishpos1" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return; }
@@ -171,7 +181,7 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
                 partial.displayName = String.join(" ", Arrays.copyOfRange(args, 3, args.length));
                 sender.sendMessage(ChatColor.GREEN + "Naam: " + partial.displayName);
             }
-            default -> sender.sendMessage(ChatColor.RED + "Onbekend veld. Gebruik: world, addspawn, clearspawns, finishpos1, finishpos2, voidy, name");
+            default -> sender.sendMessage(ChatColor.RED + "Onbekend veld. Gebruik: world, addspawn, clearspawns, addcheckpoint, clearcheckpoints, finishpos1, finishpos2, voidy, name");
         }
 
         if (partial.isComplete()) {
@@ -185,7 +195,7 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
         s.sendMessage(ChatColor.GOLD + "=== TGTTOS ===");
         s.sendMessage(ChatColor.YELLOW + "/tgttos start | stop | status | reload");
         s.sendMessage(ChatColor.YELLOW + "/tgttos createmap <id> <display name>");
-        s.sendMessage(ChatColor.YELLOW + "/tgttos editmap <id> <world|addspawn|clearspawns|finishpos1|finishpos2|voidy|name> [val]");
+        s.sendMessage(ChatColor.YELLOW + "/tgttos editmap <id> <world|addspawn|clearspawns|addcheckpoint|clearcheckpoints|finishpos1|finishpos2|voidy|name> [val]");
         s.sendMessage(ChatColor.YELLOW + "/tgttos commit <id> | deletemap <id> | listmaps");
     }
 
@@ -204,7 +214,7 @@ public class TGTTOSCommand implements CommandExecutor, TabCompleter {
                     .collect(Collectors.toList());
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("editmap")) {
-            return List.of("world", "addspawn", "clearspawns", "finishpos1", "finishpos2", "voidy", "name").stream()
+            return List.of("world", "addspawn", "clearspawns", "addcheckpoint", "clearcheckpoints", "finishpos1", "finishpos2", "voidy", "name").stream()
                     .filter(o -> o.startsWith(args[2].toLowerCase()))
                     .collect(Collectors.toList());
         }

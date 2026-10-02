@@ -2,6 +2,30 @@
 # Survival Games — Configuration
 # ================================================================
 
+# Start presentation — intro title, arena flyover (auto-generated if you
+# haven't recorded one via /kmccamera), tutorial tips, then a countdown,
+# THEN the bloodbath begins. Toggle a stage off by setting it false.
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Graai spullen, overleef de wereldgrens"
+  flyover-radius: 25
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+# Shortened from the global defaults (10s / 15s) — the start-sequence above
+# already provides the ceremonial buildup, so the generic pre-game wait
+# doesn't need to add a second, silent ~25s on top of it.
+games:
+  survival_games:
+    countdown: 5
+    grace-period: 3
+
 game:
   # Pre-game countdown — players locked on pedestals
   countdown-seconds: 30
@@ -46,6 +70,11 @@ game:
 points:
   # Per-kill
   per-kill: 35
+
+  # Assist: if someone else hit the victim within 10s before the finishing
+  # blow, this fraction of the kill reward goes to them instead of the killer
+  # (0.2 = killer keeps 80%, assist gets 20%). Set to 0 to disable.
+  assist-fraction: 0.2
 
   # Bonus when ANY player dies — every still-alive player gets this.
   # Replaces the old "survival-bonus" key.

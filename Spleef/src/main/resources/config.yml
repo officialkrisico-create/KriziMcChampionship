@@ -5,6 +5,22 @@
 # fall into the void. Solo or team scoring.
 # ================================================================
 
+# Start presentation — intro title, arena flyover (auto-generated if you
+# haven't recorded one via /kmccamera), tutorial tips, then a countdown,
+# THEN the match actually begins. Toggle a stage off by setting it false.
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Breek de vloer onder je tegenstanders weg"
+  flyover-radius: 20
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
 # Generic lifecycle (BaseGameManager). The game starts right at "GO" — players
 # are frozen during the countdown and can only dig once it's live.
 games:

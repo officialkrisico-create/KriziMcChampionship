@@ -50,6 +50,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
 
     private ShrinkingRingRenderer ringRenderer;
     private boolean deathmatchActive = false;
+    private StandardStartFlow startFlow;
 
     public SkyWarsGameManagerV2(SkyWarsPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -84,23 +85,39 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
                 ChatColor.YELLOW + "" + ChatColor.BOLD + "SkyWars starting…",
                 BarColor.YELLOW, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = stats.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§e§lSKYWARS"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§e§lSKYWARS",
+                                "§7Open kisten op je eigen eiland — geen PvP tot de start.",
+                                "§7Verzamel spullen en kruis dan naar andere eilanden.",
+                                "§7Laatste team dat overblijft wint!");
+                    }
+                    @Override public Location flyoverCenter() { return plugin.getArenaManager().getMiddleSpawn(); }
+                    @Override public void onFinished() { beginCombat(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        for (PlayerStats ps : stats.values()) {
-            Player p = Bukkit.getPlayer(ps.getUuid());
-            if (p != null) GamePlayerUtil.unfreezePlayer(p);
-        }
-        if (bossBar != null) {
-            bossBar.setColor(BarColor.GREEN);
-            bossBar.setTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "OPEN CHESTS — no PvP yet");
-        }
-        broadcast("§a§l[SkyWars] §eOpen chests! §7No PvP during grace period.");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginCombat() {
         gameStartMs    = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 600);
 
@@ -500,6 +517,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         cancel(voidCheckTask);      voidCheckTask      = null;
         cancel(deathmatchRingTask); deathmatchRingTask = null;
         cancel(restockTask);        restockTask        = null;
+        if (startFlow != null) { startFlow.cancel(); startFlow = null; }
     }
 
     private void cancel(BukkitTask t) { if (t != null) t.cancel(); }

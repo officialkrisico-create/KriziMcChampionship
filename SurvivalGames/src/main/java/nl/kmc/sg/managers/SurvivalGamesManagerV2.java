@@ -35,9 +35,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
     private int  remainingSeconds;
     private boolean deathmatchActive = false;
+    private StandardStartFlow startFlow;
 
-    private final Map<UUID, UUID> lastAttacker   = new HashMap<>();
-    private final Map<UUID, Long> lastAttackerMs = new HashMap<>();
+    private final AssistTracker assistTracker = new AssistTracker();
 
     public SurvivalGamesManagerV2(SurvivalGamesPlugin plugin, GameRegistration reg,
                                    StatisticsService statsService) {
@@ -50,8 +50,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         stats.clear();
         eliminationCounter = 0;
         deathmatchActive   = false;
-        lastAttacker.clear();
-        lastAttackerMs.clear();
+        assistTracker.clearAll();
 
         plugin.getChestStocker().stockAllAsync(() ->
                 broadcast("§6[SG] §e" + plugin.getChestStocker().getStockedCount() + " chests stocked."));
@@ -77,23 +76,45 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
         var world = plugin.getArenaManager().getWorld();
         if (world != null) world.setPVP(true);
+
+        List<Player> parts = stats.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§e§lSURVIVAL GAMES"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§e§lSURVIVAL GAMES",
+                                "§7Graai spullen uit de cornucopia en omliggende kisten.",
+                                "§7De wereldgrens sluit langzaam richting het midden.",
+                                "§7Laatste speler die overleeft wint!");
+                    }
+                    @Override public Location flyoverCenter() { return plugin.getArenaManager().getArena().getCornucopiaCenter(); }
+                    @Override public void onFinished() { beginBloodbath(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        stats.keySet().forEach(uuid -> {
-            Player p = Bukkit.getPlayer(uuid);
-            if (p != null) GamePlayerUtil.unfreezePlayer(p);
-        });
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
+    }
+
+    @Override
+    protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginBloodbath() {
         if (bossBar != null) {
             bossBar.setColor(BarColor.RED);
             bossBar.setTitle(ChatColor.RED + "" + ChatColor.BOLD + "Bloodbath — PvP ACTIVE");
         }
         broadcast("§c§l[SG] §eBloodbath started — all PvP active!");
-    }
 
-    @Override
-    protected void onGameStart() {
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480);
         int dmTrigger    = plugin.getConfig().getInt("game.deathmatch-trigger-seconds", 120);
 
@@ -152,6 +173,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         if (voidCheckTask   != null) { voidCheckTask.cancel();   voidCheckTask   = null; }
         if (restockTask     != null) { restockTask.cancel();     restockTask     = null; }
         if (borderRingTask  != null) { borderRingTask.cancel();  borderRingTask  = null; }
+        if (startFlow       != null) { startFlow.cancel();       startFlow       = null; }
 
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
@@ -252,16 +274,11 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
     // ── Public API for listeners ──────────────────────────────────────────────
 
     public void recordAttack(UUID victim, UUID attacker) {
-        if (!victim.equals(attacker)) {
-            lastAttacker.put(victim, attacker);
-            lastAttackerMs.put(victim, System.currentTimeMillis());
-        }
+        assistTracker.recordHit(victim, attacker);
     }
 
     public Player getRecentAttacker(UUID victim) {
-        Long when = lastAttackerMs.get(victim);
-        if (when == null || System.currentTimeMillis() - when > 10_000) return null;
-        UUID id = lastAttacker.get(victim);
+        UUID id = assistTracker.getKiller(victim);
         return id != null ? Bukkit.getPlayer(id) : null;
     }
 
@@ -279,11 +296,22 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         if (killer != null && !killer.equals(victim)) {
             PlayerStats ks = stats.get(killer.getUniqueId());
             if (ks != null) ks.incrementKills();
-            api.points().givePoints(killer.getUniqueId(),
-                    plugin.getConfig().getInt("points.per-kill", 50),
+            int killPts = plugin.getConfig().getInt("points.per-kill", 50);
+            UUID assistId = assistTracker.getAssist(victim.getUniqueId());
+            var split = AssistTracker.split(killPts, assistId,
+                    plugin.getConfig().getDouble("points.assist-fraction", 0.2));
+            api.points().givePoints(killer.getUniqueId(), split.killerAmount(),
                     PointAward.Reason.KILL, registration.getId());
+            if (assistId != null && split.assistAmount() > 0) {
+                api.points().givePoints(assistId, split.assistAmount(), PointAward.Reason.ASSIST, registration.getId());
+                Player assistPlayer = Bukkit.getPlayer(assistId);
+                if (assistPlayer != null)
+                    assistPlayer.sendMessage("§e+ " + split.assistAmount() + " §7punten voor de assist op §f" + victim.getName());
+            }
+            assistTracker.clear(victim.getUniqueId());
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         } else {
+            assistTracker.clear(victim.getUniqueId());
             broadcast("§c☠ §7" + victim.getName() + " §7" + reason);
         }
         victim.sendTitle("§c§lEliminated!", "§7" + reason, 10, 50, 10);

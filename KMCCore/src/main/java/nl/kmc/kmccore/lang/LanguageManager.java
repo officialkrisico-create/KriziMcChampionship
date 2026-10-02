@@ -25,6 +25,8 @@ public final class LanguageManager {
 
     private final KMCCore plugin;
     private final Map<String, FileConfiguration> bundles = new LinkedHashMap<>();
+    /** The jar's own copies — used for keys an older on-disk file (saved by a previous version) lacks. */
+    private final Map<String, FileConfiguration> jarDefaults = new HashMap<>();
 
     public LanguageManager(KMCCore plugin) {
         this.plugin = plugin;
@@ -33,11 +35,20 @@ public final class LanguageManager {
 
     public void load() {
         bundles.clear();
+        jarDefaults.clear();
         File dir = new File(plugin.getDataFolder(), "lang");
         if (!dir.exists()) dir.mkdirs();
 
         // Write the built-in defaults if they're missing...
-        for (String code : BUNDLED) plugin.saveResource("lang/" + code + ".yml", false);
+        for (String code : BUNDLED) {
+            plugin.saveResource("lang/" + code + ".yml", false);
+            try (var in = plugin.getResource("lang/" + code + ".yml")) {
+                if (in != null) jarDefaults.put(code,
+                        YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)));
+            } catch (java.io.IOException e) {
+                plugin.getLogger().warning("Could not read bundled language file: " + code);
+            }
+        }
 
         // ...then load EVERY .yml in the folder. Adding a new language is just
         // dropping a "<code>.yml" file here (e.g. fr.yml) — no recompile needed.
@@ -100,7 +111,12 @@ public final class LanguageManager {
 
     private String lookup(String code, String key) {
         FileConfiguration b = bundles.get(code);
-        return b != null ? b.getString(key, null) : null;
+        String value = b != null ? b.getString(key, null) : null;
+        if (value == null) {
+            FileConfiguration jar = jarDefaults.get(code);
+            if (jar != null) value = jar.getString(key, null);
+        }
+        return value;
     }
 
     public void send(CommandSender sender, String key, Object... args) {

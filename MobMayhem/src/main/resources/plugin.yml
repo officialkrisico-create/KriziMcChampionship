@@ -3,7 +3,7 @@ version: 1.0.0
 main: nl.kmc.mayhem.MobMayhemPlugin
 api-version: '1.21'
 authors: [KMC]
-depend: [KMCCore, kmc-game-api]
+depend: [KMCCore, kmc-game-api, WorldEdit]
 description: Wave-based survival minigame for KMC tournaments
 
 commands:

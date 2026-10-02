@@ -330,3 +330,18 @@ announcements:
     title: "&6&lVote for the next game!"
     subtitle: "&7Type the number in chat"
     sound: BLOCK_NOTE_BLOCK_CHIME
+
+# ----------------------------------------------------------------------
+# Commentary — korte aankondiging (titel + chat, in de taal van elke speler)
+# bij grote momenten: kill-streaks, laatste overlevende, comebacks, boss-kills...
+# De teksten staan in lang/<taal>.yml onder "commentary:".
+# ----------------------------------------------------------------------
+commentary:
+  enabled: true
+  # Minimale tijd tussen twee aankondigingen (zodat het niet vol loopt)
+  global-cooldown-seconds: 6
+  # Zelfde speler + zelfde soort moment: pas na zoveel seconden opnieuw
+  per-player-cooldown-seconds: 45
+  # Games die al hun eigen chat-melding voor het moment sturen (alleen de titel wordt dan getoond)
+  skip-chat-games:
+    - tnt_tag

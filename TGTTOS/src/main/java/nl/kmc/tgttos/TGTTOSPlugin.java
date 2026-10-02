@@ -32,9 +32,9 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
     @Override protected String   objective()   { return "Finish elke ronde zo snel mogelijk."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+100 ptn — 1e finish in ronde",
-            "+75 ptn — 2e finish",
-            "+5 ptn — DNF-troostprijs"
+            "+ptn per ronde-plaatsing (instelbaar via points.round-placement)",
+            "+ptn team-bonus als je hele team een ronde uitfinisht",
+            "+0 ptn — DNF (niet op tijd gefinisht)"
         );
     }
 
@@ -85,6 +85,13 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
                     p -> { mm.getPartial(wizardMapId).finishPos2 = p.getLocation();
                            p.sendMessage("§a[Setup] Finish-hoek 2 gezet."); },
                     "Klik: zet de tweede finish-hoek"));
+            s.add(nl.kmc.core.setup.SetupStep.action("Checkpoint toevoegen (optioneel)",
+                    partial.checkpoints.size() + " stuks", true,
+                    Material.LODESTONE,
+                    p -> { mm.getPartial(wizardMapId).checkpoints.add(p.getLocation());
+                           p.sendMessage("§a[Setup] Checkpoint #" + mm.getPartial(wizardMapId).checkpoints.size()
+                                   + " toegevoegd — wie hier valt respawnt hier, niet bij start."); },
+                    "Klik: voeg een checkpoint toe op jouw locatie (val je in de void, dan respawn je bij je laatste checkpoint)"));
             s.add(nl.kmc.core.setup.SetupStep.action("Map opslaan",
                     partial.isComplete() ? "klaar om op te slaan" : "mist: " + partial.missing(), partial.isComplete(),
                     Material.LIME_DYE,

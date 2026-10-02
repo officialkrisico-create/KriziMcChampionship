@@ -75,6 +75,16 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
                 plugin.saveConfig();
                 sender.sendMessage(ChatColor.GREEN + "Template world ingesteld op " + args[1]);
             }
+            case "pos1" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().setPos1(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Arena-hoek 1 ingesteld.");
+            }
+            case "pos2" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
+                plugin.getArenaManager().setPos2(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Arena-hoek 2 ingesteld.");
+            }
             case "setspawn" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
                 plugin.getArenaManager().setPlayerSpawn(p.getLocation());
@@ -111,8 +121,10 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
                 for (String line : plugin.getArenaManager().getReadinessReport().split("\n")) {
                     sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7" + line));
                 }
-                sender.sendMessage(ChatColor.GRAY + "Active clones: "
-                        + plugin.getWorldCloner().getActiveClones().size());
+                boolean voidLoaded = Bukkit.getWorld(plugin.getVoidWorldManager().getVoidWorldName()) != null;
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&7Void world: &f"
+                        + plugin.getVoidWorldManager().getVoidWorldName()
+                        + (voidLoaded ? " &a✔" : " &7(nog niet aangemaakt — wordt gemaakt bij eerste /mm start)")));
             }
             case "reload" -> {
                 plugin.reloadConfig();
@@ -128,6 +140,7 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
         s.sendMessage(ChatColor.GOLD + "=== Mob Mayhem ===");
         s.sendMessage(ChatColor.YELLOW + "/mm start | stop | status | reload");
         s.sendMessage(ChatColor.YELLOW + "/mm settemplate <world>");
+        s.sendMessage(ChatColor.YELLOW + "/mm pos1 | pos2 (arena-hoeken, in de template world)");
         s.sendMessage(ChatColor.YELLOW + "/mm setspawn (player)");
         s.sendMessage(ChatColor.YELLOW + "/mm addmobspawn (mob spawn point)");
         s.sendMessage(ChatColor.YELLOW + "/mm clearmobspawns");
@@ -138,7 +151,7 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1) {
-            return List.of("start", "stop", "settemplate", "setspawn",
+            return List.of("start", "stop", "settemplate", "pos1", "pos2", "setspawn",
                     "addmobspawn", "clearmobspawns", "addpowerupspawn", "clearpowerupspawns",
                     "status", "reload").stream()
                     .filter(o -> o.startsWith(args[0].toLowerCase()))

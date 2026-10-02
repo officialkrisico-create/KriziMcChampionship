@@ -116,3 +116,46 @@ sb:
     top: "&e&lTOP SPELERS"
     kd: "&7Kills &a{0}  &7Deaths &c{1}"
     streak: "&7Reeks &6{0}"
+
+# Commentary op grote momenten ({0} = spelernaam)
+commentary:
+  outnumbered_victory:
+    title: "&c&lTEGEN DE MACHTEN IN"
+    line1: "&e{0} &7wint terwijl de overmacht gigantisch was!"
+    line2: "&e{0} &7laat zich niet kisten door de overmacht!"
+  last_survivor:
+    title: "&6&lLAATSTE OVERLEVENDE"
+    line1: "&e{0} &7staat als enige nog overeind!"
+    line2: "&e{0} &7overleeft als allerlaatste!"
+  comeback_win:
+    title: "&a&lWat een comeback"
+    line1: "&e{0} &7draait het helemaal om!"
+    line2: "&e{0} &7kwam van ver terug!"
+  kill_streak:
+    title: "&c&lKILLING SPREE"
+    line1: "&e{0} &7is niet te stoppen!"
+    line2: "&e{0} &7ruimt alles op wat beweegt!"
+  last_second_tag:
+    title: "&e&lOP HET LAATSTE MOMENT"
+    line1: "&e{0} &7geeft de bom door in de laatste seconde!"
+    line2: "&e{0} &7ontsnapt op het nippertje!"
+  large_scoring_swing:
+    title: "&d&lGROTE SWING"
+    line1: "&e{0} &7zorgt voor een enorme omslag in de stand!"
+    line2: "&e{0} &7schudt de hele ranglijst door elkaar!"
+  perfect_game:
+    title: "&b&lPERFECTE GAME"
+    line1: "&e{0} &7speelt het foutloos uit!"
+    line2: "&e{0} &7laat geen enkele kans liggen!"
+  boss_killed:
+    title: "&4&lBOSS VERSLAGEN"
+    line1: "&e{0} &7maakt de boss af!"
+    line2: "&e{0} &7legt de boss neer met de genadeslag!"
+  kill_milestone_legendary:
+    title: "&6&lLEGENDARISCH"
+    line1: "&e{0} &7haalt een legendarisch aantal kills!"
+    line2: "&e{0} &7schrijft geschiedenis met een kill-mijlpaal!"
+  last_standing:
+    title: "&a&lLAATSTE OVERLEVENDE"
+    line1: "&e{0} &7houdt het als laatste uit!"
+    line2: "&e{0} &7staat als enige nog overeind!"

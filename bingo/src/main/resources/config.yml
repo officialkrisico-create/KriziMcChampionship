@@ -15,6 +15,22 @@
 # pristine world without affecting the main server world.
 # ================================================================
 
+# Start presentation — intro title, arena flyover (auto-generated if you
+# haven't recorded one via /kmccamera), tutorial tips, then a countdown,
+# THEN the match actually begins. Toggle a stage off by setting it false.
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Verzamel items en voltooi een bingo-lijn"
+  flyover-radius: 20
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
 # Generic lifecycle (BaseGameManager). The game starts RIGHT at "GO" — no grace
 # delay afterwards. Keep grace-period at 0 unless you want a pause after the
 # countdown.

@@ -21,10 +21,12 @@ public final class CeremonyManager {
     private final KMCCore plugin;
     private final File    file;
     private FileConfiguration config;
+    /** The jar's own ceremonies.yml — used for phases/keys an older on-disk file (from a previous version) lacks. */
+    private FileConfiguration jarDefaults;
 
     /** All known phase keys (matches ceremonies.yml top-level keys). */
     public static final List<String> PHASES = List.of(
-            "opening", "team-showcase", "tournament-overview",
+            "opening", "how-it-works", "tournament-overview", "team-showcase",
             "game-lineup", "voting", "game-intro",
             "game-end", "round-end", "closing");
 
@@ -40,12 +42,41 @@ public final class CeremonyManager {
     /** Reloads ceremonies.yml from disk. */
     public void reload() {
         config = YamlConfiguration.loadConfiguration(file);
+        jarDefaults = null;
+        try (var in = plugin.getResource("ceremonies.yml")) {
+            if (in != null) jarDefaults = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            plugin.getLogger().warning("[CeremonyManager] Could not read bundled ceremonies.yml defaults.");
+        }
         plugin.getLogger().info("[CeremonyManager] Loaded ceremonies.yml.");
+    }
+
+    /** The on-disk config if it defines {@code path}, otherwise the jar's default (admin edits always win). */
+    private FileConfiguration src(String path) {
+        if (config.isSet(path) || jarDefaults == null || !jarDefaults.isSet(path)) return config;
+        return jarDefaults;
     }
 
     /** Duration in seconds for a phase (falls back to provided default if not set). */
     public int getDuration(String phase, int defaultSec) {
-        return config.getInt(phase + ".duration-seconds", defaultSec);
+        String p = phase + ".duration-seconds";
+        return src(p).getInt(p, defaultSec);
+    }
+
+    /** Ticks between consecutive chat lines being revealed. */
+    public long getLineDelayTicks() {
+        return Math.max(10, src("pacing.line-delay-ticks").getLong("pacing.line-delay-ticks", 50L));
+    }
+
+    /** Minimum ticks to let players read after a stage's last line before moving on. */
+    public long getReadBufferTicks() {
+        return Math.max(0, src("pacing.read-buffer-ticks").getLong("pacing.read-buffer-ticks", 70L));
+    }
+
+    /** Seconds each game is spotlighted in the game-lineup stage. */
+    public int getSecondsPerGame() {
+        return Math.max(2, src("game-lineup.seconds-per-game").getInt("game-lineup.seconds-per-game", 4));
     }
 
     /**
@@ -53,7 +84,8 @@ public final class CeremonyManager {
      * Returns an empty list if none are configured.
      */
     public List<String> getMessages(String phase, Map<String, String> placeholders) {
-        List<String> raw = config.getStringList(phase + ".messages");
+        String p = phase + ".messages";
+        List<String> raw = src(p).getStringList(p);
         return raw.stream()
                 .map(line -> applyColor(applyPlaceholders(line, placeholders)))
                 .toList();
@@ -61,13 +93,15 @@ public final class CeremonyManager {
 
     /** Title text for the phase, or empty string if not configured. */
     public String getTitle(String phase, Map<String, String> placeholders) {
-        String raw = config.getString(phase + ".title", "");
+        String p = phase + ".title";
+        String raw = src(p).getString(p, "");
         return applyColor(applyPlaceholders(raw, placeholders));
     }
 
     /** Subtitle text for the phase, or empty string if not configured. */
     public String getSubtitle(String phase, Map<String, String> placeholders) {
-        String raw = config.getString(phase + ".subtitle", "");
+        String p = phase + ".subtitle";
+        String raw = src(p).getString(p, "");
         return applyColor(applyPlaceholders(raw, placeholders));
     }
 
@@ -93,7 +127,7 @@ public final class CeremonyManager {
 
     /** Adds a message line to a phase and saves. */
     public void addMessage(String phase, String message) {
-        List<String> lines = config.getStringList(phase + ".messages");
+        List<String> lines = src(phase + ".messages").getStringList(phase + ".messages");
         lines.add(message);
         config.set(phase + ".messages", lines);
         save();
@@ -107,7 +141,7 @@ public final class CeremonyManager {
 
     /** Sets a specific message line (0-indexed) for a phase and saves. */
     public void setMessage(String phase, int index, String message) {
-        List<String> lines = config.getStringList(phase + ".messages");
+        List<String> lines = src(phase + ".messages").getStringList(phase + ".messages");
         if (index < 0 || index >= lines.size()) return;
         lines.set(index, message);
         config.set(phase + ".messages", lines);
@@ -116,7 +150,7 @@ public final class CeremonyManager {
 
     /** Removes a specific message line (0-indexed) from a phase and saves. */
     public void removeMessage(String phase, int index) {
-        List<String> lines = config.getStringList(phase + ".messages");
+        List<String> lines = src(phase + ".messages").getStringList(phase + ".messages");
         if (index < 0 || index >= lines.size()) return;
         lines.remove(index);
         config.set(phase + ".messages", lines);
@@ -130,7 +164,7 @@ public final class CeremonyManager {
                 "§7Duration: §e" + config.getInt(phase + ".duration-seconds", -1) + "s",
                 "§7Title: §f" + config.getString(phase + ".title", "(none)"),
                 "§7Subtitle: §f" + config.getString(phase + ".subtitle", "(none)"),
-                "§7Messages (" + config.getStringList(phase + ".messages").size() + "):"
+                "§7Messages (" + src(phase + ".messages").getStringList(phase + ".messages").size() + "):"
         );
     }
 

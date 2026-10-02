@@ -26,7 +26,7 @@ start-sequence:
   intro-seconds: 3
   intro-subtitle: "Sta op de juiste kleur, of val in de void"
   flyover-radius: 20
-  flyover-height: 31   # camera stays ~31 blocks above the floor during the flyover
+  flyover-height: 70   # camera stays ~70 blocks above the floor during the flyover
   tutorial-seconds: 6
   countdown-seconds: 5
 

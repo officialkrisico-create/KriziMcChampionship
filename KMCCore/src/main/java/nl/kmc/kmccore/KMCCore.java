@@ -198,6 +198,7 @@ public final class KMCCore extends JavaPlugin {
         pm.registerEvents(new LobbyProtectionListener(this), this);
         pm.registerEvents(new DeathListener(this),           this);
         pm.registerEvents(new GlobalPvPListener(this),       this);
+        pm.registerEvents(new nl.kmc.kmccore.presentation.MomentCommentary(this), this);
 
         LobbyArmorListener lobbyArmor = new LobbyArmorListener(this);
         pm.registerEvents(lobbyArmor, this);

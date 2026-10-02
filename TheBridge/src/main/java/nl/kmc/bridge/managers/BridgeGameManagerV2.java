@@ -37,8 +37,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
     private StandardStartFlow startFlow;
 
     private final Map<UUID, Long> goalCooldown   = new HashMap<>();
-    private final Map<UUID, UUID> lastAttacker   = new HashMap<>();
-    private final Map<UUID, Long> lastAttackerMs = new HashMap<>();
+    private AssistTracker assistTracker = new AssistTracker();
 
     public BridgeGameManagerV2(TheBridgePlugin plugin, GameRegistration reg, StatisticsService statsService) {
         super(plugin, reg, statsService);
@@ -50,8 +49,8 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         stats.clear();
         bridgeTeams.clear();
         goalCooldown.clear();
-        lastAttacker.clear();
-        lastAttackerMs.clear();
+        assistTracker = new AssistTracker(
+                Math.max(1, plugin.getConfig().getInt("points.assist-window-seconds", 8)) * 1000L);
 
         plugin.getArenaManager().load();
 
@@ -276,8 +275,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
     }
 
     public void recordAttack(UUID victim, UUID attacker) {
-        lastAttacker.put(victim, attacker);
-        lastAttackerMs.put(victim, System.currentTimeMillis());
+        assistTracker.recordHit(victim, attacker);
     }
 
     public void handleDeath(Player victim) {
@@ -295,8 +293,18 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
             }
             api.points().givePoints(killer.getUniqueId(),
                     plugin.getConfig().getInt("points.per-kill", 50), PointAward.Reason.KILL, registration.getId());
+
+            UUID assistId = assistTracker.getAssist(victim.getUniqueId());
+            int assistPts = plugin.getConfig().getInt("points.per-assist", 20);
+            if (assistId != null && assistPts > 0) {
+                api.points().givePoints(assistId, assistPts, PointAward.Reason.ASSIST, registration.getId());
+                Player assistPlayer = Bukkit.getPlayer(assistId);
+                if (assistPlayer != null)
+                    assistPlayer.sendMessage("§e+ " + assistPts + " §7punten voor de assist op §f" + victim.getName());
+            }
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         }
+        assistTracker.clear(victim.getUniqueId());
 
         respawn(victim);
     }
@@ -307,9 +315,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
     // ── Internals ─────────────────────────────────────────────────────────────
 
     private Player getRecentAttacker(UUID victim) {
-        Long when = lastAttackerMs.get(victim);
-        if (when == null || System.currentTimeMillis() - when > 10_000) return null;
-        UUID id = lastAttacker.get(victim);
+        UUID id = assistTracker.getKiller(victim);
         return id != null ? Bukkit.getPlayer(id) : null;
     }
 

@@ -1,9 +1,11 @@
 # ================================================================
 # Mob Mayhem — Configuration
 # ================================================================
-# Co-op wave survival. Each team fights waves of mobs in its own cloned
-# copy of the template world; last team standing (or furthest wave
-# reached) wins.
+# Co-op wave survival. The arena you build in the template world (boxed
+# with /mm pos1 and /mm pos2) is captured fresh each game and pasted into
+# a shared void world once per team, each in its own isolated "pocket" —
+# so there's never any leftover template terrain for a bad spawn point to
+# end up buried inside, and teams can never see or affect each other.
 
 # ----------------------------------------------------------------------
 # Start presentation — same staged "riedeltje" as QuakeCraft/TNTTag: intro
@@ -34,22 +36,17 @@ games:
     grace-period: 3
 
 world:
-  # Template world cloned fresh per team at game start — never modified.
+  # The world you build the arena in. Never modified by the game itself —
+  # only ever READ from (captured fresh each game start via WorldEdit).
   template-name: "mm_template"
-
-arena:
-  # If > 0, every cloned arena gets everything OUTSIDE the arena's bounding
-  # box (player spawn + all mob/powerup spawns, this many blocks of margin)
-  # cleared to air — stops mobs/players wandering off into the rest of the
-  # template world's terrain. 0 = disabled (default — leaves the clone as-is).
-  # Only ever touches the disposable per-team clone, never the template.
-  voidify-margin: 0
-  # Vertical range cleared, relative to the average spawn Y.
-  voidify-floor-below: 10
-  voidify-ceiling-above: 60
-  # How many columns to clear per tick — lower this if the server stutters
-  # during world cloning with a large margin.
-  voidify-columns-per-tick: 150
+  # Shared void world every team's captured arena gets pasted into — one
+  # per server, auto-created with an empty generator on first use. Never
+  # deleted between games, only each team's pasted pocket gets cleared.
+  void-world-name: "mm_void"
+  # How far apart (blocks, on X) each team's pasted pocket is placed in the
+  # void world — generous enough that explosions/particles/mob pathing from
+  # one team's arena can never reach another's, regardless of arena size.
+  pocket-spacing: 10000
 
 game:
   # Force-kill any mobs still alive when a wave's timer runs out (so a

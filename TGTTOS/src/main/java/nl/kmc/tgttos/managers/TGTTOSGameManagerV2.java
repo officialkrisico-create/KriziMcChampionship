@@ -2,6 +2,7 @@ package nl.kmc.tgttos.managers;
 
 import nl.kmc.core.domain.GameRegistration;
 import nl.kmc.core.domain.PointAward;
+import nl.kmc.core.event.GameObjectiveEvent;
 import nl.kmc.game.api.*;
 import nl.kmc.tgttos.TGTTOSPlugin;
 import nl.kmc.tgttos.models.Map;
@@ -40,6 +41,10 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     private int  finishThreshold;     // # finishers that triggers the countdown (50%)
     private MapPhase mapPhase = MapPhase.RACING;
     private boolean fogOfWarActive;    // this map's random "restricted visibility" twist
+
+    // Team-finish-bonus bookkeeping for the current map (see points.team-finish-bonus).
+    private final java.util.Map<String, Integer> teamRemaining = new HashMap<>();
+    private int teamFinishRank;
 
     private BukkitTask mapTickTask;
     private BossBar    bossBar;
@@ -195,12 +200,17 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         int placement = ++mapFinishCounter;
         int pts = mapPoints(placement);
         rs.finishRound(currentMap, placement, pts); // internal map score only — KMC points come at game end
+        long elapsedMs = rs.getRoundElapsedMillis();
 
         String medal = placement == 1 ? "§6🥇" : placement == 2 ? "§7🥈" : placement == 3 ? "§c🥉" : "§7#" + placement;
-        broadcast(medal + " §e" + player.getName() + " §7finished! §8(§e+" + pts + "§8 pts)");
-        player.sendTitle(medal, "§7Mooie run!", 5, 40, 10);
+        broadcast(medal + " §e" + player.getName() + " §7finished in §b" + formatTime(elapsedMs)
+                + " §8(§e+" + pts + "§8 pts)");
+        player.sendTitle(medal, "§7" + formatTime(elapsedMs), 5, 40, 10);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
         player.setGameMode(GameMode.SPECTATOR);
+
+        if (placement == 1) fireObjective(player, GameObjectiveEvent.Type.TGTTOS_FIRST_FINISH, elapsedMs);
+        applyTeamFinishBonus(player);
 
         // Whole field done → end the map immediately.
         if (activeRacers() == 0) { endMap(); return; }
@@ -208,20 +218,73 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         if (mapPhase == MapPhase.RACING && mapFinishCounter >= finishThreshold) startFinishCountdown(true);
     }
 
-    private int mapPoints(int placement) {
-        int[] tiers = {100, 75, 60, 50, 40, 30, 25, 20, 15, 10};
-        return placement <= tiers.length ? tiers[placement - 1] : 5;
+    /** Checkpoints only count as progress going forward — never downgrade a runner's respawn point. */
+    public void onPlayerReachCheckpoint(Player player, int index) {
+        if (!getState().isRunning()) return;
+        RunnerState rs = runners.get(player.getUniqueId());
+        if (rs == null || rs.isCurrentRoundFinished() || index <= rs.getLastCheckpointIndex()) return;
+        rs.setLastCheckpointIndex(index);
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.8f, 1.6f);
+        fireObjective(player, GameObjectiveEvent.Type.CHECKPOINT_HIT);
     }
 
-    public void onPlayerDeath(Player player) {
-        // No elimination — teleport back to a start spawn
+    /** No elimination — fell below the map's void floor, respawn at the last checkpoint (or a start spawn). */
+    public void onPlayerFellInVoid(Player player) {
+        if (!getState().isRunning()) return;
+        RunnerState rs = runners.get(player.getUniqueId());
+        if (rs == null || rs.isCurrentRoundFinished()) return;
         Map map = getCurrentMap();
         if (map == null) return;
-        List<Location> spawns = map.getStartSpawns();
-        if (!spawns.isEmpty()) {
-            player.teleport(spawns.get((int)(Math.random() * spawns.size())));
-            player.setHealth(20); player.setFoodLevel(20);
+
+        Location dest = map.respawnPointFor(rs.getLastCheckpointIndex(), map.getStartSpawns(),
+                Math.abs(player.getUniqueId().hashCode()));
+        if (dest == null) return;
+        rs.recordDeath();
+        nl.kmc.game.api.GamePlayerUtil.safeTeleport(player, dest);
+        player.setHealth(20); player.setFoodLevel(20);
+        player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 0.8f);
+        player.sendActionBar(net.kyori.adventure.text.Component.text("§cIn de void gevallen — terug naar "
+                + (rs.getLastCheckpointIndex() >= 0 ? "checkpoint " + (rs.getLastCheckpointIndex() + 1) : "start")));
+    }
+
+    /** Once every member of a team currently racing this map has finished, the team gets a rank-based bonus. */
+    private void applyTeamFinishBonus(Player finisher) {
+        String teamId = api.teams().getTeamByPlayer(finisher.getUniqueId()).map(t -> t.getId()).orElse(null);
+        if (teamId == null || !teamRemaining.containsKey(teamId)) return;
+        int remaining = teamRemaining.merge(teamId, -1, Integer::sum);
+        if (remaining > 0) return;
+
+        int rank = ++teamFinishRank;
+        var bonusSection = plugin.getConfig().getConfigurationSection("points.team-finish-bonus");
+        int bonus = bonusSection != null
+                ? bonusSection.getInt(String.valueOf(rank), bonusSection.getInt("default", 0))
+                : 0;
+        if (bonus <= 0) return;
+
+        for (RunnerState rs : runners.values()) {
+            if (!teamId.equals(api.teams().getTeamByPlayer(rs.getUuid()).map(t -> t.getId()).orElse(null))) continue;
+            rs.giveBonusPoints(bonus);
         }
+        broadcast("§b§lTEAM-BONUS §7— het hele team is klaar! §8(§b+" + bonus + "§8 ptn elk)");
+    }
+
+    private int mapPoints(int placement) {
+        var section = plugin.getConfig().getConfigurationSection("points.round-placement");
+        if (section == null) {
+            int[] tiers = {100, 75, 60, 50, 40, 30, 25, 20, 15, 10};
+            return placement <= tiers.length ? tiers[placement - 1] : 5;
+        }
+        int fallback = section.getInt("default", 0);
+        return section.getInt(String.valueOf(placement), fallback);
+    }
+
+    private static String formatTime(long ms) {
+        long totalCentis = ms / 10;
+        long minutes = totalCentis / 6000;
+        long seconds = (totalCentis / 100) % 60;
+        long centis  = totalCentis % 100;
+        return (minutes > 0 ? minutes + ":" + String.format("%02d", seconds) : String.valueOf(seconds))
+                + "." + String.format("%02d", centis);
     }
 
     public java.util.Map<UUID, RunnerState> getRunnersMap() { return Collections.unmodifiableMap(runners); }
@@ -236,10 +299,17 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         mapFinishCounter   = 0;
         countdownRemaining = 0;
         mapElapsed         = 0;
+        teamFinishRank     = 0;
         runners.values().forEach(RunnerState::startRound);
 
         Map map = getCurrentMap();
         if (map == null) { end(); return; }
+
+        teamRemaining.clear();
+        for (RunnerState rs : runners.values()) {
+            api.teams().getTeamByPlayer(rs.getUuid()).ifPresent(t ->
+                    teamRemaining.merge(t.getId(), 1, Integer::sum));
+        }
 
         List<Location> spawns = map.getStartSpawns();
         List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
@@ -422,6 +492,13 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void fireObjective(Player p, GameObjectiveEvent.Type type) { fireObjective(p, type, 0); }
+
+    private void fireObjective(Player p, GameObjectiveEvent.Type type, long elapsedMs) {
+        try { new GameObjectiveEvent(p, registration.getId(), type, elapsedMs).callEvent(); }
+        catch (Throwable t) { plugin.getLogger().warning("GameObjectiveEvent failed: " + t); }
+    }
 
     private int mapsPerGame()      { return Math.max(1, plugin.getConfig().getInt("game.maps-per-game", plugin.getConfig().getInt("game.total-rounds", 5))); }
     private int countdownSeconds() { return Math.max(5, plugin.getConfig().getInt("game.finish-countdown-seconds", 120)); }

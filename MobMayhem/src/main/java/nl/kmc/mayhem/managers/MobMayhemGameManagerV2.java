@@ -33,14 +33,12 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
     /** Per-team gameplay state. */
     private final Map<String, TeamGameState>  teamStates          = new LinkedHashMap<>();
     private final Map<String, WaveExecutor>   teamExecutors       = new LinkedHashMap<>();
-    private final Map<String, World>          teamWorlds          = new LinkedHashMap<>();
+    private final Map<String, Arena>          teamArenas          = new LinkedHashMap<>();
+    private final Map<String, Location>       teamPasteOrigins    = new LinkedHashMap<>();
     private final Map<String, PowerupSpawner> teamPowerupSpawners = new LinkedHashMap<>();
     private final Map<UUID, Integer>          playerMobKills      = new HashMap<>();
-    private final Set<String>                 presentationStarted = new HashSet<>();
     private final Map<String, StandardStartFlow> teamStartFlows   = new LinkedHashMap<>();
     private final List<WaveDefinition>        waves;
-
-    private static final int ARENA_WAIT_TIMEOUT_TICKS = 300; // 15s — generous margin over WorldCloner's typical 1-3s clone time
 
     private BossBar    bossBar;
     private BukkitTask heartbeatTask;
@@ -55,10 +53,10 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
     protected void onPrepare() {
         teamStates.clear();
         teamExecutors.clear();
-        teamWorlds.clear();
+        teamArenas.clear();
+        teamPasteOrigins.clear();
         teamPowerupSpawners.clear();
         playerMobKills.clear();
-        presentationStarted.clear();
         teamStartFlows.clear();
 
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -76,19 +74,48 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
                 BarColor.RED, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
 
-        // Kick off the per-team world clones now — cloning is async (1-3s typically) so
-        // by the time onGameStart() runs (after the countdown + grace period) most/all
-        // clones should already be ready. onGameStart() still waits defensively in case
-        // a clone is slow (see awaitArenasAndStartWaves).
-        List<String> teamIds = new ArrayList<>(teamStates.keySet());
-        if (!teamIds.isEmpty()) {
-            plugin.getWorldCloner().cloneForTeams(teamIds, result -> {
-                teamWorlds.putAll(result);
-                for (var e : result.entrySet()) {
-                    Arena arena = plugin.getArenaManager().buildForWorld(e.getKey(), e.getValue());
-                    if (arena != null) ArenaVoider.voidifyAsync(plugin, e.getValue(), arena, null);
-                }
-            });
+        pasteArenasForTeams(new ArrayList<>(teamStates.keySet()));
+    }
+
+    /**
+     * Captures the admin's arena box fresh from the template world and pastes
+     * one copy per team into the shared void world, each at its own
+     * non-overlapping "pocket" offset. Synchronous (WorldEdit paste on a
+     * handful of teams is fast) — unlike the old whole-world-file clone,
+     * there's no async wait needed before waves can start.
+     */
+    private void pasteArenasForTeams(List<String> teamIds) {
+        if (teamIds.isEmpty()) return;
+        ArenaManager am = plugin.getArenaManager();
+
+        World templateWorld = Bukkit.getWorld(plugin.getWorldCloner().getTemplateWorldName());
+        if (templateWorld == null) {
+            plugin.getLogger().severe("[MobMayhem] Template world '" + plugin.getWorldCloner().getTemplateWorldName()
+                    + "' is not loaded — cannot capture the arena.");
+            return;
+        }
+        if (!am.isBoxSet()) {
+            plugin.getLogger().severe("[MobMayhem] Arena box not set — run /mm pos1 and /mm pos2 in the template world.");
+            return;
+        }
+
+        World voidWorld = plugin.getVoidWorldManager().getOrCreateVoidWorld();
+        if (voidWorld == null) {
+            plugin.getLogger().severe("[MobMayhem] Could not create/load the void world.");
+            return;
+        }
+
+        var clipboard = ArenaPaster.capture(am.getPos1In(templateWorld), am.getPos2In(templateWorld));
+
+        for (int i = 0; i < teamIds.size(); i++) {
+            String teamId = teamIds.get(i);
+            var offset = plugin.getVoidWorldManager().pocketOffset(i);
+            Location pasteOrigin = new Location(voidWorld, offset.getX(), 100, offset.getZ());
+            ArenaPaster.pasteAtMinCorner(clipboard, pasteOrigin);
+            teamPasteOrigins.put(teamId, pasteOrigin);
+            Arena arena = am.buildForPastedPocket(teamId, voidWorld, pasteOrigin);
+            if (arena != null) teamArenas.put(teamId, arena);
+            else plugin.getLogger().severe("[MobMayhem] Failed to build arena for team " + teamId + " after paste.");
         }
     }
 
@@ -108,7 +135,18 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             end();
             return;
         }
-        awaitArenasAndStartWaves(wave1, 0);
+
+        // Arenas were already pasted synchronously in onPrepare() — no async wait needed.
+        for (TeamGameState ts : teamStates.values()) {
+            Arena arena = teamArenas.get(ts.getTeamId());
+            if (arena == null) {
+                plugin.getLogger().severe("[MobMayhem] Team " + ts.getTeamId() + " has no pasted arena — eliminating.");
+                broadcast("§4[Mob Mayhem] §cTeam " + ts.getTeamId() + " kon niet starten (arena ontbreekt).");
+                onTeamEliminated(ts.getTeamId());
+                continue;
+            }
+            beginTeamPresentation(ts, arena, wave1);
+        }
 
         // Heartbeat: check if all teams eliminated
         heartbeatTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -117,43 +155,6 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             if (alive == 0) end();
             else updateBossBar();
         }, 20L, 20L);
-    }
-
-    /**
-     * Waits for each team's cloned world to be ready before starting their
-     * wave 1 — {@code cloneForTeams} is async and may not have finished by
-     * the time {@code onGameStart()} fires. Polls every second up to
-     * {@link #ARENA_WAIT_TIMEOUT_TICKS}; a team whose clone never arrives
-     * in time is eliminated rather than leaving the game hanging forever.
-     */
-    private void awaitArenasAndStartWaves(WaveDefinition wave1, int elapsedTicks) {
-        if (!getState().isRunning()) return;
-        boolean allResolved = true;
-        for (TeamGameState ts : teamStates.values()) {
-            if (ts.isEliminated() || teamExecutors.containsKey(ts.getTeamId())
-                    || presentationStarted.contains(ts.getTeamId())) continue;
-            World world = teamWorlds.get(ts.getTeamId());
-            Arena arena = world != null ? plugin.getArenaManager().buildForWorld(ts.getTeamId(), world) : null;
-            if (arena == null) { allResolved = false; continue; }
-            presentationStarted.add(ts.getTeamId());
-            beginTeamPresentation(ts, arena, wave1);
-        }
-
-        if (allResolved) return;
-
-        if (elapsedTicks < ARENA_WAIT_TIMEOUT_TICKS) {
-            Bukkit.getScheduler().runTaskLater(plugin,
-                    () -> awaitArenasAndStartWaves(wave1, elapsedTicks + 20), 20L);
-            return;
-        }
-
-        for (TeamGameState ts : teamStates.values()) {
-            if (ts.isEliminated() || teamExecutors.containsKey(ts.getTeamId())) continue;
-            plugin.getLogger().severe("[MobMayhem] Team " + ts.getTeamId()
-                    + " never got an arena in time — eliminating.");
-            broadcast("§4[Mob Mayhem] §cTeam " + ts.getTeamId() + " kon niet starten (arena niet klaar).");
-            onTeamEliminated(ts.getTeamId());
-        }
     }
 
     /**
@@ -273,8 +274,9 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
                 : (ranked.get(0).getHighestWaveSurvived() + " waves — team " + ranked.get(0).getTeamId());
 
         returnToLobby();
+        clearAllPockets();
         teamStates.clear();
-        teamWorlds.clear();
+        teamArenas.clear();
         playerMobKills.clear();
         fireResult(winnerDesc, mvpUuid, mvpName, allPlayers);
     }
@@ -396,8 +398,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             return;
         }
 
-        World world = teamWorlds.get(teamId);
-        Arena arena = world != null ? plugin.getArenaManager().buildForWorld(teamId, world) : null;
+        Arena arena = teamArenas.get(teamId);
         if (arena == null) {
             plugin.getLogger().warning("[MobMayhem] Lost arena for team " + teamId
                     + " when starting wave " + next.getWaveNumber() + ".");
@@ -491,6 +492,19 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             p.setHealth(20); p.setFoodLevel(20);
             if (lobby != null) p.teleport(lobby);
         }));
-        plugin.getWorldCloner().disposeAll();
+    }
+
+    /**
+     * Clears every team's pasted pocket back to air in the shared void
+     * world — the void world itself is persistent (never deleted), only
+     * each pocket's pasted content needs tidying between games.
+     */
+    private void clearAllPockets() {
+        int[] size = plugin.getArenaManager().getBoxSize();
+        for (Location origin : teamPasteOrigins.values()) {
+            if (origin == null || origin.getWorld() == null) continue;
+            ArenaPaster.clearPocket(origin.getWorld(), origin, size[0], size[1], size[2]);
+        }
+        teamPasteOrigins.clear();
     }
 }

@@ -191,9 +191,32 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
                               : api.tr(id, "sb.parkour.checkpoint", me.getHighestCheckpoint()));
             l.add(api.tr(id, "sb.parkour.stage", me.getHighestStage()));
             l.add(me.isFinished() ? api.tr(id, "sb.parkour.finished") : api.tr(id, "sb.parkour.busy"));
+            String gap = raceGapLine(id);
+            if (gap != null) l.add(gap);
             l.add(api.tr(id, "sb.common.points", me.getTotalPoints()));
         }
         return l;
+    }
+
+    /** Live position vs. the leader: ranked by stage reached, then distance to the nearest next-stage checkpoint. */
+    private String raceGapLine(java.util.UUID viewer) {
+        List<RaceGapIndicator.Racer> racers = new ArrayList<>();
+        for (RunnerState rs : runners.values()) {
+            Player p = Bukkit.getPlayer(rs.getUuid());
+            if (p == null) continue;
+            double dist = Double.MAX_VALUE;
+            if (!rs.isFinished()) {
+                for (Checkpoint next : plugin.getCourseManager().getCheckpointsByStage(rs.getHighestStage() + 1)) {
+                    if (next.getPos1() == null || next.getPos2() == null
+                            || !p.getWorld().equals(next.getPos1().getWorld())) continue;
+                    Location center = next.getPos1().clone().add(next.getPos2()).multiply(0.5);
+                    dist = Math.min(dist, p.getLocation().distance(center));
+                }
+            }
+            if (dist == Double.MAX_VALUE) dist = 0;
+            racers.add(new RaceGapIndicator.Racer(rs.getUuid(), rs.getHighestStage(), dist, rs.isFinished()));
+        }
+        return RaceGapIndicator.lineFor(viewer, racers);
     }
 
     @Override

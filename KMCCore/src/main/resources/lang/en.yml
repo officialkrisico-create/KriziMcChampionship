@@ -116,3 +116,46 @@ sb:
     top: "&e&lTOP PLAYERS"
     kd: "&7Kills &a{0}  &7Deaths &c{1}"
     streak: "&7Streak &6{0}"
+
+# Big-moment commentary ({0} = player name)
+commentary:
+  outnumbered_victory:
+    title: "&c&lAGAINST ALL ODDS"
+    line1: "&e{0} &7wins despite being heavily outnumbered!"
+    line2: "&e{0} &7refuses to be overwhelmed!"
+  last_survivor:
+    title: "&6&lLAST SURVIVOR"
+    line1: "&e{0} &7is the only one still standing!"
+    line2: "&e{0} &7outlasts everyone!"
+  comeback_win:
+    title: "&a&lWHAT A COMEBACK"
+    line1: "&e{0} &7turns it completely around!"
+    line2: "&e{0} &7came back from far behind!"
+  kill_streak:
+    title: "&c&lKILLING SPREE"
+    line1: "&e{0} &7is unstoppable!"
+    line2: "&e{0} &7is cleaning up everything that moves!"
+  last_second_tag:
+    title: "&e&lLAST-SECOND SAVE"
+    line1: "&e{0} &7passes the bomb in the final second!"
+    line2: "&e{0} &7escapes by the skin of their teeth!"
+  large_scoring_swing:
+    title: "&d&lHUGE SWING"
+    line1: "&e{0} &7flips the standings on their head!"
+    line2: "&e{0} &7shakes up the whole leaderboard!"
+  perfect_game:
+    title: "&b&lPERFECT GAME"
+    line1: "&e{0} &7plays it flawlessly!"
+    line2: "&e{0} &7doesn't leave a single chance on the table!"
+  boss_killed:
+    title: "&4&lBOSS DEFEATED"
+    line1: "&e{0} &7finishes off the boss!"
+    line2: "&e{0} &7lands the final blow on the boss!"
+  kill_milestone_legendary:
+    title: "&6&lLEGENDARY"
+    line1: "&e{0} &7reaches a legendary kill count!"
+    line2: "&e{0} &7makes history with a kill milestone!"
+  last_standing:
+    title: "&a&lLAST ONE STANDING"
+    line1: "&e{0} &7holds out to the very end!"
+    line2: "&e{0} &7is the only one still standing!"

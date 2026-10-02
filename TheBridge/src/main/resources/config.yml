@@ -47,9 +47,9 @@ points:
   # Per goal scored — to the scoring player
   per-goal: 50
 
-  # Per assist — to the player who hit/aided the scorer's path.
-  # An assist is credited to the most recent player who damaged the
-  # scorer's most-recent enemy kill within ASSIST-WINDOW-SECONDS.
+  # Per assist — a flat bonus to a second player who hit the victim before
+  # the killing blow (the killer keeps their full kill reward). The assisting
+  # hit must have landed within assist-window-seconds of the kill.
   per-assist: 20
   assist-window-seconds: 8
 

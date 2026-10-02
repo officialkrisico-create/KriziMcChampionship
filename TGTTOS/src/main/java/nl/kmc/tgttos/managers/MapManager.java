@@ -72,15 +72,27 @@ public class MapManager {
                 }
             }
 
+            List<Location> checkpoints = new ArrayList<>();
+            List<?> checkpointList = m.getList("checkpoints");
+            if (checkpointList != null) {
+                for (Object o : checkpointList) {
+                    if (!(o instanceof java.util.Map<?, ?> s)) continue;
+                    Object x = s.get("x"), y = s.get("y"), z = s.get("z");
+                    if (x == null || y == null || z == null) continue;
+                    checkpoints.add(new Location(world,
+                            ((Number) x).doubleValue(), ((Number) y).doubleValue(), ((Number) z).doubleValue()));
+                }
+            }
+
             Location finishPos1 = readLoc(m, "finish-pos1", world);
             Location finishPos2 = readLoc(m, "finish-pos2", world);
-            int voidY = m.getInt("void-y", 0);
+            int voidY = m.isSet("void-y") ? m.getInt("void-y") : Map.NO_VOID;
 
             if (finishPos1 == null || finishPos2 == null || spawns.isEmpty()) {
                 plugin.getLogger().warning("Map " + id + " is incomplete, skipping.");
                 continue;
             }
-            maps.put(id, new Map(id, displayName, world, spawns, finishPos1, finishPos2, voidY));
+            maps.put(id, new Map(id, displayName, world, spawns, checkpoints, finishPos1, finishPos2, voidY));
         }
 
         plugin.getLogger().info("Loaded " + maps.size() + " TGTTOS maps.");
@@ -109,13 +121,19 @@ public class MapManager {
             }
             cfg.set(path + ".start-spawns", spawnList);
 
+            List<java.util.Map<String, Double>> checkpointList = new ArrayList<>();
+            for (Location l : m.getCheckpoints()) {
+                checkpointList.add(java.util.Map.of("x", l.getX(), "y", l.getY(), "z", l.getZ()));
+            }
+            cfg.set(path + ".checkpoints", checkpointList);
+
             cfg.set(path + ".finish-pos1.x", m.getFinishPos1().getX());
             cfg.set(path + ".finish-pos1.y", m.getFinishPos1().getY());
             cfg.set(path + ".finish-pos1.z", m.getFinishPos1().getZ());
             cfg.set(path + ".finish-pos2.x", m.getFinishPos2().getX());
             cfg.set(path + ".finish-pos2.y", m.getFinishPos2().getY());
             cfg.set(path + ".finish-pos2.z", m.getFinishPos2().getZ());
-            cfg.set(path + ".void-y", m.getVoidYLevel());
+            if (m.hasVoidFloor()) cfg.set(path + ".void-y", m.getVoidYLevel());
         }
         plugin.saveConfig();
     }
@@ -162,8 +180,8 @@ public class MapManager {
     public void commitPartial(String id) {
         PartialMap p = partials.get(id);
         if (p == null || !p.isComplete()) return;
-        Map m = new Map(id, p.displayName, p.world, p.startSpawns,
-                p.finishPos1, p.finishPos2, p.voidY != null ? p.voidY : 0);
+        Map m = new Map(id, p.displayName, p.world, p.startSpawns, p.checkpoints,
+                p.finishPos1, p.finishPos2, p.voidY != null ? p.voidY : Map.NO_VOID);
         maps.put(id, m);
         partials.remove(id);
         save();
@@ -180,6 +198,7 @@ public class MapManager {
         public String   displayName;
         public World    world;
         public List<Location> startSpawns = new ArrayList<>();
+        public List<Location> checkpoints = new ArrayList<>();
         public Location finishPos1, finishPos2;
         public Integer  voidY;
 

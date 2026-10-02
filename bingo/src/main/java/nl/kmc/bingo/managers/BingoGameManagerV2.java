@@ -42,6 +42,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
     private BukkitTask gameTimerTask;
     private BossBar    bossBar;
     private int        remainingSeconds;
+    private StandardStartFlow startFlow;
 
     public BingoGameManagerV2(BingoPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -116,36 +117,48 @@ public final class BingoGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.GOLD + "" + ChatColor.BOLD + "Bingo!",
                 BarColor.YELLOW, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = participants.stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+        Location flyoverCenter = baseSpawn;
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§6§lBINGO"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§e• §7Verzamel de items op je §ebingokaart§7.",
+                                "§e• §7Elk voltooid item kleurt een §evakje§7.",
+                                "§e• §7Voltooi een §6lijn§7 (rij, kolom of diagonaal) voor bonuspunten.",
+                                "§e• §7Het team met de meeste lijnen/vakjes wint!");
+                    }
+                    @Override public Location flyoverCenter() { return flyoverCenter; }
+                    @Override public void onFinished() { beginCollecting(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§6§l[Bingo] §eVerzamel items om vakjes op je kaart te voltooien!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginCollecting() {
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 900);
 
-        PotionEffectType jumpType;
-        try { jumpType = RegistryAccess.registryAccess().getRegistry(RegistryKey.MOB_EFFECT)
-                .get(NamespacedKey.minecraft("jump_boost")); } catch (Exception e) { jumpType = null; }
         for (UUID uuid : participants) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            GamePlayerUtil.unfreezePlayer(p);
-            if (jumpType != null) p.removePotionEffect(jumpType);
             p.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "BINGO!",
                     ChatColor.YELLOW + "Voltooi je kaart!", 0, 40, 10);
         }
-
-        // How-to-play intro.
-        broadcast("§6§l═══════ BINGO ═══════");
-        broadcast("§e• §7Verzamel de items op je §ebingokaart§7.");
-        broadcast("§e• §7Elk voltooid item kleurt een §evakje§7.");
-        broadcast("§e• §7Voltooi een §6lijn§7 (rij, kolom of diagonaal) voor bonuspunten.");
-        broadcast("§e• §7Het team met de meeste lijnen/vakjes wint!");
-        broadcast("§6§l═════════════════════");
 
         bossBar.setColor(BarColor.GREEN);
         updateBossBar();
@@ -161,6 +174,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
     protected void onGameEnd() {
         if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
         if (bossBar       != null) { bossBar.removeAll();   bossBar       = null; }
+        if (startFlow     != null) { startFlow.cancel();    startFlow     = null; }
 
         // Rank teams: first by lines completed, then squares completed
         List<TeamCardState> ranked = new ArrayList<>(teamStates.values());

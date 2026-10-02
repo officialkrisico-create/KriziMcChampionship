@@ -46,6 +46,11 @@ points:
   # Per-kill (overrides KMCCore/points.yml kill value for this game)
   per-kill: 20
 
+  # Assist: if someone else hit the victim within 10s before the finishing
+  # blow, this fraction of the kill reward goes to them instead of the killer
+  # (0.2 = killer keeps 80%, assist gets 20%). Set to 0 to disable.
+  assist-fraction: 0.2
+
   # Winner = last team alive OR most kills if time runs out
   win: 200
 

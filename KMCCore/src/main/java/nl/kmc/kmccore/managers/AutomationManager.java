@@ -60,55 +60,247 @@ public class AutomationManager {
     // Control
     // ----------------------------------------------------------------
 
+    /** Stages of the opening presentation, in order (each is a section of ceremonies.yml). */
+    private static final List<String> OPENING_STAGES = List.of(
+            "opening", "how-it-works", "tournament-overview", "team-showcase", "game-lineup");
+
+    private static final Map<String, String> STAGE_LABELS = Map.of(
+            "opening",             "Opening",
+            "how-it-works",        "Spelregels",
+            "tournament-overview", "Rondes & punten",
+            "team-showcase",       "De teams",
+            "game-lineup",         "De games");
+
+    private static final BarColor[] STAGE_COLORS = {
+            BarColor.YELLOW, BarColor.BLUE, BarColor.PINK, BarColor.GREEN, BarColor.PURPLE };
+
+    // Opening-presentation bookkeeping: every scheduled step carries the generation it was
+    // scheduled in, so stop()/skip simply bump the counter and anything still pending is a no-op.
+    private int                  ceremonyGeneration;
+    private boolean              ceremonyActive;
+    private final List<BukkitTask> ceremonyTasks = new ArrayList<>();
+    private BukkitTask           stageBarTask;
+
     public void start() {
-        if (state != State.IDLE) return;
+        if (state != State.IDLE || ceremonyActive) return;
         gamesThisRound = 0;
         attemptedThisCycle.clear();
         createBossBar();
-        // Opening presentation sequence. Each STAGE runs in turn with a real gap
-        // between them (its ceremonies.yml duration), and each stage's chat lines
-        // are revealed one at a time — no more wall-of-text dumped at once.
-        ceremonyStage("opening", () ->
-            ceremonyStage("team-showcase", () ->
-                ceremonyStage("tournament-overview", this::enterIntermission)));
-    }
-
-    /**
-     * Runs one presentation stage: plays its camera route (if any), then reveals
-     * the stage's chat lines spaced out + shows its title, then waits the stage's
-     * configured duration before running {@code after}.
-     */
-    private void ceremonyStage(String phase, Runnable after) {
-        playCinematic(phase, () -> {
-            var cm = plugin.getCeremonyManager();
-            if (cm == null) { after.run(); return; }
-            Map<String, String> ph = basePlaceholders();
-            showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
-            List<String> messages = new ArrayList<>(cm.getMessages(phase, ph));
-            if (phase.equals("team-showcase")) messages.addAll(buildTeamShowcaseLines());
-            long lastLineTick = broadcastSpaced(messages);
-            int durSec = cm.getDuration(phase, 8);
-            long delay = Math.max(durSec * 20L, lastLineTick + 30L);
-            Bukkit.getScheduler().runTaskLater(plugin, after, delay);
+        // Opening presentation: opening → how it works → rounds & points → teams → games.
+        // Each stage shows its title, reveals its chat lines one at a time (with a soft chime),
+        // keeps a progress bar, and always leaves a read-pause before the next stage.
+        ceremonyActive = true;
+        final int gen = ++ceremonyGeneration;
+        runCeremonyStage(gen, 0, () -> {
+            ceremonyActive = false;
+            cancelStageBar();
+            enterIntermission();
         });
     }
 
-    /** Ticks between consecutive ceremony chat lines. */
-    private static final long LINE_DELAY_TICKS = 30L; // ~1.5s
+    /** True while the opening presentation is still playing. */
+    public boolean isCeremonyActive() { return ceremonyActive; }
+
+    /** Skips the rest of the opening presentation and goes straight to the first intermission. */
+    public boolean skipCeremony() {
+        if (!ceremonyActive) return false;
+        cancelCeremony();
+        for (Player p : Bukkit.getOnlinePlayers()) p.clearTitle();
+        broadcast("&6[KMC] &7Presentatie overgeslagen door een admin.");
+        enterIntermission();
+        return true;
+    }
+
+    private void cancelCeremony() {
+        boolean wasActive = ceremonyActive;
+        ceremonyGeneration++;
+        ceremonyActive = false;
+        ceremonyTasks.forEach(BukkitTask::cancel);
+        ceremonyTasks.clear();
+        cancelStageBar();
+        if (wasActive) {
+            var cm = plugin.getCinematicManager();
+            if (cm != null) cm.stopAll();
+        }
+    }
+
+    private void ceremonyLater(int gen, long delayTicks, Runnable r) {
+        ceremonyTasks.add(Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (gen == ceremonyGeneration) r.run();
+        }, Math.max(0L, delayTicks)));
+    }
 
     /**
-     * Broadcasts each line spaced {@value #LINE_DELAY_TICKS} ticks apart.
-     * Returns the tick offset of the LAST line (0 if empty).
+     * Runs one stage of the opening presentation: plays its camera route (if any), shows its
+     * title, reveals its lines spaced out, then waits at least the configured duration AND a
+     * read buffer after the last line before moving to the next stage.
      */
+    private void runCeremonyStage(int gen, int idx, Runnable done) {
+        if (gen != ceremonyGeneration) return;
+        if (idx >= OPENING_STAGES.size()) { done.run(); return; }
+
+        String phase = OPENING_STAGES.get(idx);
+        ceremonyTasks.clear();
+        Runnable next = () -> runCeremonyStage(gen, idx + 1, done);
+
+        playCinematic(phase, () -> {
+            if (gen != ceremonyGeneration) return;
+            var cm = plugin.getCeremonyManager();
+            if (cm == null) { next.run(); return; }
+
+            Map<String, String> ph = basePlaceholders();
+            showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+            playStageSound(idx);
+
+            long lineDelay = cm.getLineDelayTicks();
+            long lastTick  = revealLines(gen, cm.getMessages(phase, ph), 0L, lineDelay);
+
+            switch (phase) {
+                case "tournament-overview" ->
+                    lastTick = Math.max(lastTick, revealLines(gen, buildMultiplierLadderLines(),
+                            lastTick + lineDelay, lineDelay));
+                case "team-showcase" ->
+                    lastTick = Math.max(lastTick, revealBlocks(gen, buildTeamShowcaseBlocks(),
+                            lastTick + lineDelay, lineDelay));
+                case "game-lineup" ->
+                    lastTick = Math.max(lastTick, scheduleGameLineup(gen, cm, lastTick + lineDelay));
+                default -> { }
+            }
+
+            long total = Math.max(cm.getDuration(phase, 8) * 20L, lastTick + cm.getReadBufferTicks());
+            startStageBar(gen, idx, phase, total);
+            ceremonyLater(gen, total, next);
+        });
+    }
+
+    /** Reveals {@code lines} one by one starting at {@code startTick}; returns the tick of the last one. */
+    private long revealLines(int gen, List<String> lines, long startTick, long delay) {
+        if (lines.isEmpty()) return startTick;
+        List<List<String>> blocks = new ArrayList<>();
+        for (String l : lines) blocks.add(List.of(l));
+        return revealBlocks(gen, blocks, startTick, delay);
+    }
+
+    /** Like {@link #revealLines} but every block (e.g. one team) appears at once, with one chime. */
+    private long revealBlocks(int gen, List<List<String>> blocks, long startTick, long delay) {
+        long tick = startTick;
+        for (int i = 0; i < blocks.size(); i++) {
+            List<String> block = blocks.get(i);
+            tick = startTick + i * delay;
+            ceremonyLater(gen, tick, () -> {
+                block.forEach(Bukkit::broadcastMessage);
+                if (block.stream().anyMatch(l -> !l.contains("§m"))) chime();
+            });
+        }
+        return tick;
+    }
+
+    /** Spotlights each enabled game in turn: chat lines (name, description, goal) plus a title. */
+    private long scheduleGameLineup(int gen, CeremonyManager cm, long startTick) {
+        List<KMCGame> games = plugin.getGameManager().getEnabledGames();
+        long per = cm.getSecondsPerGame() * 20L;
+        for (int i = 0; i < games.size(); i++) {
+            KMCGame g = games.get(i);
+            String objective   = lookupObjective(g.getId());
+            String description = lookupDescription(g.getId());
+            int n = i + 1, total = games.size();
+            ceremonyLater(gen, startTick + i * per, () -> {
+                String name = g.getDisplayName();
+                Bukkit.broadcastMessage(MessageUtil.color("  &a&l" + n + "/" + total + " &8» &e&l" + name));
+                if (!description.isBlank())
+                    Bukkit.broadcastMessage(MessageUtil.color("        &7" + description));
+                if (!objective.isBlank())
+                    Bukkit.broadcastMessage(MessageUtil.color("        &7Doel: &f" + objective));
+                String sub = !objective.isBlank() ? objective : description;
+                float pitch = 0.8f + 0.7f * n / total;
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    p.sendTitle(MessageUtil.color("&e&l" + name), MessageUtil.color("&7" + shorten(sub, 60)),
+                            5, (int) Math.max(20, per - 15), 10);
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
+                }
+            });
+        }
+        return startTick + (long) Math.max(0, games.size() - 1) * per + per;
+    }
+
+    private static String shorten(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max - 1).stripTrailing() + "…";
+    }
+
+    private void chime() {
+        for (Player p : Bukkit.getOnlinePlayers())
+            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.35f, 1.5f);
+    }
+
+    private void playStageSound(int idx) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (idx == 0) {
+                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+                p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1f);
+                p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.8f, 1f);
+            } else {
+                p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 0.8f + 0.1f * idx);
+            }
+        }
+    }
+
+    /** Boss bar shows which stage of the presentation this is and drains over the stage's length. */
+    private void startStageBar(int gen, int idx, String phase, long totalTicks) {
+        cancelStageBar();
+        setBossBar("&6&lKMC &8| &e" + STAGE_LABELS.getOrDefault(phase, phase)
+                        + " &8(&7" + (idx + 1) + "/" + OPENING_STAGES.size() + "&8)",
+                STAGE_COLORS[idx % STAGE_COLORS.length], 1.0);
+        final long[] elapsed = {0};
+        stageBarTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (gen != ceremonyGeneration || bossBar == null) { cancelStageBar(); return; }
+            elapsed[0] += 10;
+            setBossBarProgress(1.0 - (double) elapsed[0] / Math.max(1, totalTicks));
+        }, 10L, 10L);
+    }
+
+    private void cancelStageBar() {
+        if (stageBarTask != null) { stageBarTask.cancel(); stageBarTask = null; }
+    }
+
+    /** Multiplier per round, from tournament.multipliers — shown as a compact ladder. */
+    private List<String> buildMultiplierLadderLines() {
+        var sec = plugin.getConfig().getConfigurationSection("tournament.multipliers");
+        if (sec == null) return List.of();
+        int rounds = plugin.getTournamentManager().getTotalRounds();
+        List<String> parts = new ArrayList<>();
+        for (int r = 1; r <= rounds; r++) {
+            String key = String.valueOf(r);
+            if (!sec.isSet(key)) continue;
+            double m = sec.getDouble(key);
+            String shown = m == Math.rint(m) ? String.valueOf((int) m) : String.valueOf(m);
+            parts.add("&7R" + r + " &e" + shown + "x");
+        }
+        if (parts.isEmpty()) return List.of();
+        List<String> out = new ArrayList<>();
+        out.add(MessageUtil.color("  &7Zo groeit de multiplier per ronde:"));
+        for (int i = 0; i < parts.size(); i += 4) {
+            out.add(MessageUtil.color("   " + String.join(" &8• ", parts.subList(i, Math.min(parts.size(), i + 4)))));
+        }
+        return out;
+    }
+
+    /** Broadcasts each line spaced out (used by the shorter mid-tournament ceremonies). */
     private long broadcastSpaced(List<String> lines) {
+        var cm = plugin.getCeremonyManager();
+        long delay = cm != null ? cm.getLineDelayTicks() : 50L;
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
-            Bukkit.getScheduler().runTaskLater(plugin, () -> Bukkit.broadcastMessage(line), i * LINE_DELAY_TICKS);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                Bukkit.broadcastMessage(line);
+                if (!line.contains("§m")) chime();
+            }, i * delay);
         }
-        return (long) Math.max(0, lines.size() - 1) * LINE_DELAY_TICKS;
+        return (long) Math.max(0, lines.size() - 1) * delay;
     }
 
     public void stop() {
+        cancelCeremony();
         cancelTick();
         hideBossBar();
         state = State.IDLE;
@@ -667,25 +859,30 @@ public class AutomationManager {
      * highlighted). Pulled live from the TeamManager so it always matches the
      * actual teams + members assigned for the event.
      */
-    private List<String> buildTeamShowcaseLines() {
-        List<String> out = new ArrayList<>();
+    private List<List<String>> buildTeamShowcaseBlocks() {
+        List<List<String>> out = new ArrayList<>();
         var teams = plugin.getTeamManager().getTeamsSortedByPoints();
         if (teams.isEmpty()) {
-            out.add(MessageUtil.color("  &7Geen teams ingesteld — gebruik &e/kmcrandomteams&7."));
+            out.add(List.of(MessageUtil.color("  &7Geen teams ingesteld — gebruik &e/kmcrandomteams&7.")));
             return out;
         }
         for (var team : teams) {
+            List<String> block = new ArrayList<>();
             var members = team.getMembers();
-            out.add(MessageUtil.color(team.getColor() + "&l" + team.getDisplayName()
+            block.add(MessageUtil.color(team.getColor() + "&l" + team.getDisplayName()
                     + " &7(" + members.size() + (members.size() == 1 ? " speler)" : " spelers)")));
-            if (members.isEmpty()) { out.add(MessageUtil.color("   &8• (nog geen spelers)")); continue; }
-            List<String> names = new ArrayList<>();
-            for (java.util.UUID id : members) {
-                var op = Bukkit.getOfflinePlayer(id);
-                String name = op.getName() != null ? op.getName() : id.toString().substring(0, 8);
-                names.add((op.isOnline() ? "&a" : "&7") + name);
+            if (members.isEmpty()) {
+                block.add(MessageUtil.color("   &8• (nog geen spelers)"));
+            } else {
+                List<String> names = new ArrayList<>();
+                for (java.util.UUID id : members) {
+                    var op = Bukkit.getOfflinePlayer(id);
+                    String name = op.getName() != null ? op.getName() : id.toString().substring(0, 8);
+                    names.add((op.isOnline() ? "&a" : "&7") + name);
+                }
+                block.add(MessageUtil.color("   &8• " + String.join("&7, ", names)));
             }
-            out.add(MessageUtil.color("   &8• " + String.join("&7, ", names)));
+            out.add(block);
         }
         return out;
     }
@@ -696,6 +893,9 @@ public class AutomationManager {
         m.put("round",       String.valueOf(plugin.getTournamentManager().getCurrentRound()));
         m.put("multiplier",  String.valueOf(plugin.getTournamentManager().getMultiplier()));
         m.put("team_count",  String.valueOf(plugin.getTeamManager().getTeamsSortedByPoints().size()));
+        m.put("total_rounds",    String.valueOf(plugin.getTournamentManager().getTotalRounds()));
+        m.put("games_per_round", String.valueOf(plugin.getConfig().getInt("automation.games-per-round", 3)));
+        m.put("game_count",      String.valueOf(plugin.getGameManager().getEnabledGames().size()));
         return m;
     }
 
@@ -705,7 +905,17 @@ public class AutomationManager {
         if (noTitle && noSub) return;
         String t  = noTitle ? "" : title;
         String st = noSub   ? "" : subtitle;
-        for (Player p : Bukkit.getOnlinePlayers()) p.sendTitle(t, st, 5, 60, 10);
+        for (Player p : Bukkit.getOnlinePlayers()) p.sendTitle(t, st, 10, 70, 15);
+    }
+
+    /** Looks up a game's short description from the V2 registry, or "" if unavailable. */
+    private String lookupDescription(String gameId) {
+        var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
+        if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
+            var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class).get(gameId);
+            if (reg.isPresent() && reg.get().getDescription() != null) return reg.get().getDescription();
+        }
+        return "";
     }
 
     /** Looks up a game's objective text from the V2 registry, or "" if unavailable. */

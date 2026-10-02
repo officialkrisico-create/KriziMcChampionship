@@ -65,7 +65,7 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
 
             case "start" -> {
-                if (am.isRunning()) {
+                if (am.isRunning() || am.isCeremonyActive()) {
                     sender.sendMessage(MessageUtil.color("&c[KMC] Automatisering draait al."));
                     return true;
                 }
@@ -84,6 +84,13 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(MessageUtil.color("&c[KMC] Automatisering gestopt."));
             }
 
+            case "skip" -> {
+                if (am.skipCeremony())
+                    sender.sendMessage(MessageUtil.color("&a[KMC] Openingspresentatie overgeslagen."));
+                else
+                    sender.sendMessage(MessageUtil.color("&c[KMC] Er speelt nu geen openingspresentatie."));
+            }
+
             case "pause" -> {
                 am.pause();
                 sender.sendMessage(MessageUtil.color("&e[KMC] Automatisering gepauzeerd."));
@@ -96,7 +103,8 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
 
             case "status" -> {
                 AutomationManager.State state = am.getState();
-                sender.sendMessage(MessageUtil.color("&6[KMC] Status: &e" + state.name()));
+                sender.sendMessage(MessageUtil.color("&6[KMC] Status: &e" + state.name()
+                        + (am.isCeremonyActive() ? " &7(openingspresentatie bezig — &e/kmcauto skip&7 om over te slaan)" : "")));
                 if (am.isRunning()) {
                     sender.sendMessage(MessageUtil.color("&7Countdown: &e"
                             + am.getCountdownSeconds() + "s"));
@@ -265,7 +273,7 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1)
-            return List.of("start","stop","pause","resume","status","endgame","schedule")
+            return List.of("start","stop","skip","pause","resume","status","endgame","schedule")
                     .stream().filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         if (args.length == 2 && args[0].equalsIgnoreCase("schedule"))
@@ -275,6 +283,6 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
     }
 
     private void usage(CommandSender s) {
-        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|pause|resume|status|endgame|schedule> [winner]"));
+        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|skip|pause|resume|status|endgame|schedule> [winner]"));
     }
 }

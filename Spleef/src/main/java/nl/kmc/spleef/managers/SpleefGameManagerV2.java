@@ -32,6 +32,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
 
     private final Map<UUID, UUID> lastBreaker   = new HashMap<>();
     private final Map<UUID, Long> lastBreakerMs = new HashMap<>();
+    private StandardStartFlow startFlow;
 
     public SpleefGameManagerV2(SpleefPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -65,22 +66,45 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.AQUA + "" + ChatColor.BOLD + "Spleef",
                 BarColor.BLUE, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = players.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+        Location center = !spleefSpawns.isEmpty() ? spleefSpawns.get(0) : null;
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§b§lSPLEEF"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§b§lSPLEEF",
+                                "§7Breek de sneeuwvloer onder je tegenstanders weg.",
+                                "§7Val jij in de void? Dan ben je uitgeschakeld.",
+                                "§7Laatste speler die overblijft wint!");
+                    }
+                    @Override public Location flyoverCenter() { return center; }
+                    @Override public void onFinished() { beginDigging(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§b§l[Spleef] §eBreek de vloer! Laatste die overblijft wint.");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginDigging() {
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 300);
 
-        // Release players and signal GO.
         for (UUID id : players.keySet()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null) continue;
-            nl.kmc.game.api.GamePlayerUtil.unfreezePlayer(p);
             p.sendTitle("§b§lSPLEEF", "§eBreek de vloer!", 0, 35, 10);
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
         }
@@ -98,6 +122,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
         if (voidCheckTask != null) { voidCheckTask.cancel(); voidCheckTask = null; }
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
+        if (startFlow != null) { startFlow.cancel(); startFlow = null; }
 
         List<PlayerState> ranked = new ArrayList<>(players.values());
         ranked.sort((a, b) -> {

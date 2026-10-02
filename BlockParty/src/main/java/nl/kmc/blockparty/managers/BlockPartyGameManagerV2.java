@@ -149,7 +149,9 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         if (roundTask != null) { roundTask.cancel(); roundTask = null; }
         if (bossBar  != null) { bossBar.removeAll(); bossBar = null; }
         if (startFlow != null) { startFlow.cancel(); startFlow = null; }
-        floor.clear();
+        // Reset to a plain/preset floor rather than clearing to air — the
+        // arena should look normal and complete between games, not like a void.
+        floor.resetToIdle();
 
         // Whoever is still alive is the winner; append to the elimination order last.
         List<UUID> stillAlive = players.values().stream().filter(BPPlayer::isAlive).map(BPPlayer::getUuid).toList();

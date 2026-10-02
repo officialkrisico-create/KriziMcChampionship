@@ -9,6 +9,7 @@ import nl.kmc.mayhem.listeners.MobListener;
 import nl.kmc.mayhem.managers.ArenaManager;
 import nl.kmc.mayhem.managers.KitManager;
 import nl.kmc.mayhem.managers.MobMayhemGameManagerV2;
+import nl.kmc.mayhem.managers.VoidWorldManager;
 import nl.kmc.mayhem.managers.WorldCloner;
 import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.Bukkit;
@@ -22,6 +23,7 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
 
     private ArenaManager           arenaManager;
     private WorldCloner            worldCloner;
+    private VoidWorldManager       voidWorldManager;
     private KitManager             kitManager;
     private MobMayhemGameManagerV2 mobMayhemV2;
 
@@ -44,9 +46,10 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
 
     @Override
     protected BaseGameManager createGameManagerV2(StatisticsService stats, GameRegistration reg) {
-        arenaManager = new ArenaManager(this);
-        worldCloner  = new WorldCloner(this);
-        kitManager   = new KitManager(this);
+        arenaManager     = new ArenaManager(this);
+        worldCloner      = new WorldCloner(this);
+        voidWorldManager = new VoidWorldManager(this);
+        kitManager       = new KitManager(this);
         mobMayhemV2  = new MobMayhemGameManagerV2(this, reg, stats);
         return mobMayhemV2;
     }
@@ -56,6 +59,14 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         if (arenaManager == null) return java.util.List.of();
         var am = arenaManager;
         java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
+        s.add(nl.kmc.core.setup.SetupStep.action("Arena-hoek 1", am.isBoxSet() ? "✓ gezet" : "niet gezet", am.isBoxSet(),
+                org.bukkit.Material.RED_CONCRETE,
+                p -> { am.setPos1(p.getLocation()); p.sendMessage("§a[Setup] Arena-hoek 1 gezet."); },
+                "Klik: zet de eerste hoek van de arena-box"));
+        s.add(nl.kmc.core.setup.SetupStep.action("Arena-hoek 2", am.isBoxSet() ? "✓ gezet" : "niet gezet", am.isBoxSet(),
+                org.bukkit.Material.BLUE_CONCRETE,
+                p -> { am.setPos2(p.getLocation()); p.sendMessage("§a[Setup] Arena-hoek 2 gezet."); },
+                "Klik: zet de tegenoverliggende hoek van de arena-box"));
         s.add(nl.kmc.core.setup.SetupStep.action("Speler-spawn", "klik op je locatie", false,
                 org.bukkit.Material.COMPASS,
                 p -> { am.setPlayerSpawn(p.getLocation()); p.sendMessage("§a[Setup] Speler-spawn gezet."); },
@@ -103,6 +114,7 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     public KMCCore                getKmcCore()       { return kmcCore; }
     public ArenaManager           getArenaManager()  { return arenaManager; }
     public WorldCloner            getWorldCloner()   { return worldCloner; }
+    public VoidWorldManager       getVoidWorldManager() { return voidWorldManager; }
     public KitManager             getKitManager()    { return kitManager; }
     public MobMayhemGameManagerV2 getGameManagerV2() { return mobMayhemV2; }
 }

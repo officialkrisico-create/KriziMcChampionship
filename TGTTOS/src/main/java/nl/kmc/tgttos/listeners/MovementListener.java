@@ -3,6 +3,7 @@ package nl.kmc.tgttos.listeners;
 import nl.kmc.tgttos.TGTTOSPlugin;
 import nl.kmc.tgttos.managers.TGTTOSGameManagerV2;
 import nl.kmc.tgttos.models.Map;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -13,9 +14,10 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 
 /**
- * Movement detection: PlayerMoveEvent → TGTTOSGameManagerV2.onPlayerReachFinish
- * for finish-region check. Damage cancelled (death only via void
- * fall, handled by GameManager's tick).
+ * Movement detection: PlayerMoveEvent drives finish-region, checkpoint and
+ * void-floor checks (the void floor is detected by Y position here, not by
+ * EntityDamageEvent — damage is blanket-cancelled below for the arcade feel,
+ * so a real VOID damage cause would never fire).
  */
 public class MovementListener implements Listener {
 
@@ -37,11 +39,17 @@ public class MovementListener implements Listener {
         }
         Player p = event.getPlayer();
         if (gm.getRunnersMap().get(p.getUniqueId()) == null) return;
-        // Check if player entered the current map's finish region
-        var map = gm.getCurrentMap();
-        if (map != null && map.isInFinishRegion(event.getTo())) {
-            gm.onPlayerReachFinish(p);
-        }
+        if (gm.getRunnersMap().get(p.getUniqueId()).isCurrentRoundFinished()) return;
+
+        Map map = gm.getCurrentMap();
+        if (map == null) return;
+        Location to = event.getTo();
+
+        if (map.isInFinishRegion(to)) { gm.onPlayerReachFinish(p); return; }
+        if (map.isBelowVoid(to))      { gm.onPlayerFellInVoid(p); return; }
+
+        int cpIndex = map.checkpointIndexAt(to);
+        if (cpIndex >= 0) gm.onPlayerReachCheckpoint(p, cpIndex);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

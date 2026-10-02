@@ -46,6 +46,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private int        remainingSeconds;
     private long       gameStartMs;
+    private StandardStartFlow startFlow;
 
     public ElytraEndriumGameManagerV2(ElytraEndriumPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -79,27 +80,45 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar(ChatColor.YELLOW + "" + ChatColor.BOLD + "Elytra Endrium",
                 BarColor.YELLOW, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
+
+        List<Player> parts = runners.keySet().stream()
+                .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
+
+        startFlow = new StandardStartFlow(plugin, api, registration.getId(),
+                () -> getState().isRunning(), this::broadcast,
+                new StandardStartFlow.Callbacks() {
+                    @Override public List<Player> participants() { return parts; }
+                    @Override public String introTitle() { return "§6§lELYTRA ENDRIUM"; }
+                    @Override public List<String> defaultTutorialMessages() {
+                        return List.of(
+                                "§6§l» §fVlieg door alle checkpoints in volgorde.",
+                                "§6§l» §fGebruik boost-hoepels voor extra snelheid.",
+                                "§6§l» §fCrash je? Je respawnt bij je laatste checkpoint.",
+                                "§6§l» §fAls eerste alle checkpoints halen wint!");
+                    }
+                    @Override public Location flyoverCenter() { return launch; }
+                    @Override public void onFinished() { beginFlight(); }
+                });
+        startFlow.prepareAndFreeze();
     }
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§6§l[Elytra Endrium] §eFly through all checkpoints in order!");
+        // Presentation (intro/flyover/tutorial/countdown) runs from onGameStart instead.
     }
 
     @Override
     protected void onGameStart() {
+        startFlow.start();
+    }
+
+    private void beginFlight() {
         gameStartMs      = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480);
-
-        PotionEffectType jumpType;
-        try { jumpType = RegistryAccess.registryAccess().getRegistry(RegistryKey.MOB_EFFECT)
-                .get(NamespacedKey.minecraft("jump_boost")); } catch (Exception e) { jumpType = null; }
 
         for (UUID uuid : runners.keySet()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            GamePlayerUtil.unfreezePlayer(p);
-            if (jumpType != null) p.removePotionEffect(jumpType);
 
             Vector facing = p.getLocation().getDirection();
             Vector launchVel = facing.normalize()
@@ -129,6 +148,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         if (gameTimerTask  != null) { gameTimerTask.cancel();  gameTimerTask  = null; }
         if (crashCheckTask != null) { crashCheckTask.cancel(); crashCheckTask = null; }
         if (bossBar        != null) { bossBar.removeAll();     bossBar        = null; }
+        if (startFlow      != null) { startFlow.cancel();      startFlow      = null; }
 
         // Rank: finished players by time, then unfinished by checkpoint count then total points
         List<RunnerState> ranked = new ArrayList<>(runners.values());
@@ -197,9 +217,29 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             l.add(totalCp > 0 ? api.tr(id, "sb.elytra.checkpoints-of", me.getHighestCheckpoint(), totalCp)
                               : api.tr(id, "sb.elytra.checkpoints", me.getHighestCheckpoint()));
             l.add(me.isFinished() ? api.tr(id, "sb.elytra.finished") : api.tr(id, "sb.elytra.flying"));
+            String gap = raceGapLine(id);
+            if (gap != null) l.add(gap);
             l.add(api.tr(id, "sb.common.points", me.getTotalPoints()));
         }
         return l;
+    }
+
+    /** Live position vs. the leader: ranked by checkpoints reached, then distance to the next one. */
+    private String raceGapLine(UUID viewer) {
+        List<RaceGapIndicator.Racer> racers = new ArrayList<>();
+        for (RunnerState rs : runners.values()) {
+            Player p = Bukkit.getPlayer(rs.getUuid());
+            if (p == null) continue;
+            double dist = 0;
+            Checkpoint next = plugin.getCourseManager().getCheckpoint(rs.getHighestCheckpoint() + 1);
+            if (!rs.isFinished() && next != null && next.getPos1() != null && next.getPos2() != null
+                    && p.getWorld().equals(next.getPos1().getWorld())) {
+                Location center = next.getPos1().clone().add(next.getPos2()).multiply(0.5);
+                dist = p.getLocation().distance(center);
+            }
+            racers.add(new RaceGapIndicator.Racer(rs.getUuid(), rs.getHighestCheckpoint(), dist, rs.isFinished()));
+        }
+        return RaceGapIndicator.lineFor(viewer, racers);
     }
 
     @Override

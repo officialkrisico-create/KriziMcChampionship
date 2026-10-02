@@ -10,24 +10,31 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Single-arena setup. Admin builds ONE arena in the template world;
- * the plugin clones it per-team at game start.
+ * Single-arena setup. Admin builds ONE arena in a normal "template" world
+ * and marks its bounding box with {@code /mm pos1}/{@code pos2}. At game
+ * start, that box is captured fresh (via WorldEdit) and pasted into a
+ * shared void world once per team, at a large non-overlapping offset
+ * ("pocket") — see {@link ArenaPaster} / {@link VoidWorldManager}.
  *
- * <p>Stored data:
+ * <p>This replaces the old whole-world-file-clone approach: pasting a
+ * captured box into an already-empty void is cheap, and — the actual bug
+ * this fixes — there's no leftover template terrain outside the arena for
+ * a bad spawn point to end up buried inside.
+ *
+ * <p>Stored data (all coordinates are relative to the template world):
  * <ul>
+ *   <li>Arena bounding box (pos1/pos2 corners)</li>
  *   <li>Player spawn (x,y,z + yaw/pitch)</li>
  *   <li>Mob spawn locations (list of x,y,z)</li>
+ *   <li>Powerup spawn locations (list of x,y,z)</li>
  * </ul>
- *
- * <p>These coordinates are relative to the template world. When a clone
- * is loaded, we use those same coords against the cloned world to get
- * the equivalent locations.
  *
  * <p>Setup workflow:
  * <ol>
- *   <li>Create template world manually (e.g. /mv create mm_template)</li>
+ *   <li>Create a template world manually (e.g. /mv create mm_template)</li>
  *   <li>Build the arena in that world</li>
  *   <li>/mm settemplate mm_template (registers it)</li>
+ *   <li>Stand at one corner of the arena → /mm pos1, opposite corner → /mm pos2</li>
  *   <li>Stand at desired player spawn → /mm setspawn</li>
  *   <li>Stand at each desired mob spawn → /mm addmobspawn</li>
  *   <li>/mm status to verify</li>
@@ -36,6 +43,10 @@ import java.util.List;
 public class ArenaManager {
 
     private final MobMayhemPlugin plugin;
+
+    /** Arena bounding box corners IN THE TEMPLATE WORLD (coords only, order-independent). */
+    private double p1X, p1Y, p1Z, p2X, p2Y, p2Z;
+    private boolean pos1Set, pos2Set;
 
     /** Player spawn location IN THE TEMPLATE WORLD. */
     private double psX, psY, psZ;
@@ -55,6 +66,14 @@ public class ArenaManager {
 
     public void load() {
         var cfg = plugin.getConfig();
+        if (cfg.contains("arena.pos1.x")) {
+            p1X = cfg.getDouble("arena.pos1.x"); p1Y = cfg.getDouble("arena.pos1.y"); p1Z = cfg.getDouble("arena.pos1.z");
+            pos1Set = true;
+        }
+        if (cfg.contains("arena.pos2.x")) {
+            p2X = cfg.getDouble("arena.pos2.x"); p2Y = cfg.getDouble("arena.pos2.y"); p2Z = cfg.getDouble("arena.pos2.z");
+            pos2Set = true;
+        }
         if (cfg.contains("arena.player-spawn.x")) {
             psX = cfg.getDouble("arena.player-spawn.x");
             psY = cfg.getDouble("arena.player-spawn.y");
@@ -100,6 +119,12 @@ public class ArenaManager {
 
     public void save() {
         var cfg = plugin.getConfig();
+        if (pos1Set) {
+            cfg.set("arena.pos1.x", p1X); cfg.set("arena.pos1.y", p1Y); cfg.set("arena.pos1.z", p1Z);
+        }
+        if (pos2Set) {
+            cfg.set("arena.pos2.x", p2X); cfg.set("arena.pos2.y", p2Y); cfg.set("arena.pos2.z", p2Z);
+        }
         if (playerSpawnSet) {
             cfg.set("arena.player-spawn.x", psX);
             cfg.set("arena.player-spawn.y", psY);
@@ -122,6 +147,38 @@ public class ArenaManager {
 
         plugin.saveConfig();
     }
+
+    public void setPos1(Location loc) {
+        this.p1X = loc.getX(); this.p1Y = loc.getY(); this.p1Z = loc.getZ();
+        this.pos1Set = true;
+        save();
+    }
+
+    public void setPos2(Location loc) {
+        this.p2X = loc.getX(); this.p2Y = loc.getY(); this.p2Z = loc.getZ();
+        this.pos2Set = true;
+        save();
+    }
+
+    public boolean isBoxSet() { return pos1Set && pos2Set; }
+
+    /** Minimum corner of the arena box (template-world coords). */
+    public double[] getBoxMin() {
+        return new double[]{Math.min(p1X, p2X), Math.min(p1Y, p2Y), Math.min(p1Z, p2Z)};
+    }
+
+    /** {dx, dy, dz} block dimensions of the arena box (inclusive). */
+    public int[] getBoxSize() {
+        return new int[]{
+                (int) Math.abs(p1X - p2X) + 1,
+                (int) Math.abs(p1Y - p2Y) + 1,
+                (int) Math.abs(p1Z - p2Z) + 1
+        };
+    }
+
+    /** pos1/pos2 resolved against {@code templateWorld}, for WorldEdit capture. */
+    public Location getPos1In(World templateWorld) { return new Location(templateWorld, p1X, p1Y, p1Z); }
+    public Location getPos2In(World templateWorld) { return new Location(templateWorld, p2X, p2Y, p2Z); }
 
     public void setPlayerSpawn(Location loc) {
         this.psX = loc.getX();
@@ -158,28 +215,42 @@ public class ArenaManager {
     public int     getPowerupSpawnCount()  { return powerupSpawnsRaw.size(); }
 
     /**
-     * Builds a runtime {@link Arena} for the given cloned world by
-     * applying the stored coords to the new world.
+     * Builds a runtime {@link Arena} for a pasted pocket: every stored point
+     * is translated from "absolute coord in the template world" to "offset
+     * from the arena box's minimum corner, applied to {@code pasteOrigin}".
+     *
+     * @param pasteOrigin the void-world location the box's minimum corner was pasted at
      */
-    public Arena buildForWorld(String arenaId, World world) {
-        if (!playerSpawnSet) return null;
-        Location playerSpawn = new Location(world, psX, psY, psZ, psYaw, psPitch);
+    public Arena buildForPastedPocket(String arenaId, World voidWorld, Location pasteOrigin) {
+        if (!playerSpawnSet || !isBoxSet()) return null;
+        double[] boxMin = getBoxMin();
+
+        Location playerSpawn = pasteOrigin.clone().add(psX - boxMin[0], psY - boxMin[1], psZ - boxMin[2]);
+        playerSpawn.setWorld(voidWorld);
+        playerSpawn.setYaw(psYaw);
+        playerSpawn.setPitch(psPitch);
+
         Arena arena = new Arena(arenaId, playerSpawn);
         for (double[] coords : mobSpawnsRaw) {
-            arena.addMobSpawn(new Location(world, coords[0], coords[1], coords[2]));
+            Location loc = pasteOrigin.clone().add(coords[0] - boxMin[0], coords[1] - boxMin[1], coords[2] - boxMin[2]);
+            loc.setWorld(voidWorld);
+            arena.addMobSpawn(loc);
         }
         for (double[] coords : powerupSpawnsRaw) {
-            arena.addPowerupSpawn(new Location(world, coords[0], coords[1], coords[2]));
+            Location loc = pasteOrigin.clone().add(coords[0] - boxMin[0], coords[1] - boxMin[1], coords[2] - boxMin[2]);
+            loc.setWorld(voidWorld);
+            arena.addPowerupSpawn(loc);
         }
         return arena;
     }
 
     public boolean isReady() {
-        return playerSpawnSet && mobSpawnsRaw.size() >= 4;
+        return isBoxSet() && playerSpawnSet && mobSpawnsRaw.size() >= 4;
     }
 
     public String getReadinessReport() {
         StringBuilder sb = new StringBuilder();
+        sb.append("Arena box:    ").append(isBoxSet() ? "✔" : "✘ (gebruik /mm pos1 en /mm pos2)").append("\n");
         sb.append("Player spawn: ").append(playerSpawnSet ? "✔" : "✘").append("\n");
         sb.append("Mob spawns:   ").append(mobSpawnsRaw.size())
                 .append(mobSpawnsRaw.size() < 4 ? " &c(min 4)" : "").append("\n");
