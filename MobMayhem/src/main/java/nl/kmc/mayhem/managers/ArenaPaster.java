@@ -73,18 +73,25 @@ public final class ArenaPaster {
         }
     }
 
+    /** Number of non-air blocks in a captured clipboard (0 means the box was empty — almost always a pos1/pos2 mistake). */
+    public static long countNonAir(Clipboard clipboard) {
+        long count = 0;
+        for (BlockVector3 pos : clipboard.getRegion()) {
+            if (!clipboard.getBlock(pos).getBlockType().getMaterial().isAir()) count++;
+        }
+        return count;
+    }
+
     /** Clears a team's pocket back to air — same bounding box size as the captured arena, offset by {@code destMin}. */
     public static void clearPocket(World world, Location destMin, int dx, int dy, int dz) {
-        int minX = destMin.getBlockX(), minY = destMin.getBlockY(), minZ = destMin.getBlockZ();
-        for (int x = 0; x < dx; x++) {
-            for (int y = 0; y < dy; y++) {
-                for (int z = 0; z < dz; z++) {
-                    var block = world.getBlockAt(minX + x, minY + y, minZ + z);
-                    if (block.getType() != org.bukkit.Material.AIR) {
-                        block.setType(org.bukkit.Material.AIR, false);
-                    }
-                }
-            }
+        com.sk89q.worldedit.world.World weWorld = BukkitAdapter.adapt(world);
+        BlockVector3 min = BlockVector3.at(destMin.getBlockX(), destMin.getBlockY(), destMin.getBlockZ());
+        BlockVector3 max = min.add(dx - 1, dy - 1, dz - 1);
+        try (EditSession session = WorldEdit.getInstance().newEditSessionBuilder().world(weWorld).build()) {
+            session.setBlocks((com.sk89q.worldedit.regions.Region) new CuboidRegion(weWorld, min, max),
+                    com.sk89q.worldedit.world.block.BlockTypes.AIR.getDefaultState());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to clear Mob Mayhem pocket", e);
         }
     }
 }

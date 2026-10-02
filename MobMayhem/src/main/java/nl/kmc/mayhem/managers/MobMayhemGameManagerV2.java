@@ -88,35 +88,66 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         if (teamIds.isEmpty()) return;
         ArenaManager am = plugin.getArenaManager();
 
-        World templateWorld = Bukkit.getWorld(plugin.getWorldCloner().getTemplateWorldName());
+        World templateWorld = plugin.getWorldCloner().getOrLoadTemplateWorld();
         if (templateWorld == null) {
-            plugin.getLogger().severe("[MobMayhem] Template world '" + plugin.getWorldCloner().getTemplateWorldName()
-                    + "' is not loaded — cannot capture the arena.");
+            arenaProblem("Template-wereld '" + plugin.getWorldCloner().getTemplateWorldName()
+                    + "' bestaat niet of kon niet geladen worden (/mm settemplate <wereld>).");
             return;
         }
         if (!am.isBoxSet()) {
-            plugin.getLogger().severe("[MobMayhem] Arena box not set — run /mm pos1 and /mm pos2 in the template world.");
+            arenaProblem("Arena-box niet gezet — gebruik /mm pos1 en /mm pos2 in de template-wereld.");
             return;
         }
 
         World voidWorld = plugin.getVoidWorldManager().getOrCreateVoidWorld();
         if (voidWorld == null) {
-            plugin.getLogger().severe("[MobMayhem] Could not create/load the void world.");
+            arenaProblem("De void-wereld '" + plugin.getVoidWorldManager().getVoidWorldName() + "' kon niet worden aangemaakt.");
             return;
         }
 
-        var clipboard = ArenaPaster.capture(am.getPos1In(templateWorld), am.getPos2In(templateWorld));
+        com.sk89q.worldedit.extent.clipboard.Clipboard clipboard;
+        try {
+            clipboard = ArenaPaster.capture(am.getPos1In(templateWorld), am.getPos2In(templateWorld));
+        } catch (Throwable t) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "[MobMayhem] Capturing the arena failed", t);
+            arenaProblem("Arena kopiëren mislukt: " + t.getClass().getSimpleName()
+                    + (t.getCause() != null ? " / " + t.getCause().getClass().getSimpleName() : "") + " (zie console).");
+            return;
+        }
+
+        long solid = ArenaPaster.countNonAir(clipboard);
+        plugin.getLogger().info("[MobMayhem] Captured arena box " + clipboard.getRegion().getWidth() + "x"
+                + clipboard.getRegion().getHeight() + "x" + clipboard.getRegion().getLength()
+                + " from '" + templateWorld.getName() + "' — " + solid + " non-air blocks.");
+        if (solid == 0) {
+            arenaProblem("De arena-box in '" + templateWorld.getName() + "' bevat geen enkel blok. Staan pos1/pos2 "
+                    + "(" + am.describePos(true) + " → " + am.describePos(false) + ") op de juiste plek?");
+            return;
+        }
 
         for (int i = 0; i < teamIds.size(); i++) {
             String teamId = teamIds.get(i);
             var offset = plugin.getVoidWorldManager().pocketOffset(i);
             Location pasteOrigin = new Location(voidWorld, offset.getX(), 100, offset.getZ());
-            ArenaPaster.pasteAtMinCorner(clipboard, pasteOrigin);
+            try {
+                ArenaPaster.pasteAtMinCorner(clipboard, pasteOrigin);
+            } catch (Throwable t) {
+                plugin.getLogger().log(java.util.logging.Level.SEVERE, "[MobMayhem] Pasting the arena for team " + teamId + " failed", t);
+                arenaProblem("Arena plakken voor team " + teamId + " mislukt: " + t.getClass().getSimpleName() + " (zie console).");
+                continue;
+            }
             teamPasteOrigins.put(teamId, pasteOrigin);
             Arena arena = am.buildForPastedPocket(teamId, voidWorld, pasteOrigin);
             if (arena != null) teamArenas.put(teamId, arena);
             else plugin.getLogger().severe("[MobMayhem] Failed to build arena for team " + teamId + " after paste.");
         }
+    }
+
+    /** Logs an arena-loading problem AND tells online admins, so nobody has to dig through the console. */
+    private void arenaProblem(String message) {
+        plugin.getLogger().severe("[MobMayhem] " + message);
+        for (Player op : Bukkit.getOnlinePlayers())
+            if (op.isOp() || op.hasPermission("mayhem.admin")) op.sendMessage("§c[Mob Mayhem] " + message);
     }
 
     @Override

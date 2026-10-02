@@ -70,6 +70,53 @@ public final class ElytraEndriumPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new MovementListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: a launch platform, then five large checkpoint rings along +X (each a little lower
+     * than the last, with a respawn platform beneath), boost hoops in between; the last ring is the finish.
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+        int launchX = cx - 20;
+
+        nl.kmc.game.api.TestArenaKit.platform(w, launchX, y - 1, cz, 4, 4, org.bukkit.Material.QUARTZ_BLOCK);
+        courseManager.setCourseWorld(w);
+        courseManager.setLaunchSpawn(nl.kmc.game.api.TestArenaKit.stand(w, launchX, y, cz, -90));
+        courseManager.clearCheckpoints();
+        for (String id : new java.util.ArrayList<>(courseManager.getBoostHoops().keySet())) courseManager.removeBoost(id);
+
+        for (int i = 1; i <= 5; i++) {
+            int rx = launchX + 35 * i;
+            int ry = y - 4 * i;
+            frame(w, rx, ry, cz, 6, org.bukkit.Material.SEA_LANTERN);
+            // Respawn platform below the ring
+            nl.kmc.game.api.TestArenaKit.platform(w, rx, ry - 8, cz, 2, 2, org.bukkit.Material.QUARTZ_BLOCK);
+            courseManager.addOrUpdateCheckpoint(i, i == 5 ? "Finish" : "Ring " + i,
+                    new org.bukkit.Location(w, rx, ry - 6, cz - 6), new org.bukkit.Location(w, rx + 1, ry + 6, cz + 6),
+                    nl.kmc.game.api.TestArenaKit.stand(w, rx, ry - 7, cz, -90), 50);
+
+            if (i < 5) {
+                int bx = rx + 17, by = ry - 2;
+                frame(w, bx, by, cz, 4, org.bukkit.Material.GOLD_BLOCK);
+                courseManager.addOrUpdateBoost(new nl.kmc.elytra.models.BoostHoop("boost" + i,
+                        new org.bukkit.Location(w, bx, by - 4, cz - 4), new org.bukkit.Location(w, bx, by + 4, cz + 4), 1.4));
+            }
+        }
+        return nl.kmc.game.api.TestArenaKit.stand(w, launchX, y, cz, -90);
+    }
+
+    /** A hollow square frame ({@code half}*2+1 wide) standing upright at x, centred on (y, cz). */
+    private static void frame(org.bukkit.World w, int x, int y, int cz, int half, org.bukkit.Material m) {
+        nl.kmc.game.api.TestArenaKit.fill(w, x, y - half, cz - half, x, y - half, cz + half, m);
+        nl.kmc.game.api.TestArenaKit.fill(w, x, y + half, cz - half, x, y + half, cz + half, m);
+        nl.kmc.game.api.TestArenaKit.fill(w, x, y - half, cz - half, x, y + half, cz - half, m);
+        nl.kmc.game.api.TestArenaKit.fill(w, x, y - half, cz + half, x, y + half, cz + half, m);
+    }
+
     @Override
     protected void onGameDisable() {
         if (elytraV2 != null && elytraV2.isRunning()) elytraV2.end();

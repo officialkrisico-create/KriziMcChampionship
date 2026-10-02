@@ -22,8 +22,24 @@ public class WelcomeBroadcaster {
         this.plugin = plugin;
     }
 
-    /** Call this from KMCCore.onEnable: api.onTournamentStart(welcomeBroadcaster::broadcast). */
+    /**
+     * Call this from KMCCore.onEnable: api.onTournamentStart(welcomeBroadcaster::broadcast).
+     *
+     * <p>When the tournament was started through /kmcauto, the staged opening presentation
+     * (ceremonies.yml: opening → how-it-works → ...) already explains all of this, so this
+     * generic welcome text is skipped — otherwise the two overlap, and the old text would keep
+     * coming even after the presentation is skipped. The check runs one tick later because the
+     * presentation only starts right AFTER the tournament-start hook fires.
+     */
     public void broadcast() {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            var automation = plugin.getAutomationManager();
+            if (automation != null && (automation.isCeremonyActive() || automation.isRunning())) return;
+            broadcastWelcome();
+        });
+    }
+
+    private void broadcastWelcome() {
         // Defaults — used if messages.yml doesn't override them.
         String[] defaults = {
                 "&6&l========================================",
@@ -75,7 +91,7 @@ public class WelcomeBroadcaster {
         if (!current.isEmpty()) sections.add(current);
 
         // Seconds between each section (configurable).
-        long gapTicks = Math.max(20L, cfg.getLong("tournament-welcome.section-gap-ticks", 50L));
+        long gapTicks = Math.max(20L, cfg.getLong("tournament-welcome.section-gap-ticks", 100L));
         long startDelay = 60L; // ~3s after tournament start so chat has flushed
 
         for (int i = 0; i < sections.size(); i++) {

@@ -28,10 +28,18 @@
 
 # ── Tempo van de presentatie ──────────────────────────────────────────────────
 pacing:
-  # Ticks tussen twee chatregels die één voor één verschijnen (20 ticks = 1 seconde)
-  line-delay-ticks: 50
+  # Minimaal aantal ticks dat een blok tekst alleen in beeld staat (20 ticks = 1 seconde)
+  line-delay-ticks: 40
+  # Extra ticks per zichtbaar teken: lange regels krijgen zo meer leestijd (1.3 ≈ 15 tekens/sec)
+  ticks-per-char: 1.3
   # Minimale leestijd (ticks) na de laatste regel van een fase, voor de volgende begint
-  read-buffer-ticks: 70
+  read-buffer-ticks: 50
+
+# ── Opmaak van de tekst in "messages" ─────────────────────────────────────────
+#   • Elke fase krijgt automatisch een kader met titel + subtitel bovenaan en een lijn onderaan.
+#     Losse streeplijnen (&8§m ...) in messages worden dus genegeerd.
+#   • Lange regels worden automatisch afgebroken en netjes uitgelijnd.
+#   • Begin een regel met <c> om hem te centreren.
 
 # ── Openingsceremonie (eenmalig bij start van het toernooi) ───────────────────
 opening:
@@ -39,11 +47,11 @@ opening:
   title: "&6&lKMC TOERNOOI"
   subtitle: "&eLaat de spelen beginnen!"
   messages:
-    - "&8§m                                    "
-    - "  &6&lWelkom bij de &e{tournament_name}&6&l!"
-    - "  &7{team_count} teams · {game_count} mini-games · {total_rounds} rondes"
-    - "  &7Eerst leggen we rustig uit hoe alles werkt."
-    - "&8§m                                    "
+    - "<c>&6&lWelkom bij de &e&l{tournament_name}&6&l!"
+    - ""
+    - "<c>&f{team_count} &7teams  &8•  &f{game_count} &7mini-games  &8•  &f{total_rounds} &7rondes"
+    - ""
+    - "<c>&7Eerst leggen we rustig uit hoe alles werkt."
 
 # ── Uitleg van het toernooi-format ────────────────────────────────────────────
 how-it-works:
@@ -51,15 +59,20 @@ how-it-works:
   title: "&b&lZO WERKT HET"
   subtitle: "&7Even de spelregels"
   messages:
-    - "&b&l▸ HOE WERKT HET TOERNOOI? ◂"
-    - "  &e1. &7Jullie spelen in &fteams&7. Alles wat jij scoort telt mee voor je team."
-    - "  &e2. &7Het toernooi heeft &f{total_rounds} rondes&7 van elk &f{games_per_round} mini-games&7."
-    - "  &e3. &7Na elke game stemmen jullie &fsamen&7 welke game er daarna komt."
-    - "  &e4. &7Punten verdien je met &fplaatsingen&7, &fkills&7 en het halen van &fdoelen&7."
-    - "  &e5. &7Elke ronde telt &fzwaarder&7 mee dan de vorige: de punten worden &fvermenigvuldigd&7."
-    - "  &e6. &7Het team met de meeste punten na ronde {total_rounds} is &6&lkampioen&7!"
-    - "  &7Elke game krijgt vlak voor de start nog een &feigen uitleg&7."
-    - "  &8Tip: typ &e/tutorial &8om alles op elk moment terug te lezen."
+    - " &b&l1. &7Jullie spelen in &fteams&7. Alles wat jij scoort telt mee voor je team."
+    - ""
+    - " &b&l2. &7Het toernooi heeft &f{total_rounds} rondes&7 van elk &f{games_per_round} mini-games&7."
+    - ""
+    - " &b&l3. &7Na elke game stemmen jullie &fsamen&7 welke game er daarna komt."
+    - ""
+    - " &b&l4. &7Punten verdien je met &fplaatsingen&7, &fkills&7 en het halen van &fdoelen&7."
+    - ""
+    - " &b&l5. &7Elke ronde telt &fzwaarder&7 mee dan de vorige: de punten worden &fvermenigvuldigd&7."
+    - ""
+    - " &b&l6. &7Het team met de meeste punten na ronde {total_rounds} is &6&lkampioen&7!"
+    - ""
+    - "<c>&7Elke game krijgt vlak voor de start nog een &feigen uitleg&7."
+    - "<c>&8Tip: typ &e/tutorial &8om alles op elk moment terug te lezen."
 
 # ── Team-showcase (toont alle teamnamen) ──────────────────────────────────────
 team-showcase:
@@ -67,7 +80,8 @@ team-showcase:
   title: "&b&lTEAM-SHOWCASE"
   subtitle: "&7Leer je tegenstanders kennen"
   messages:
-    - "&b&l▸ DEELNEMENDE TEAMS ◂"
+    - "<c>&7Dit zijn de teams die het tegen elkaar opnemen:"
+    # Hieronder komt automatisch elk team met zijn spelers.
 
 # ── Toernooi-overzicht (onthulling van de game-line-up) ───────────────────────
 tournament-overview:
@@ -75,9 +89,10 @@ tournament-overview:
   title: "&d&lRONDES & PUNTEN"
   subtitle: "&7Latere rondes leveren meer op"
   messages:
-    - "&d&l▸ TOERNOOI-OVERZICHT ◂"
-    - "  &7Punten vermenigvuldigen elke ronde — latere rondes leveren meer op!"
-    - "  &7Ronde {round} multiplier: &e{multiplier}x"
+    - "<c>&7Punten worden elke ronde &fvermenigvuldigd&7 — latere rondes leveren meer op!"
+    - ""
+    - "<c>&7Nu: ronde &f{round}&7, multiplier &e&l{multiplier}x"
+    - ""
     # Hieronder komt automatisch een overzicht van de multiplier per ronde (uit config.yml).
 
 # ── Game-line-up (toont alle games voordat het stemmen begint) ────────────────
@@ -88,8 +103,8 @@ game-lineup:
   title: "&a&lDE GAMES"
   subtitle: "&7Dit gaan we spelen"
   messages:
-    - "&a&l▸ ALLE {game_count} GAMES ◂"
-    - "  &7Je ziet ze hieronder één voor één, met het doel van elke game."
+    - "<c>&7Alle &f{game_count} &7games, één voor één — met het doel en hoe je punten scoort."
+    # Hieronder komt automatisch een kaart per game.
 
 # ── Stemfase ──────────────────────────────────────────────────────────────────
 voting:

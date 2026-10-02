@@ -74,6 +74,36 @@ public final class ParkourWarriorPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new MovementListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /** /kmctest: a start platform plus 7 floating 4x4 stage platforms in a line (3-block gaps), the last one is the finish. */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+        int x0 = cx - 25;
+
+        courseManager.setCourseWorld(w);
+        courseManager.clearCheckpoints();
+        for (int i = 0; i <= 7; i++) {
+            int px = x0 + i * 7;
+            org.bukkit.Material m = i == 0 ? org.bukkit.Material.LIME_CONCRETE
+                    : i == 7 ? org.bukkit.Material.GOLD_BLOCK
+                    : (i % 2 == 0 ? org.bukkit.Material.WHITE_CONCRETE : org.bukkit.Material.LIGHT_GRAY_CONCRETE);
+            nl.kmc.game.api.TestArenaKit.fill(w, px, y, cz - 1, px + 3, y, cz + 2, m);
+            var onPlatform = nl.kmc.game.api.TestArenaKit.stand(w, px + 1, y + 1, cz, -90);
+            if (i == 0) {
+                courseManager.setStartSpawn(onPlatform);
+            } else {
+                courseManager.addOrUpdateCheckpoint(i, "Stage " + i,
+                        new org.bukkit.Location(w, px, y + 1, cz - 1),
+                        new org.bukkit.Location(w, px + 3, y + 3, cz + 2), onPlatform, 25);
+            }
+        }
+        return nl.kmc.game.api.TestArenaKit.stand(w, x0 + 1, y + 1, cz, -90);
+    }
+
     @Override
     protected void onGameDisable() {
         if (parkourManagerV2 != null && parkourManagerV2.isRunning()) parkourManagerV2.end();

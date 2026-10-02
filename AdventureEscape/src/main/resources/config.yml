@@ -175,7 +175,7 @@ effect-blocks:
       - {type: dolphin, amplifier: 0}
       - {type: water_breath, amplifier: 0}
     message: "&a🐬 &lDOLPHIN'S GRACE!"
-    sound: ENTITY_DOLPHIN_HAPPY
+    sound: ENTITY_DOLPHIN_PLAY
 
   cyan_depth_strider:
     material: CYAN_GLAZED_TERRACOTTA

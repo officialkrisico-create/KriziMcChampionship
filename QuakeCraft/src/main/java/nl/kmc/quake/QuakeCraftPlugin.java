@@ -61,6 +61,31 @@ public final class QuakeCraftPlugin extends AbstractGamePlugin {
                 new nl.kmc.quake.listeners.JumpPadListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /** /kmctest: a 41x41 floor with an outer wall, four cover pillars, 8 spawns and 2 powerup spots. */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        nl.kmc.game.api.TestArenaKit.platform(w, cx, y, cz, 20, 20, org.bukkit.Material.SMOOTH_QUARTZ);
+        nl.kmc.game.api.TestArenaKit.walls(w, cx, y + 1, cz, 20, 20, 6, org.bukkit.Material.POLISHED_ANDESITE);
+        for (int dx : new int[]{-8, 8})
+            for (int dz : new int[]{-8, 8})
+                nl.kmc.game.api.TestArenaKit.fill(w, cx + dx, y + 1, cz + dz, cx + dx + 1, y + 4, cz + dz + 1,
+                        org.bukkit.Material.STONE_BRICKS);
+
+        arenaManager.setArenaWorld(w);
+        arenaManager.clearSpawns();
+        for (var spawn : nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 14, 8)) arenaManager.addSpawn(spawn);
+        arenaManager.clearPowerupLocations();
+        arenaManager.addPowerupLocation("test1", nl.kmc.game.api.TestArenaKit.stand(w, cx + 3, y + 1, cz, 0));
+        arenaManager.addPowerupLocation("test2", nl.kmc.game.api.TestArenaKit.stand(w, cx - 3, y + 1, cz, 0));
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0);
+    }
+
     @Override
     protected void onGameDisable() {
         if (quakeV2 != null && quakeV2.isRunning()) quakeV2.end();

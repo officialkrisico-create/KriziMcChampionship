@@ -61,11 +61,17 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         java.util.List<nl.kmc.core.setup.SetupStep> s = new java.util.ArrayList<>();
         s.add(nl.kmc.core.setup.SetupStep.action("Arena-hoek 1", am.isBoxSet() ? "✓ gezet" : "niet gezet", am.isBoxSet(),
                 org.bukkit.Material.RED_CONCRETE,
-                p -> { am.setPos1(p.getLocation()); p.sendMessage("§a[Setup] Arena-hoek 1 gezet."); },
+                p -> { String problem = am.templateWorldProblem(p);
+                       if (problem != null) { p.sendMessage("§c[Setup] " + problem); return; }
+                       am.setPos1(p.getLocation());
+                       p.sendMessage("§a[Setup] Arena-hoek 1 = blok " + am.describePos(true) + " (het blok waar je op staat)."); },
                 "Klik: zet de eerste hoek van de arena-box"));
         s.add(nl.kmc.core.setup.SetupStep.action("Arena-hoek 2", am.isBoxSet() ? "✓ gezet" : "niet gezet", am.isBoxSet(),
                 org.bukkit.Material.BLUE_CONCRETE,
-                p -> { am.setPos2(p.getLocation()); p.sendMessage("§a[Setup] Arena-hoek 2 gezet."); },
+                p -> { String problem = am.templateWorldProblem(p);
+                       if (problem != null) { p.sendMessage("§c[Setup] " + problem); return; }
+                       am.setPos2(p.getLocation());
+                       p.sendMessage("§a[Setup] Arena-hoek 2 = blok " + am.describePos(false) + " (het blok waar je op staat)."); },
                 "Klik: zet de tegenoverliggende hoek van de arena-box"));
         s.add(nl.kmc.core.setup.SetupStep.action("Speler-spawn", "klik op je locatie", false,
                 org.bukkit.Material.COMPASS,
@@ -92,6 +98,36 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         var bukkitCmd = getCommand("mobmayhem");
         if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new MobListener(this), this);
+    }
+
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: a walled 41x41 arena in the CURRENT world, which becomes the template world —
+     * box, player spawn, 8 mob spawns and 2 powerup spots. Needs WorldEdit (as the game itself does).
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        nl.kmc.game.api.TestArenaKit.platform(w, cx, y, cz, 20, 20, Material.DEEPSLATE_TILES);
+        nl.kmc.game.api.TestArenaKit.walls(w, cx, y + 1, cz, 20, 20, 8, Material.POLISHED_DEEPSLATE);
+
+        getConfig().set("world.template-name", w.getName());
+        saveConfig();
+
+        // pos1/pos2 are "the block you stand on" — pass a location one above the intended block.
+        arenaManager.setPos1(new org.bukkit.Location(w, cx - 20, y + 1, cz - 20));
+        arenaManager.setPos2(new org.bukkit.Location(w, cx + 20, y + 11, cz + 20));
+        arenaManager.setPlayerSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0));
+        arenaManager.clearMobSpawns();
+        for (var spawn : nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 15, 8)) arenaManager.addMobSpawn(spawn);
+        arenaManager.clearPowerupSpawns();
+        arenaManager.addPowerupSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx + 6, y + 1, cz, 0));
+        arenaManager.addPowerupSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx - 6, y + 1, cz, 0));
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0);
     }
 
     @Override

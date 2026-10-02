@@ -5,7 +5,10 @@ import nl.kmc.kmccore.models.KMCGame;
 import nl.kmc.core.domain.KMCTeam;
 import nl.kmc.kmccore.models.PlayerData;
 import nl.kmc.kmccore.util.MessageUtil;
+import nl.kmc.kmccore.presentation.ChatLayout;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -73,6 +76,9 @@ public class AutomationManager {
 
     private static final BarColor[] STAGE_COLORS = {
             BarColor.YELLOW, BarColor.BLUE, BarColor.PINK, BarColor.GREEN, BarColor.PURPLE };
+
+    /** Chat accent colour per stage: gold, aqua, light purple, dark aqua, green. */
+    private static final char[] STAGE_CHAT_COLORS = { '6', 'b', 'd', '3', 'a' };
 
     // Opening-presentation bookkeeping: every scheduled step carries the generation it was
     // scheduled in, so stop()/skip simply bump the counter and anything still pending is a no-op.
@@ -149,78 +155,97 @@ public class AutomationManager {
             if (cm == null) { next.run(); return; }
 
             Map<String, String> ph = basePlaceholders();
-            showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+            String titleText = cm.getTitle(phase, ph);
+            String subText   = cm.getSubtitle(phase, ph);
+            showCeremonyTitle(titleText, subText);
             playStageSound(idx);
+            stageBurst(idx);
 
-            long lineDelay = cm.getLineDelayTicks();
-            long lastTick  = revealLines(gen, cm.getMessages(phase, ph), 0L, lineDelay);
-
+            // Chat script for this stage: a framed header, then one block per message (laid out
+            // with centring / wrapping), then stage-specific content, then a closing rule.
+            char color = STAGE_CHAT_COLORS[idx % STAGE_CHAT_COLORS.length];
+            List<List<String>> blocks = new ArrayList<>();
+            blocks.add(ChatLayout.header(color, ChatColor.stripColor(titleText), ChatColor.stripColor(subText)));
+            for (String message : cm.getMessages(phase, ph)) {
+                if (isSeparatorLine(message)) continue;   // the header/footer frame replaces old divider lines
+                if (message.isBlank()) {                   // a blank line is spacing, not a new beat
+                    if (blocks.size() > 1) blocks.get(blocks.size() - 1).add("");
+                    continue;
+                }
+                blocks.add(new ArrayList<>(ChatLayout.body(message)));
+            }
             switch (phase) {
-                case "tournament-overview" ->
-                    lastTick = Math.max(lastTick, revealLines(gen, buildMultiplierLadderLines(),
-                            lastTick + lineDelay, lineDelay));
-                case "team-showcase" ->
-                    lastTick = Math.max(lastTick, revealBlocks(gen, buildTeamShowcaseBlocks(),
-                            lastTick + lineDelay, lineDelay));
-                case "game-lineup" ->
-                    lastTick = Math.max(lastTick, scheduleGameLineup(gen, cm, lastTick + lineDelay));
+                case "tournament-overview" -> buildMultiplierLadderBlock().ifPresent(blocks::add);
+                case "team-showcase"       -> blocks.addAll(buildTeamShowcaseBlocks());
                 default -> { }
             }
 
-            long total = Math.max(cm.getDuration(phase, 8) * 20L, lastTick + cm.getReadBufferTicks());
+            boolean isLineup = phase.equals("game-lineup");
+            if (!isLineup) blocks.add(List.of(ChatLayout.rule(color), ""));
+            long end = revealBlocks(gen, blocks, 0L, cm);
+            if (isLineup) end = Math.max(end, scheduleGameLineup(gen, cm, end));
+
+            long total = Math.max(cm.getDuration(phase, 8) * 20L, end + cm.getReadBufferTicks());
             startStageBar(gen, idx, phase, total);
             ceremonyLater(gen, total, next);
         });
     }
 
-    /** Reveals {@code lines} one by one starting at {@code startTick}; returns the tick of the last one. */
-    private long revealLines(int gen, List<String> lines, long startTick, long delay) {
-        if (lines.isEmpty()) return startTick;
-        List<List<String>> blocks = new ArrayList<>();
-        for (String l : lines) blocks.add(List.of(l));
-        return revealBlocks(gen, blocks, startTick, delay);
+    /** True for the old "&8§m      " divider lines in ceremonies.yml — the stage frame draws its own. */
+    private static boolean isSeparatorLine(String message) {
+        return message != null && message.contains("§m") && ChatColor.stripColor(message).isBlank();
     }
 
-    /** Like {@link #revealLines} but every block (e.g. one team) appears at once, with one chime. */
-    private long revealBlocks(int gen, List<List<String>> blocks, long startTick, long delay) {
+    /**
+     * Reveals each block at once (with one chime) starting at {@code startTick}. How long a block
+     * stays alone on screen scales with how much there is to read. Returns the tick at which the
+     * last block has been on screen long enough to read.
+     */
+    private long revealBlocks(int gen, List<List<String>> blocks, long startTick, CeremonyManager cm) {
         long tick = startTick;
-        for (int i = 0; i < blocks.size(); i++) {
-            List<String> block = blocks.get(i);
-            tick = startTick + i * delay;
+        for (List<String> block : blocks) {
             ceremonyLater(gen, tick, () -> {
                 block.forEach(Bukkit::broadcastMessage);
-                if (block.stream().anyMatch(l -> !l.contains("§m"))) chime();
+                if (block.stream().anyMatch(l -> !l.isBlank() && !l.contains("§m"))) chime();
             });
+            int chars = block.stream().mapToInt(ChatLayout::visibleLength).sum();
+            tick += Math.max(cm.getLineDelayTicks(), Math.round(chars * cm.getTicksPerChar()));
         }
         return tick;
     }
 
-    /** Spotlights each enabled game in turn: chat lines (name, description, goal) plus a title. */
+    /** Spotlights each enabled game in turn as a framed card, plus a title and a particle burst. */
     private long scheduleGameLineup(int gen, CeremonyManager cm, long startTick) {
         List<KMCGame> games = plugin.getGameManager().getEnabledGames();
-        long per = cm.getSecondsPerGame() * 20L;
+        long tick = startTick;
         for (int i = 0; i < games.size(); i++) {
             KMCGame g = games.get(i);
             String objective   = lookupObjective(g.getId());
             String description = lookupDescription(g.getId());
+            List<String> scoring = lookupScoring(g.getId());
             int n = i + 1, total = games.size();
-            ceremonyLater(gen, startTick + i * per, () -> {
-                String name = g.getDisplayName();
-                Bukkit.broadcastMessage(MessageUtil.color("  &a&l" + n + "/" + total + " &8» &e&l" + name));
-                if (!description.isBlank())
-                    Bukkit.broadcastMessage(MessageUtil.color("        &7" + description));
-                if (!objective.isBlank())
-                    Bukkit.broadcastMessage(MessageUtil.color("        &7Doel: &f" + objective));
-                String sub = !objective.isBlank() ? objective : description;
-                float pitch = 0.8f + 0.7f * n / total;
+
+            List<String> card = ChatLayout.gameCard(n, total, g.getDisplayName(), description, objective, scoring);
+            int chars = card.stream().mapToInt(ChatLayout::visibleLength).sum();
+            // Each card stays up long enough to actually read: at least seconds-per-game, more for wordy ones.
+            long hold = Math.max(cm.getSecondsPerGame() * 20L, Math.round(chars * cm.getTicksPerChar()));
+
+            String sub = !objective.isBlank() ? objective : description;
+            float pitch = 0.8f + 0.7f * n / total;
+            long holdFinal = hold;
+            ceremonyLater(gen, tick, () -> {
+                card.forEach(Bukkit::broadcastMessage);
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    p.sendTitle(MessageUtil.color("&e&l" + name), MessageUtil.color("&7" + shorten(sub, 60)),
-                            5, (int) Math.max(20, per - 15), 10);
+                    p.sendTitle(MessageUtil.color("&e&l" + g.getDisplayName()), MessageUtil.color("&7" + shorten(sub, 60)),
+                            5, (int) Math.max(20, holdFinal - 15), 10);
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
+                    p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, pitch);
                 }
+                stageBurst(2);
             });
+            tick += hold;
         }
-        return startTick + (long) Math.max(0, games.size() - 1) * per + per;
+        return tick;
     }
 
     private static String shorten(String s, int max) {
@@ -263,10 +288,10 @@ public class AutomationManager {
         if (stageBarTask != null) { stageBarTask.cancel(); stageBarTask = null; }
     }
 
-    /** Multiplier per round, from tournament.multipliers — shown as a compact ladder. */
-    private List<String> buildMultiplierLadderLines() {
+    /** Multiplier per round, from tournament.multipliers — a centred "ladder", four rounds per row. */
+    private java.util.Optional<List<String>> buildMultiplierLadderBlock() {
         var sec = plugin.getConfig().getConfigurationSection("tournament.multipliers");
-        if (sec == null) return List.of();
+        if (sec == null) return java.util.Optional.empty();
         int rounds = plugin.getTournamentManager().getTotalRounds();
         List<String> parts = new ArrayList<>();
         for (int r = 1; r <= rounds; r++) {
@@ -274,15 +299,35 @@ public class AutomationManager {
             if (!sec.isSet(key)) continue;
             double m = sec.getDouble(key);
             String shown = m == Math.rint(m) ? String.valueOf((int) m) : String.valueOf(m);
-            parts.add("&7R" + r + " &e" + shown + "x");
+            parts.add("§8[§7RONDE §f" + r + "§8] §e§l" + shown + "x");
         }
-        if (parts.isEmpty()) return List.of();
+        if (parts.isEmpty()) return java.util.Optional.empty();
         List<String> out = new ArrayList<>();
-        out.add(MessageUtil.color("  &7Zo groeit de multiplier per ronde:"));
-        for (int i = 0; i < parts.size(); i += 4) {
-            out.add(MessageUtil.color("   " + String.join(" &8• ", parts.subList(i, Math.min(parts.size(), i + 4)))));
+        out.add(ChatLayout.center("§d§lMULTIPLIER PER RONDE"));
+        out.add("");
+        for (int i = 0; i < parts.size(); i += 2) {
+            out.add(ChatLayout.center(String.join("   §8|   ", parts.subList(i, Math.min(parts.size(), i + 2)))));
         }
-        return out;
+        return java.util.Optional.of(out);
+    }
+
+    /** "How you score" lines of a game (from its registration), or an empty list. */
+    private List<String> lookupScoring(String gameId) {
+        var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
+        if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
+            var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class).get(gameId);
+            if (reg.isPresent()) return reg.get().getScoringLines();
+        }
+        return List.of();
+    }
+
+    /** Particle burst around every player — opening gets the big totem-style one. */
+    private void stageBurst(int idx) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            var at = p.getLocation().add(0, 1, 0);
+            p.spawnParticle(Particle.FIREWORK, at, 40, 1.5, 1.0, 1.5, 0.05);
+            if (idx == 0) p.spawnParticle(Particle.TOTEM_OF_UNDYING, at, 60, 1.2, 1.0, 1.2, 0.4);
+        }
     }
 
     /** Broadcasts each line spaced out (used by the shorter mid-tournament ceremonies). */
@@ -869,10 +914,10 @@ public class AutomationManager {
         for (var team : teams) {
             List<String> block = new ArrayList<>();
             var members = team.getMembers();
-            block.add(MessageUtil.color(team.getColor() + "&l" + team.getDisplayName()
-                    + " &7(" + members.size() + (members.size() == 1 ? " speler)" : " spelers)")));
+            block.add(MessageUtil.color(" " + team.getColor() + "&l▌ " + team.getDisplayName().toUpperCase()
+                    + " &8» &7" + members.size() + (members.size() == 1 ? " speler" : " spelers")));
             if (members.isEmpty()) {
-                block.add(MessageUtil.color("   &8• (nog geen spelers)"));
+                block.add(MessageUtil.color("   &8(nog geen spelers)"));
             } else {
                 List<String> names = new ArrayList<>();
                 for (java.util.UUID id : members) {
@@ -880,8 +925,11 @@ public class AutomationManager {
                     String name = op.getName() != null ? op.getName() : id.toString().substring(0, 8);
                     names.add((op.isOnline() ? "&a" : "&7") + name);
                 }
-                block.add(MessageUtil.color("   &8• " + String.join("&7, ", names)));
+                // Wrapped so a full team never runs off the edge of the chat window.
+                block.addAll(ChatLayout.wrap(MessageUtil.color(String.join("&8, ", names)),
+                        ChatLayout.WRAP_PX, "   ", "   "));
             }
+            block.add("");
             out.add(block);
         }
         return out;

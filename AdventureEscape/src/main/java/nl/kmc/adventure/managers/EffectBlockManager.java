@@ -96,15 +96,7 @@ public class EffectBlockManager {
     // ----------------------------------------------------------------
 
     private Sound resolveSound(String raw) {
-        try {
-            String key = raw.toLowerCase().replace('_', '.');
-            var reg = RegistryAccess.registryAccess().getRegistry(RegistryKey.SOUND_EVENT);
-            Sound s = reg.get(NamespacedKey.minecraft(key));
-            if (s != null) return s;
-            return reg.get(NamespacedKey.minecraft(raw.toLowerCase()));
-        } catch (Exception e) {
-            return null;
-        }
+        return nl.kmc.game.api.GameSfx.lookupVanillaSound(raw);
     }
 
     private Enchantment lookupEnchantment(String id) {

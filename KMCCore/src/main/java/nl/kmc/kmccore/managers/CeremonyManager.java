@@ -64,14 +64,19 @@ public final class CeremonyManager {
         return src(p).getInt(p, defaultSec);
     }
 
-    /** Ticks between consecutive chat lines being revealed. */
+    /** Minimum ticks each chat block stays alone on screen before the next one appears. */
     public long getLineDelayTicks() {
-        return Math.max(10, src("pacing.line-delay-ticks").getLong("pacing.line-delay-ticks", 50L));
+        return Math.max(10, src("pacing.line-delay-ticks").getLong("pacing.line-delay-ticks", 40L));
+    }
+
+    /** Extra ticks per visible character of a block — longer lines get proportionally more reading time. */
+    public double getTicksPerChar() {
+        return Math.max(0, src("pacing.ticks-per-char").getDouble("pacing.ticks-per-char", 1.3));
     }
 
     /** Minimum ticks to let players read after a stage's last line before moving on. */
     public long getReadBufferTicks() {
-        return Math.max(0, src("pacing.read-buffer-ticks").getLong("pacing.read-buffer-ticks", 70L));
+        return Math.max(0, src("pacing.read-buffer-ticks").getLong("pacing.read-buffer-ticks", 50L));
     }
 
     /** Seconds each game is spotlighted in the game-lineup stage. */

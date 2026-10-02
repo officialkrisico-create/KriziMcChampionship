@@ -66,12 +66,14 @@ public class ArenaManager {
 
     public void load() {
         var cfg = plugin.getConfig();
+        // Corners are whole block coordinates; floor() also normalises values saved by older
+        // versions, which stored the admin's exact (fractional) position.
         if (cfg.contains("arena.pos1.x")) {
-            p1X = cfg.getDouble("arena.pos1.x"); p1Y = cfg.getDouble("arena.pos1.y"); p1Z = cfg.getDouble("arena.pos1.z");
+            p1X = Math.floor(cfg.getDouble("arena.pos1.x")); p1Y = Math.floor(cfg.getDouble("arena.pos1.y")); p1Z = Math.floor(cfg.getDouble("arena.pos1.z"));
             pos1Set = true;
         }
         if (cfg.contains("arena.pos2.x")) {
-            p2X = cfg.getDouble("arena.pos2.x"); p2Y = cfg.getDouble("arena.pos2.y"); p2Z = cfg.getDouble("arena.pos2.z");
+            p2X = Math.floor(cfg.getDouble("arena.pos2.x")); p2Y = Math.floor(cfg.getDouble("arena.pos2.y")); p2Z = Math.floor(cfg.getDouble("arena.pos2.z"));
             pos2Set = true;
         }
         if (cfg.contains("arena.player-spawn.x")) {
@@ -148,19 +150,60 @@ public class ArenaManager {
         plugin.saveConfig();
     }
 
+    /** Sets corner 1 to the BLOCK the admin is standing on (not the air block at their feet). */
     public void setPos1(Location loc) {
-        this.p1X = loc.getX(); this.p1Y = loc.getY(); this.p1Z = loc.getZ();
+        this.p1X = loc.getBlockX(); this.p1Y = loc.getBlockY() - 1; this.p1Z = loc.getBlockZ();
         this.pos1Set = true;
         save();
     }
 
+    /** Sets corner 2 to the BLOCK the admin is standing on (not the air block at their feet). */
     public void setPos2(Location loc) {
-        this.p2X = loc.getX(); this.p2Y = loc.getY(); this.p2Z = loc.getZ();
+        this.p2X = loc.getBlockX(); this.p2Y = loc.getBlockY() - 1; this.p2Z = loc.getBlockZ();
         this.pos2Set = true;
         save();
     }
 
+    /** "x, y, z" of a corner, for chat feedback. */
+    public String describePos(boolean first) {
+        return first ? (int) p1X + ", " + (int) p1Y + ", " + (int) p1Z
+                     : (int) p2X + ", " + (int) p2Y + ", " + (int) p2Z;
+    }
+
+    /**
+     * Pos1/pos2 only mean something in the template world (that's where the box is captured
+     * from) — returns an explanation if {@code player} is standing in some other world, else null.
+     */
+    public String templateWorldProblem(org.bukkit.entity.Player player) {
+        String template = plugin.getWorldCloner().getTemplateWorldName();
+        if (player.getWorld().getName().equals(template)) return null;
+        return "Je staat in wereld '" + player.getWorld().getName() + "', maar de template-wereld is '" + template
+                + "'. Ga naar '" + template + "' (of kies deze wereld met /mm settemplate "
+                + player.getWorld().getName() + ") en probeer opnieuw.";
+    }
+
     public boolean isBoxSet() { return pos1Set && pos2Set; }
+
+    /** True if the point's block lies inside the arena box (inclusive). */
+    public boolean isInsideBox(double x, double y, double z) {
+        if (!isBoxSet()) return false;
+        double[] min = getBoxMin();
+        int[] size = getBoxSize();
+        int bx = (int) Math.floor(x), by = (int) Math.floor(y), bz = (int) Math.floor(z);
+        return bx >= min[0] && bx < min[0] + size[0]
+            && by >= min[1] && by < min[1] + size[1]
+            && bz >= min[2] && bz < min[2] + size[2];
+    }
+
+    /** How many of the player/mob/powerup spawns lie outside the box — those would end up in the void. */
+    public int countSpawnsOutsideBox() {
+        if (!isBoxSet()) return 0;
+        int outside = 0;
+        if (playerSpawnSet && !isInsideBox(psX, psY, psZ)) outside++;
+        for (double[] c : mobSpawnsRaw)     if (!isInsideBox(c[0], c[1], c[2])) outside++;
+        for (double[] c : powerupSpawnsRaw) if (!isInsideBox(c[0], c[1], c[2])) outside++;
+        return outside;
+    }
 
     /** Minimum corner of the arena box (template-world coords). */
     public double[] getBoxMin() {
@@ -245,12 +288,22 @@ public class ArenaManager {
     }
 
     public boolean isReady() {
-        return isBoxSet() && playerSpawnSet && mobSpawnsRaw.size() >= 4;
+        return isBoxSet() && playerSpawnSet && mobSpawnsRaw.size() >= 4 && countSpawnsOutsideBox() == 0;
     }
 
     public String getReadinessReport() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Arena box:    ").append(isBoxSet() ? "✔" : "✘ (gebruik /mm pos1 en /mm pos2)").append("\n");
+        if (isBoxSet()) {
+            int[] s = getBoxSize();
+            sb.append("Arena box:    ✔ ").append(s[0]).append("x").append(s[1]).append("x").append(s[2])
+              .append(" blokken (").append(describePos(true)).append(" → ").append(describePos(false)).append(")\n");
+            int outside = countSpawnsOutsideBox();
+            if (outside > 0)
+                sb.append("Buiten de box: &c").append(outside)
+                  .append(" spawn(s) liggen buiten pos1-pos2 en worden NIET meegekopieerd — pas de box of de spawns aan\n");
+        } else {
+            sb.append("Arena box:    ✘ (gebruik /mm pos1 en /mm pos2)\n");
+        }
         sb.append("Player spawn: ").append(playerSpawnSet ? "✔" : "✘").append("\n");
         sb.append("Mob spawns:   ").append(mobSpawnsRaw.size())
                 .append(mobSpawnsRaw.size() < 4 ? " &c(min 4)" : "").append("\n");

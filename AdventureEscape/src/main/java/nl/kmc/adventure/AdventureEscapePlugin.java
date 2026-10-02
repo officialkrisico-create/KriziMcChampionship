@@ -91,6 +91,8 @@ public final class AdventureEscapePlugin extends JavaPlugin {
                     .addScoringLine("+500 ptn — 1e plaats")
                     .build());
 
+            nl.kmc.game.api.TestArenaRegistry.register(GAME_ID, "Adventure Escape", this::buildTestArena);
+
             getServer().getPluginManager().registerEvents(new Listener() {
                 @EventHandler
                 public void onGameStart(GameStartEvent event) {
@@ -128,6 +130,52 @@ public final class AdventureEscapePlugin extends JavaPlugin {
 
         oobListener.start();
         getLogger().info("Adventure Escape enabled!");
+    }
+
+    /**
+     * /kmctest: a straight 121-block track (11 wide, glass side walls) with start line, three
+     * checkpoints, a finish line, 8 grid spawns, and a row of effect blocks to try out.
+     */
+    private org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+        int x0 = cx - 60, x1 = cx + 60;
+
+        nl.kmc.game.api.TestArenaKit.fill(w, x0 - 6, y, cz - 5, x1, y, cz + 5, Material.SMOOTH_STONE);
+        nl.kmc.game.api.TestArenaKit.fill(w, x0 - 6, y + 1, cz - 6, x1, y + 3, cz - 6, Material.GLASS);
+        nl.kmc.game.api.TestArenaKit.fill(w, x0 - 6, y + 1, cz + 6, x1, y + 3, cz + 6, Material.GLASS);
+        nl.kmc.game.api.TestArenaKit.fill(w, x0 - 7, y + 1, cz - 6, x0 - 7, y + 3, cz + 6, Material.GLASS);
+
+        int startX = x0 + 2, finishX = x1 - 2;
+        int[] cpX = {cx - 25, cx + 5, cx + 30};
+        nl.kmc.game.api.TestArenaKit.fill(w, startX, y, cz - 5, startX, y, cz + 5, Material.LIME_CONCRETE);
+        nl.kmc.game.api.TestArenaKit.fill(w, finishX, y, cz - 5, finishX, y, cz + 5, Material.BLACK_CONCRETE);
+        for (int x : cpX)
+            nl.kmc.game.api.TestArenaKit.fill(w, x, y, cz - 5, x, y, cz + 5, Material.YELLOW_CONCRETE);
+
+        // Effect blocks to try (materials as configured in config.yml).
+        Material[] fx = {
+                Material.WHITE_GLAZED_TERRACOTTA, Material.LIME_GLAZED_TERRACOTTA,
+                Material.CYAN_GLAZED_TERRACOTTA, Material.YELLOW_GLAZED_TERRACOTTA,
+                Material.BLACK_GLAZED_TERRACOTTA, Material.LIGHT_BLUE_GLAZED_TERRACOTTA};
+        for (int i = 0; i < fx.length; i++)
+            w.getBlockAt(cx - 45 + i * 2, y, cz).setType(fx[i], false);
+
+        arenaManager.setRaceWorld(w);
+        arenaManager.setLaps(1);
+        arenaManager.clearSpawns();
+        for (int i = 0; i < 8; i++)
+            arenaManager.addSpawn(nl.kmc.game.api.TestArenaKit.stand(w, x0 - 2 - (i / 4) * 2, y + 1, cz - 3 + (i % 4) * 2, -90));
+        arenaManager.setStartlinePos1(new org.bukkit.Location(w, startX, y, cz - 5));
+        arenaManager.setStartlinePos2(new org.bukkit.Location(w, startX, y + 3, cz + 5));
+        arenaManager.setFinishlinePos1(new org.bukkit.Location(w, finishX, y, cz - 5));
+        arenaManager.setFinishlinePos2(new org.bukkit.Location(w, finishX, y + 3, cz + 5));
+        arenaManager.clearCheckpoints();
+        for (int i = 0; i < cpX.length; i++)
+            arenaManager.addOrUpdateCheckpoint(i + 1,
+                    new org.bukkit.Location(w, cpX[i], y, cz - 5), new org.bukkit.Location(w, cpX[i], y + 3, cz + 5));
+        return nl.kmc.game.api.TestArenaKit.stand(w, x0 - 3, y + 1, cz, -90);
     }
 
     @Override

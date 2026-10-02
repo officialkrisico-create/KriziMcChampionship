@@ -104,6 +104,38 @@ public final class SurvivalGamesPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new SGListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: a round island (r=38) with a cornucopia of chests in the middle, a few outer chests,
+     * 12 spawn pedestals on a ring, and a border that can shrink.
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        nl.kmc.game.api.TestArenaKit.disc(w, cx, y, cz, 38, org.bukkit.Material.GRASS_BLOCK);
+        nl.kmc.game.api.TestArenaKit.disc(w, cx, y, cz, 6, org.bukkit.Material.GOLD_BLOCK);
+        // Cornucopia chests (inner tier) and outer chests
+        for (int[] c : new int[][]{{2, 0}, {-2, 0}, {0, 2}, {0, -2}})
+            w.getBlockAt(cx + c[0], y + 1, cz + c[1]).setType(org.bukkit.Material.CHEST, false);
+        for (int[] c : new int[][]{{24, 0}, {-24, 0}, {0, 24}, {0, -24}, {17, 17}, {-17, -17}})
+            w.getBlockAt(cx + c[0], y + 1, cz + c[1]).setType(org.bukkit.Material.CHEST, false);
+
+        arenaManager.setWorld(w);
+        arenaManager.setCornucopia(nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0));
+        arenaManager.clearPedestals();
+        for (var pedestal : nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 30, 12)) {
+            w.getBlockAt(pedestal.getBlockX(), y, pedestal.getBlockZ()).setType(org.bukkit.Material.POLISHED_ANDESITE, false);
+            arenaManager.addPedestal(pedestal);
+        }
+        arenaManager.setBorder(38, 10);
+        arenaManager.setVoidY(y - 10);
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz + 8, 180);
+    }
+
     @Override
     protected void onGameDisable() {
         if (sgV2 != null && sgV2.isRunning()) sgV2.end();

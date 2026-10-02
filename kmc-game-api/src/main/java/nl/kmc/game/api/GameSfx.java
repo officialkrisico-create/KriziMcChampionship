@@ -108,23 +108,20 @@ public final class GameSfx {
                 attempts.add(NamespacedKey.minecraft(trimmed.toLowerCase()));
             }
             if (trimmed.contains("_")) {
+                // Legacy enum names flatten "category.thing.action" AND underscores inside words
+                // (ITEM_ARMOR_EQUIP_ELYTRA = item.armor.equip_elytra), so there's no fixed rule for
+                // which '_' were dots. Registry keys are unique enough that trying every placement
+                // is safe: with at most ~6 underscores that's a few dozen cheap lookups.
                 String lower = trimmed.toLowerCase();
-                int firstUnderscore = lower.indexOf('_');
-                int lastUnderscore  = lower.lastIndexOf('_');
-                // Variant A: first '_' and last '_' -> '.', rest stay '_'
-                if (firstUnderscore != lastUnderscore && firstUnderscore >= 0) {
+                List<Integer> underscores = new ArrayList<>();
+                for (int i = 0; i < lower.length(); i++) if (lower.charAt(i) == '_') underscores.add(i);
+                int n = Math.min(underscores.size(), 10);
+                for (int mask = (1 << n) - 1; mask >= 1; mask--) {   // most dots first: the common shapes
                     StringBuilder sb = new StringBuilder(lower);
-                    sb.setCharAt(lastUnderscore, '.');
-                    sb.setCharAt(firstUnderscore, '.');
+                    for (int bit = 0; bit < n; bit++)
+                        if ((mask & (1 << bit)) != 0) sb.setCharAt(underscores.get(bit), '.');
                     attempts.add(NamespacedKey.minecraft(sb.toString()));
                 }
-                // Variant B: only first '_' -> '.'
-                if (firstUnderscore >= 0) {
-                    attempts.add(NamespacedKey.minecraft(
-                            lower.substring(0, firstUnderscore) + "." + lower.substring(firstUnderscore + 1)));
-                }
-                // Variant C: every '_' -> '.' (last resort)
-                attempts.add(NamespacedKey.minecraft(lower.replace('_', '.')));
             }
             for (NamespacedKey key : attempts) {
                 try {

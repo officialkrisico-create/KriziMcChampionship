@@ -56,6 +56,24 @@ public class WorldCloner {
         return templateDir.isDirectory();
     }
 
+    /**
+     * The template world, loading it from disk first if nothing has loaded it yet (a plain server
+     * restart without Multiverse auto-loading it would otherwise leave Bukkit.getWorld() null).
+     * Null only if the world doesn't exist or can't be loaded.
+     */
+    public World getOrLoadTemplateWorld() {
+        String name = getTemplateWorldName();
+        World loaded = Bukkit.getWorld(name);
+        if (loaded != null) return loaded;
+        if (!new File(Bukkit.getWorldContainer(), name).isDirectory()) return null;
+        plugin.getLogger().info("[MobMayhem] Template world '" + name + "' wasn't loaded — loading it now.");
+        try { return Bukkit.createWorld(new WorldCreator(name)); }
+        catch (Exception e) {
+            plugin.getLogger().severe("[MobMayhem] Could not load template world '" + name + "': " + e);
+            return null;
+        }
+    }
+
     /** The template's actual folder — the loaded world's own folder if it's loaded, else a guess via getWorldContainer(). */
     private File templateFolder() {
         World loaded = Bukkit.getWorld(getTemplateWorldName());

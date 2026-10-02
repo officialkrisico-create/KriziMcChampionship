@@ -112,6 +112,43 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new MovementListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: map "kmctest" — a start platform, six floating stepping platforms (one with a
+     * checkpoint), and a finish platform; a void floor below so falling respawns you.
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+        int x0 = cx - 30;
+
+        nl.kmc.game.api.TestArenaKit.platform(w, x0, y, cz, 4, 4, Material.LIME_CONCRETE);
+        var partial = mapManager.getPartial("kmctest");
+        partial.displayName = "Test Map";
+        partial.world = w;
+        partial.startSpawns.clear();
+        for (int i = 0; i < 8; i++)
+            partial.startSpawns.add(nl.kmc.game.api.TestArenaKit.stand(w, x0 - 2 + (i / 4) * 2, y + 1, cz - 3 + (i % 4) * 2, -90));
+
+        partial.checkpoints.clear();
+        for (int i = 1; i <= 6; i++) {
+            int px = x0 + 4 + i * 6;
+            nl.kmc.game.api.TestArenaKit.platform(w, px, y, cz, 1, 1,
+                    i == 3 ? Material.YELLOW_CONCRETE : Material.WHITE_CONCRETE);
+            if (i == 3) partial.checkpoints.add(nl.kmc.game.api.TestArenaKit.stand(w, px, y + 1, cz, -90));
+        }
+        int fx = x0 + 4 + 7 * 6 + 3;
+        nl.kmc.game.api.TestArenaKit.platform(w, fx, y, cz, 3, 3, Material.GOLD_BLOCK);
+        partial.finishPos1 = new org.bukkit.Location(w, fx - 3, y + 1, cz - 3);
+        partial.finishPos2 = new org.bukkit.Location(w, fx + 3, y + 3, cz + 3);
+        partial.voidY = y - 12;
+        mapManager.commitPartial("kmctest");
+        return nl.kmc.game.api.TestArenaKit.stand(w, x0, y + 1, cz, -90);
+    }
+
     @Override
     protected void onGameDisable() {
         if (tgttosGameManagerV2 != null && tgttosGameManagerV2.isRunning()) tgttosGameManagerV2.end();

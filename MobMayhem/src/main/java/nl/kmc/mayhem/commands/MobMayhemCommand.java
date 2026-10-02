@@ -75,15 +75,19 @@ public class MobMayhemCommand implements CommandExecutor, TabCompleter {
                 plugin.saveConfig();
                 sender.sendMessage(ChatColor.GREEN + "Template world ingesteld op " + args[1]);
             }
-            case "pos1" -> {
+            case "pos1", "pos2" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
-                plugin.getArenaManager().setPos1(p.getLocation());
-                sender.sendMessage(ChatColor.GREEN + "Arena-hoek 1 ingesteld.");
-            }
-            case "pos2" -> {
-                if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }
-                plugin.getArenaManager().setPos2(p.getLocation());
-                sender.sendMessage(ChatColor.GREEN + "Arena-hoek 2 ingesteld.");
+                var am = plugin.getArenaManager();
+                String problem = am.templateWorldProblem(p);
+                if (problem != null) { sender.sendMessage(ChatColor.RED + problem); return true; }
+                boolean first = args[0].equalsIgnoreCase("pos1");
+                if (first) am.setPos1(p.getLocation()); else am.setPos2(p.getLocation());
+                sender.sendMessage(ChatColor.GREEN + "Arena-hoek " + (first ? "1" : "2") + " = blok "
+                        + am.describePos(first) + ChatColor.GRAY + " (het blok waar je op staat).");
+                if (am.isBoxSet()) {
+                    int[] s = am.getBoxSize();
+                    sender.sendMessage(ChatColor.GRAY + "Box: " + s[0] + "x" + s[1] + "x" + s[2] + " blokken.");
+                }
             }
             case "setspawn" -> {
                 if (!(sender instanceof Player p)) { sender.sendMessage("Alleen spelers."); return true; }

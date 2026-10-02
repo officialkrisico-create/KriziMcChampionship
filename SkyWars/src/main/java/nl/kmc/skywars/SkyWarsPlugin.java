@@ -104,6 +104,46 @@ public final class SkyWarsPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new SkyWarsListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: 8 small islands on a ring (each with 2 chests and 4 player spawns) around a
+     * bigger middle island with chests.
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        arenaManager.setWorld(w);
+        for (String id : new java.util.ArrayList<>(arenaManager.getIslands().keySet())) arenaManager.removeIsland(id);
+
+        // Middle island
+        nl.kmc.game.api.TestArenaKit.disc(w, cx, y, cz, 9, org.bukkit.Material.OAK_PLANKS);
+        for (int[] c : new int[][]{{3, 3}, {-3, 3}, {3, -3}, {-3, -3}})
+            w.getBlockAt(cx + c[0], y + 1, cz + c[1]).setType(org.bukkit.Material.CHEST, false);
+        arenaManager.setMiddleSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0));
+        arenaManager.setMiddleRadius(12);
+
+        // Outer islands
+        var spots = nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 48, 8);
+        for (int i = 0; i < spots.size(); i++) {
+            var spot = spots.get(i);
+            int ix = spot.getBlockX(), iz = spot.getBlockZ();
+            nl.kmc.game.api.TestArenaKit.disc(w, ix, y, iz, 6, org.bukkit.Material.STONE);
+            w.getBlockAt(ix + 3, y + 1, iz).setType(org.bukkit.Material.CHEST, false);
+            w.getBlockAt(ix - 3, y + 1, iz).setType(org.bukkit.Material.CHEST, false);
+
+            String id = "test" + (i + 1);
+            arenaManager.addIsland(id, spot, 8);
+            for (var p : nl.kmc.game.api.TestArenaKit.ring(w, ix, y + 1, iz, 2, 4))
+                arenaManager.addPlayerSpawn(id, p);
+        }
+        arenaManager.setVoidYLevel(y - 15);
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 2, cz + 6, 180);
+    }
+
     @Override
     protected void onGameDisable() {
         if (skyWarsGameManagerV2 != null && skyWarsGameManagerV2.isRunning()) skyWarsGameManagerV2.end();

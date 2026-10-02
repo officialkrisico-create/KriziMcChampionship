@@ -131,6 +131,24 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
      */
     protected void onV1GameStart(String gameId) {}
 
+    /**
+     * Override (together with {@link #buildTestArena}) to let {@code /kmctest} generate a small
+     * throw-away arena for this game and configure the game to use it — so it can be tested
+     * without building a map. Default: not supported.
+     */
+    protected boolean supportsTestArena() { return false; }
+
+    /**
+     * Builds a test arena around {@code origin} (use {@link TestArenaKit}) and points the game's
+     * own arena configuration at it.
+     *
+     * @return where to teleport the admin to look at it, or {@code null}
+     */
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin)
+            throws Exception {
+        return null;
+    }
+
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     @Override
@@ -159,6 +177,7 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                     .minPlayers(minPlayers())
                     .description(description())
                     .objective(objective())
+                    .scoringLines(scoringLines())
                     .build();
 
             gameRegistry.register(reg);
@@ -169,6 +188,10 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                     .objective(objective());
             for (String line : scoringLines()) cardBuilder.addScoringLine(line);
             GameIntroCardRegistry.register(cardBuilder.build());
+
+            // Let /kmctest generate a throw-away arena for this game, if it knows how.
+            if (supportsTestArena())
+                TestArenaRegistry.register(gameId(), displayName(), this::buildTestArena);
 
             // Listen for tournament engine start signal
             String id         = gameId();

@@ -27,7 +27,21 @@ public final class GameApiPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(new ResultBridge(), this);
+
+        var testCmd = new TestArenaCommand(this);
+        var bukkitCmd = getCommand("kmctest");
+        if (bukkitCmd != null) { bukkitCmd.setExecutor(testCmd); bukkitCmd.setTabCompleter(testCmd); }
+
+        var botCmd = new BotCommand(this);
+        var botBukkitCmd = getCommand("kmcbot");
+        if (botBukkitCmd != null) { botBukkitCmd.setExecutor(botCmd); botBukkitCmd.setTabCompleter(botCmd); }
         getLogger().info("kmc-game-api loaded (game-end bridge active).");
+    }
+
+    @Override
+    public void onDisable() {
+        // Test bots have no client to disconnect them — take them down cleanly with the server.
+        FakePlayerSpawner.removeAll();
     }
 
     /** Forwards V2 game results to the V1 automation flow. */

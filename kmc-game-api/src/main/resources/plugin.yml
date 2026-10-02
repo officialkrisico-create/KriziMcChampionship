@@ -7,3 +7,13 @@ authors: [ KMC ]
 
 depend:
   - KMCCoreV2
+
+commands:
+  kmctest:
+    description: Generate a throw-away test arena for a game (no map needed)
+    usage: /kmctest <game|all|list>
+    permission: kmc.admin
+  kmcbot:
+    description: Add/remove test players (bots) for testing alone
+    usage: /kmcbot <add|remove|list|here>
+    permission: kmc.admin

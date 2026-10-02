@@ -77,6 +77,26 @@ public final class SpleefPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new SpleefListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /** /kmctest: a 29x29 snow floor with 8 spawns on a ring above it. */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+        int half = 14;
+
+        arenaManager.setWorld(w);
+        arenaManager.setLayerPos1(cx - half, y, cz - half);
+        arenaManager.setLayerPos2(cx + half, y, cz + half);   // also sets the void level to y - 10
+        arenaManager.clearPlayerSpawns();
+        for (var spawn : nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 10, 8))
+            arenaManager.addPlayerSpawn(spawn);
+        arenaManager.restoreFloor();
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0);
+    }
+
     @Override
     protected void onGameDisable() {
         if (spleefGameManagerV2 != null && spleefGameManagerV2.isRunning()) spleefGameManagerV2.end();

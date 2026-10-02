@@ -115,6 +115,31 @@ public final class TNTTagPlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(new TagListener(this), this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /** /kmctest: a round stone-brick platform (r=16) with 8 spawns, border, spectator spot and 2 powerups. */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        nl.kmc.game.api.TestArenaKit.disc(w, cx, y, cz, 16, org.bukkit.Material.STONE_BRICKS);
+        nl.kmc.game.api.TestArenaKit.disc(w, cx, y, cz, 3, org.bukkit.Material.GOLD_BLOCK);
+
+        arenaManager.setWorld(w);
+        arenaManager.clearSpawns();
+        for (var spawn : nl.kmc.game.api.TestArenaKit.ring(w, cx, y + 1, cz, 11, 8)) arenaManager.addSpawn(spawn);
+        arenaManager.setCenter(nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0));
+        arenaManager.setSpectatorSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 12, cz, 0));
+        arenaManager.setVoidY(y - 10);
+        arenaManager.setBorderRadius(16);
+        arenaManager.clearPowerupSpawns();
+        arenaManager.addPowerupSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx + 6, y + 1, cz, 0));
+        arenaManager.addPowerupSpawn(nl.kmc.game.api.TestArenaKit.stand(w, cx - 6, y + 1, cz, 0));
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx, y + 1, cz, 0);
+    }
+
     @Override
     protected void onGameDisable() {
         if (powerupManager != null) powerupManager.stop();

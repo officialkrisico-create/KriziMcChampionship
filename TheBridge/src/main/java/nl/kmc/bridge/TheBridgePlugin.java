@@ -134,6 +134,52 @@ public final class TheBridgePlugin extends AbstractGamePlugin {
         getServer().getPluginManager().registerEvents(assistManager, this);
     }
 
+    @Override protected boolean supportsTestArena() { return true; }
+
+    /**
+     * /kmctest: two 11x11 islands 40 blocks apart (void between) with a goal pit at the back of each.
+     * The Bridge keys its arena teams by KMC team id, so this uses the first two existing KMC teams.
+     */
+    @Override
+    protected org.bukkit.Location buildTestArena(org.bukkit.entity.Player admin, org.bukkit.Location origin) {
+        var teams = new java.util.ArrayList<>(kmcCore.getTeamManager().getAllTeams());
+        if (teams.size() < 2)
+            throw new IllegalStateException("The Bridge heeft minstens 2 KMC-teams nodig (maak ze eerst aan, bv. /kmcrandomteams).");
+
+        var w = origin.getWorld();
+        var a = nl.kmc.game.api.TestArenaKit.anchor(origin);
+        int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
+
+        arenaManager.setWorld(w);
+        arenaManager.setVoidYLevel(y - 14);
+        for (String id : new java.util.ArrayList<>(arenaManager.getTeams().keySet())) arenaManager.deleteTeam(id);
+
+        org.bukkit.ChatColor[] colors = {org.bukkit.ChatColor.RED, org.bukkit.ChatColor.BLUE};
+        org.bukkit.Material[] wools = {org.bukkit.Material.RED_WOOL, org.bukkit.Material.BLUE_WOOL};
+        int[] sides = {-1, 1};
+        for (int i = 0; i < 2; i++) {
+            var kmcTeam = teams.get(i);
+            int ix = cx + sides[i] * 26;
+            // 3-thick island so the goal pit has a floor
+            nl.kmc.game.api.TestArenaKit.fill(w, ix - 5, y - 2, cz - 5, ix + 5, y, cz + 5, org.bukkit.Material.STONE_BRICKS);
+            int backX = ix + sides[i] * 4;   // pit at the far (back) edge
+            nl.kmc.game.api.TestArenaKit.fill(w, backX - 1, y - 1, cz - 1, backX + 1, y, cz + 1, org.bukkit.Material.AIR);
+            nl.kmc.game.api.TestArenaKit.fill(w, backX - 1, y - 2, cz - 1, backX + 1, y - 2, cz + 1, wools[i]);
+
+            var partial = arenaManager.getPartial(kmcTeam.getId());
+            partial.displayName  = kmcTeam.getDisplayName();
+            partial.chatColor    = colors[i];
+            partial.woolMaterial = wools[i];
+            partial.spawn        = nl.kmc.game.api.TestArenaKit.stand(w, ix - sides[i] * 2, y + 1, cz, sides[i] < 0 ? -90 : 90);
+            partial.goalPos1     = new org.bukkit.Location(w, backX - 1, y - 1, cz - 1);
+            partial.goalPos2     = new org.bukkit.Location(w, backX + 1, y - 1, cz + 1);
+            arenaManager.commitPartial(kmcTeam.getId());
+        }
+        admin.sendMessage("§7[TheBridge] Test-arena gebruikt de KMC-teams §f" + teams.get(0).getId() + "§7 en §f"
+                + teams.get(1).getId() + "§7 — laat je testspelers in die teams zitten.");
+        return nl.kmc.game.api.TestArenaKit.stand(w, cx - 20, y + 1, cz, -90);
+    }
+
     @Override
     protected void onGameDisable() {
         if (bridgeGameManagerV2 != null && bridgeGameManagerV2.isRunning()) bridgeGameManagerV2.end();
