@@ -164,6 +164,7 @@ public class StatsGUI implements Listener {
                 Map.entry("meltdown_mayhem",  Material.LAVA_BUCKET),
                 Map.entry("mob_mayhem",       Material.ZOMBIE_HEAD),
                 Map.entry("lucky_block",      Material.GOLD_BLOCK),
+                Map.entry("hole_in_the_wall", Material.BRICK_WALL),
                 Map.entry("bingo",            Material.PAPER)
         );
 

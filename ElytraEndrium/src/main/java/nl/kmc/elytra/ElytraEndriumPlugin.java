@@ -31,8 +31,9 @@ public final class ElytraEndriumPlugin extends AbstractGamePlugin {
     @Override protected String  objective()   { return "Vlieg in volgorde door alle checkpoints — snelste wint."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+ptn — Per checkpoint (varieert)",
-                "+200 ptn — Finishbonus",
+                "+" + getConfig().getInt("points.default-checkpoint-points", 8)
+                        + " ptn — Per checkpoint (sommige checkpoints zijn meer waard)",
+                "+" + getConfig().getInt("points.finish-bonus", 100) + " ptn — Finishbonus",
                 "+500 ptn — 1e plaats"
         );
     }

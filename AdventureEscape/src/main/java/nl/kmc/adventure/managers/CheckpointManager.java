@@ -181,6 +181,8 @@ public class CheckpointManager {
         for (UUID uuid : activeRacers) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null || !p.isOnline()) continue;
+            // Spectators (and finished racers, who spectate) flying over a checkpoint don't "reach" it.
+            if (p.getGameMode() == org.bukkit.GameMode.SPECTATOR || plugin.getRaceManager().hasFinished(uuid)) continue;
 
             Location loc = p.getLocation();
             for (Checkpoint cp : checkpoints.values()) {
@@ -189,8 +191,7 @@ public class CheckpointManager {
                     String prev = lastCheckpoint.get(uuid);
                     if (prev == null || !prev.equalsIgnoreCase(cp.getName())) {
                         lastCheckpoint.put(uuid, cp.getName());
-                        p.sendMessage(ChatColor.GREEN + "✔ Checkpoint bereikt: "
-                                + ChatColor.YELLOW + cp.getName());
+                        p.sendMessage(plugin.getKmcCore().getLanguageManager().tr(p, "ae.cp-named", cp.getName()));
                         p.playSound(p.getLocation(),
                                 org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.4f);
                     }

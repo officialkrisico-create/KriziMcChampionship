@@ -84,6 +84,16 @@ public final class CeremonyManager {
         return Math.max(2, src("game-lineup.seconds-per-game").getInt("game-lineup.seconds-per-game", 4));
     }
 
+    /** Upper bound (seconds) for one game card, however wordy — keeps the line-up from dragging on. */
+    public int getMaxSecondsPerGame() {
+        return Math.max(getSecondsPerGame(), src("game-lineup.max-seconds-per-game").getInt("game-lineup.max-seconds-per-game", 7));
+    }
+
+    /** Upper bound (ticks) for how long one chat block stays alone on screen. */
+    public long getMaxBlockTicks() {
+        return Math.max(getLineDelayTicks(), src("pacing.max-block-ticks").getLong("pacing.max-block-ticks", 200L));
+    }
+
     /**
      * Returns the messages list for a phase, with placeholders replaced.
      * Returns an empty list if none are configured.
@@ -92,6 +102,8 @@ public final class CeremonyManager {
         String p = phase + ".messages";
         List<String> raw = src(p).getStringList(p);
         return raw.stream()
+                // An older ceremonies.yml on disk still says "typ" — fixed here so nobody has to edit the file.
+                .map(line -> line.replace("Tip: typ ", "Tip: type "))
                 .map(line -> applyColor(applyPlaceholders(line, placeholders)))
                 .toList();
     }

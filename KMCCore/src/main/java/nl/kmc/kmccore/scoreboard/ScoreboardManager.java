@@ -106,8 +106,15 @@ public class ScoreboardManager {
     // Tick / refresh
     // ====================================================================
 
+    private boolean nametagsHiddenApplied;
+
     private void tickAll() {
         checkLeaderChange();
+        boolean hide = nl.kmc.core.RunningGames.nametagsHidden();
+        if (hide != nametagsHiddenApplied) {
+            nametagsHiddenApplied = hide;
+            syncAllBoards();
+        }
         // While a game owns the board we keep ticking ONLY if it supplied a
         // per-game sidebar; otherwise leave the lobby sidebar as-is.
         if (plugin.getApi().isScoreboardOwnedByMinigame() && gameBoard == null) return;
@@ -226,6 +233,7 @@ public class ScoreboardManager {
             bt.color(ntc);
             bt.setAllowFriendlyFire(false);
             bt.setCanSeeFriendlyInvisibles(true);
+            bt.setOption(Team.Option.NAME_TAG_VISIBILITY, nametagStatus());
         }
 
         Team none = board.getTeam(NO_TEAM_KEY);
@@ -234,6 +242,7 @@ public class ScoreboardManager {
             none.prefix(Component.empty());
             none.color(NamedTextColor.GRAY);
         }
+        none.setOption(Team.Option.NAME_TAG_VISIBILITY, nametagStatus());
 
         // Remove any stale kmc_ prefix teams from previous plugin versions
         for (Team t : new ArrayList<>(board.getTeams())) {
@@ -272,6 +281,10 @@ public class ScoreboardManager {
             Team bt = board.getTeam(e.getValue());
             if (bt != null && !bt.hasEntry(e.getKey())) bt.addEntry(e.getKey());
         }
+    }
+
+    private Team.OptionStatus nametagStatus() {
+        return nl.kmc.core.RunningGames.nametagsHidden() ? Team.OptionStatus.NEVER : Team.OptionStatus.ALWAYS;
     }
 
     private String bukkitTeamName(KMCTeam kmcTeam) {

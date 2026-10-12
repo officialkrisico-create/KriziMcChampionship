@@ -41,6 +41,8 @@ public final class AdventureEscapePlugin extends JavaPlugin {
     private RaceScoreboard             raceScoreboard;
     private TrialKeyManager            trialKeyManager;
     private OutOfBoundsListener        oobListener;
+    private BlockStepListener          blockStepListener;
+    private LineCrossListener          lineCrossListener;
     private AdventureEscapeGameManagerV2 gameManagerV2;
 
     @Override
@@ -123,8 +125,10 @@ public final class AdventureEscapePlugin extends JavaPlugin {
         getCommand("adventure").setExecutor(cmd); getCommand("adventure").setTabCompleter(cmd);
         getCommand("ae").setExecutor(cmd);        getCommand("ae").setTabCompleter(cmd);
 
-        getServer().getPluginManager().registerEvents(new BlockStepListener(this),     this);
-        getServer().getPluginManager().registerEvents(new LineCrossListener(this),     this);
+        blockStepListener = new BlockStepListener(this);
+        lineCrossListener = new LineCrossListener(this);
+        getServer().getPluginManager().registerEvents(blockStepListener, this);
+        getServer().getPluginManager().registerEvents(lineCrossListener, this);
         getServer().getPluginManager().registerEvents(new PlayerJoinQuitListener(this), this);
         getServer().getPluginManager().registerEvents(trialKeyManager,                 this);
 
@@ -182,7 +186,7 @@ public final class AdventureEscapePlugin extends JavaPlugin {
     public void onDisable() {
         if (gameManagerV2 != null && gameManagerV2.isRunning()) gameManagerV2.end();
         if (oobListener    != null) oobListener.stop();
-        if (raceManager    != null) raceManager.forceStop();
+        if (raceManager    != null && gameManagerV2 == null) raceManager.forceStop();
         if (raceScoreboard != null) raceScoreboard.cleanup();
     }
 
@@ -195,6 +199,8 @@ public final class AdventureEscapePlugin extends JavaPlugin {
     public RaceScoreboard               getRaceScoreboard()       { return raceScoreboard; }
     public TrialKeyManager              getTrialKeyManager()      { return trialKeyManager; }
     public AdventureEscapeGameManagerV2 getGameManagerV2()        { return gameManagerV2; }
+    public BlockStepListener            getBlockStepListener()    { return blockStepListener; }
+    public LineCrossListener            getLineCrossListener()    { return lineCrossListener; }
 
     /** Setup descriptor for the unified Setup Dashboard / EVS. */
     private nl.kmc.core.setup.GameSetup buildSetup() {

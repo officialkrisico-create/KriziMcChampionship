@@ -42,6 +42,14 @@ game:
   # Set higher than max-duration-seconds to disable deathmatch.
   deathmatch-trigger-seconds: 360  # 6 minutes
   
+  # Closing border (same system as Survival Games): a particle ring that shrinks toward the middle island and
+  # damages everyone outside it. Starts when PvP goes live.
+  border-start-radius: 0        # 0 = automatic (outer islands + 14)
+  border-min-radius: 8
+  border-shrink-seconds: 0      # 0 = automatic (until ~20 s before the time limit)
+  border-damage: 1.0
+  border-buffer: 2.0
+
   # Particle ring at start of deathmatch (radius in blocks from middle)
   deathmatch-ring-start: 40
   

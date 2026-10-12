@@ -43,6 +43,10 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
 
     private BukkitTask gameTimerTask;
     private BukkitTask crashCheckTask;
+    private BukkitTask cpPollTask;
+    private final Map<UUID, Location> lastPollPos = new HashMap<>();
+    private final Map<UUID, Long> returnCooldown = new HashMap<>();
+    private BukkitTask finishGraceTask;
     private BossBar    bossBar;
     private int        remainingSeconds;
     private long       gameStartMs;
@@ -73,7 +77,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             equipElytra(p);
             int ticks = countdownSec * 20;
             GamePlayerUtil.freezePlayer(p, ticks);
-            if (jumpType != null) p.addPotionEffect(new PotionEffect(jumpType, ticks, 128, true, false, false));
+            nl.kmc.game.api.GamePlayerUtil.freezeJump(p, ticks);
             runners.put(p.getUniqueId(), new RunnerState(p.getUniqueId(), p.getName()));
         }
 
@@ -89,12 +93,9 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§6§lELYTRA ENDRIUM"; }
+                    @Override public String introSubtitle() { return "@ee.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§6§l» §fVlieg door alle checkpoints in volgorde.",
-                                "§6§l» §fGebruik boost-hoepels voor extra snelheid.",
-                                "§6§l» §fCrash je? Je respawnt bij je laatste checkpoint.",
-                                "§6§l» §fAls eerste alle checkpoints halen wint!");
+                        return List.of("@ee.tut.1", "@ee.tut.2", "@ee.tut.3", "@ee.tut.4");
                     }
                     @Override public Location flyoverCenter() { return launch; }
                     @Override public void onFinished() { beginFlight(); }
@@ -127,8 +128,8 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             p.setVelocity(launchVel);
             p.setGliding(true);
 
-            p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
-                    ChatColor.YELLOW + "Fly through the hoops!", 0, 40, 10);
+            p.sendTitle(api.tr(uuid, "ee.go.title"), api.tr(uuid, "ee.go.sub"), 0, 40, 10);
+            applyRaceLook(p);
         }
 
         bossBar.setColor(BarColor.GREEN);
@@ -141,10 +142,19 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         }, 20L, 20L);
 
         crashCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkAllCrashes, 10L, 10L);
+        // Swept checkpoint detection every 2 ticks: a fast flight through several rings in a row never skips one.
+        cpPollTask = Bukkit.getScheduler().runTaskTimer(plugin, this::pollCheckpoints, 2L, 2L);
     }
 
     @Override
     protected void onGameEnd() {
+        if (cpPollTask != null) { cpPollTask.cancel(); cpPollTask = null; }
+        if (finishGraceTask != null) { finishGraceTask.cancel(); finishGraceTask = null; }
+        lastPollPos.clear();
+        for (UUID id : runners.keySet()) {
+            Player rp = Bukkit.getPlayer(id);
+            if (rp != null) nl.kmc.game.api.FeetOnlyVisibility.clear(rp);
+        }
         if (gameTimerTask  != null) { gameTimerTask.cancel();  gameTimerTask  = null; }
         if (crashCheckTask != null) { crashCheckTask.cancel(); crashCheckTask = null; }
         if (bossBar        != null) { bossBar.removeAll();     bossBar        = null; }
@@ -201,7 +211,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§6[Elytra] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -265,11 +275,6 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         int expectedNext = rs.getHighestCheckpoint() + 1;
         if (cp.getIndex() != expectedNext) return;
 
-        long now = System.currentTimeMillis();
-        Long expire = cpCooldown.get(p.getUniqueId());
-        if (expire != null && now < expire) return;
-        cpCooldown.put(p.getUniqueId(), now + 1500);
-
         boolean newProgress = rs.reach(cp.getIndex(), cp.getPoints());
         if (!newProgress) return;
 
@@ -280,7 +285,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             handleFinish(p, rs);
         } else {
             p.sendActionBar(net.kyori.adventure.text.Component.text(
-                    ChatColor.AQUA + "✔ " + cp.getDisplayName() + ChatColor.GRAY + " (+" + cp.getPoints() + " pts)"));
+                    api.tr(p.getUniqueId(), "ee.cp-reached", cp.getDisplayName(), cp.getPoints())));
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.5f);
         }
         updateBossBar();
@@ -314,13 +319,21 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         int finishBonus = plugin.getConfig().getInt("points.finish-bonus", 200);
         api.points().givePoints(p.getUniqueId(), finishBonus, PointAward.Reason.OBJECTIVE, registration.getId());
 
-        broadcast("§6[Elytra] §e" + p.getName() + " §bfinished #" + placement
-                + " §7(" + formatMs(elapsedMs) + ", +" + finishBonus + " pts)");
-        p.sendTitle("§6§l#" + placement, "§7Time: " + formatMs(elapsedMs), 10, 60, 20);
+        tellKey("ee.finished", p.getName(), placement, formatMs(elapsedMs), finishBonus);
+        p.sendTitle("§6§l#" + placement, api.tr(p.getUniqueId(), "ee.time", formatMs(elapsedMs)), 10, 60, 20);
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         p.setGameMode(GameMode.SPECTATOR);
 
         if (plugin.getConfig().getBoolean("game.end-on-first-finish", false)) { end(); return; }
+        if (finishOrder.size() == 1 && finishGraceTask == null) {
+            int grace = plugin.getConfig().getInt("game.finish-grace-seconds", 60);
+            if (grace > 0 && runners.size() > 1) {
+                tellKey("ee.grace", grace);
+                finishGraceTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (getState().isRunning()) { tellKey("ee.time-up"); end(); }
+                }, grace * 20L);
+            }
+        }
         if (finishOrder.size() >= runners.size()) end();
     }
 
@@ -365,7 +378,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         p.getInventory().clear();
         p.setHealth(20); p.setFoodLevel(20);
         p.setFireTicks(0); p.setFallDistance(0);
-        p.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Crash!", ChatColor.GRAY + "Respawning...", 0, 25, 5);
+        p.sendTitle(api.tr(p.getUniqueId(), "ee.crash.title"), api.tr(p.getUniqueId(), "ee.crash.sub"), 0, 25, 5);
 
         final Location finalRespawn = respawn;
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -376,6 +389,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             p.setFireTicks(0); p.setFallDistance(0);
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             equipElytra(p);
+            applyRaceLook(p);
 
             Vector facing = finalRespawn != null ? finalRespawn.getDirection().normalize() : new Vector(0, 1, 0);
             Vector relaunch = facing.multiply(plugin.getConfig().getDouble("game.relaunch-speed", 1.2));
@@ -383,6 +397,85 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             p.setVelocity(relaunch);
             p.setGliding(true);
         }, 20L);
+    }
+
+    // ── Race look, return-to-checkpoint item, swept checkpoint polling ───────
+
+    private static final String RETURN_KEY = "ee_return_item";
+
+    /** Boots-only look + the "back to previous checkpoint" item in slot 8. */
+    private void applyRaceLook(Player p) {
+        var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
+        nl.kmc.game.api.FeetOnlyVisibility.apply(p, team != null ? team.getColor() : null);
+        ItemStack item = new ItemStack(Material.HEART_OF_THE_SEA);
+        var meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(api.tr(p.getUniqueId(), "ee.return.name"));
+            meta.setLore(java.util.List.of(api.tr(p.getUniqueId(), "ee.return.lore1"),
+                    api.tr(p.getUniqueId(), "ee.return.lore2")));
+            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, RETURN_KEY),
+                    org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        p.getInventory().setItem(8, item);
+    }
+
+    public boolean isReturnItem(ItemStack it) {
+        return it != null && it.hasItemMeta() && it.getItemMeta().getPersistentDataContainer()
+                .has(new NamespacedKey(plugin, RETURN_KEY), org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
+    /** Sends the runner back to their last reached checkpoint (or the launch spawn) and relaunches them. */
+    public void returnToCheckpoint(Player p) {
+        if (!getState().isRunning()) return;
+        RunnerState rs = runners.get(p.getUniqueId());
+        if (rs == null || rs.isFinished()) return;
+        long now = System.currentTimeMillis();
+        Long until = returnCooldown.get(p.getUniqueId());
+        if (until != null && now < until) return;
+        returnCooldown.put(p.getUniqueId(), now + 3000);
+
+        Checkpoint cp = rs.getHighestCheckpoint() <= 0 ? null
+                : plugin.getCourseManager().getCheckpoint(rs.getHighestCheckpoint());
+        Location dest = cp != null ? cp.getRespawn() : plugin.getCourseManager().getLaunchSpawn();
+        if (dest == null) return;
+        p.teleport(dest);
+        p.setFallDistance(0f);
+        Vector facing = dest.getDirection().normalize();
+        Vector v = facing.multiply(plugin.getConfig().getDouble("game.relaunch-speed", 1.2));
+        v.setY(Math.max(v.getY(), 0.4));
+        p.setVelocity(v);
+        p.setGliding(true);
+        p.sendActionBar(net.kyori.adventure.text.Component.text(api.tr(p.getUniqueId(), "ee.return.done",
+                cp != null ? cp.getDisplayName() : api.tr(p.getUniqueId(), "ee.start"))));
+    }
+
+    /**
+     * Every 2 ticks: samples the path from the last position to the current one, so a runner flying quickly
+     * through several checkpoint rings in a row registers every one (move events alone skip them).
+     */
+    private void pollCheckpoints() {
+        if (!getState().isRunning()) return;
+        for (UUID id : new ArrayList<>(runners.keySet())) {
+            RunnerState rs = runners.get(id);
+            Player p = Bukkit.getPlayer(id);
+            if (rs == null || rs.isFinished() || p == null || !p.isOnline() || p.getGameMode() == GameMode.SPECTATOR) continue;
+            Location now = p.getLocation();
+            Location prev = lastPollPos.put(id, now);
+            if (prev == null || prev.getWorld() != now.getWorld()) prev = now;
+
+            double dist = prev.distance(now);
+            int steps = (int) Math.min(40, Math.ceil(dist));   // one sample per block along the path
+            for (int s = 0; s <= Math.max(1, steps); s++) {
+                double t = steps == 0 ? 1.0 : (double) s / Math.max(1, steps);
+                Location sample = prev.clone().add(now.clone().subtract(prev).toVector().multiply(t));
+                Checkpoint cp = plugin.getCourseManager().findCheckpointAt(sample);
+                if (cp != null) handleCheckpointEntry(p, cp);
+                var hoop = plugin.getCourseManager().findBoostAt(sample);
+                if (hoop != null) handleBoostEntry(p, hoop);
+                if (rs.isFinished()) break;
+            }
+        }
     }
 
     private void equipElytra(Player p) {
@@ -398,7 +491,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         int min = remainingSeconds / 60, sec = remainingSeconds % 60;
         int total = plugin.getConfig().getInt("game.max-duration-seconds", 480);
         bossBar.setTitle(ChatColor.YELLOW + "" + ChatColor.BOLD + "Elytra Endrium §8| §e"
-                + finished + "/" + runners.size() + " finished §8| §b" + String.format("%02d:%02d", min, sec));
+                + finished + "/" + runners.size() + " ✔ §8| §b" + String.format("%02d:%02d", min, sec));
         bossBar.setProgress(Math.max(0, Math.min(1.0, (double) remainingSeconds / total)));
     }
 
@@ -409,7 +502,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
             if (p == null) return;
             GamePlayerUtil.resetPlayer(p);
             p.setGliding(false);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 

@@ -87,8 +87,39 @@ public class AutomationManager {
     private final List<BukkitTask> ceremonyTasks = new ArrayList<>();
     private BukkitTask           stageBarTask;
 
+    // ── Locator bar (the waypoint bar showing other players) is off for the whole event ──
+
+    private final java.util.Map<java.util.UUID, Boolean> previousLocatorBar = new java.util.HashMap<>();
+
+    private static org.bukkit.GameRule<Boolean> locatorBarRule() {
+        return org.bukkit.GameRules.LOCATOR_BAR;
+    }
+
+    private void disableLocatorBar() {
+        var rule = locatorBarRule();
+        if (rule == null) return;
+        for (org.bukkit.World w : Bukkit.getWorlds()) {
+            try {
+                previousLocatorBar.putIfAbsent(w.getUID(), w.getGameRuleValue(rule));
+                w.setGameRule(rule, false);
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    private void restoreLocatorBar() {
+        var rule = locatorBarRule();
+        if (rule == null) { previousLocatorBar.clear(); return; }
+        for (org.bukkit.World w : Bukkit.getWorlds()) {
+            Boolean prev = previousLocatorBar.get(w.getUID());
+            if (prev == null) continue;
+            try { w.setGameRule(rule, prev); } catch (Throwable ignored) { }
+        }
+        previousLocatorBar.clear();
+    }
+
     public void start() {
         if (state != State.IDLE || ceremonyActive) return;
+        disableLocatorBar();
         gamesThisRound = 0;
         attemptedThisCycle.clear();
         createBossBar();
@@ -117,7 +148,11 @@ public class AutomationManager {
         return true;
     }
 
+    private nl.kmc.kmccore.presentation.TeamShowcase teamShowcase;
+
     private void cancelCeremony() {
+        if (teamShowcase != null) { teamShowcase.cancel(); teamShowcase = null; }
+        try { plugin.getCeremonyFireworks().cancelAll(); } catch (Throwable ignored) { }
         boolean wasActive = ceremonyActive;
         ceremonyGeneration++;
         ceremonyActive = false;
@@ -143,7 +178,12 @@ public class AutomationManager {
      */
     private void runCeremonyStage(int gen, int idx, Runnable done) {
         if (gen != ceremonyGeneration) return;
-        if (idx >= OPENING_STAGES.size()) { done.run(); return; }
+        if (idx >= OPENING_STAGES.size()) {
+            try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.FINALE); }
+            catch (Throwable ignored) { }
+            done.run();
+            return;
+        }
 
         String phase = OPENING_STAGES.get(idx);
         ceremonyTasks.clear();
@@ -160,11 +200,13 @@ public class AutomationManager {
             showCeremonyTitle(titleText, subText);
             playStageSound(idx);
             stageBurst(idx);
+            fireworksForStage(phase);
 
             // Chat script for this stage: a framed header, then one block per message (laid out
             // with centring / wrapping), then stage-specific content, then a closing rule.
             char color = STAGE_CHAT_COLORS[idx % STAGE_CHAT_COLORS.length];
             List<List<String>> blocks = new ArrayList<>();
+            boolean interactiveShowcase = false;
             blocks.add(ChatLayout.header(color, ChatColor.stripColor(titleText), ChatColor.stripColor(subText)));
             for (String message : cm.getMessages(phase, ph)) {
                 if (isSeparatorLine(message)) continue;   // the header/footer frame replaces old divider lines
@@ -176,13 +218,36 @@ public class AutomationManager {
             }
             switch (phase) {
                 case "tournament-overview" -> buildMultiplierLadderBlock().ifPresent(blocks::add);
-                case "team-showcase"       -> blocks.addAll(buildTeamShowcaseBlocks());
+                case "team-showcase"       -> {
+                    if (plugin.getTeamManager().getTeamsSortedByPoints().isEmpty())
+                        blocks.addAll(buildTeamShowcaseBlocks());
+                    else interactiveShowcase = true;   // staged per team below
+                }
+                case "game-lineup"         -> {
+                    // Always warn, even if an older ceremonies.yml on disk lacks the disclaimer line.
+                    boolean has = cm.getMessages(phase, ph).stream()
+                            .anyMatch(m -> ChatColor.stripColor(MessageUtil.color(m)).toLowerCase().contains("niet alle games"));
+                    if (!has) blocks.add(new ArrayList<>(ChatLayout.body(
+                            "<c>&e⚠ &7Niet alle games worden gespeeld: per ronde stemmen jullie op &f"
+                                    + ph.getOrDefault("games_per_round", "?") + "&7.")));
+                }
                 default -> { }
             }
 
             boolean isLineup = phase.equals("game-lineup");
-            if (!isLineup) blocks.add(List.of(ChatLayout.rule(color), ""));
-            long end = revealBlocks(gen, blocks, 0L, cm);
+            if (!isLineup && !interactiveShowcase) blocks.add(List.of(ChatLayout.rule(color), ""));
+            long langHold = phase.equals("opening") ? announceLanguage(gen, 50L) : 0L;
+            long end = revealBlocks(gen, blocks, langHold, cm);
+            if (interactiveShowcase) {
+                var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+                teamShowcase = new nl.kmc.kmccore.presentation.TeamShowcase(plugin);
+                end = teamShowcase.schedule(teams, buildTeamShowcaseBlocks(), end,
+                        (delay, task) -> ceremonyLater(gen, delay, task));
+                ceremonyLater(gen, end, () -> {
+                    Bukkit.broadcastMessage(ChatLayout.rule(color));
+                    Bukkit.broadcastMessage("");
+                });
+            }
             if (isLineup) end = Math.max(end, scheduleGameLineup(gen, cm, end));
 
             long total = Math.max(cm.getDuration(phase, 8) * 20L, end + cm.getReadBufferTicks());
@@ -209,7 +274,8 @@ public class AutomationManager {
                 if (block.stream().anyMatch(l -> !l.isBlank() && !l.contains("§m"))) chime();
             });
             int chars = block.stream().mapToInt(ChatLayout::visibleLength).sum();
-            tick += Math.max(cm.getLineDelayTicks(), Math.round(chars * cm.getTicksPerChar()));
+            tick += Math.min(cm.getMaxBlockTicks(),
+                    Math.max(cm.getLineDelayTicks(), Math.round(chars * cm.getTicksPerChar())));
         }
         return tick;
     }
@@ -228,13 +294,16 @@ public class AutomationManager {
             List<String> card = ChatLayout.gameCard(n, total, g.getDisplayName(), description, objective, scoring);
             int chars = card.stream().mapToInt(ChatLayout::visibleLength).sum();
             // Each card stays up long enough to actually read: at least seconds-per-game, more for wordy ones.
-            long hold = Math.max(cm.getSecondsPerGame() * 20L, Math.round(chars * cm.getTicksPerChar()));
+            long hold = Math.min(cm.getMaxSecondsPerGame() * 20L,
+                    Math.max(cm.getSecondsPerGame() * 20L, Math.round(chars * cm.getTicksPerChar())));
 
             String sub = !objective.isBlank() ? objective : description;
             float pitch = 0.8f + 0.7f * n / total;
             long holdFinal = hold;
             ceremonyLater(gen, tick, () -> {
                 card.forEach(Bukkit::broadcastMessage);
+                try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.GAME_CARD); }
+                catch (Throwable ignored) { }
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     p.sendTitle(MessageUtil.color("&e&l" + g.getDisplayName()), MessageUtil.color("&7" + shorten(sub, 60)),
                             5, (int) Math.max(20, holdFinal - 15), 10);
@@ -322,6 +391,66 @@ public class AutomationManager {
     }
 
     /** Particle burst around every player — opening gets the big totem-style one. */
+    /** Fires the admin-configured fireworks for a ceremony stage (see /kmcopeningsceremony). */
+    private void fireworksForStage(String phase) {
+        var moment = switch (phase) {
+            case "opening"             -> nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.OPENING;
+            case "how-it-works"        -> nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.HOW_IT_WORKS;
+            case "tournament-overview" -> nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.OVERVIEW;
+            case "team-showcase"       -> nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.TEAM_SHOWCASE;
+            case "game-lineup"         -> nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.GAME_LINEUP;
+            default -> null;
+        };
+        if (moment == null) return;
+        try { plugin.getCeremonyFireworks().play(moment); } catch (Throwable ignored) { }
+    }
+
+    /**
+     * Makes the language choice impossible to miss at the very start: a big three-language title, a clickable
+     * chat card, and the language menu opens by itself for everyone who has not picked a language yet.
+     * Returns how many ticks the rest of the opening should be held back.
+     */
+    private long announceLanguage(int gen, long startTick) {
+        final String cmd = "/kmclanguage";
+        ceremonyLater(gen, startTick, () -> {
+            var lm = plugin.getLanguageManager();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendTitle("§e§l🌍 " + cmd, "§fKies je taal §8• §fChoose your language", 5, 110, 15);
+                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.2f);
+                p.sendMessage("");
+                p.sendMessage(MessageUtil.color("&6&l══════ 🌍 TAAL • LANGUAGE ══════"));
+                p.sendMessage(languageLine("&f&lNL &8» &7Typ &e&l" + cmd + " &7of klik hier om je taal te kiezen."));
+                p.sendMessage(languageLine("&f&lEN &8» &7Type &e&l" + cmd + " &7or click here to choose your language."));
+                p.sendMessage(MessageUtil.color("&6&l═════════════════════════════════════"));
+                p.sendMessage("");
+            }
+        });
+        // The menu opens for everyone who never picked a language (they can close it at any time).
+        ceremonyLater(gen, startTick + 25L, () -> {
+            var lm = plugin.getLanguageManager();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (lm.hasChosen(p.getUniqueId())) continue;
+                try { new nl.kmc.kmccore.gui.LanguageGui(plugin, p).open(p); } catch (Throwable ignored) { }
+            }
+        });
+        // A last nudge before the presentation carries on.
+        ceremonyLater(gen, startTick + 110L, () -> {
+            for (Player p : Bukkit.getOnlinePlayers())
+                p.sendActionBar(net.kyori.adventure.text.Component.text(
+                        MessageUtil.color("&e🌍 /kmclanguage &7— NL • EN")));
+        });
+        return startTick + 150L;
+    }
+
+    /** A clickable chat line that runs /kmclanguage. */
+    private static net.kyori.adventure.text.Component languageLine(String legacy) {
+        return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                .deserialize(MessageUtil.color(legacy))
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/kmclanguage"))
+                .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(
+                        net.kyori.adventure.text.Component.text("Klik / Click / Tıkla")));
+    }
+
     private void stageBurst(int idx) {
         for (Player p : Bukkit.getOnlinePlayers()) {
             var at = p.getLocation().add(0, 1, 0);
@@ -346,9 +475,17 @@ public class AutomationManager {
 
     public void stop() {
         cancelCeremony();
+        restoreLocatorBar();
         cancelTick();
         hideBossBar();
         state = State.IDLE;
+        // A game that is still running must not be left behind as a ghost (it would keep its scoreboard,
+        // timers and listeners and could kick players out of the next game later).
+        try {
+            if (plugin.getGameManager().getActiveGame() != null) plugin.getGameManager().forceSkipCurrentGame();
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[KMC] Could not stop the running game on /kmcauto stop: " + t);
+        }
     }
 
     // ----------------------------------------------------------------
@@ -453,15 +590,23 @@ public class AutomationManager {
         gamesThisRound++;
         attemptedThisCycle.clear();
 
-        int gamesPerRound = plugin.getConfig().getInt("automation.games-per-round", 3);
+        int gamesPerRound = gamesPerRound();
         boolean roundComplete = false;
+        boolean midBreakNow = false;
         if (gamesThisRound >= gamesPerRound) {
             gamesThisRound = 0;
             roundComplete  = true;
+            int completedRound = plugin.getTournamentManager().getCurrentRound();
             if (!plugin.getTournamentManager().nextRound()) {
                 endTournament(winnerName);
                 return;
             }
+            // Mid-tournament break (default: after half of the rounds, 5 minutes, skippable).
+            var cfg = plugin.getConfig();
+            int total = plugin.getTournamentManager().getTotalRounds();
+            int breakAfter = cfg.getInt("automation.mid-break.after-round", Math.max(1, total / 2));
+            midBreakNow = cfg.getBoolean("automation.mid-break.enabled", true)
+                    && total > 1 && completedRound == breakAfter;
         }
 
         if (roundComplete) ceremony("round-end");
@@ -469,7 +614,33 @@ public class AutomationManager {
         plugin.getArenaManager().teleportAllToLobby();
         postGameLeaderboardChain();
         createBossBar();
-        enterIntermission();
+        if (midBreakNow) {
+            int secs = plugin.getConfig().getInt("automation.mid-break.seconds", 300);
+            broadcast("&6&l[KMC] &eHalverwege het toernooi! &7Pauze van &f" + formatDuration(secs)
+                    + "&7 — een admin kan hem overslaan met &e/kmcauto skip&7.");
+            enterIntermission(secs, true);
+        } else {
+            enterIntermission();
+        }
+    }
+
+    /** Games per round: the configured value, or enabled games / total rounds when it is 0. */
+    private int gamesPerRound() {
+        int cfg = plugin.getConfig().getInt("automation.games-per-round", 2);
+        if (cfg > 0) return cfg;
+        int total = Math.max(1, plugin.getTournamentManager().getTotalRounds());
+        int games = Math.max(1, plugin.getGameManager().getEnabledGames().size());
+        return Math.max(1, (int) Math.ceil(games / (double) total));
+    }
+
+    private boolean midBreakActive;
+
+    /** Ends the mid-tournament break early (/kmcauto skip). */
+    public boolean skipMidBreak() {
+        if (!midBreakActive || state != State.INTERMISSION) return false;
+        countdownSeconds = 1;   // the next tick moves on to voting / the next game
+        broadcast("&6[KMC] &7Pauze overgeslagen door een admin.");
+        return true;
     }
 
     public void pause() {
@@ -499,8 +670,14 @@ public class AutomationManager {
     // ----------------------------------------------------------------
 
     private void enterIntermission() {
+        enterIntermission(plugin.getConfig().getInt("automation.intermission-seconds", 30), false);
+    }
+
+    private void enterIntermission(int totalSeconds, boolean longBreak) {
         state            = State.INTERMISSION;
-        countdownSeconds = plugin.getConfig().getInt("automation.intermission-seconds", 30);
+        midBreakActive   = longBreak;
+        countdownSeconds = totalSeconds;
+        final int intermissionTotal = Math.max(1, totalSeconds);
 
         boolean votingEnabled = plugin.getConfig().getBoolean("games.voting-enabled", true);
         String label = votingEnabled
@@ -513,14 +690,16 @@ public class AutomationManager {
 
         startTick(() -> {
             countdownSeconds--;
-            double progress = (double) countdownSeconds /
-                    plugin.getConfig().getInt("automation.intermission-seconds", 30);
+            double progress = (double) countdownSeconds / intermissionTotal;
             setBossBarProgress(progress);
-            playTickSound(countdownSeconds);
-            bossBar.setTitle(MessageUtil.color("&eTussenpauze: &6" + countdownSeconds + "s"));
+            if (!longBreak || countdownSeconds <= 10) playTickSound(countdownSeconds);
+            bossBar.setTitle(MessageUtil.color(longBreak
+                    ? "&6&lHalverwege-pauze: &e" + formatDuration(countdownSeconds) + " &8(/kmcauto skip)"
+                    : "&eTussenpauze: &6" + countdownSeconds + "s"));
 
             if (countdownSeconds <= 0) {
                 cancelTick();
+                midBreakActive = false;
                 if (plugin.getConfig().getBoolean("games.voting-enabled", true)) {
                     enterVoting();
                 } else {
@@ -942,7 +1121,7 @@ public class AutomationManager {
         m.put("multiplier",  String.valueOf(plugin.getTournamentManager().getMultiplier()));
         m.put("team_count",  String.valueOf(plugin.getTeamManager().getTeamsSortedByPoints().size()));
         m.put("total_rounds",    String.valueOf(plugin.getTournamentManager().getTotalRounds()));
-        m.put("games_per_round", String.valueOf(plugin.getConfig().getInt("automation.games-per-round", 3)));
+        m.put("games_per_round", String.valueOf(gamesPerRound()));
         m.put("game_count",      String.valueOf(plugin.getGameManager().getEnabledGames().size()));
         return m;
     }

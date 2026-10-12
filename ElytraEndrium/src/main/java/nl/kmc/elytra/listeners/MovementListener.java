@@ -62,6 +62,18 @@ public class MovementListener implements Listener {
      * during a race. Crashes are detected separately via the
      * grounded-grace-period check in GameManager.
      */
+    /** Right-click the heart of the sea: back to the previous checkpoint. */
+    @EventHandler
+    public void onReturnItem(org.bukkit.event.player.PlayerInteractEvent event) {
+        ElytraEndriumGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        var a = event.getAction();
+        if (a != org.bukkit.event.block.Action.RIGHT_CLICK_AIR && a != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        if (!gm.isReturnItem(event.getItem())) return;
+        event.setCancelled(true);
+        gm.returnToCheckpoint(event.getPlayer());
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         ElytraEndriumGameManagerV2 gm = gm();

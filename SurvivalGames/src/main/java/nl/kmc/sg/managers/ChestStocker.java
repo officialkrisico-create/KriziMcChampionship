@@ -72,6 +72,8 @@ public class ChestStocker {
                 String matName = String.valueOf(m.get("material"));
                 Material mat = Material.matchMaterial(matName);
                 if (mat == null) throw new IllegalArgumentException("Unknown material: " + matName);
+                // No building in Survival Games: block items (except TNT, which auto-primes) stay out of the chests.
+                if (mat.isBlock() && mat != Material.TNT) continue;
                 int minA = m.containsKey("min") ? ((Number) m.get("min")).intValue() : 1;
                 int maxA = m.containsKey("max") ? ((Number) m.get("max")).intValue() : minA;
                 double chance = m.containsKey("chance") ? ((Number) m.get("chance")).doubleValue() : 1.0;
@@ -194,6 +196,7 @@ public class ChestStocker {
     private ItemStack buildStack(LootEntry e, Random rng) {
         int amount = e.minAmount() + rng.nextInt(Math.max(1, e.maxAmount() - e.minAmount() + 1));
         ItemStack stack = new ItemStack(e.material(), amount);
+        nl.kmc.game.api.PotionLoot.apply(stack, rng, null);
         for (var entry : e.enchants().entrySet()) {
             try {
                 var ench = org.bukkit.enchantments.Enchantment.getByName(entry.getKey().toUpperCase());

@@ -148,7 +148,7 @@ public class GameStateManager {
 
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (p.isOnline()) {
-                    p.teleport(plugin.getKmcCore().getArenaManager().getLobby());
+                    nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, plugin.getKmcCore().getArenaManager().getLobby());
                     p.sendMessage(ChatColor.RED + "Je bent geëlimineerd! Wacht op het einde...");
                     p.setGameMode(GameMode.SPECTATOR);
                 }

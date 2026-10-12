@@ -118,17 +118,14 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§d§lBLOCK PARTY"; }
+                    @Override public String introSubtitle() { return "@bp.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§d§lBLOCK PARTY",
-                                "§7Vind de §fjuiste kleur §7voordat de tijd om is.",
-                                "§7Ga op de getoonde kleur staan.",
-                                "§cVerkeerde kleur = §4eliminatie§c.");
+                        return List.of("@bp.tut.1", "@bp.tut.2", "@bp.tut.3");
                     }
                     @Override public Location flyoverCenter() { return center; }
                     @Override public void onFinished() {
                         Bukkit.getPluginManager().callEvent(new BlockPartyGameStartEvent(new ArrayList<>(players.keySet())));
-                        startRound();
+                        beginFirstRoundCountdown();
                     }
                 });
         startFlow.prepareAndFreeze();
@@ -179,6 +176,22 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     }
 
     // ── Round flow ────────────────────────────────────────────────────────────
+
+    /** Gives everyone a few seconds on the floor to orient themselves before the first target colour appears. */
+    private void beginFirstRoundCountdown() {
+        int secs = Math.max(0, plugin.getConfig().getInt("block-party.game.first-round-delay-seconds", 5));
+        if (secs == 0) { startRound(); return; }
+        final int[] left = {secs};
+        Bukkit.getScheduler().runTaskTimer(plugin, task -> {
+            if (!getState().isRunning()) { task.cancel(); return; }
+            if (left[0] <= 0) { task.cancel(); startRound(); return; }
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendTitle("§d§lBLOCK PARTY", api.tr(p.getUniqueId(), "bp.first-round", left[0]), 0, 25, 5);
+                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 0.8f, 1.2f);
+            }
+            left[0]--;
+        }, 0L, 20L);
+    }
 
     private void startRound() {
         if (!getState().isRunning()) return;
@@ -252,17 +265,27 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     }
 
     /** Gives every alive player the round's colour block — pure visual reference, replaces whatever was in that slot. */
+    /** Colour name in the viewer's language (nl: ROOD, en: RED). */
+    private String lbl(Player p, Material concrete) {
+        boolean en = "en".equals(plugin.getKmcCore().getLanguageManager().getLanguage(p.getUniqueId()));
+        return Colors.label(concrete, en);
+    }
+
     private void giveColourItem() {
         int slot = plugin.getConfig().getInt("block-party.inventory-slot", 4);
         ItemStack item = new ItemStack(displayColour, 1);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(Colors.label(displayColour));
             meta.addItemFlags(ItemFlag.values());
             meta.getPersistentDataContainer().set(colourItemKey, PersistentDataType.BYTE, (byte) 1);
             item.setItemMeta(meta);
         }
-        for (Player p : alivePlayers()) p.getInventory().setItem(slot, item.clone());
+        for (Player p : alivePlayers()) {
+            ItemStack mine = item.clone();
+            ItemMeta mm = mine.getItemMeta();
+            if (mm != null) { mm.setDisplayName(lbl(p, displayColour)); mine.setItemMeta(mm); }
+            p.getInventory().setItem(slot, mine);
+        }
     }
 
     /** True only for the round's own colour-display item (tagged), never a player's own matching concrete. */
@@ -307,7 +330,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         for (Player p : alivePlayers()) {
             BPPlayer bp = players.get(p.getUniqueId());
             if (bp == null) continue;
-            boolean onTarget = keepColours.contains(blockUnder(p));
+            boolean onTarget = standsOnKeep(p);
             // Stepping onto a correct colour in the last second = a clutch save.
             if (onTarget && !bp.wasOnTarget() && secondsLeft <= 1) bp.markClutch();
             bp.setWasOnTarget(onTarget);
@@ -331,14 +354,14 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     private void eliminate() {
         if (roundTask != null) { roundTask.cancel(); roundTask = null; }
 
-        for (Player p : alivePlayers()) p.sendTitle("§4§lVERDWIJN!", "", 0, 15, 5);
+        for (Player p : alivePlayers()) p.sendTitle(api.tr(p.getUniqueId(), "bp.vanish"), "", 0, 15, 5);
 
         List<BPPlayer> survivors = new ArrayList<>();
         List<BPPlayer> dropped   = new ArrayList<>();
         for (Player p : alivePlayers()) {
             BPPlayer bp = players.get(p.getUniqueId());
             if (bp == null) continue;
-            if (keepColours.contains(blockUnder(p))) survivors.add(bp);
+            if (standsOnKeep(p)) survivors.add(bp);
             else                                     dropped.add(bp);
         }
 
@@ -353,7 +376,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(bp.getUuid());
             if (p == null) continue;
             if (bp.isClutchThisRound()) {
-                p.sendTitle("§a§l⚡ CLUTCH SAVE", "§7Op het laatste moment!", 3, 30, 8);
+                p.sendTitle(api.tr(p.getUniqueId(), "bp.clutch.title"), api.tr(p.getUniqueId(), "bp.clutch.sub"), 3, 30, 8);
                 p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.8f);
                 grant(p, "blockparty_clutch_king");
             } else {
@@ -368,7 +391,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
         long alive = alivePlayers().size();
         if (!dropped.isEmpty())
-            broadcast("§c☠ §7" + dropped.size() + " speler(s) geëlimineerd §8— §a" + alive + " §7over");
+            tellKey("bp.dropped", dropped.size(), alive);
 
         if (alive <= 1) {
             Bukkit.getScheduler().runTaskLater(plugin, this::end, 40L);
@@ -388,7 +411,8 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
         Player p = Bukkit.getPlayer(bp.getUuid());
         if (p == null) return;
-        p.sendTitle("§c§l✖ JE BENT UITGESCHAKELD!", "§7Ronde " + round + " §8• §7je overleefde " + bp.getRoundsSurvived() + " rondes", 5, 45, 10);
+        p.sendTitle(api.tr(p.getUniqueId(), "bp.out.title"),
+                api.tr(p.getUniqueId(), "bp.out.sub", round, bp.getRoundsSurvived()), 5, 45, 10);
         p.playSound(p.getLocation(), Sound.ENTITY_BLAZE_DEATH, 1f, 0.8f);
         int slot = plugin.getConfig().getInt("block-party.inventory-slot", 4);
         p.getInventory().setItem(slot, null); // remove the colour-display item on elimination
@@ -417,9 +441,14 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private int timerFor(int phase, long alive) {
         var cfg = plugin.getConfig();
-        if (alive < cfg.getInt("block-party.game.final-showdown-threshold", 4)) return cfg.getInt("block-party.game.timer.final-showdown", 2);
-        if (alive < cfg.getInt("block-party.game.endgame-threshold", 8))        return cfg.getInt("block-party.game.timer.endgame", 3);
-        return cfg.getInt("block-party.game.timer.phase" + phase, 8 - phase);
+        // The first rounds always use the relaxed phase timer, however few players are alive — otherwise a
+        // small lobby would be in "endgame" speed from round 1 (alive < 8).
+        boolean early = round <= cfg.getInt("block-party.game.relaxed-rounds", 4);
+        if (!early) {
+            if (alive < cfg.getInt("block-party.game.final-showdown-threshold", 4)) return cfg.getInt("block-party.game.timer.final-showdown", 3);
+            if (alive < cfg.getInt("block-party.game.endgame-threshold", 8))        return cfg.getInt("block-party.game.timer.endgame", 4);
+        }
+        return cfg.getInt("block-party.game.timer.phase" + phase, Math.max(4, 13 - phase * 2));
     }
 
     private int clusterFor(int phase) {
@@ -479,45 +508,49 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
     // ── Display ───────────────────────────────────────────────────────────────
 
     private void announceRound(Material actual) {
-        String label = Colors.label(displayColour);
         if (chaos != null) {
             for (Player p : alivePlayers()) {
-                p.sendTitle(chaos.title(), chaos.subtitle(), 3, 35, 8);
+                String ck = "bp.chaos." + chaos.name().toLowerCase();
+                p.sendTitle(api.tr(p.getUniqueId(), ck + ".title"), api.tr(p.getUniqueId(), ck + ".sub"), 3, 35, 8);
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.5f, 1.4f);
             }
         }
         boolean mirror = chaos == ChaosEvent.MIRROR;
-        String doelWoord = mirror ? "§c§lVERMIJD" : "§7Doel:";
-
-        broadcast("§8§m                ");
-        broadcast("  §7Ronde §f" + round + " §8• " + doelWoord + " " + (colorBlind() ? "§8§o(geen hint — kijk goed!)" : label));
-        if (chaos == ChaosEvent.FAKE_COLOR)
-            broadcast("  §c⚠ §7Verborgen hint — de échte kleur is §o" + Colors.plain(actual).charAt(0) + "...");
-        if (mirror)
-            broadcast("  §5⇄ §7Sta op ELKE ANDERE kleur — deze is dodelijk!");
-        broadcast("§8§m                ");
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            UUID id = p.getUniqueId();
+            String goal = api.tr(id, mirror ? "bp.avoid" : "bp.goal");
+            p.sendMessage("§8§m                ");
+            p.sendMessage(api.tr(id, "bp.round-line", round, goal,
+                    colorBlind() ? api.tr(id, "bp.nohint") : lbl(p, displayColour)));
+            if (chaos == ChaosEvent.FAKE_COLOR)
+                p.sendMessage(api.tr(id, "bp.fake-hint", Colors.plain(actual).charAt(0)));
+            if (mirror) p.sendMessage(api.tr(id, "bp.mirror-note"));
+            p.sendMessage("§8§m                ");
+        }
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (colorBlind()) return;
             for (Player p : alivePlayers())
-                p.sendTitle(mirror ? "§c§lVERMIJD" : "§7DOELKLEUR", label, 2, 25, 6);
+                p.sendTitle(api.tr(p.getUniqueId(), mirror ? "bp.avoid-title" : "bp.goal-title"),
+                        lbl(p, displayColour), 2, 25, 6);
         }, chaos != null ? 35L : 1L);
     }
 
     private void updateDisplays() {
         long alive = alivePlayers().size();
-        String label = colorBlind() ? "§8???" : Colors.label(displayColour);
         boolean mirror = chaos == ChaosEvent.MIRROR;
-        String doelLabel = mirror ? "§c§lVERMIJD" : "§7Doel";
 
         if (bossBar != null) {
             bossBar.setColor(mirror ? BarColor.PURPLE : (secondsLeft <= 2 ? BarColor.RED : BarColor.PINK));
             bossBar.setProgress(Math.max(0, Math.min(1, secondsLeft / (double) Math.max(1, roundSeconds))));
-            bossBar.setTitle("§d§lBLOCK PARTY §8| " + doelLabel + " " + label + " §8| §c⏱ " + secondsLeft + "s §8| §a" + alive + " over");
+            bossBar.setTitle("§d§lBLOCK PARTY §8| " + (mirror ? "§c§l⛔" : "§7🎯") + " §8| §c⏱ " + secondsLeft
+                    + "s §8| §a" + alive + "👤");
         }
-        String hud = (mirror ? "§c§lVERMIJD " : "§7Sta op ") + "§r" + label + " §8| §c" + secondsLeft + "s §8| §a" + alive + " spelers over";
-        for (Player p : Bukkit.getOnlinePlayers())
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            String label = colorBlind() ? "§8???" : lbl(p, displayColour);
+            String hud = api.tr(p.getUniqueId(), mirror ? "bp.hud.avoid" : "bp.hud.goal", label, secondsLeft, alive);
             p.sendActionBar(net.kyori.adventure.text.Component.text(hud));
+        }
     }
 
     @Override
@@ -528,18 +561,19 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
                 .map(bp -> api.teams().getTeamByPlayer(bp.getUuid()).map(t -> t.getId()).orElse("·"))
                 .distinct().count();
         java.util.List<String> l = new java.util.ArrayList<>();
-        l.add("§7Ronde §f" + round + (chaos != null ? " §8(§d" + chaos.name() + "§8)" : ""));
-        l.add((chaos == ChaosEvent.MIRROR ? "§c§lVermijd: " : "§7Doelkleur: ")
-                + (colorBlind() ? "§8???" : Colors.label(displayColour)));
-        l.add("§7Tijd: §c" + Math.max(0, secondsLeft) + "s");
+        UUID vid = viewer.getUniqueId();
+        l.add(api.tr(vid, "bp.sb.round", round, chaos != null ? " §8(§d" + chaos.name() + "§8)" : ""));
+        l.add(api.tr(vid, chaos == ChaosEvent.MIRROR ? "bp.sb.avoid" : "bp.sb.goal",
+                colorBlind() ? "§8???" : lbl(viewer, displayColour)));
+        l.add(api.tr(vid, "bp.sb.time", Math.max(0, secondsLeft)));
         l.add("");
-        l.add("§7Spelers over: §a" + alive);
-        l.add("§7Teams over: §b" + teams);
+        l.add(api.tr(vid, "bp.sb.players", alive));
+        l.add(api.tr(vid, "bp.sb.teams", teams));
         BPPlayer me = players.get(viewer.getUniqueId());
         if (me != null) {
             l.add("");
-            l.add(me.isAlive() ? "§aJe leeft nog!" : "§cGeëlimineerd (R" + me.getEliminatedRound() + ")");
-            if (me.getClutches() > 0) l.add("§eClutches: §6" + me.getClutches());
+            l.add(me.isAlive() ? api.tr(vid, "bp.sb.alive") : api.tr(vid, "bp.sb.out", me.getEliminatedRound()));
+            if (me.getClutches() > 0) l.add(api.tr(vid, "bp.sb.clutches", me.getClutches()));
         }
         return l;
     }
@@ -596,11 +630,12 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
 
     private void broadcastFinalStandings(List<UUID> placement, BPPlayer winner) {
         broadcast("§8§m                                        ");
-        broadcast("        §d§l🎉 BLOCK PARTY — UITSLAG");
+        tellKey("bp.results");
         broadcast("§8§m                                        ");
         if (winner != null) {
             Player wp = Bukkit.getPlayer(winner.getUuid());
-            broadcastTitle("§6§l" + winner.getName(), "§ewint Block Party!", 8, 60, 15);
+            for (Player tp : Bukkit.getOnlinePlayers())
+                tp.sendTitle("§6§l" + winner.getName(), api.tr(tp.getUniqueId(), "bp.wins"), 8, 60, 15);
             if (wp != null) {
                 wp.getWorld().spawnParticle(Particle.FIREWORK, wp.getLocation().add(0, 1, 0), 60, 0.6, 1, 0.6, 0.1);
                 wp.playSound(wp.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
@@ -611,8 +646,10 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             BPPlayer bp = players.get(placement.get(i));
             if (bp == null) continue;
             String m = i < 3 ? medals[i] : "§7#" + (i + 1);
-            broadcast("  " + m + " §f" + bp.getName() + " §8— §7overleefde §e" + bp.getRoundsSurvived()
-                    + " §7rondes§8, §6" + bp.getClutches() + " clutches");
+            for (Player rp : Bukkit.getOnlinePlayers()) {
+                rp.sendMessage("  " + m + " §f" + bp.getName() + " §8— "
+                        + api.tr(rp.getUniqueId(), "bp.result-line", bp.getRoundsSurvived(), bp.getClutches()));
+            }
         }
         broadcast("§8§m                                        ");
     }
@@ -627,6 +664,30 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             if (p != null) out.add(p);
         }
         return out;
+    }
+
+    /**
+     * True if the player is above a surviving colour. Looks at the first solid block under five points of
+     * the hitbox (centre + corners), up to 3 blocks down — so a player who is mid-jump, or straddling two
+     * blocks with one of them correct, is not eliminated while "standing on the right block".
+     */
+    private boolean standsOnKeep(Player p) {
+        Location l = p.getLocation();
+        World w = l.getWorld();
+        if (w == null) return false;
+        double[][] offs = {{0, 0}, {0.3, 0.3}, {0.3, -0.3}, {-0.3, 0.3}, {-0.3, -0.3}};
+        int startY = (int) Math.floor(l.getY() - 0.01);
+        for (double[] o : offs) {
+            int bx = (int) Math.floor(l.getX() + o[0]);
+            int bz = (int) Math.floor(l.getZ() + o[1]);
+            for (int dy = 0; dy <= 3; dy++) {
+                Material m = w.getBlockAt(bx, startY - dy, bz).getType();
+                if (m.isAir()) continue;
+                if (keepColours.contains(m)) return true;
+                break;
+            }
+        }
+        return false;
     }
 
     private Material blockUnder(Player p) {
@@ -646,7 +707,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             if (p == null) return;
             GamePlayerUtil.resetPlayer(p);
             p.setGameMode(GameMode.ADVENTURE);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 

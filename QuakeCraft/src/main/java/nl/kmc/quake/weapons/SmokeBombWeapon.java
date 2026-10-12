@@ -61,6 +61,15 @@ public final class SmokeBombWeapon {
 
             @Override
             public void run() {
+                // A throwing run() would otherwise repeat every tick forever (never cancelled) and flood the log.
+                try { step(); }
+                catch (Throwable t) {
+                    cancel();
+                    plugin.getLogger().log(java.util.logging.Level.WARNING, "[QuakeCraft] weapon task failed — cancelled", t);
+                }
+            }
+
+            private void step() {
                 if (ticksLeft <= 0 || center.getWorld() == null) { cancel(); return; }
                 ticksLeft -= 5;
 

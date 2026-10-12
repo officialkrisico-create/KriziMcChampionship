@@ -89,7 +89,7 @@ public class SGListener implements Listener {
 
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
-            gm.handleDeath(victim, attacker, "killed");
+            gm.handleDeath(victim, attacker, "game.reason.killed");
         }
     }
 
@@ -105,7 +105,29 @@ public class SGListener implements Listener {
         event.setKeepInventory(true);
 
         Player killer = gm.getRecentAttacker(p.getUniqueId());
-        gm.handleDeath(p, killer, "stierf");
+        gm.handleDeath(p, killer, "game.reason.died");
+    }
+
+    /** Survival Games: no building and no breaking (TNT excepted — it auto-primes, see below). */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockPlaceBlocked(BlockPlaceEvent event) {
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        Player p = event.getPlayer();
+        if (p.getGameMode() == GameMode.CREATIVE) return;
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
+        if (event.getBlock().getType() == Material.TNT) return;
+        event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBlockBreakBlocked(org.bukkit.event.block.BlockBreakEvent event) {
+        SurvivalGamesManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        Player p = event.getPlayer();
+        if (p.getGameMode() == GameMode.CREATIVE) return;
+        if (gm.getStatsMap().get(p.getUniqueId()) == null) return;
+        event.setCancelled(true);
     }
 
     /**

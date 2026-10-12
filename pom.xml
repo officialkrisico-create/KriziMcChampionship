@@ -47,6 +47,8 @@
         <module>TNTTag</module>
         <module>SkyWars</module>
         <module>SurvivalGames</module>
+        <module>HoleInTheWall</module>
+        <module>FormulaMC</module>
     </modules>
 
     <!-- ================================================== -->

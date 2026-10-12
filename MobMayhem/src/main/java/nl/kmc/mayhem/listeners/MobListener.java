@@ -20,6 +20,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityCombustEvent;
+import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -100,7 +103,7 @@ public class MobListener implements Listener {
         // Route kill to V2 manager
         Player killer = entity.getKiller();
         WaveDefinition currentWaveDef = gm.getWaveByNumber(ts.getCurrentWave());
-        boolean wasBoss = currentWaveDef != null && currentWaveDef.isBossWave();
+        boolean wasBoss = pdc.has(new NamespacedKey(plugin, WaveExecutor.MOB_BOSS_KEY), PersistentDataType.INTEGER);
         int mobPoints = nl.kmc.mayhem.waves.WaveLibrary.defaultPointsForKill(entity.getType(), wasBoss);
 
         if (killer != null) {
@@ -130,9 +133,52 @@ public class MobListener implements Listener {
 
         ts.eliminatePlayer(p.getUniqueId());
         p.setGameMode(GameMode.SPECTATOR);
-        Bukkit.broadcastMessage(org.bukkit.ChatColor.RED + "☠ " + org.bukkit.ChatColor.GRAY
-                + p.getName() + " is uitgeschakeld op wave " + ts.getCurrentWave());
+        plugin.getSpectatorCompass().give(p);
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            v.sendMessage(plugin.getKmcCore().getLanguageManager().tr(v, "mm.player-out",
+                    p.getName(), ts.getCurrentWave()));
+        }
         gm.checkLastStanding();
+    }
+
+    // ----------------------------------------------------------------
+    // Wave mobs: only ever fight players, never the arena
+    // ----------------------------------------------------------------
+
+    private boolean isWaveMob(org.bukkit.entity.Entity e) {
+        return e.getPersistentDataContainer().has(new NamespacedKey(plugin, WaveExecutor.MOB_TEAM_KEY), PersistentDataType.STRING);
+    }
+
+    /** Wave mobs never target each other (zombies used to attack the iron-golem boss). */
+    @EventHandler(ignoreCancelled = true)
+    public void onMobTarget(EntityTargetEvent event) {
+        if (!isWaveMob(event.getEntity())) return;
+        if (event.getTarget() != null && !(event.getTarget() instanceof Player)) event.setCancelled(true);
+    }
+
+    /** Mob-vs-mob damage (arrows, explosions, golem swings) is cancelled between wave mobs. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onMobVsMob(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof Player) return;
+        if (!isWaveMob(event.getEntity())) return;
+        org.bukkit.entity.Entity damager = event.getDamager();
+        if (damager instanceof org.bukkit.entity.Projectile proj && proj.getShooter() instanceof org.bukkit.entity.Entity shooter) {
+            damager = shooter;
+        }
+        if (isWaveMob(damager)) event.setCancelled(true);
+    }
+
+    /** Creepers (and exploding mobs) hurt players but never break the arena. */
+    @EventHandler(ignoreCancelled = true)
+    public void onMobExplode(EntityExplodeEvent event) {
+        if (isWaveMob(event.getEntity())) event.blockList().clear();
+    }
+
+    /** No burning in daylight — mobs are removed by being killed, nothing else. */
+    @EventHandler(ignoreCancelled = true)
+    public void onMobCombust(EntityCombustEvent event) {
+        if (event instanceof org.bukkit.event.entity.EntityCombustByEntityEvent) return;   // a player's fire aspect etc.
+        if (isWaveMob(event.getEntity())) event.setCancelled(true);
     }
 
     // ----------------------------------------------------------------

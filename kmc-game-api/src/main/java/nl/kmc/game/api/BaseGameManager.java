@@ -124,6 +124,32 @@ public abstract class BaseGameManager implements Listener {
      */
     protected abstract ArenaValidator getArenaValidator();
 
+    /**
+     * Override to return {@code true} if this game handles player-vs-player damage in its own listeners
+     * (it cancels what it doesn't want, applies what it does). The server-wide "no PvP" rule then leaves
+     * this game's players alone. Games without PvP keep the default and stay protected.
+     */
+    protected boolean handlesPlayerPvp() { return false; }
+
+    /**
+     * Sends a lang-file message to every online player in THEIR OWN language (nl/en, see KMCCore/lang).
+     * Prefer this over hard-coded strings in {@link #broadcast}, which are the same for everyone.
+     */
+    protected void tellKey(String key, Object... args) {
+        for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(api.tr(p.getUniqueId(), key, args));
+    }
+
+    /** Title + subtitle from {@code keyBase.title} / {@code keyBase.sub}, per player language. */
+    protected void titleKey(String keyBase, int fadeIn, int stay, int fadeOut) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.sendTitle(api.tr(p.getUniqueId(), keyBase + ".title"), api.tr(p.getUniqueId(), keyBase + ".sub"),
+                    fadeIn, stay, fadeOut);
+        }
+    }
+
+    /** True if player nametags should be hidden for the duration of this game (e.g. QuakeCraft). */
+    protected boolean hidesNametags() { return false; }
+
     // ── FSM ───────────────────────────────────────────────────────────────────
 
     /**
@@ -254,6 +280,8 @@ public abstract class BaseGameManager implements Listener {
         }
 
         transitionTo(GameState.PREPARING);
+        nl.kmc.core.RunningGames.open(registration.getId(), handlesPlayerPvp(), () -> participants);
+        if (hidesNametags()) nl.kmc.core.RunningGames.hideNametags(registration.getId(), true);
         api.games().acquireScoreboard(registration.getId());
         installScoreboard();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
@@ -277,6 +305,7 @@ public abstract class BaseGameManager implements Listener {
         cancelTask(countdownTask);
         cancelTask(graceTask);
         stopMvpCrown();
+        nl.kmc.core.RunningGames.close(registration.getId());
         try { HandlerList.unregisterAll(this); }                       catch (Exception ignored) {}
         try { api.games().clearScoreboard(registration.getId()); }     catch (Exception ignored) {}
         try { api.games().releaseScoreboard(registration.getId()); }   catch (Exception ignored) {}
@@ -298,7 +327,8 @@ public abstract class BaseGameManager implements Listener {
                 return;
             }
             if (remaining[0] <= 5 || remaining[0] == 10) {
-                broadcastTitle("§e" + remaining[0], "§7Game starting...", 5, 15, 5);
+                for (Player cp : Bukkit.getOnlinePlayers())
+                    cp.sendTitle("§e" + remaining[0], api.tr(cp.getUniqueId(), "flow.starting"), 5, 15, 5);
             }
             remaining[0]--;
         }, 0L, 20L);
@@ -325,7 +355,7 @@ public abstract class BaseGameManager implements Listener {
             transitionTo(GameState.ACTIVE);
             GameSfx.playToAll(plugin, participantPlayers(), "game-start",
                     org.bukkit.Sound.EVENT_RAID_HORN, 1f, 1f);
-            startMvpCrown();
+            // The MVP crown is lobby-only now (KMCCore LobbyMvpCrown) — no particles during games.
             onGameStart();
             graceTask = -1;
         }, graceSeconds * 20L);
@@ -343,6 +373,7 @@ public abstract class BaseGameManager implements Listener {
         cancelTask(countdownTask);
         cancelTask(graceTask);
         stopMvpCrown();
+        nl.kmc.core.RunningGames.close(registration.getId());
         transitionTo(GameState.ENDED);
         GameSfx.playToAll(plugin, participantPlayers(), "game-end",
                 org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
@@ -385,6 +416,12 @@ public abstract class BaseGameManager implements Listener {
 
         // Signal tournament engine
         api.games().signalGameEnd(registration.getId(), winnerDescription);
+    }
+
+    /** An admin force-ended this game ({@code /kmcauto endgame}, skip) — really stop it, don't let it run on. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onGameStopRequest(nl.kmc.core.event.GameStopRequestEvent event) {
+        if (registration.getId().equals(event.getGameId()) && state != GameState.ENDED && state != GameState.IDLE) end();
     }
 
     // ── Reconnect ─────────────────────────────────────────────────────────────
@@ -439,17 +476,24 @@ public abstract class BaseGameManager implements Listener {
     }
 
     protected void broadcastTitle(String title, String subtitle, int fadeIn, int stay, int fadeOut) {
+        String t = colorize(title), s = colorize(subtitle);
         participants.stream()
                 .map(Bukkit::getPlayer)
                 .filter(Objects::nonNull)
-                .forEach(p -> p.sendTitle(title, subtitle, fadeIn, stay, fadeOut));
+                .forEach(p -> p.sendTitle(t, s, fadeIn, stay, fadeOut));
     }
 
+    /** Sends to every participant. {@code &}-colour codes (as written in game configs) are translated here. */
     protected void broadcast(String message) {
+        String m = colorize(message);
         participants.stream()
                 .map(Bukkit::getPlayer)
                 .filter(Objects::nonNull)
-                .forEach(p -> p.sendMessage(message));
+                .forEach(p -> p.sendMessage(m));
+    }
+
+    private static String colorize(String s) {
+        return s == null ? "" : org.bukkit.ChatColor.translateAlternateColorCodes('&', s);
     }
 
     /** Currently-online participants, for sound/effect fan-out. */

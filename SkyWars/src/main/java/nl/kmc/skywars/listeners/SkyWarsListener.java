@@ -105,7 +105,7 @@ public class SkyWarsListener implements Listener {
         // If this would kill, intercept and route through GameManager
         if (event.getFinalDamage() >= victim.getHealth()) {
             event.setCancelled(true);
-            gm.handleDeath(victim, attacker, "killed");
+            gm.handleDeath(victim, attacker, "game.reason.killed");
         }
     }
 
@@ -125,7 +125,7 @@ public class SkyWarsListener implements Listener {
         event.setKeepInventory(true);
 
         Player killer = gm.getRecentAttacker(p.getUniqueId());
-        gm.handleDeath(p, killer, "stierf");
+        gm.handleDeath(p, killer, "game.reason.died");
     }
 
     @EventHandler(ignoreCancelled = true)

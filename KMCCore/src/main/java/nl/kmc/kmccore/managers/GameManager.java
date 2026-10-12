@@ -58,6 +58,27 @@ public class GameManager {
         plugin.getLogger().info("Loaded " + games.size() + " games.");
     }
 
+    /**
+     * Makes sure a game that registered itself (any AbstractGamePlugin) is part of the rotation even when the
+     * server's config.yml predates it — config files are never overwritten, so a newly added game would
+     * otherwise exist as a plugin but be unknown to /kmcauto, voting and the setup GUI.
+     * The entry is also written to config.yml so admins can edit/disable it like any other game.
+     */
+    public void ensureRegistered(String id, String displayName, Material icon, int minPlayers) {
+        if (games.containsKey(id)) return;
+        games.put(id, new KMCGame(id, displayName, icon != null ? icon : Material.PAPER, Math.max(1, minPlayers)));
+        String base = "games.list." + id + ".";
+        var cfg = plugin.getConfig();
+        if (!cfg.isSet(base + "display-name")) {
+            cfg.set(base + "display-name", displayName);
+            cfg.set(base + "icon", (icon != null ? icon : Material.PAPER).name());
+            cfg.set(base + "min-players", Math.max(1, minPlayers));
+            cfg.set(base + "repetitions", 1);
+            plugin.saveConfig();
+        }
+        plugin.getLogger().info("[KMC] Game '" + id + "' added to the rotation automatically (not in config.yml yet).");
+    }
+
     private void loadState() {
         String activeId = plugin.getDatabaseManager().getTournamentValue("active_game", null);
         if (activeId != null && !activeId.isEmpty()) activeGame = games.get(activeId);
@@ -152,6 +173,10 @@ public class GameManager {
         activeGame = null;
         save();
 
+        // If the game is still running (admin force-end), actually stop it. A game that ended by itself is
+        // already ENDED here, so this is a no-op for the normal path.
+        Bukkit.getPluginManager().callEvent(new nl.kmc.core.event.GameStopRequestEvent(gameId));
+
         AnnouncementUtil.broadcastTitle(plugin, "announcements.game-end",
                 new String[]{"{winner}"},
                 new String[]{winnerName != null ? winnerName : "?"});
@@ -195,6 +220,7 @@ public class GameManager {
         activeGame = null;
         save();
 
+        Bukkit.getPluginManager().callEvent(new nl.kmc.core.event.GameStopRequestEvent(gameId));
         Bukkit.broadcastMessage(MessageUtil.color(
                 "&6[KMC] &cGame &e" + skipped + " &cis overgeslagen door een admin!"));
         plugin.getArenaManager().resetArenaForGame(gameId);

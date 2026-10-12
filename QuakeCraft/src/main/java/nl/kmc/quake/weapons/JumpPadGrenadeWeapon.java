@@ -53,6 +53,15 @@ public final class JumpPadGrenadeWeapon {
 
             @Override
             public void run() {
+                // A throwing run() would otherwise repeat every tick forever (never cancelled) and flood the log.
+                try { step(); }
+                catch (Throwable t) {
+                    cancel();
+                    plugin.getLogger().log(java.util.logging.Level.WARNING, "[QuakeCraft] weapon task failed — cancelled", t);
+                }
+            }
+
+            private void step() {
                 if (ticks <= 0 || pad.getWorld() == null) { cancel(); return; }
                 ticks -= 5;
 

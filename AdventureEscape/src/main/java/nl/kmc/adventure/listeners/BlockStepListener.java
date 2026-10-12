@@ -28,6 +28,41 @@ public class BlockStepListener implements Listener {
 
     public BlockStepListener(AdventureEscapePlugin plugin) { this.plugin = plugin; }
 
+    /**
+     * Generous effect-block check, called from the race poll: looks at the blocks under the player's whole
+     * footprint (centre and corners), from 2 blocks below up to the knees — so brushing a corner, or flying
+     * over a block in a jump, still triggers it.
+     */
+    public void check(Player player) {
+        if (!plugin.getRaceManager().isActive()) return;
+        if (player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+        var rd = plugin.getRaceManager().getRacers().get(player.getUniqueId());
+        if (rd == null || rd.hasFinished()) return;
+
+        org.bukkit.Location l = player.getLocation();
+        var world = l.getWorld();
+        if (world == null) return;
+        double[][] offs = {{0, 0}, {0.35, 0.35}, {0.35, -0.35}, {-0.35, 0.35}, {-0.35, -0.35}};
+        int footY = (int) Math.floor(l.getY() - 0.05);
+        for (double[] o : offs) {
+            int bx = (int) Math.floor(l.getX() + o[0]);
+            int bz = (int) Math.floor(l.getZ() + o[1]);
+            for (int dy = 0; dy <= 2; dy++) {
+                Material mat = world.getBlockAt(bx, footY - dy, bz).getType();
+                if (mat == Material.AIR) continue;
+                EffectBlock eb = plugin.getEffectBlockManager().getForMaterial(mat);
+                if (eb == null) continue;
+                String key = player.getUniqueId() + ":" + mat.name();
+                long now = System.currentTimeMillis();
+                Long expire = cooldowns.get(key);
+                if (expire != null && now < expire) continue;
+                cooldowns.put(key, now + COOLDOWN_MS);
+                plugin.getEffectBlockManager().apply(player, eb);
+                return;   // one effect per poll is plenty
+            }
+        }
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
         // Only during active race

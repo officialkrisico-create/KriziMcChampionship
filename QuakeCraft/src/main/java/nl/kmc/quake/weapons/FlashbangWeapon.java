@@ -55,7 +55,7 @@ public final class FlashbangWeapon {
         int durationSec = plugin.getConfig().getInt("powerups.flashbang.duration-seconds", 4);
 
         Sfx.play(plugin, loc, "flashbang.flash", Sound.ENTITY_GENERIC_EXPLODE, 1.2f, 2.0f);
-        loc.getWorld().spawnParticle(Particle.FLASH, loc, 4);
+        try { loc.getWorld().spawnParticle(Particle.FLASH, loc, 4, org.bukkit.Color.WHITE); } catch (Exception ignored) { }
         loc.getWorld().spawnParticle(Particle.END_ROD, loc, 60, 0.4, 0.4, 0.4, 0.4);
 
         PotionEffectType blind = effect("blindness");
@@ -68,10 +68,17 @@ public final class FlashbangWeapon {
             if (pl.equals(owner) || nl.kmc.quake.util.TeamUtil.areTeammates(plugin, owner, pl)) continue;
             if (pl.getLocation().distanceSquared(loc) > maxSq) continue;
 
-            // Only blind players who are actually looking toward the flash.
+            // Everyone in range is revealed (Glowing, visible through walls) — the flashbang is a scouting
+            // tool. Only those looking towards the flash are also blinded and slowed.
+            PotionEffectType glow = effect("glowing");
+            int revealTicks = plugin.getConfig().getInt("powerups.flashbang.reveal-seconds", 6) * 20;
+            if (glow != null) pl.addPotionEffect(new PotionEffect(glow, revealTicks, 0, true, false, false));
+
             Vector toFlash = loc.toVector().subtract(pl.getEyeLocation().toVector()).normalize();
             Vector look    = pl.getEyeLocation().getDirection().normalize();
-            if (look.dot(toFlash) < 0.25) continue; // facing away → spared
+            if (look.dot(toFlash) < 0.25) continue; // facing away → spared the blinding
+            PotionEffectType slow = effect("slowness");
+            if (slow != null) pl.addPotionEffect(new PotionEffect(slow, dur, 1, true, false, false));
 
             if (blind != null) pl.addPotionEffect(new PotionEffect(blind, dur, 0, true, false, false));
             if (dark  != null) pl.addPotionEffect(new PotionEffect(dark,  dur, 0, true, false, false));

@@ -53,9 +53,12 @@ public class WeaponListener implements Listener {
         PlayerState state = gm.getPlayersMap().get(p.getUniqueId());
         if (state == null) return;
 
-        // Only right-clicks (in air or on block)
-        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
-            && event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        // Right- AND left-clicks (in air or on a block) fire the weapon in hand.
+        var act = event.getAction();
+        if (act != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+            && act != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK
+            && act != org.bukkit.event.block.Action.LEFT_CLICK_AIR
+            && act != org.bukkit.event.block.Action.LEFT_CLICK_BLOCK) return;
 
         ItemStack item = event.getItem();
         if (item == null) return;

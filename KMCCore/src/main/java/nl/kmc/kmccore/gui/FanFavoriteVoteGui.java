@@ -16,10 +16,18 @@ import java.util.List;
  */
 public final class FanFavoriteVoteGui extends Gui {
 
-    public FanFavoriteVoteGui(KMCCore plugin, FanFavoriteManager manager) {
+    public FanFavoriteVoteGui(KMCCore plugin, FanFavoriteManager manager, Player viewer) {
         super("&1&l🌟 Fan Favorite — stem!", 4);
 
-        List<Player> candidates = new ArrayList<>(Bukkit.getOnlinePlayers());
+        // You cannot vote for yourself or for your own team.
+        var myTeam = plugin.getTeamManager().getTeamByPlayer(viewer.getUniqueId());
+        List<Player> candidates = new ArrayList<>();
+        for (Player c : Bukkit.getOnlinePlayers()) {
+            if (c.getUniqueId().equals(viewer.getUniqueId())) continue;
+            var t = plugin.getTeamManager().getTeamByPlayer(c.getUniqueId());
+            if (myTeam != null && t != null && t.getId().equals(myTeam.getId())) continue;
+            candidates.add(c);
+        }
         candidates.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
 
         set(4, item(Material.NETHER_STAR, "&6&lWie was jouw Fan Favorite?",

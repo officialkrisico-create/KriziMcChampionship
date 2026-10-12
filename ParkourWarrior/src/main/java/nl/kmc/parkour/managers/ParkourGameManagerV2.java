@@ -67,12 +67,9 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§a§lPARKOUR WARRIOR"; }
+                    @Override public String introSubtitle() { return "@pw.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§a§l» §fRen zo ver mogelijk door het parkour.",
-                                "§a§l» §fElk checkpoint geeft punten.",
-                                "§a§l» §fVal je? Je respawnt bij je laatste checkpoint.",
-                                "§a§l» §fAls finishen geblokkeerd lijkt: genoeg fails geeft een skip.");
+                        return List.of("@pw.tut.1", "@pw.tut.2", "@pw.tut.3", "@pw.tut.4");
                     }
                     @Override public Location flyoverCenter() { return plugin.getCourseManager().getStartSpawn(); }
                     @Override public void onFinished() { beginRun(); }
@@ -92,6 +89,12 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
 
     private void beginRun() {
         gameStartMs      = System.currentTimeMillis();
+        for (UUID rid : runners.keySet()) {
+            Player rp = Bukkit.getPlayer(rid);
+            if (rp == null) continue;
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(rid);
+            nl.kmc.game.api.FeetOnlyVisibility.apply(rp, team != null ? team.getColor() : null);   // boots only
+        }
         remainingSeconds = plugin.getConfig().getInt("game.duration-seconds", 180);
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -174,7 +177,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§a[Parkour] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -260,8 +263,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         api.points().givePoints(player.getUniqueId(), pts,
                 nl.kmc.core.domain.PointAward.Reason.OBJECTIVE, registration.getId());
         player.sendActionBar(net.kyori.adventure.text.Component.text(
-                org.bukkit.ChatColor.GREEN + "Checkpoint (stage " + checkpoint.getStage()
-                + ") +" + pts + " pts"));
+                api.tr(player.getUniqueId(), "pw.checkpoint-stage", checkpoint.getStage(), pts)));
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
 
         // Check if this was the finish
@@ -286,8 +288,8 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         player.addPotionEffect(new org.bukkit.potion.PotionEffect(type, ticks, pu.getAmplifier(), true, false, true));
         player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_BEACON_POWER_SELECT, 0.7f, 1.5f);
         player.sendActionBar(net.kyori.adventure.text.Component.text(
-                org.bukkit.ChatColor.GREEN + "✦ "
-                + (pu.getType() == nl.kmc.parkour.models.Powerup.Type.SPEED ? "Speed" : "Jump") + " Boost!"));
+                api.tr(player.getUniqueId(), pu.getType() == nl.kmc.parkour.models.Powerup.Type.SPEED
+                        ? "pw.boost.speed" : "pw.boost.jump")));
     }
 
     /**
@@ -310,7 +312,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         player.teleport(respawn);
         player.setHealth(20); player.setFoodLevel(20); player.setFallDistance(0);
         player.sendActionBar(net.kyori.adventure.text.Component.text(
-                org.bukkit.ChatColor.RED + "✘ Respawned!"));
+                api.tr(player.getUniqueId(), "pw.respawned")));
     }
 
     /**
@@ -318,26 +320,27 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
      * @return null on success, or error message
      */
     public String trySkip(Player player) {
-        if (!isActive()) return "Geen game actief.";
+        UUID sid = player.getUniqueId();
+        if (!isActive()) return api.tr(sid, "pw.skip.no-game");
         RunnerState rs = runners.get(player.getUniqueId());
-        if (rs == null) return "Je doet niet mee aan de race.";
-        if (rs.isFinished()) return "Je bent al gefinisht!";
+        if (rs == null) return api.tr(sid, "pw.skip.not-playing");
+        if (rs.isFinished()) return api.tr(sid, "pw.skip.finished");
 
         int failsRequired = plugin.getConfig().getInt("skip.fails-required", 3);
         if (rs.getCurrentStageFailCount() < failsRequired) {
             int remaining = failsRequired - rs.getCurrentStageFailCount();
-            return "Je hebt nog " + remaining + " meer fail(s) nodig om te skippen.";
+            return api.tr(sid, "pw.skip.need-fails", remaining);
         }
 
         int nextStage = rs.getHighestStage() + 1;
         List<Checkpoint> stageCps = plugin.getCourseManager().getCheckpointsByStage(nextStage);
-        if (stageCps.isEmpty()) return "Geen volgend checkpoint om te skippen.";
+        if (stageCps.isEmpty()) return api.tr(sid, "pw.skip.none");
 
         Checkpoint next = stageCps.get(0);
         rs.skipStage(nextStage);
         player.teleport(next.getRespawn());
         player.setFallDistance(0);
-        broadcast("§7" + player.getName() + " §7sloeg stage §e" + nextStage + " §7over (geen punten)");
+        tellKey("pw.skipped", player.getName(), nextStage);
 
         // Check if they skipped to the finish stage
         Checkpoint finish = plugin.getCourseManager().getFinish();
@@ -355,8 +358,9 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
 
         int finishPts = plugin.getConfig().getInt("points.finish-bonus", 200);
         api.points().givePoints(player.getUniqueId(), finishPts, PointAward.Reason.OBJECTIVE, registration.getId());
-        broadcast("§a§l[Parkour] §e" + player.getName() + " §afinished!");
-        player.sendTitle("§a§lFINISHED!", "§7Great run!", 5, 40, 10);
+        tellKey("pw.finished", player.getName());
+        player.sendTitle(api.tr(player.getUniqueId(), "pw.finish.title"),
+                api.tr(player.getUniqueId(), "pw.finish.sub"), 5, 40, 10);
         player.setGameMode(GameMode.SPECTATOR);
 
         if (plugin.getConfig().getBoolean("game.end-on-first-finish", false)) end();
@@ -377,7 +381,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
             rs.reachCheckpoint(cp.getIndex(), cp.getStage(), pts);
             api.points().givePoints(uuid, pts, PointAward.Reason.OBJECTIVE, registration.getId());
             p.sendActionBar(net.kyori.adventure.text.Component.text(
-                    ChatColor.GREEN + "Checkpoint " + rs.getStagesReached().size() + " / " + checkpoints.size()));
+                    api.tr(uuid, "pw.checkpoint", rs.getStagesReached().size(), checkpoints.size())));
             p.playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
         }
     }
@@ -387,7 +391,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         long finished = runners.values().stream().filter(RunnerState::isFinished).count();
         int min = remainingSeconds / 60, sec = remainingSeconds % 60;
         bossBar.setTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "Parkour §8| §e" + finished
-                + "/" + runners.size() + " finished §8| §b" + String.format("%02d:%02d", min, sec));
+                + "/" + runners.size() + " ✔ §8| §b" + String.format("%02d:%02d", min, sec));
         int total = plugin.getConfig().getInt("game.duration-seconds", 180);
         bossBar.setProgress(Math.max(0, Math.min(1.0, (double) remainingSeconds / total)));
     }
@@ -401,7 +405,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 }

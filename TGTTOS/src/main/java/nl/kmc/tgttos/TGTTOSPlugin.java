@@ -32,8 +32,11 @@ public final class TGTTOSPlugin extends AbstractGamePlugin {
     @Override protected String   objective()   { return "Finish elke ronde zo snel mogelijk."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+ptn per ronde-plaatsing (instelbaar via points.round-placement)",
-            "+ptn team-bonus als je hele team een ronde uitfinisht",
+            "+" + getConfig().getInt("points.round-placement.1", 80) + " / +" + getConfig().getInt("points.round-placement.2", 70)
+                    + " / +" + getConfig().getInt("points.round-placement.3", 65) + " ptn — 1e / 2e / 3e plek per ronde (4e: +"
+                    + getConfig().getInt("points.round-placement.4", 60) + ", 5e: +" + getConfig().getInt("points.round-placement.5", 55) + ")",
+            "+" + getConfig().getInt("points.team-finish-bonus.1", 25) + " ptn — team-bonus als je hele team als eerste een ronde uitfinisht (2e team +"
+                    + getConfig().getInt("points.team-finish-bonus.2", 20) + ")",
             "+0 ptn — DNF (niet op tijd gefinisht)"
         );
     }

@@ -33,6 +33,8 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
     private final Map<UUID, UUID> lastBreaker   = new HashMap<>();
     private final Map<UUID, Long> lastBreakerMs = new HashMap<>();
     private StandardStartFlow startFlow;
+    /** True once the start presentation is over: before that nobody may dig, even though the state is ACTIVE. */
+    private volatile boolean floorLive;
 
     public SpleefGameManagerV2(SpleefPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -41,6 +43,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
 
     @Override
     protected void onPrepare() {
+        floorLive = false;
         players.clear();
         eliminationCounter = 0;
         lastBreaker.clear();
@@ -76,12 +79,10 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§b§lSPLEEF"; }
+                    @Override public String introSubtitle() { return "@spleef.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
                         return List.of(
-                                "§b§lSPLEEF",
-                                "§7Breek de sneeuwvloer onder je tegenstanders weg.",
-                                "§7Val jij in de void? Dan ben je uitgeschakeld.",
-                                "§7Laatste speler die overblijft wint!");
+                                "@spleef.tut.1", "@spleef.tut.2", "@spleef.tut.3");
                     }
                     @Override public Location flyoverCenter() { return center; }
                     @Override public void onFinished() { beginDigging(); }
@@ -100,12 +101,13 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
     }
 
     private void beginDigging() {
+        floorLive = true;
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 300);
 
         for (UUID id : players.keySet()) {
             Player p = Bukkit.getPlayer(id);
             if (p == null) continue;
-            p.sendTitle("§b§lSPLEEF", "§eBreek de vloer!", 0, 35, 10);
+            p.sendTitle("§b§lSPLEEF", api.tr(id, "spleef.go-sub"), 0, 35, 10);
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
         }
 
@@ -172,7 +174,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§b[Spleef] Status hersteld!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -229,8 +231,10 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         ps.eliminate(eliminationCounter++);
         p.setGameMode(GameMode.SPECTATOR);
         p.getInventory().clear();
-        broadcast("§c☠ §7" + p.getName() + " §7" + reason);
-        p.sendTitle("§c§lEliminated!", "§7" + reason, 10, 50, 10);
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            v.sendMessage("§c☠ §7" + p.getName() + " §7" + api.tr(v.getUniqueId(), reason));
+        }
+        p.sendTitle(api.tr(p.getUniqueId(), "spleef.out.title"), "§7" + api.tr(p.getUniqueId(), reason), 10, 50, 10);
 
         // Kill credit
         UUID killerUuid = lastBreaker.get(p.getUniqueId());
@@ -260,7 +264,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
 
     public boolean isRunningGame() { return getState().isRunning(); }
     /** True only once the floor is live (ACTIVE/DEATHMATCH) — gates digging. */
-    public boolean isActivePhase() { return getState().isPvPActive(); }
+    public boolean isActivePhase() { return floorLive && getState().isPvPActive(); }
     public Map<UUID, PlayerState> getPlayersMap() { return Collections.unmodifiableMap(players); }
 
     // ── Internals ─────────────────────────────────────────────────────────────
@@ -273,7 +277,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
             if (ps == null || !ps.isAlive()) continue;
             Player p = Bukkit.getPlayer(uuid);
             if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
-            if (p.getLocation().getY() < voidY) eliminate(p, "fell into the void");
+            if (p.getLocation().getY() < voidY) eliminate(p, "game.reason.void");
         }
     }
 
@@ -282,7 +286,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         long alive = players.values().stream().filter(PlayerState::isAlive).count();
         int min = remainingSeconds / 60, sec = remainingSeconds % 60;
         bossBar.setTitle(ChatColor.AQUA + "" + ChatColor.BOLD + "Spleef §8| §e" + alive
-                + " alive §8| §b" + String.format("%02d:%02d", min, sec));
+                + " §7👤 §8| §b" + String.format("%02d:%02d", min, sec));
     }
 
     private void returnToLobby() {
@@ -294,7 +298,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 
@@ -303,8 +307,7 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         ItemMeta meta = shovel.getItemMeta();
         if (meta != null) {
             meta.setUnbreakable(true);
-            meta.displayName(net.kyori.adventure.text.Component.text(
-                    ChatColor.AQUA + "" + ChatColor.BOLD + "Spleef Shovel"));
+            meta.displayName(net.kyori.adventure.text.Component.text(api.tr(p.getUniqueId(), "spleef.shovel")));
             shovel.setItemMeta(meta);
         }
         shovel.addUnsafeEnchantment(org.bukkit.enchantments.Enchantment.EFFICIENCY, 5);

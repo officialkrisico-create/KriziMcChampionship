@@ -166,8 +166,9 @@ public class PowerupSpawner {
             p.setHealth(Math.min(20.0, p.getHealth() + 10.0));
         }
         type.buildEffects().forEach(p::addPotionEffect);
-        p.sendMessage(ChatColor.AQUA + "✦ " + ChatColor.GRAY + "Je hebt " + ChatColor.AQUA
-                + type.getDisplayName() + ChatColor.GRAY + " opgepakt!");
+        var lm = nl.kmc.kmccore.KMCCore.getInstance().getLanguageManager();
+        p.sendMessage(lm.tr(p, "mm.powerup.picked",
+                lm.tr(p, "mm.powerup." + type.getConfigKey())));
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.6f);
     }
 }

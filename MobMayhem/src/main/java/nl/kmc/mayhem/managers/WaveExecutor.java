@@ -34,6 +34,13 @@ public class WaveExecutor {
 
     public static final String MOB_TEAM_KEY = "mm_team_id";
     public static final String MOB_WAVE_KEY = "mm_wave_number";
+    /** Set (to 1) on the actual boss of a boss wave — escorts and baby zombies are not bosses. */
+    public static final String MOB_BOSS_KEY = "mm_boss";
+
+    /** Consecutive watch ticks a tracked mob could not be found (unloaded chunk) — pruned after a grace period. */
+    private final Map<UUID, Integer> missingTicks = new HashMap<>();
+    private int retargetCounter;
+    private boolean glowShown;
 
     private final MobMayhemPlugin plugin;
     private final TeamGameState   state;
@@ -112,10 +119,16 @@ public class WaveExecutor {
 
             // Prune mobs that died (some may have died without our listener
             // catching them — defensive cleanup)
+            // A mob only counts as gone when it is really dead/removed. One that cannot be found right now
+            // (chunk not loaded) gets 15 s of grace — otherwise the wave "clears" without any kill.
             state.getActiveMobs().removeIf(uuid -> {
                 Entity e = Bukkit.getEntity(uuid);
-                return e == null || e.isDead() || !e.isValid();
+                if (e == null) return missingTicks.merge(uuid, 1, Integer::sum) >= 15;
+                missingTicks.remove(uuid);
+                return e.isDead() || !e.isValid();
             });
+
+            keepMobsInArenaAndOnPlayers();
 
             // All mobs dead? Wave complete.
             if (state.getActiveMobs().isEmpty()) {
@@ -139,8 +152,23 @@ public class WaveExecutor {
                 }
             }
 
-            // Time up?
-            if (System.currentTimeMillis() >= deadline) {
+            // Time up? The wave is only cleared by killing every mob: at the timer the remaining mobs start
+            // glowing so they can be hunted down; only at TWICE the duration is the wave force-ended.
+            long nowMs = System.currentTimeMillis();
+            if (nowMs >= deadline && !glowShown) {
+                glowShown = true;
+                PotionEffectType glow = lookup("glowing");
+                for (UUID mobUuid : state.getActiveMobs()) {
+                    Entity e = Bukkit.getEntity(mobUuid);
+                    if (glow != null && e instanceof LivingEntity le)
+                        le.addPotionEffect(new PotionEffect(glow, Integer.MAX_VALUE, 0, true, false, false));
+                }
+                for (UUID id : state.getAlivePlayers()) {
+                    Player p = Bukkit.getPlayer(id);
+                    if (p != null) p.sendMessage(plugin.getKmcCore().getLanguageManager().tr(p, "mm.glow"));
+                }
+            }
+            if (nowMs >= deadline + wave.getDurationSeconds() * 1000L) {
                 if (plugin.getConfig().getBoolean("game.force-end-wave-on-timeout", true)) {
                     // Force-kill remaining mobs
                     for (UUID mobUuid : new ArrayList<>(state.getActiveMobs())) {
@@ -151,6 +179,50 @@ public class WaveExecutor {
                 }
             }
         }, 20L, 20L);
+    }
+
+    /**
+     * Once a second: (1) mobs that wandered off — spiders climbing out over the walls, anything that fell or
+     * got pushed far away — are put back on a spawn point; (2) every second tick each mob is pointed at the
+     * nearest living player, so all players (bots included) are attacked, not just the first one.
+     */
+    private void keepMobsInArenaAndOnPlayers() {
+        Location ref = arena.getPlayerSpawn();
+        if (ref == null || ref.getWorld() == null) return;
+        double maxHeight = plugin.getConfig().getDouble("game.mob-max-height-above-spawn", 14);
+        double maxRadius = plugin.getConfig().getDouble("game.mob-max-distance-from-spawn", 70);
+        boolean retarget = (retargetCounter++ % 2) == 0;
+
+        List<Player> alive = new ArrayList<>();
+        for (UUID id : state.getAlivePlayers()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && p.isOnline() && !p.isDead() && p.getWorld().equals(ref.getWorld())) alive.add(p);
+        }
+
+        for (UUID id : state.getActiveMobs()) {
+            Entity e = Bukkit.getEntity(id);
+            if (!(e instanceof LivingEntity le) || le.isDead()) continue;
+
+            Location at = le.getLocation();
+            boolean tooHigh = at.getY() > ref.getY() + maxHeight;
+            boolean tooFar  = at.getWorld() != null && at.getWorld().equals(ref.getWorld())
+                    && Math.hypot(at.getX() - ref.getX(), at.getZ() - ref.getZ()) > maxRadius;
+            boolean wrongWorld = at.getWorld() == null || !at.getWorld().equals(ref.getWorld());
+            if (tooHigh || tooFar || wrongWorld) {
+                Location back = arena.randomMobSpawn();
+                if (back != null) { le.teleport(back); continue; }
+            }
+
+            if (retarget && le instanceof Mob mob && !alive.isEmpty()) {
+                Player nearest = null;
+                double best = Double.MAX_VALUE;
+                for (Player p : alive) {
+                    double d = p.getLocation().distanceSquared(at);
+                    if (d < best) { best = d; nearest = p; }
+                }
+                if (nearest != null && !nearest.equals(mob.getTarget())) mob.setTarget(nearest);
+            }
+        }
     }
 
     /** Force-end the wave (called on game stop). */
@@ -208,6 +280,17 @@ public class WaveExecutor {
         le.getPersistentDataContainer().set(teamKey, PersistentDataType.STRING, state.getTeamId());
         le.getPersistentDataContainer().set(waveKey, PersistentDataType.INTEGER, wave.getWaveNumber());
 
+        // Wave mobs must stay until they are killed: no despawning, and no dying to daylight (zombies and
+        // skeletons burn in the sun, which "cleared" waves without a single kill).
+        le.setRemoveWhenFarAway(false);
+        PotionEffectType fireRes = lookup("fire_resistance");
+        if (fireRes != null && type != EntityType.BLAZE && type != EntityType.MAGMA_CUBE) {
+            le.addPotionEffect(new PotionEffect(fireRes, Integer.MAX_VALUE, 0, true, false, false));
+        }
+        if (wave.isBossWave() && isBossEntity(type)) {
+            le.getPersistentDataContainer().set(new NamespacedKey(plugin, MOB_BOSS_KEY), PersistentDataType.INTEGER, 1);
+        }
+
         // Apply modifiers
         if (modifiers.contains(WaveModifier.SPEED_MOBS)) {
             PotionEffectType speedType = lookup("speed");
@@ -262,8 +345,7 @@ public class WaveExecutor {
         return type == EntityType.IRON_GOLEM
             || type == EntityType.RAVAGER
             || type == EntityType.WITHER
-            || type == EntityType.ENDER_DRAGON
-            || type == EntityType.WITHER_SKELETON;
+            || type == EntityType.ENDER_DRAGON;
     }
 
     private void applyPlayerModifiers(Set<WaveModifier> modifiers) {
@@ -341,15 +423,15 @@ public class WaveExecutor {
         for (UUID uuid : state.getAllPlayers()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            String title = ChatColor.GOLD + "" + ChatColor.BOLD + "Wave " + wave.getWaveNumber()
-                    + (wave.isBossWave() ? " ★" : "");
+            var lm = plugin.getKmcCore().getLanguageManager();
+            String title = lm.tr(p, "mm.wave.title", wave.getWaveNumber()) + (wave.isBossWave() ? " ★" : "");
             String subtitle = ChatColor.YELLOW + wave.getDisplayName();
             p.sendTitle(title, subtitle, 10, 60, 20);
             p.playSound(p.getLocation(),
                     wave.isBossWave() ? Sound.ENTITY_ENDER_DRAGON_GROWL : Sound.ENTITY_WITHER_SPAWN,
                     1f, 1f);
             p.sendMessage(ChatColor.translateAlternateColorCodes('&',
-                    "&6Wave " + wave.getWaveNumber() + ": &e" + wave.getDisplayName() + mods));
+                    lm.tr(p, "mm.wave.line", wave.getWaveNumber(), wave.getDisplayName()) + mods));
         }
     }
 
@@ -386,8 +468,8 @@ public class WaveExecutor {
         for (UUID uuid : state.getAllPlayers()) {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
-            p.sendTitle(ChatColor.DARK_RED + "" + ChatColor.BOLD + "🌕 BLOOD MOON",
-                    ChatColor.RED + "De mobs zijn nu véél gevaarlijker...", 10, 60, 20);
+            var lm = plugin.getKmcCore().getLanguageManager();
+            p.sendTitle(lm.tr(p, "mm.bloodmoon.title"), lm.tr(p, "mm.bloodmoon.sub"), 10, 60, 20);
             p.playSound(p.getLocation(), Sound.AMBIENT_CAVE, 1f, 0.6f);
             p.playSound(p.getLocation(), Sound.ENTITY_WOLF_GROWL, 1f, 0.5f);
         }

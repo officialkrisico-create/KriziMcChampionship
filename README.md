@@ -1,7 +1,7 @@
 # KMC Tournament — Wiki & Setup Guide
 
 A multi-game tournament system for Paper 26.3 / Java 25. One core plugin
-manages teams, points, and tournament flow; 15 mini-game plugins plug in
+manages teams, points, and tournament flow; 16 mini-game plugins plug in
 as the rotation.
 
 > **Audience:** server operators setting this up for the first time,
@@ -49,7 +49,7 @@ as the rotation.
 ### Core features (KMCCore)
 
 - **Team system** — players assigned to colored teams, persistent across games
-- **Tournament mode** — chains all 15 games with round multipliers (×1 up to ×5)
+- **Tournament mode** — chains all 16 games with round multipliers (×1 up to ×5)
 - **Points system** — all per-game scoring funnels through a central API; team aggregation automatic
 - **Leaderboards** — `/kmclb teams` and `/kmclb players` (paginated)
 - **Hall of Fame** — top-stat NPCs permanently displayed in lobby (kills / wins / streak)
@@ -75,7 +75,7 @@ as the rotation.
 - **Server health monitor** — TPS, RAM, online count — `/kmchealth`
 - **Discord integration** — automatic webhook posts for game results and achievements
 
-### The 15 mini-games
+### The 16 mini-games
 
 | Game | Style | Players |
 |---|---|---|
@@ -94,6 +94,8 @@ as the rotation.
 | **Lucky Block** | Break lucky blocks, fight with random loot | Teams |
 | **Block Party** | Colour-elimination, last standing | Solo with team scoring |
 | **Speed Build** | Solo schematic-accuracy build challenge | Solo |
+| **Hole in the Wall** | Dodge giant walls sweeping over a round platform, multi-round | Solo with team scoring |
+| **Formula MC** | Boat racing over a hand-built ice circuit — laps, checkpoints, no collisions | Solo with team scoring |
 
 ---
 
@@ -142,7 +144,7 @@ Copy all JARs from each module's `target/` folder into your server's `plugins/` 
 KMCCore/target/KMCCore-*.jar
 SkyWars/target/SkyWars-*.jar
 bingo/target/bingo-*.jar
-... (all 15 game JARs)
+... (all 16 game JARs)
 ```
 
 ### 2. Plugin load order
@@ -158,7 +160,7 @@ The order is:
 | 4 | `kmc-game-api` | Base game manager and plugin template |
 | 5 | `kmc-tournament-engine` | Tournament lifecycle engine |
 | 6 | `KMCCore` | Main plugin — teams, points, lobby, commands |
-| 7+ | All 15 game plugins | Any order |
+| 7+ | All 16 game plugins | Any order |
 
 ### 3. First startup
 
@@ -858,6 +860,71 @@ Minimum floor size is 64 blocks. Check readiness with `/blockparty status`.
 
 ---
 
+### Hole in the Wall
+
+Reaction-survival on a round platform over the void. Giant straight walls slide
+across the platform from changing sides; each has gaps, or is a bar you must
+jump over or sneak under. A wall that hits you shoves you toward the edge — fall off and you're out. Several
+rounds (default 3); the walls speed up over the round, special events twist it
+(faster walls, walls close together, smaller holes, ...).
+
+- **Wall types:** `NORMAL` (one hole), `DOUBLE_HOLE`, `SPLIT` (several small holes),
+  `LOW` (jump over it), `HIGH` (sneak under it), `FAST`. Types, patterns,
+  the speed curve and the events are all in `config.yml` — a new variant is
+  usually just a new entry. Patterns (`alternating_height`, `mixed`, ...) chain
+  walls from one direction; the next pattern comes from another side.
+- **Collision is exact, not block-based:** your hitbox (a circle, 1.8 tall
+  standing / 1.5 sneaking) is tested against the wall's real geometry every
+  tick, and the whole tick's movement is swept, so a fast wall can't skip over
+  you and grazing the corner of a hole is not a hit. The walls are display
+  entities, so it's cheap even with many players.
+- **Every wall is reachable:** the main gap is always placed within running
+  distance of where the living players are, and gaps get wider with more
+  players alive.
+- **Points:** each round awards points by placement (survivors share 1st —
+  `points.round-placement`); the total after the last round decides the final
+  standing, paid out via the normal KMC placement scoring. Achievements: Needle
+  Threader (25 walls in a round), Last Through the Wall, Clean Sweep.
+
+**Setup:**
+```
+/hitw setcenter     ← stand on the middle of where the platform should be
+/hitw setradius 18  ← platform radius (blocks)
+/hitw build         ← builds the platform (also rebuilt at every game start)
+/hitw setspectator  ← optional: where eliminated players watch
+```
+
+Look at a wall without playing: `/hitw testwall <type> [degrees]` (harmless demo;
+`/hitw types` lists them, `/hitw clearwalls` removes them). Quick solo test:
+`/kmctest hole_in_the_wall`, `/kmcbot add 3`, `/hitw start`.
+
+**Run:** `/hitw start`
+
+---
+
+### Formula MC
+
+Boat race over a circuit you build yourself. Everybody gets a boat on the grid, a 3-2-1-GO start,
+then races a configurable number of laps through ordered checkpoints. **Boats and players never collide**
+(team collision rules are switched off and every boat-entity collision is cancelled), other racers only show
+when they are within 10 blocks, and 1-block ramps never stop a boat.
+
+Setup (stand where it should be, each step is one command):
+
+```
+/fmc create <id> [name]   new circuit in this world
+/fmc spawn add            one grid slot per command (your yaw = the way the boat faces)
+/fmc pos1 + /fmc pos2     select a gate;  /fmc line = start/finish line,  /fmc cp add = next checkpoint
+/fmc reset                safe reset spot for stuck racers
+/fmc laps <n>             number of laps
+/fmc start                run it   (/kmctest formula_mc builds a test circuit)
+```
+
+Scoring: placement points by finish order (unfinished racers rank by laps → checkpoints → distance),
+team placement by each team's best racer, +25 for the fastest lap. Tuning lives in `FormulaMC/config.yml`.
+
+---
+
 ### Speed Build
 
 Solo, fully objective schematic-accuracy challenge. Each player builds up
@@ -1014,6 +1081,9 @@ game's own `config.yml`.
 | Command | What it does |
 |---|---|
 | `/event simulate <rounds> <players>` | Runs a REAL tournament with fake bot players — same rotation/multiplier/endTournament() as a live event. Refuses if a real tournament is already active. Fewer rounds than `tournament.total-rounds` = ends early (no book, scores not reset), like a real `/kmctournament stop`. |
+| `/kmctest <game\|list\|all confirm>` | Generates a throw-away test arena (high in the sky) for a game and configures it — no map needed. **Overwrites that game's arena settings.** |
+| `/kmcbot add [n] \| remove <name\|all> \| list \| here` | Test players with no client: real server-side players that stand where you put them, fall, take damage and respawn. Count as online players for every game. |
+| `/kmcauto skip` | Skip the opening presentation |
 | `/event snapshot` | Take a snapshot of current state |
 | `/event listsnapshots` | Show available snapshots |
 | `/event rollback <snapshot-id>` | Restore from a snapshot |

@@ -34,6 +34,8 @@ pacing:
   ticks-per-char: 1.3
   # Minimale leestijd (ticks) na de laatste regel van een fase, voor de volgende begint
   read-buffer-ticks: 50
+  # Maximale ticks dat één tekstblok alleen in beeld blijft, hoe lang de tekst ook is
+  max-block-ticks: 200
 
 # ── Opmaak van de tekst in "messages" ─────────────────────────────────────────
 #   • Elke fase krijgt automatisch een kader met titel + subtitel bovenaan en een lijn onderaan.
@@ -72,7 +74,7 @@ how-it-works:
     - " &b&l6. &7Het team met de meeste punten na ronde {total_rounds} is &6&lkampioen&7!"
     - ""
     - "<c>&7Elke game krijgt vlak voor de start nog een &feigen uitleg&7."
-    - "<c>&8Tip: typ &e/tutorial &8om alles op elk moment terug te lezen."
+    - "<c>&8Tip: type &e/tutorial &8om alles op elk moment terug te lezen."
 
 # ── Team-showcase (toont alle teamnamen) ──────────────────────────────────────
 team-showcase:
@@ -100,10 +102,13 @@ game-lineup:
   duration-seconds: 6
   # Hoeveel seconden elke game in de schijnwerpers staat (titel + doel)
   seconds-per-game: 4
+  # Bovengrens per game-kaart (seconden), ook bij veel tekst
+  max-seconds-per-game: 7
   title: "&a&lDE GAMES"
   subtitle: "&7Dit gaan we spelen"
   messages:
-    - "<c>&7Alle &f{game_count} &7games, één voor één — met het doel en hoe je punten scoort."
+    - "<c>&7Dit zijn de &f{game_count} &7beschikbare games, met het doel en hoe je punten scoort."
+    - "<c>&e⚠ &7Niet alle games worden gespeeld: per ronde stemmen jullie op &f{games_per_round}&7."
     # Hieronder komt automatisch een kaart per game.
 
 # ── Stemfase ──────────────────────────────────────────────────────────────────

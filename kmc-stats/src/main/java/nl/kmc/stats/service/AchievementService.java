@@ -48,6 +48,7 @@ public final class AchievementService implements AchievementApi, Listener {
     private final AchievementCatalog catalog;
     private final AchievementLoader  loader;
     private final AchievementNotifier notifier;
+    private final nl.kmc.stats.achievement.AdvancementToasts toasts;
 
     // ── Persistent state (loaded from DB on player join) ──────────────────────
 
@@ -85,8 +86,10 @@ public final class AchievementService implements AchievementApi, Listener {
         this.storage  = storage;
         this.catalog  = new AchievementCatalog();
         this.loader   = new AchievementLoader(plugin);
-        this.notifier = new AchievementNotifier();
+        this.toasts   = new nl.kmc.stats.achievement.AdvancementToasts();
+        this.notifier = new AchievementNotifier(toasts);
         reload();
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, nl.kmc.stats.achievement.AdvancementToasts::silenceVanilla);
     }
 
     // ── AchievementApi ────────────────────────────────────────────────────────
@@ -137,6 +140,7 @@ public final class AchievementService implements AchievementApi, Listener {
     public void reload() {
         List<AchievementDefinition> defs = loader.loadAll();
         catalog.load(defs);
+        toasts.register(defs);
     }
 
     // ── Async player load ─────────────────────────────────────────────────────

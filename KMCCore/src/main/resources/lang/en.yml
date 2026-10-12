@@ -22,6 +22,18 @@ scoreboard:
   your-points: "&b&lYour Points: &e{0}"
 
 game:
+  state-restored: "&aYour state has been restored!"
+  assist: "&e+{0} &7points for the assist on &f{1}"
+  eliminated:
+    title: "&c&lEliminated!"
+  reason:
+    killed: "was eliminated"
+    died: "died"
+    void: "fell into the void"
+  deathmatch:
+    title: "&c&lDEATHMATCH"
+    sub: "&eGlowing active — find each other!"
+    chat: "&c&l[DEATHMATCH] &eThe ring is closing in fast!"
   board:
     phase: "&7Phase &e{0}"
     round: "&7Round &e{0}"
@@ -85,6 +97,16 @@ sb:
     you-finished: "&7You: &aFinished"
     you-running: "&7You: &eRacing"
     rounds-done: "&7Rounds done &e{0}"
+  hitw:
+    round: "&7Round &e{0}&7/&e{1}"
+    alive: "&7Alive &a{0}"
+    time: "&7Time &f{0}"
+    next: "&7Next wall {0}"
+    event: "&c⚡ &f{0}"
+    speed: "&7Speed {0}"
+    eliminated: "&c&lELIMINATED"
+    survival: "&7Survival"
+    placement: "&7Placement &e#{0}"
   ae:
     your-laps: "&7Your laps &e{0}"
     finished: "&7Status &aFinished"
@@ -159,3 +181,565 @@ commentary:
     title: "&a&lLAST ONE STANDING"
     line1: "&e{0} &7holds out to the very end!"
     line2: "&e{0} &7is the only one still standing!"
+
+# ── TNT Tag ───────────────────────────────────────────────────────────────────
+tnt:
+  intro:
+    title: "&c&lTNT TAG"
+    sub: "&eSurvive. Escape. Don't explode."
+  countdown:
+    sub: "&7Get ready..."
+  go:
+    title: "&a&lGO!"
+    sub: "&eRun!"
+  tut:
+    "1": "&c&l» &fWelcome to &cTNT Tag&f!"
+    "2": "&c&l» &fAvoid holding TNT when the timer hits zero."
+    "3": "&c&l» &fHit another player to transfer the TNT."
+    "4": "&c&l» &fGrab &epowerups &f(right-click to use) and survive the chaos events."
+    "5": "&c&l» &fLast player alive wins. Good luck!"
+  round: "&c&l[TNT Tag] &eRound {0} — {1} bomb(s) armed!"
+  boom:
+    title: "&c&lBOOM!"
+    sub: "&7You held the bomb!"
+    chat: "&c💥 &7{0} &7exploded!"
+  out:
+    border: "&c☠ &7{0} &7fell outside the ring!"
+  hold: "&c☢ &lYOU HAVE THE BOMB &r&c☢  &7{0}s"
+  shield:
+    blocked: "&e&lSHIELD BLOCKED!"
+  clutch: "&6&l⚡ CLUTCH TAG! &e{0} &7passed in the final second!"
+  safe:
+    title: "&a&lSAFE!"
+    sub: "&7Bomb passed on!"
+  transferred:
+    title: "&c&lTNT TRANSFERRED"
+    sub: "&7Pass it on!"
+  stage:
+    five:
+      title: "&c&lFINAL FIVE"
+      sub: "&eFive remain!"
+    three:
+      title: "&c&lFINAL THREE"
+      sub: "&eThe tension rises!"
+    showdown:
+      title: "&4&lFINAL SHOWDOWN"
+      sub: "&eOne bomb. No powerups. No escape."
+  chaos:
+    title: "&5&lCHAOS EVENT"
+    double-note: "&5&lDOUBLE TROUBLE! &7Next round gets extra bombs!"
+    low_gravity: "Low Gravity"
+    speed_frenzy: "Speed Frenzy"
+    darkness: "Darkness"
+    tracker_failure: "Tracker Failure"
+    double_trouble: "Double Trouble"
+    teleport_madness: "Teleport Madness"
+    shrinking_arena: "Shrinking Arena"
+  hud: "&7Alive &a{0} &8| &7TNT &c{1} &8| &7Round &e{2}"
+  untouchable: "&6&l⭐ UNTOUCHABLE! &e{0} &7won without ever holding the bomb!"
+
+# ── Formula MC ────────────────────────────────────────────────────────────────
+fmc:
+  intro-sub: "&bRace across the ice"
+  tut:
+    "1": "&b&l» &fRace {0} laps across the ice."
+    "2": "&b&l» &fDrive through all checkpoints in the right order."
+    "3": "&b&l» &fNo collisions — everyone races their own race."
+    "4": "&b&l» &fFirst across the finish line wins!"
+  go-sub: "&b{0} laps"
+  time-up: "&b[Formula MC] &eTime is up!"
+  time-up-race: "&b[Formula MC] &eTime's up — race over!"
+  fastest: "&b[Formula MC] &6⏱ Fastest lap: &e{0} &7({1}, +{2})"
+  results: "&b&l═══ Formula MC — results ═══"
+  best-lap: "&8(best lap {0})"
+  checkpoint: "&b✔ Checkpoint {0}/{1}"
+  lap: "&bLap {0}/{1} &7— &e{2}"
+  lap-points: "&7+{0} points for this lap (paid out at the end)"
+  finished: "&b[Formula MC] &e{0} &bfinishes as &6#{1} &7({2})"
+  grace: "&b[Formula MC] &7The others have &f{0}s &7left to finish!"
+  back-on-track: "&e↩ Back on track"
+  sb:
+    circuit: "&7Circuit &f{0}"
+    position: "&7Position &e{0}&7/&e{1}"
+    lap: "&7Lap &e{0}&7/&e{1}"
+    last: "&7Last Lap &f{0}"
+    best: "&7Best Lap &a{0}"
+    time: "&7Race Time &f{0}"
+
+# ── Survival Games ────────────────────────────────────────────────────────────
+sg:
+  grace:
+    start: "&a&l[SG] &eGrace period: &f{0}s &7— loot up, nobody can be hurt."
+    title: "&a&lGRACE PERIOD"
+    sub: "&7PvP starts in &f{0}s"
+    over: "&c&l[SG] &eThe grace period is over — PvP is on!"
+  pvp:
+    title: "&c&lPVP ACTIVE"
+    sub: "&7Good luck!"
+  bloodbath: "&c&l[SG] &eBloodbath started — PvP is on!"
+  stocked: "&6[SG] &e{0} chests stocked."
+  restock: "&6[SG] &eThe chests have been refilled! &7({0})"
+  feast:
+    chat: "&6&l🍗 THE FEAST &ehas appeared at the cornucopia — top gear, come and get it!"
+    title: "&6&l🍗 THE FEAST"
+    sub: "&eTop loot at the cornucopia!"
+  intro-sub: "&eLast one standing wins"
+  tut:
+    "1": "&7Grab gear from the cornucopia and the chests around it."
+    "2": "&7The world border slowly closes in towards the middle."
+    "3": "&7Last player alive wins!"
+
+# ── Shared start flow ─────────────────────────────────────────────────────────
+flow:
+  starting: "&7Game starting..."
+  get-ready: "&7Get ready..."
+
+# ── Adventure Escape ──────────────────────────────────────────────────────────
+ae:
+  intro-sub: "&aRace through the puzzle route"
+  tut:
+    "1": "&a&l» &fRace through the puzzle escape route."
+    "2": "&a&l» &fHit checkpoints to save your progress."
+    "3": "&a&l» &fOff the route? You respawn at your last checkpoint."
+    "4": "&a&l» &fFirst to complete all laps wins!"
+  go-sub: "&eThe race is live!"
+  time-up: "&c[Adventure Escape] &eTime's up!"
+  finished: "&6[Adventure Escape] &e{0} &bfinished #{1} &7({2})"
+  time: "&eTime: {0}"
+  grace: "&6[Adventure Escape] &7The others have &f{0}s &7left to finish!"
+  grace-over: "&6[Adventure Escape] &eTime's up — race over!"
+  lap: "&6[Adventure Escape] &e{0} &7completed lap &6{1}/{2}"
+  cp: "&b✔ Checkpoint {0}/{1}"
+  cp-order: "&c✘ Don't skip checkpoints! You must reach checkpoint {0} first."
+  cp-missing: "&c✘ You are still missing {0} checkpoint(s)!"
+  cp-named: "&a✔ Checkpoint reached: &e{0}"
+  oob: "&cOut of bounds! &7(Reset to {0})"
+  cooldown: "&cCooldown: {0}s"
+  no-respawn: "&cNo respawn location available."
+  label-start: "the start of the race"
+  label-cp: "checkpoint {0}"
+  label-last: "your last checkpoint"
+  returned: "&6↩ Sent back to &e{0}"
+
+# ── Bingo ─────────────────────────────────────────────────────────────────────
+bingo:
+  intro-sub: "&eCollect items, complete lines"
+  tut:
+    "1": "&e• &7Collect the items on your &ebingo card&7."
+    "2": "&e• &7Every completed item colours in a &esquare&7."
+    "3": "&e• &7Complete a &6line&7 (row, column or diagonal) for bonus points."
+    "4": "&e• &7The team with the most lines/squares wins!"
+  go-sub: "&eComplete your card!"
+  item-done: "&e{0} &7of {1} &7completed &b{2} &7as &6#{3}&7! &8(+{4} pts)"
+  line: "&6&l[Bingo] &e🟡 Team {0} &6completed a line! &8(+{1} each)"
+  full: "&6&l[Bingo] &e🏆 Team {0} &6completed the FULL card!"
+  no-team: "&cYou are not in a team!"
+  no-game: "&cNo Bingo game is active!"
+  card-title: "{0} Card"
+  squares: "✔ Squares: {0}/{1}"
+  lines: "✔ Lines: {0}/{1}"
+  done: "✔ Complete!"
+  progress: "Progress: {0} / {1}"
+  collect: "Collect this item"
+
+# ── Block Party ───────────────────────────────────────────────────────────────
+bp:
+  intro-sub: "&dFind the right colour"
+  tut:
+    "1": "&7Find the &fright colour &7before time runs out."
+    "2": "&7Stand on the colour shown."
+    "3": "&cWrong colour = &4elimination&c."
+  first-round: "&7First round in &f{0}s &8— find your spot"
+  vanish: "&4&lVANISH!"
+  clutch:
+    title: "&a&l⚡ CLUTCH SAVE"
+    sub: "&7At the last moment!"
+  dropped: "&c☠ &7{0} player(s) eliminated &8— &a{1} &7left"
+  out:
+    title: "&c&l✖ YOU ARE OUT!"
+    sub: "&7Round {0} &8• &7you survived {1} rounds"
+  avoid: "&c&lAVOID"
+  goal: "&7Goal:"
+  avoid-title: "&c&lAVOID"
+  goal-title: "&7TARGET COLOUR"
+  round-line: "  &7Round &f{0} &8• {1} {2}"
+  nohint: "&8&o(no hint — look carefully!)"
+  fake-hint: "  &c⚠ &7Hidden hint — the real colour is &o{0}..."
+  mirror-note: "  &5⇄ &7Stand on ANY OTHER colour — this one is deadly!"
+  hud:
+    avoid: "&c&lAVOID &r{0} &8| &c{1}s &8| &a{2} players left"
+    goal: "&7Stand on &r{0} &8| &c{1}s &8| &a{2} players left"
+  sb:
+    round: "&7Round &f{0}{1}"
+    goal: "&7Target colour: {0}"
+    avoid: "&c&lAvoid: {0}"
+    time: "&7Time: &c{0}s"
+    players: "&7Players left: &a{0}"
+    teams: "&7Teams left: &b{0}"
+    alive: "&aYou are still alive!"
+    out: "&cEliminated (R{0})"
+    clutches: "&eClutches: &6{0}"
+  results: "        &d&l🎉 BLOCK PARTY — RESULTS"
+  wins: "&ewins Block Party!"
+  result-line: "&7survived &e{0} &7rounds&8, &6{1} clutches"
+  chaos:
+    low_gravity:
+      title: "&b⬆ LOW GRAVITY"
+      sub: "&7Jump high — reduced gravity"
+    speed_round:
+      title: "&e» SPEED ROUND"
+      sub: "&7Everyone gets speed"
+    ice_floor:
+      title: "&f❄ ICE FLOOR"
+      sub: "&7Slippery floor — watch your steering"
+    darkness:
+      title: "&8🌑 DARKNESS"
+      sub: "&7Limited vision — trust your eyes"
+    double_color:
+      title: "&a⧉ DOUBLE COLOUR"
+      sub: "&7Two colours survive this round"
+    fake_color:
+      title: "&c⚠ FAKE COLOUR"
+      sub: "&7The colour shown is WRONG — watch the hint"
+    random_tp:
+      title: "&d✦ RANDOM TELEPORT"
+      sub: "&7Everyone is relocated"
+    color_blind:
+      title: "&7◑ COLOUR BLIND"
+      sub: "&7No colour name — recognise it yourself"
+    rapid_fire:
+      title: "&6⚡ RAPID FIRE"
+      sub: "&7Extra short timer"
+    mirror:
+      title: "&5⇄ MIRROR"
+      sub: "&7The colour shown is the one NOT to stand on!"
+
+# ── The Bridge ────────────────────────────────────────────────────────────────
+bridge:
+  intro-sub: "&9Score in the opponent's goal"
+  tut:
+    "1": "&9&l» &fBuild a bridge to the opponent's goal."
+    "2": "&9&l» &fScore by stepping into their goal hole."
+    "3": "&9&l» &fFall into the void? You respawn at your own team."
+    "4": "&9&l» &fFirst team to &e{0} &fgoals wins!"
+  no-side: "&9[The Bridge] &7Your team has no side of its own — you play for &f{0}&7."
+  scored: "&b⚽ &e{0} &9scored for {1}&9! ({2}/{3})"
+  assist: "&e+{0} &7points for the assist on &f{1}"
+  goal:
+    title: "&b&lGOAL!"
+    sub: "&7Respawning…"
+  own-wool: "&cYou can only place your own team's wool!"
+
+# ── Elytra Endrium ────────────────────────────────────────────────────────────
+ee:
+  intro-sub: "&6Fly through all checkpoints"
+  tut:
+    "1": "&6&l» &fFly through all checkpoints in order."
+    "2": "&6&l» &fUse boost hoops for extra speed."
+    "3": "&6&l» &fCrash? You respawn at your last checkpoint."
+    "4": "&6&l» &fFirst to reach every checkpoint wins!"
+  go:
+    title: "&a&lGO!"
+    sub: "&eFly through the hoops!"
+  cp-reached: "&b✔ {0} &7(+{1} pts)"
+  finished: "&6[Elytra] &e{0} &bfinished #{1} &7({2}, +{3} pts)"
+  time: "&7Time: {0}"
+  grace: "&6[Elytra] &7The others have &f{0}s &7left to finish!"
+  time-up: "&6[Elytra] &eTime's up — race over!"
+  crash:
+    title: "&c&lCrash!"
+    sub: "&7Respawning..."
+  return:
+    name: "&b&lBack to previous checkpoint"
+    lore1: "&7Right-click: fly again from your last checkpoint"
+    lore2: "&8No penalty, but a 3s cooldown"
+    done: "&b↩ Back at {0}"
+  start: "the start"
+
+# ── Hole in the Wall ──────────────────────────────────────────────────────────
+hitw:
+  intro-sub: "&6Go through the hole in the wall"
+  tut:
+    "1": "&6&l» &fWalls come at you — go through the hole!"
+    "2": "&6&l» &eLow wall: &fjump over it.  &bHigh wall: &fsneak under it."
+    "3": "&6&l» &fA wall pushes you towards the edge — fall off the platform and you're out."
+    "4": "&6&l» &fThe walls get faster and faster. Survive as long as you can!"
+  round-sub: "&7Round &f{0}&7/&f{1}"
+  go:
+    title: "&a&lGO!"
+    sub: "&7Go through the holes!"
+  nobody: "nobody"
+  n-players: "{0} players"
+  round-done: "Round {0}/{1} complete"
+  round-done-title: "&6&lROUND {0} COMPLETE"
+  winner: "Winner: {0}"
+  others: "  &8... and {0} others"
+  you: "&7You: &e#{0} &8| &a{1} &8| &7Total &e{2} &7pts"
+  wall-warn: "&e⚠ &f&l{0} &7— from the &6{1}"
+  hit: "&c💥 Hit! &7You are being pushed off the platform"
+  eliminated: "&c💥 &f{0} &cWAS ELIMINATED!"
+  eliminated-fell: "&c💥 &f{0} &cWAS ELIMINATED! &7(fell off the platform)"
+  out:
+    title: "&c&lELIMINATED"
+  final: "Hole in the Wall — final standings"
+  final-line: "&e{0} pts &8({1} rounds won, best: {2} walls)"
+  compass:
+    "0": "EAST"
+    "1": "SOUTH-EAST"
+    "2": "SOUTH"
+    "3": "SOUTH-WEST"
+    "4": "WEST"
+    "5": "NORTH-WEST"
+    "6": "NORTH"
+    "7": "NORTH-EAST"
+
+# ── Lucky Block ───────────────────────────────────────────────────────────────
+lb:
+  tut:
+    "1": "&6&l» &fBreak lucky blocks for random loot."
+    "2": "&6&l» &fSometimes good, sometimes... less so."
+    "3": "&6&l» &fA fight eliminates players permanently."
+    "4": "&6&l» &fLast player standing wins!"
+  out:
+    title: "&c&lEliminated!"
+    sub: "&7Wait for the game to end."
+  eliminated: "&c☠ &7{0} &7was eliminated! &e{1} &7players left."
+  kill-pts: "&6+{0} points for the kill!"
+  assist-pts: "&e+{0} &7points for the assist on &f{1}"
+
+# ── Mob Mayhem ────────────────────────────────────────────────────────────────
+mm:
+  intro: "&4&l[Mob Mayhem] &eSurvive the waves! The team that lasts longest wins!"
+  intro-sub: "&cSurvive the waves"
+  tut:
+    "1": "&4&l» &fSurvive as many waves of mobs as you can with your team."
+    "2": "&4&l» &fEvery wave gets harder — watch out for special modifiers!"
+    "3": "&4&l» &fPick up powerups for temporary boosts."
+    "4": "&4&l» &fDie? Then you spectate the rest of the match."
+  revived:
+    title: "&a&lBACK!"
+    sub: "&7Your team brought you back"
+  revived-chat: "&4[Mob Mayhem] &a{0} &7was brought back by a teammate!"
+  no-arena: "&4[Mob Mayhem] &cTeam {0} &ccould not start (arena missing)."
+  time-limit: "&4[Mob Mayhem] &eTime limit reached — the game ends."
+  grace-over: "&4[Mob Mayhem] &eA team cleared all waves and the grace time is over — game over!"
+  wave-cleared: "&4[Mob Mayhem] &eTeam {0} &acleared wave {1}! &8(+{2} pts each)"
+  all-cleared: "&4&l[Mob Mayhem] &eTeam {0} &6cleared ALL waves! Incredible!"
+  others-grace: "&4[Mob Mayhem] &7The other teams have &f{0}s&7 to catch up."
+  team-out: "&4☠ &7Team {0} &7has been eliminated!"
+  player-out: "&c☠ &7{0} was eliminated on wave {1}"
+  glow: "&4[Mob Mayhem] &eThe last mobs are glowing — finish them off!"
+  wave:
+    title: "&6&lWave {0}"
+    line: "&6Wave {0}: &e{1}"
+  bloodmoon:
+    title: "&4&l🌕 BLOOD MOON"
+    sub: "&cThe mobs are now far more dangerous..."
+  compass:
+    name: "&6&lSpectator compass"
+    lore1: "&7Right-click: pick a player to teleport to"
+    lore2: "&8Works for all teams and arenas"
+    gone: "&c[Mob Mayhem] That player is no longer available."
+    watching: "&4[Mob Mayhem] &7You are now watching &f{0}&7."
+    menu: "&6&lPick a player"
+    team: "&7Team: &f{0}"
+    wave: "&7Wave: &f{0}"
+    click: "&aClick to teleport"
+    nobody: "&7[Mob Mayhem] There is nobody left to watch."
+  upgrade:
+    title: "&4&lChoose your upgrade"
+    offer: "&4[Mob Mayhem] &eWave {0} cleared! &7Choose an upgrade ({1}s) — it stays for the rest of the game."
+    timeout: "&7Time's up — random upgrade chosen."
+    level: "&7(level {0})"
+    click: "&aClick to choose"
+    picked: "&4[Mob Mayhem] &aUpgrade: &e{0}"
+    mate-picked: "&4[Mob Mayhem] &7{0} chose &e{1}&7."
+  perk:
+    weapon:
+      name: "Stronger weapon"
+      desc: "Your sword and axe go up a tier (wood → stone → iron → diamond)."
+    armor:
+      name: "Stronger armour"
+      desc: "Your whole armour goes up a tier (leather → chainmail → iron → diamond)."
+    sharp:
+      name: "Sharpness"
+      desc: "Your sword gains Sharpness (+1 each time)."
+    hearts:
+      name: "Extra hearts"
+      desc: "+2 hearts max health and you are healed instantly."
+    speed:
+      name: "Swift feet"
+      desc: "Permanent speed for the rest of the game."
+    bow:
+      name: "Archer"
+      desc: "Better bow (Power) and 32 extra arrows."
+    feast:
+      name: "Feast"
+      desc: "6 golden apples and 16 cooked steak."
+    medic:
+      name: "Medic"
+      desc: "Fully healed + 4 extra absorption hearts for the next wave."
+    revive:
+      name: "Resurrection"
+      desc: "A fallen teammate returns to the fight."
+  powerup:
+    picked: "&b✦ &7You picked up &b{0}&7!"
+    speed: "Speed"
+    strength: "Strength"
+    regeneration: "Regeneration"
+    resistance: "Resistance"
+    absorption: "Absorption"
+    instant_health: "Healing"
+
+# ── Parkour Warrior ───────────────────────────────────────────────────────────
+pw:
+  intro-sub: "&aRun through the parkour"
+  tut:
+    "1": "&a&l» &fRun as far as you can through the parkour."
+    "2": "&a&l» &fEvery checkpoint gives points."
+    "3": "&a&l» &fFall? You respawn at your last checkpoint."
+    "4": "&a&l» &fStuck? Enough fails gives you a skip."
+  checkpoint-stage: "&aCheckpoint (stage {0}) +{1} pts"
+  checkpoint: "&aCheckpoint {0} / {1}"
+  boost:
+    speed: "&a✦ Speed Boost!"
+    jump: "&a✦ Jump Boost!"
+  respawned: "&c✘ Respawned!"
+  skip:
+    no-game: "No game active."
+    not-playing: "You are not part of the race."
+    finished: "You have already finished!"
+    need-fails: "You need {0} more fail(s) to skip."
+    none: "No next checkpoint to skip to."
+  skipped: "&7{0} &7skipped stage &e{1} &7(no points)"
+  finished: "&a&l[Parkour] &e{0} &afinished!"
+  finish:
+    title: "&a&lFINISHED!"
+    sub: "&7Great run!"
+
+# ── QuakeCraft ────────────────────────────────────────────────────────────────
+qc:
+  go-sub: "&eGood luck and have fun!"
+  intro-sub: "&eFirst to reach the kill limit wins"
+  tut:
+    "1": "&b&l» &fWelcome to &cQuakeCraft&f!"
+    "2": "&b&l» &fLeft-click with your &erailgun &fto fire a one-shot beam."
+    "3": "&b&l» &fPick up &dpowerups &ffor bazookas, grenades and more."
+    "4": "&b&l» &fYou &ccannot &fhit your own teammates — watch your fire!"
+    "5": "&b&l» &fFirst to &e{0} kills &fwins. Good luck!"
+  hit: "&e{0} &7hit &e{1} &7with a &b{2}"
+  revenge: "&d⚡ REVENGE! &7{0} &etook revenge on &7{1}&e!"
+  spawn-protection: "&a🛡 Spawn protection"
+  bonus-points: "&a+{0} points"
+  weapon:
+    railgun: "Railgun"
+    sniper: "Sniper"
+    shotgun: "Shotgun"
+    machine_gun: "Machine Gun"
+    grenade: "Grenade"
+    bazooka: "Bazooka"
+    airstrike: "Airstrike"
+    proximity_mine: "Proximity Mine"
+  streak:
+    "3": "&e{0} &7is on a streak! &e×3"
+    "5": "&6{0} &7is HOT! &6×5 &c(SPEED BOOST)"
+    "7": "&c{0} &7is &c&lUNSTOPPABLE! &7×7"
+    "10": "&4&l{0} &c&lDOMINATING! &7×10"
+
+# ── Speed Build ───────────────────────────────────────────────────────────────
+speedbuild:
+  intro-sub: "&eCopy the blueprints"
+  tut:
+    "1": "&e&lSPEED BUILD CHALLENGE"
+    "2": "&710 builds. Copy every &fblueprint &7as exactly as you can."
+    "3": "&aGreen wool &7= complete · &cRed wool &7= blueprint · &6Gold &7= done"
+    "4": "&7Score = accuracy + speed − mistakes. &8(100% objective)"
+  schematic-missing: "&c[SpeedBuild] Schematic missing: {0}"
+  build-line: "&e&l▶ Build {0}/10 &8— &f{1} &7(difficulty {2})"
+  build-title: "&e&lBUILD {0}"
+  copy-hint: "&7Copy the blueprint — click &aGreen wool &7when you are done."
+  scored: "&a✔ Build {0} scored &8— &f{1}% &7accurate, &6{2} pts &8(&7+{3} time, &c-{4} mistakes&8)"
+  score-sub: "&6+{0} pts"
+  all-done: "&6&l★ All 10 builds done! &7Click &6Gold &7to finish."
+  all-done-bar: "&6Click the gold block to submit your score."
+  finish-first: "&c[SpeedBuild] Finish all builds with the green wool first."
+  blueprint-shown: "&7Blueprint shown again."
+  sum:
+    title: "  &e&lSPEED BUILD — YOUR RESULT"
+    total: "  &7Total score: &6{0} pts"
+    accuracy: "  &7Avg. accuracy: &a{0}%"
+    best: "  &7Best build: &f{0} &8(&6{1} pts&8)"
+    worst: "  &7Weakest build: &f{0} &8(&6{1} pts&8)"
+    time: "  &7Total time: &f{0}s"
+  done:
+    title: "&6&lDONE!"
+    sub: "&e{0} points to your team"
+  sb:
+    spectator: "&7Spectator"
+    build: "&7Build: &e{0}&7/10"
+    score: "&7Score: &6{0}"
+    accuracy: "&7Avg. accuracy: &a{0}%"
+    done: "&aDone!"
+    building: "&7Building..."
+  btn:
+    complete: "&a&lCOMPLETE BUILD"
+    complete-lore: "&7Click to score and continue."
+    blueprint: "&c&lVIEW BLUEPRINT"
+    blueprint-lore: "&7Shows the schematic to build once more."
+    finish: "&6&lFINISH CHALLENGE"
+    finish-lore: "&7Finish and send your score to your team."
+  no-break: "&cYou can't break anything here!"
+  own-area: "&cOnly build in your own build area!"
+
+# ── Spleef ────────────────────────────────────────────────────────────────────
+spleef:
+  intro-sub: "&bBreak the floor beneath your opponents"
+  tut:
+    "1": "&7Break the snow floor from under your opponents."
+    "2": "&7Fall into the void? You are eliminated."
+    "3": "&7Last player standing wins!"
+  go-sub: "&eBreak the floor!"
+  out:
+    title: "&c&lEliminated!"
+  shovel: "&b&lSpleef Shovel"
+  snowballs: "&b❄ Snowballs! Right-click to throw"
+
+# ── SkyWars ───────────────────────────────────────────────────────────────────
+sw:
+  intro-sub: "&eLast team standing wins"
+  tut:
+    "1": "&7Open chests on your own island — no PvP until the start."
+    "2": "&7Gather gear, then cross over to other islands."
+    "3": "&7Last team standing wins!"
+  stocked: "&6[SkyWars] &e{0} chests stocked with loot."
+  pvp-live: "&c&l[SkyWars] &ePvP is live! Last team standing wins!"
+  restock: "&6[SkyWars] &eThe chests have been refilled! &7({0})"
+  results: "&6&lSkyWars — Results"
+  result-line: "&e{0} alive ({1} kills)"
+
+# ── TGTTOS ────────────────────────────────────────────────────────────────────
+tgttos:
+  intro: "&e&l[TGTTOS] &e{0} maps — collect placements across all maps!"
+  final: "        &e&l🏁 TGTTOS — FINAL RESULTS"
+  final-line: "&e{0} pts &8({1} maps won, {2} DNF)"
+  sb:
+    finished: "&7Finished &a{0}&7/&a{1}"
+  finished: "&e{0} &7finished in &b{1} &8(&e+{2}&8 pts)"
+  void: "&cFell into the void — back to {0}"
+  void-cp: "checkpoint {0}"
+  void-start: "the start"
+  team-bonus: "&b&lTEAM BONUS &7— the whole team has finished! &8(&b+{0}&8 pts each)"
+  map: "&e&l[TGTTOS] &eMap &6{0}&e/&6{1} &7— &b{2}"
+  map-rule: "&7The map ends &e{0} &7after &e{1}% &7have finished."
+  fog: "&8&l🌫 FOG OF WAR &7— you can only see a short distance ahead!"
+  fog-sub: "&7Limited vision this map!"
+  half: "&e&l⚡ HALF THE FIELD HAS FINISHED!"
+  half-title: "&e&lHALF FINISHED"
+  half-sub: "&cRemaining players: {0}"
+  countdown: "&e&l[TGTTOS] &cRemaining players have &e{0} &cto finish!"
+  dnf: "&c✗ &7{0} &c— DNF"
+  dnf-sub: "&7Too late — no points"
+  next-map: "&7Next map starting soon..."
+  hud: "&eFinished &a{0}&7/&a{1} &8| &eRacing &c{2}"
+  hud-race: " &8| &7race to the finish!"
+  leader: "&6👑 LEADER"

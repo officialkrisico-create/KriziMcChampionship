@@ -90,8 +90,6 @@ public final class LanguageGui extends Gui {
                 addPattern(patterns, DyeColor.BLUE, "stripe_bottom"); }
             case "en" -> { base = Material.WHITE_BANNER;
                 addPattern(patterns, DyeColor.RED,  "straight_cross"); }
-            case "tr" -> { base = Material.RED_BANNER;
-                addPattern(patterns, DyeColor.WHITE, "circle"); }
             default   -> base = Material.WHITE_BANNER;
         }
         ItemStack it = new ItemStack(base);

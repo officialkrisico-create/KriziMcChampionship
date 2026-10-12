@@ -54,6 +54,19 @@ game:
   # waits until the mobs are dead, however long that takes.
   force-end-wave-on-timeout: true
 
+  # ── When does the whole game end? ────────────────────────────────────
+  #  1. every team is eliminated or has cleared all waves
+  #  2. max-duration-seconds has passed (0 = no limit)
+  #  3. finish-grace-seconds after the FIRST team cleared all waves (0 = wait for the others)
+  #  4. an admin stops it (/mm stop, /kmcauto endgame)
+  max-duration-seconds: 1800
+  finish-grace-seconds: 120
+
+  # Mobs that climb or get pushed further than this from the player spawn are put back on a mob spawn
+  # (spiders climbing out over the arena walls).
+  mob-max-height-above-spawn: 14
+  mob-max-distance-from-spawn: 70
+
   # Highest wave number this game will run to (defaults to however many
   # waves are defined below, or WaveLibrary's built-in 10 if "waves:" is empty).
   max-waves: 10
@@ -71,6 +84,16 @@ game:
   # via the plugin API — without this, waves would appear to "clear" with
   # no mobs ever actually surviving.
   difficulty: "NORMAL"
+
+# ----------------------------------------------------------------------
+# Upgrades — na elke gehaalde golf kiest elke levende speler 1 van 3 willekeurige
+# upgrades (sterker wapen/harnas, extra harten, snelheid, boog, genezing, een
+# teamgenoot terughalen...). Ze blijven de rest van de game, waardoor latere
+# golven makkelijker te behappen zijn.
+# ----------------------------------------------------------------------
+upgrades:
+  enabled: true
+  choose-seconds: 15   # daarna wordt er automatisch een willekeurige gekozen
 
 points:
   # Awarded to every alive player on a team when their team clears a wave.

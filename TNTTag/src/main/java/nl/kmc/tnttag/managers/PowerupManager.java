@@ -41,6 +41,9 @@ public final class PowerupManager {
     private final Map<Integer, Item> live = new HashMap<>(); // spawn-index → item
     private boolean enabled = true;
     private final Random random = new Random();
+    /** The powerup each player is holding (one at a time) — used with a right-click. */
+    private final Map<UUID, Type> held = new HashMap<>();
+    private static final int HOTBAR_SLOT = 4;
 
     public PowerupManager(TNTTagPlugin plugin) { this.plugin = plugin; }
 
@@ -56,6 +59,8 @@ public final class PowerupManager {
 
     public void stop() {
         if (spawnTask != null) { spawnTask.cancel(); spawnTask = null; }
+        held.clear();
+        removeDecoys();
         live.values().forEach(i -> { if (i != null && !i.isDead()) i.remove(); });
         live.clear();
     }
@@ -93,6 +98,41 @@ public final class PowerupManager {
         loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BELL, 0.6f, 1.8f);
     }
 
+    /** True if this player may pick up a powerup (they hold none right now). */
+    public boolean canHold(UUID id) { return !held.containsKey(id); }
+
+    /** True if {@code item} is one of our powerup items (floating or in an inventory). */
+    public boolean isPowerupItem(ItemStack stack) {
+        return stack != null && stack.hasItemMeta() && stack.getItemMeta().getPersistentDataContainer()
+                .has(new NamespacedKey(plugin, KEY), PersistentDataType.STRING);
+    }
+
+    private void giveHeldItem(Player p, Type type) {
+        ItemStack stack = new ItemStack(type.material);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', type.display));
+            meta.setLore(java.util.List.of(ChatColor.GRAY + "Rechtsklik om te gebruiken"));
+            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, KEY), PersistentDataType.STRING, type.name());
+            stack.setItemMeta(meta);
+        }
+        p.getInventory().setItem(HOTBAR_SLOT, stack);
+    }
+
+    /** Right-click: fire the held powerup. */
+    public void use(Player p) {
+        Type type = held.remove(p.getUniqueId());
+        if (type == null) return;
+        p.getInventory().setItem(HOTBAR_SLOT, null);
+        var gm = plugin.getTntManagerV2();
+        PlayerState ps = gm != null ? gm.getPlayersMap().get(p.getUniqueId()) : null;
+        apply(type, p, ps);
+        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.6f);
+    }
+
+    /** Drops everything players were holding (game end). */
+    public void clearHeld() { held.clear(); }
+
     /** Returns true if the item was a powerup (and consumes/applies it). */
     public boolean handlePickup(Player p, Item item) {
         ItemStack stack = item.getItemStack();
@@ -110,10 +150,12 @@ public final class PowerupManager {
         PlayerState ps = gm != null ? gm.getPlayersMap().get(p.getUniqueId()) : null;
         if (ps != null) ps.incrementPowerups();
 
-        apply(type, p, ps);
+        // Stored, not fired: it goes into slot 5 and is used with a right-click.
+        held.put(p.getUniqueId(), type);
+        giveHeldItem(p, type);
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.6f);
         p.sendActionBar(net.kyori.adventure.text.Component.text(
-                ChatColor.translateAlternateColorCodes('&', type.display + " &7opgepakt!")));
+                ChatColor.translateAlternateColorCodes('&', type.display + " &7opgepakt — &frechtsklik om te gebruiken!")));
         return true;
     }
 
@@ -145,17 +187,63 @@ public final class PowerupManager {
         }
     }
 
+    /** Live decoy NPCs (mannequins) — removed on a hit, when they expire, and at game end. */
+    private final java.util.Set<org.bukkit.entity.Mannequin> decoys = new java.util.HashSet<>();
+
     private void spawnDecoy(Player p) {
-        var as = p.getWorld().spawn(p.getLocation(), org.bukkit.entity.ArmorStand.class, a -> {
-            a.customName(net.kyori.adventure.text.Component.text(ChatColor.translateAlternateColorCodes('&', "&7" + p.getName())));
-            a.setCustomNameVisible(true);
-            a.setBasePlate(false);
-            a.setArms(true);
-            a.setInvulnerable(true);
-            a.getEquipment().setHelmet(p.getInventory().getHelmet());
-        });
-        Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!as.isDead()) as.remove(); }, 160L);
+        Location at = p.getLocation();
+        org.bukkit.entity.Mannequin npc;
+        try {
+            npc = at.getWorld().spawn(at, org.bukkit.entity.Mannequin.class, m -> {
+                m.setProfile(io.papermc.paper.datacomponent.item.ResolvableProfile.resolvableProfile(p.getPlayerProfile()));
+                m.setImmovable(false);
+                m.setInvulnerable(false);
+                m.setCustomName(ChatColor.GRAY + p.getName());
+                m.setCustomNameVisible(false);
+                m.getEquipment().setHelmet(p.getInventory().getHelmet());
+                m.getEquipment().setChestplate(p.getInventory().getChestplate());
+                m.getEquipment().setLeggings(p.getInventory().getLeggings());
+                m.getEquipment().setBoots(p.getInventory().getBoots());
+                m.getPersistentDataContainer().set(new NamespacedKey(plugin, "tnttag_decoy"), PersistentDataType.BYTE, (byte) 1);
+            });
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[TNTTag] Mannequin decoy unavailable: " + t);
+            return;
+        }
+        decoys.add(npc);
+        // The decoy sprints away in the direction you were facing, bouncing off nothing — 8 seconds.
+        org.bukkit.util.Vector dir = p.getLocation().getDirection().setY(0).normalize().multiply(0.38);
+        new org.bukkit.scheduler.BukkitRunnable() {
+            int ticks = 0;
+            @Override public void run() {
+                if (npc.isDead() || !npc.isValid() || ticks++ > 160) { remove(npc); cancel(); return; }
+                Location next = npc.getLocation().add(dir);
+                next.setDirection(dir);
+                // stop at walls
+                if (next.getBlock().getType().isSolid() && next.clone().add(0, 1, 0).getBlock().getType().isSolid()) { return; }
+                if (!next.getBlock().getType().isSolid()) npc.teleport(next);
+            }
+        }.runTaskTimer(plugin, 2L, 1L);
         p.getWorld().spawnParticle(Particle.WITCH, p.getLocation().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0);
+    }
+
+    private void remove(org.bukkit.entity.Mannequin npc) {
+        decoys.remove(npc);
+        if (npc != null && !npc.isDead()) {
+            npc.getWorld().spawnParticle(Particle.POOF, npc.getLocation().add(0, 1, 0), 20, 0.3, 0.6, 0.3, 0.02);
+            npc.remove();
+        }
+    }
+
+    /** A bomb carrier hit a decoy: it pops and the hit is wasted. */
+    public boolean popDecoy(org.bukkit.entity.Entity e) {
+        if (!(e instanceof org.bukkit.entity.Mannequin m) || !decoys.contains(m)) return false;
+        remove(m);
+        return true;
+    }
+
+    public void removeDecoys() {
+        for (var m : new java.util.ArrayList<>(decoys)) remove(m);
     }
 
     private void revealTntHolders() {

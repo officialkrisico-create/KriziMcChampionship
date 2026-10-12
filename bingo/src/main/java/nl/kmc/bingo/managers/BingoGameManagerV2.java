@@ -110,7 +110,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
                 p.setHealth(20); p.setFoodLevel(20);
                 int ticks = countdownSec * 20;
                 GamePlayerUtil.freezePlayer(p, ticks);
-                if (jumpType != null) p.addPotionEffect(new PotionEffect(jumpType, ticks, 128, true, false, false));
+                nl.kmc.game.api.GamePlayerUtil.freezeJump(p, ticks);
             }
         }
 
@@ -127,12 +127,9 @@ public final class BingoGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§6§lBINGO"; }
+                    @Override public String introSubtitle() { return "@bingo.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§e• §7Verzamel de items op je §ebingokaart§7.",
-                                "§e• §7Elk voltooid item kleurt een §evakje§7.",
-                                "§e• §7Voltooi een §6lijn§7 (rij, kolom of diagonaal) voor bonuspunten.",
-                                "§e• §7Het team met de meeste lijnen/vakjes wint!");
+                        return List.of("@bingo.tut.1", "@bingo.tut.2", "@bingo.tut.3", "@bingo.tut.4");
                     }
                     @Override public Location flyoverCenter() { return flyoverCenter; }
                     @Override public void onFinished() { beginCollecting(); }
@@ -157,7 +154,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
             p.sendTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "BINGO!",
-                    ChatColor.YELLOW + "Voltooi je kaart!", 0, 40, 10);
+                    api.tr(uuid, "bingo.go-sub"), 0, 40, 10);
         }
 
         bossBar.setColor(BarColor.GREEN);
@@ -242,7 +239,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§6[Bingo] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -300,8 +297,10 @@ public final class BingoGameManagerV2 extends BaseGameManager {
 
         // Ordinal: how manieth team completed THIS item (1e/2e/3e ...).
         int ordinal = squareCompletions.merge(squareIndex, 1, Integer::sum);
-        broadcast("§e" + player.getName() + " §7van " + kmcTeam.getColor() + kmcTeam.getDisplayName()
-                + " §7heeft §b" + objective.getDisplayName() + " §7als §6" + ordinal + "e §7voltooid! §8(+" + squarePts + " ptn)");
+        for (Player rp : Bukkit.getOnlinePlayers()) {
+            rp.sendMessage(api.tr(rp.getUniqueId(), "bingo.item-done", player.getName(),
+                    kmcTeam.getColor() + kmcTeam.getDisplayName() + "§7", objective.getDisplayName(), ordinal, squarePts));
+        }
 
         // Check for line completion (lines are recalculated automatically inside addProgress)
         int newLines = ts.getCompletedLineCount();
@@ -310,11 +309,11 @@ public final class BingoGameManagerV2 extends BaseGameManager {
             for (UUID memberId : kmcTeam.getMembers()) {
                 api.points().givePoints(memberId, linePts, PointAward.Reason.OBJECTIVE, registration.getId());
             }
-            broadcast("§6§l[Bingo] §e🟡 Team " + kmcTeam.getDisplayName() + " §6completed a line! §8(+" + linePts + " each)");
+            tellKey("bingo.line", kmcTeam.getDisplayName(), linePts);
 
             // Check full card
             if (ts.getCompletedSquareCount() >= currentCard.getObjectives().length) {
-                broadcast("§6§l[Bingo] §e🏆 Team " + kmcTeam.getDisplayName() + " §6completed the FULL card!");
+                tellKey("bingo.full", kmcTeam.getDisplayName());
                 end();
                 return;
             }
@@ -395,7 +394,7 @@ public final class BingoGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) return;
             GamePlayerUtil.resetPlayer(p);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
         plugin.getWorldManager().disposeGameWorld();
     }

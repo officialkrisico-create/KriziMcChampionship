@@ -24,10 +24,15 @@ public class GlobalPvPListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL)
     public void onPlayerDamagePlayer(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player)) return;
-        if (!(event.getEntity()  instanceof Player)) return;
+        if (!(event.getDamager() instanceof Player attacker)) return;
+        if (!(event.getEntity()  instanceof Player victim)) return;
 
-        // Cancel by default — minigames that need PvP will un-cancel at HIGHEST
+        // A running game that handles PvP itself (SurvivalGames, SkyWars, TNT Tag, ...) has opted out of
+        // this rule: its own listeners cancel/apply the damage. Cancelling here first would make them
+        // never see the event (they listen with ignoreCancelled = true).
+        if (nl.kmc.core.RunningGames.pvpHandledByGame(attacker.getUniqueId(), victim.getUniqueId())) return;
+
+        // Everyone else: no PvP.
         event.setCancelled(true);
     }
 }

@@ -11,6 +11,10 @@ import org.bukkit.entity.Player;
  */
 public final class AchievementNotifier {
 
+    private final AdvancementToasts toasts;
+
+    public AchievementNotifier(AdvancementToasts toasts) { this.toasts = toasts; }
+
     public void notify(Player player, AchievementDefinition def) {
         if (player == null) return;
 
@@ -18,8 +22,11 @@ public final class AchievementNotifier {
         String                       rarityLabel = rarity.getLabel();
         Sound                        sound       = unlockSound(rarity);
 
-        // Title + chat + sound to the earner
-        player.sendTitle(rarityLabel + " §l🏆 " + def.getName(), "§7" + def.getDescription(), 10, 80, 30);
+        // Custom advancement toast (KMC tab). A title is only the fallback, or extra for the big ones.
+        boolean toast = toasts.show(player, def);
+        if (!toast || rarity == AchievementDefinition.Rarity.LEGENDARY) {
+            player.sendTitle(rarityLabel + " §l🏆 " + def.getName(), "§7" + def.getDescription(), 10, 80, 30);
+        }
         player.sendMessage("§6§l✦ Achievement Unlocked: §r" + rarityLabel + " §r§f" +
                 def.getName() + " §7— " + def.getDescription());
         player.playSound(player.getLocation(), sound, 1.0f, 1.5f);

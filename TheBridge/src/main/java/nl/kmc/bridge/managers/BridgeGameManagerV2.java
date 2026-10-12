@@ -54,12 +54,25 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
 
         plugin.getArenaManager().load();
 
+        // Arena sides are keyed by KMC team id. A team without its own side (e.g. 4 teams on a 2-side arena)
+        // is put on the least-crowded arena side instead of being left standing where it was.
+        java.util.Map<String, Integer> sideLoad = new java.util.HashMap<>();
         for (Player p : Bukkit.getOnlinePlayers()) {
             var kmcTeam = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
             String teamId = kmcTeam != null ? kmcTeam.getId() : "default";
-            if (!bridgeTeams.containsKey(teamId) && kmcTeam != null) {
-                BridgeTeam bt = plugin.getArenaManager().getTeam(teamId);
-                if (bt != null) bridgeTeams.put(teamId, bt);
+            BridgeTeam bt = plugin.getArenaManager().getTeam(teamId);
+            if (bt == null && !plugin.getArenaManager().getTeams().isEmpty()) {
+                bt = plugin.getArenaManager().getTeams().values().stream()
+                        .min(java.util.Comparator.comparingInt(t -> sideLoad.getOrDefault(t.getId(), 0)))
+                        .orElse(null);
+                if (bt != null) {
+                    teamId = bt.getId();
+                    p.sendMessage(api.tr(p.getUniqueId(), "bridge.no-side", bt.getId()));
+                }
+            }
+            if (bt != null) {
+                bridgeTeams.putIfAbsent(teamId, bt);
+                sideLoad.merge(bt.getId(), 1, Integer::sum);
             }
             Location spawn = bridgeTeams.containsKey(teamId)
                     ? bridgeTeams.get(teamId).getSpawn() : p.getLocation();
@@ -88,12 +101,10 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§9§lTHE BRIDGE"; }
+                    @Override public String introSubtitle() { return "@bridge.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§9§l» §fBouw een brug naar het doel van de tegenstander.",
-                                "§9§l» §fScoor door in hun doelgat te stappen.",
-                                "§9§l» §fVal in de void? Dan respawn je bij je eigen team.",
-                                "§9§l» §fEerste team tot §e" + goalsToWin + " §fdoelpunten wint!");
+                        return List.of("@bridge.tut.1", "@bridge.tut.2", "@bridge.tut.3",
+                                "@bridge.tut.4|" + goalsToWin);
                     }
                     @Override public Location flyoverCenter() { return center; }
                     @Override public void onFinished() {
@@ -207,7 +218,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         BridgeTeam rt = stats.containsKey(player.getUniqueId())
                 ? bridgeTeams.get(stats.get(player.getUniqueId()).getTeamId()) : null;
         plugin.getKitManager().giveKit(player, rt);
-        player.sendMessage("§9[Bridge] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -231,6 +242,8 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         }
         return l;
     }
+
+    @Override protected boolean handlesPlayerPvp() { return true; }
 
     @Override
     protected ArenaValidator getArenaValidator() {
@@ -264,8 +277,9 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
             api.points().givePoints(scorer.getUniqueId(), goalPts, PointAward.Reason.OBJECTIVE, registration.getId());
             api.points().giveTeamPoints(ps.getTeamId(), goalPts / 2, PointAward.Reason.OBJECTIVE, registration.getId());
 
-            broadcast("§b⚽ §e" + scorer.getName() + " §9scored for §" + team.getChatColor().getChar() + team.getDisplayName()
-                    + "§9! (" + team.getGoalsScored() + "/" + plugin.getConfig().getInt("game.goals-to-win", 5) + ")");
+            tellKey("bridge.scored", scorer.getName(),
+                    "§" + team.getChatColor().getChar() + team.getDisplayName() + "§9",
+                    team.getGoalsScored(), plugin.getConfig().getInt("game.goals-to-win", 5));
 
             int goalsToWin = plugin.getConfig().getInt("game.goals-to-win", 5);
             if (team.getGoalsScored() >= goalsToWin) end();
@@ -300,7 +314,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
                 api.points().givePoints(assistId, assistPts, PointAward.Reason.ASSIST, registration.getId());
                 Player assistPlayer = Bukkit.getPlayer(assistId);
                 if (assistPlayer != null)
-                    assistPlayer.sendMessage("§e+ " + assistPts + " §7punten voor de assist op §f" + victim.getName());
+                    assistPlayer.sendMessage(api.tr(assistId, "bridge.assist", assistPts, victim.getName()));
             }
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         }
@@ -334,7 +348,8 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
 
     private void respawnAfterGoal(Player scorer) {
         respawn(scorer);
-        scorer.sendTitle("§b§lGOAL!", "§7Respawning…", 5, 40, 10);
+        scorer.sendTitle(api.tr(scorer.getUniqueId(), "bridge.goal.title"),
+                api.tr(scorer.getUniqueId(), "bridge.goal.sub"), 5, 40, 10);
         scorer.playSound(scorer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1f);
     }
 
@@ -369,7 +384,7 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 }

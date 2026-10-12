@@ -46,12 +46,24 @@ public class LineCrossListener implements Listener {
             return;
         }
 
-        Player player = event.getPlayer();
+        check(event.getPlayer(), event.getTo());
+    }
+
+    /**
+     * Start / finish / checkpoint detection for one position. Called from the move event (real players) and
+     * from the race's own 2-tick poll (which also covers bots and teleports, neither of which fire move events).
+     */
+    public void check(Player player, org.bukkit.Location to) {
+        if (!plugin.getRaceManager().isActive() || to == null) return;
+        // Finished racers (now spectating) and spectators fly over checkpoints without it counting.
+        RacerData racer = plugin.getRaceManager().getRacers().get(player.getUniqueId());
+        if (racer == null || racer.hasFinished() || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+
         long now = System.currentTimeMillis();
         UUID uuid = player.getUniqueId();
 
         // ---- Checkpoint check FIRST ----
-        Checkpoint cp = plugin.getArenaManager().getCheckpointAt(event.getTo());
+        Checkpoint cp = plugin.getArenaManager().getCheckpointAt(to);
         if (cp != null) {
             Long cExpire = checkpointCooldown.get(uuid);
             if (cExpire == null || now > cExpire) {
@@ -62,7 +74,7 @@ public class LineCrossListener implements Listener {
         }
 
         // ---- Finish line ----
-        if (plugin.getArenaManager().isInFinishline(event.getTo())) {
+        if (plugin.getArenaManager().isInFinishline(to)) {
             Long expire = finishCooldown.get(uuid);
             if (expire == null || now > expire) {
                 finishCooldown.put(uuid, now + 2000);
@@ -72,7 +84,7 @@ public class LineCrossListener implements Listener {
         }
 
         // ---- Start line ----
-        if (plugin.getArenaManager().isInStartline(event.getTo())) {
+        if (plugin.getArenaManager().isInStartline(to)) {
             Long expire = startCooldown.get(uuid);
             if (expire == null || now > expire) {
                 startCooldown.put(uuid, now + 2000);
@@ -82,6 +94,10 @@ public class LineCrossListener implements Listener {
     }
 
     // ----------------------------------------------------------------
+
+    private String lang(Player p, String key, Object... args) {
+        return plugin.getKmcCore().getLanguageManager().tr(p, key, args);
+    }
 
     private void handleCheckpoint(Player player, Checkpoint cp) {
         RacerData rd = plugin.getRaceManager().getRacers().get(player.getUniqueId());
@@ -93,7 +109,7 @@ public class LineCrossListener implements Listener {
         switch (result) {
             case OK -> {
                 player.sendActionBar(net.kyori.adventure.text.Component.text(
-                        ChatColor.AQUA + "✔ Checkpoint " + cp.getIndex() + "/" + total));
+                        lang(player, "ae.cp", cp.getIndex(), total)));
                 player.playSound(player.getLocation(),
                         Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.5f);
             }
@@ -102,8 +118,7 @@ public class LineCrossListener implements Listener {
             }
             case OUT_OF_ORDER -> {
                 player.sendActionBar(net.kyori.adventure.text.Component.text(
-                        ChatColor.RED + "✘ Sla geen checkpoints over! "
-                        + "Je moet eerst checkpoint " + (rd.getLastCheckpointIndex() + 1) + " halen."));
+                        lang(player, "ae.cp-order", rd.getLastCheckpointIndex() + 1)));
                 player.playSound(player.getLocation(),
                         Sound.ENTITY_VILLAGER_NO, 1f, 0.8f);
             }
@@ -119,7 +134,7 @@ public class LineCrossListener implements Listener {
             // Refuse the finish — player is shortcutting
             int missing = total - rd.getLastCheckpointIndex();
             player.sendActionBar(net.kyori.adventure.text.Component.text(
-                    ChatColor.RED + "✘ Je mist nog " + missing + " checkpoint(s)!"));
+                    lang(player, "ae.cp-missing", missing)));
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 0.6f);
             return;
         }

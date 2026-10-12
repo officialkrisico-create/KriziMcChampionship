@@ -67,7 +67,8 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         List<Location> spawns = plugin.getArenaManager().getArena().getSpawns();
         if (spawns.isEmpty()) { log.severe("[TNTTag] No spawns set — cannot start."); end(); return; }
 
-        int freezeTicks = Math.max(20, totalStartSeconds() * 20);
+        // + 45 s head-room for the arena flyover; beginRunning() lifts the freeze explicitly.
+        int freezeTicks = Math.max(20, totalStartSeconds() * 20) + 45 * 20;
         List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
         for (int i = 0; i < online.size(); i++) {
             Player p = online.get(i);
@@ -80,14 +81,11 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         bossBar = Bukkit.createBossBar("§c§lTNT TAG", BarColor.RED, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
 
-        // Reset the border to full size so the progressive per-round shrink
-        // always starts from a known baseline, regardless of leftover state.
+        // The border is the shared particle ring (nl.kmc.game.api.ShrinkingBorderRing), full size to begin with.
+        ring = null;
+        ringBaseline = plugin.getArenaManager().getArena().getBorderRadius();
         var arena0 = plugin.getArenaManager().getArena();
-        if (arena0.getCenter() != null && arena0.getCenter().getWorld() != null && arena0.getBorderRadius() > 0) {
-            WorldBorder wb0 = arena0.getCenter().getWorld().getWorldBorder();
-            wb0.setCenter(arena0.getCenter());
-            wb0.setSize(arena0.getBorderRadius() * 2);
-        }
+        if (arena0.getCenter() != null && ringBaseline > 0) setRing(ringBaseline, ringBaseline, 0);
     }
 
     @Override protected void onCountdownStart() { /* presentation runs from onGameStart */ }
@@ -106,11 +104,29 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         long t = 0;
 
         if (intro > 0) { schedule(t, this::showIntro); t += intro * 20L; }
+
+        // Arena flyover (auto-generated orbit unless a route was recorded with /tag cam) before the tutorial.
+        Location center = plugin.getArenaManager().getArena().getCenter();
+        if (flowOn("flyover") && center != null) {
+            final int tutF = tut, cdF = cd;
+            schedule(t, () -> {
+                boolean played = api.cinematics().playArenaFlyover(registration.getId(), online(), center,
+                        plugin.getConfig().getDouble("start-sequence.flyover-radius", 25.0),
+                        plugin.getConfig().getDouble("start-sequence.flyover-height", 0.0),
+                        () -> afterIntro(0, tutF, cdF));
+                if (!played) afterIntro(0, tutF, cdF);
+            });
+            return;
+        }
+        afterIntro(t, tut, cd);
+    }
+
+    private void afterIntro(long t, int tut, int cd) {
         if (tut > 0) {
             long base = t; schedule(t, () -> phase = MatchPhase.TUTORIAL);
             List<String> msgs = tutorialLines();
             long step = msgs.isEmpty() ? 0 : Math.max(20L, (tut * 20L) / msgs.size());
-            for (int i = 0; i < msgs.size(); i++) { String m = msgs.get(i); schedule(base + i * step, () -> broadcast(m)); }
+            for (int i = 0; i < msgs.size(); i++) { String m = msgs.get(i); schedule(base + i * step, () -> tellAll(m)); }
             t += tut * 20L;
         }
         if (cd > 0) {
@@ -124,7 +140,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     private void showIntro() {
         phase = MatchPhase.INTRODUCTION;
         for (Player p : online()) {
-            p.sendTitle("§c§lTNT TAG", "§eSurvive. Escape. Don't explode.", 8, 70, 12);
+            p.sendTitle(api.tr(p.getUniqueId(), "tnt.intro.title"), api.tr(p.getUniqueId(), "tnt.intro.sub"), 8, 70, 12);
             p.getWorld().spawnParticle(Particle.LAVA, p.getLocation().add(0, 1, 0), 14, 0.4, 0.6, 0.4, 0);
             p.playSound(p.getLocation(), Sound.ENTITY_TNT_PRIMED, 1f, 0.8f);
         }
@@ -132,29 +148,26 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
 
     private void countdownTitle(int n) {
         for (Player p : online()) {
-            p.sendTitle("§e§l" + n, "§7Get ready...", 0, 22, 4);
+            p.sendTitle("§e§l" + n, api.tr(p.getUniqueId(), "tnt.countdown.sub"), 0, 22, 4);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.2f);
         }
     }
 
     private List<String> tutorialLines() {
-        return List.of(
-                "§c§l» §fWelcome to §cTNT Tag§f!",
-                "§c§l» §fAvoid holding TNT when the timer hits zero.",
-                "§c§l» §fHit another player to transfer the TNT.",
-                "§c§l» §fGrab §epowerups §fand survive the chaos events.",
-                "§c§l» §fLast player alive wins. Good luck!");
+        // Resolved per player when shown (see runStartFlow): keys tnt.tut.1 .. tnt.tut.5
+        return List.of("tnt.tut.1", "tnt.tut.2", "tnt.tut.3", "tnt.tut.4", "tnt.tut.5");
     }
 
     private void beginRunning() {
         phase = MatchPhase.RUNNING;
         for (Player p : online()) {
             GamePlayerUtil.unfreezePlayer(p);
-            p.sendTitle("§a§lGO!", "§eRun!", 0, 30, 10);
+            p.sendTitle(api.tr(p.getUniqueId(), "tnt.go.title"), api.tr(p.getUniqueId(), "tnt.go.sub"), 0, 30, 10);
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
         }
         players.values().forEach(PlayerState::startSurvivalTimer);
 
+        startRingTask();
         plugin.getPowerupManager().start();
         startHud();
         startChaosScheduler();
@@ -162,6 +175,41 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     }
 
     // ── Rounds ────────────────────────────────────────────────────────────────
+    // ── Custom border ring (same particle ring as Survival Games / SkyWars) ──
+
+    private nl.kmc.game.api.ShrinkingBorderRing ring;
+    private BukkitTask ringTask;
+    private double ringBaseline;
+
+    private double ringRadius() {
+        return ring != null ? ring.getRadius() : plugin.getArenaManager().getArena().getBorderRadius();
+    }
+
+    /** (Re)creates the ring: it moves from {@code from} down to {@code to} over {@code seconds}. */
+    private void setRing(double from, double to, double seconds) {
+        Location c = plugin.getArenaManager().getArena().getCenter();
+        if (c == null || c.getWorld() == null || from <= 0) return;
+        double speed = seconds <= 0 ? 0 : Math.max(0, from - to) / seconds;
+        double dmg = plugin.getConfig().getDouble("game.border-damage", 1.0);
+        double buffer = plugin.getConfig().getDouble("game.border-buffer", 2.0);
+        ring = new nl.kmc.game.api.ShrinkingBorderRing(c, from, Math.min(from, to), speed, dmg, buffer, Particle.FLAME);
+    }
+
+    /** Once a second: draws the ring, shrinks it a step and damages everyone outside it. */
+    private void startRingTask() {
+        if (ringTask != null) ringTask.cancel();
+        ringTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (ring == null || !isLive()) return;
+            List<Player> alive = new ArrayList<>();
+            for (PlayerState ps : players.values()) {
+                if (!ps.isAlive()) continue;
+                Player p = Bukkit.getPlayer(ps.getUuid());
+                if (p != null) alive.add(p);
+            }
+            ring.tick(alive);
+        }, 20L, 20L);
+    }
+
     private void beginRound() {
         currentRound++;
         long alive = aliveCount();
@@ -181,7 +229,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         remainingRoundSeconds = roundDuration();
         tickCounter = 0;
         updateVisuals();
-        broadcast("§c§l[TNT Tag] §eRound " + currentRound + " — " + count + " bomb" + (count == 1 ? "" : "s") + " armed!");
+        tellAll("tnt.round", currentRound, count);
         online().forEach(p -> p.playSound(p.getLocation(), Sound.ENTITY_TNT_PRIMED, 0.7f, 1.2f));
 
         roundTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -208,9 +256,9 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
                 p.getWorld().playSound(p.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 1f);
                 clearTnt(p);
                 toSpectator(p);
-                p.sendTitle("§c§lBOOM!", "§7You held the bomb!", 5, 40, 10);
+                p.sendTitle(api.tr(p.getUniqueId(), "tnt.boom.title"), api.tr(p.getUniqueId(), "tnt.boom.sub"), 5, 40, 10);
             }
-            broadcast("§c💥 §7" + ps.getName() + " §7exploded!");
+            tellAll("tnt.boom.chat", ps.getName());
         }
 
         int survivalPts = plugin.getConfig().getInt("points.round-survive", 60);
@@ -257,7 +305,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         for (PlayerState itPs : holders) {
             Player p = Bukkit.getPlayer(itPs.getUuid());
             if (p == null) continue;
-            p.sendActionBar(Component.text("§c☢ §lYOU HAVE THE BOMB §r§c☢  §7" + remainingRoundSeconds + "s"));
+            p.sendActionBar(Component.text(api.tr(p.getUniqueId(), "tnt.hold", remainingRoundSeconds)));
             if (beat) p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, remainingRoundSeconds <= 3 ? 2f : 1.2f);
         }
     }
@@ -283,7 +331,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         if (toPs.isShielded()) {
             toPs.setShielded(false);
             Player tp = Bukkit.getPlayer(to);
-            if (tp != null) { tp.sendTitle("§e§lSHIELD BLOCKED!", "", 0, 25, 5);
+            if (tp != null) { tp.sendTitle(api.tr(tp.getUniqueId(), "tnt.shield.blocked"), "", 0, 25, 5);
                 tp.playSound(tp.getLocation(), Sound.ITEM_SHIELD_BLOCK, 1f, 1.2f); }
             return;
         }
@@ -299,7 +347,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         boolean clutch = remainingRoundSeconds <= 1;
         if (clutch) {
             fromPs.incrementClutch();
-            broadcast("§6§l⚡ CLUTCH TAG! §e" + fromPs.getName() + " §7passed in the final second!");
+            tellAll("tnt.clutch", fromPs.getName());
             Player fc = Bukkit.getPlayer(from);
             if (fc != null) fireClutch(fc, nl.kmc.core.event.ClutchMomentEvent.ClutchType.LAST_SECOND_TAG,
                     fromPs.getName() + " passed the bomb in the final second!");
@@ -310,8 +358,8 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
 
         updateVisuals();
         Player fp = Bukkit.getPlayer(from), tp = Bukkit.getPlayer(to);
-        if (fp != null) { fp.sendTitle("§a§lSAFE!", "§7Bomb passed on!", 4, 18, 4); fp.playSound(fp.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.6f); }
-        if (tp != null) { tp.sendTitle("§c§lTNT TRANSFERRED", "§7Pass it on!", 4, 26, 4); tp.playSound(tp.getLocation(), Sound.ENTITY_TNT_PRIMED, 1f, 1f); }
+        if (fp != null) { fp.sendTitle(api.tr(from, "tnt.safe.title"), api.tr(from, "tnt.safe.sub"), 4, 18, 4); fp.playSound(fp.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.6f); }
+        if (tp != null) { tp.sendTitle(api.tr(to, "tnt.transferred.title"), api.tr(to, "tnt.transferred.sub"), 4, 26, 4); tp.playSound(tp.getLocation(), Sound.ENTITY_TNT_PRIMED, 1f, 1f); }
     }
 
     // ── Final stages ──────────────────────────────────────────────────────────
@@ -319,22 +367,32 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         long alive = aliveCount();
         if (alive == 5) {
             players.values().stream().filter(PlayerState::isAlive).forEach(PlayerState::markFinalFive);
-            announceStage("§c§lFINAL FIVE", "§eFive remain!", Sound.UI_TOAST_CHALLENGE_COMPLETE);
+            announceStage("tnt.stage.five", Sound.UI_TOAST_CHALLENGE_COMPLETE);
         } else if (alive == 3) {
-            announceStage("§c§lFINAL THREE", "§eThe tension rises!", Sound.UI_TOAST_CHALLENGE_COMPLETE);
+            announceStage("tnt.stage.three", Sound.UI_TOAST_CHALLENGE_COMPLETE);
         } else if (alive == 2) {
             showdown = true;
-            announceStage("§4§lFINAL SHOWDOWN", "§eOne bomb. No powerups. No escape.", Sound.ENTITY_ENDER_DRAGON_GROWL);
+            announceStage("tnt.stage.showdown", Sound.ENTITY_ENDER_DRAGON_GROWL);
             plugin.getPowerupManager().setEnabled(false);
             shrinkBorder(plugin.getConfig().getInt("game.showdown-border-seconds", 25));
         }
     }
 
-    private void announceStage(String title, String sub, Sound sound) {
-        broadcast("§8§m                              ");
-        broadcast("  " + title + " §7— " + sub);
-        broadcast("§8§m                              ");
-        for (Player p : Bukkit.getOnlinePlayers()) { p.sendTitle(title, sub, 8, 50, 12); p.playSound(p.getLocation(), sound, 1f, 1f); }
+    /** keyBase.title / keyBase.sub, translated per player. */
+    private void announceStage(String keyBase, Sound sound) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            UUID id = p.getUniqueId();
+            String title = api.tr(id, keyBase + ".title"), sub = api.tr(id, keyBase + ".sub");
+            p.sendMessage("§8§m                              ");
+            p.sendMessage("  " + title + " §7— " + sub);
+            p.sendMessage("§8§m                              ");
+            p.sendTitle(title, sub, 8, 50, 12);
+            p.playSound(p.getLocation(), sound, 1f, 1f);
+        }
+    }
+
+    private void tellAll(String key, Object... args) {
+        for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(api.tr(p.getUniqueId(), key, args));
     }
 
     // ── Chaos events ──────────────────────────────────────────────────────────
@@ -361,15 +419,15 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         if (canBorder) pool.add("SHRINKING_ARENA");
 
         String ev = pool.get(new Random().nextInt(pool.size()));
-        announceStage("§5§lCHAOS EVENT", chaosLabel(ev), Sound.ENTITY_WITHER_SPAWN);
-        activeChaos = chaosLabel(ev);
+        announceChaos(ev);
+        activeChaos = ev;
 
         switch (ev) {
             case "LOW_GRAVITY" -> applyAll("jump_boost", 2, 20 * 20);
             case "SPEED_FRENZY" -> applyAll("speed", 1, 20 * 20);
             case "DARKNESS" -> applyAll("darkness", 0, 20 * 20);
             case "TRACKER_FAILURE" -> trackerFailure(15);
-            case "DOUBLE_TROUBLE" -> { nextRoundTntBonus = 2; broadcast("§5§lDOUBLE TROUBLE! §7Next round gets extra bombs!"); }
+            case "DOUBLE_TROUBLE" -> { nextRoundTntBonus = 2; tellAll("tnt.chaos.double-note"); }
             case "TELEPORT_MADNESS" -> teleportMadness(15);
             case "SHRINKING_ARENA" -> chaosShrink();
         }
@@ -382,15 +440,24 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         Location c = arena.getCenter();
         double r = arena.getBorderRadius();
         if (c == null || c.getWorld() == null || r <= 0) return;
-        WorldBorder wb = c.getWorld().getWorldBorder();
-        wb.setCenter(c);
-        wb.setDamageAmount(0.5);
-        wb.setWarningDistance(6);
-        wb.setSize(r * 2);
-        wb.setSize(Math.max(12, r * 0.5) * 2, 8);                 // squeeze in
+        final double before = ringRadius();
+        setRing(before, Math.max(12, r * 0.5), 8);                // squeeze in
         Bukkit.getScheduler().runTaskLater(plugin, () -> {        // open back up
-            if (isLive() && !showdown) wb.setSize(r * 2, 6);
+            if (isLive() && !showdown) setRing(before, before, 0);
         }, 20 * 20L);
+    }
+
+    private void announceChaos(String ev) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            UUID id = p.getUniqueId();
+            String label = api.tr(id, "tnt.chaos." + ev.toLowerCase());
+            String title = api.tr(id, "tnt.chaos.title");
+            p.sendMessage("§8§m                              ");
+            p.sendMessage("  " + title + " §7— " + label);
+            p.sendMessage("§8§m                              ");
+            p.sendTitle(title, label, 8, 50, 12);
+            p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1f, 1f);
+        }
     }
 
     private String chaosLabel(String ev) {
@@ -460,12 +527,8 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         double minRadius = plugin.getConfig().getDouble("game.progressive-shrink-min-radius", 12);
 
         double target = Math.max(minRadius, baseRadius * Math.pow(1 - shrinkPercent, currentRound));
-        WorldBorder wb = c.getWorld().getWorldBorder();
-        wb.setCenter(c);
-        wb.setDamageAmount(0.5);
-        wb.setWarningDistance(6);
         long shrinkSeconds = Math.max(5, plugin.getConfig().getInt("game.intermission-seconds", 4) + 2);
-        wb.setSize(target * 2, shrinkSeconds);
+        setRing(ringRadius(), target, shrinkSeconds);
     }
 
     private void shrinkBorder(int seconds) {
@@ -473,12 +536,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         Location c = arena.getCenter();
         double r = arena.getBorderRadius();
         if (c == null || c.getWorld() == null || r <= 0) return;
-        WorldBorder wb = c.getWorld().getWorldBorder();
-        wb.setCenter(c);
-        wb.setDamageAmount(0.5);
-        wb.setWarningDistance(6);
-        wb.setSize(r * 2);
-        wb.setSize(Math.max(8, r * 0.25) * 2, seconds);
+        setRing(ringRadius(), Math.max(8, r * 0.25), seconds);
     }
 
     // ── Spectator / global HUD ────────────────────────────────────────────────
@@ -487,13 +545,15 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
             if (!isLive()) return;
             long alive = aliveCount();
             long tnt   = players.values().stream().filter(ps -> ps.isAlive() && ps.isIt()).count();
-            String chaos = activeChaos != null ? " §8| §5" + activeChaos : "";
-            String hud = "§7Alive §a" + alive + " §8| §7TNT §c" + tnt + " §8| §7Round §e" + currentRound + chaos;
+            String chaosKey = activeChaos;
+            String hudKey = "tnt.hud";
             // Spectators (and the dead) see the live HUD; live holders get their own warning.
             for (Player p : Bukkit.getOnlinePlayers()) {
                 PlayerState ps = players.get(p.getUniqueId());
                 if (ps != null && ps.isAlive() && ps.isIt()) continue; // holders have the bomb warning
-                p.sendActionBar(Component.text(hud));
+                String chaos = chaosKey != null
+                        ? " §8| §5" + api.tr(p.getUniqueId(), "tnt.chaos." + chaosKey.toLowerCase()) : "";
+                p.sendActionBar(Component.text(api.tr(p.getUniqueId(), hudKey, alive, tnt, currentRound) + chaos));
             }
         }, 10L, 10L);
     }
@@ -535,8 +595,8 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         long tnt   = players.values().stream().filter(ps -> ps.isAlive() && ps.isIt()).count();
         bossBar.setProgress(Math.max(0, Math.min(1, remainingRoundSeconds / (double) Math.max(1, roundDuration()))));
         bossBar.setColor(remainingRoundSeconds <= 5 ? BarColor.YELLOW : BarColor.RED);
-        bossBar.setTitle("§c§lTNT TAG §8| §7Round §e" + currentRound + " §8| §c" + tnt + "💣 §8| §a"
-                + alive + " alive §8| §e" + remainingRoundSeconds + "s");
+        bossBar.setTitle("§c§lTNT TAG §8| §7R §e" + currentRound + " §8| §c" + tnt + "💣 §8| §a"
+                + alive + " §8| §e" + remainingRoundSeconds + "s");
     }
 
     // ── End ───────────────────────────────────────────────────────────────────
@@ -547,8 +607,8 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         cancelAll();
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
         plugin.getPowerupManager().stop();
-        var arena = plugin.getArenaManager().getArena();
-        if (arena.getWorld() != null) try { arena.getWorld().getWorldBorder().reset(); } catch (Exception ignored) {}
+        if (ringTask != null) { ringTask.cancel(); ringTask = null; }
+        ring = null;
 
         List<PlayerState> ranked = new ArrayList<>(players.values());
         ranked.sort((a, b) -> {
@@ -582,7 +642,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
                 fireClutch(wp, nl.kmc.core.event.ClutchMomentEvent.ClutchType.LAST_SURVIVOR,
                         w.getName() + " is the last one standing!");
                 if (!w.hasEverReceivedTnt()) {
-                    broadcast("§6§l⭐ UNTOUCHABLE! §e" + winnerDesc + " §7won without ever holding the bomb!");
+                    tellAll("tnt.untouchable", winnerDesc);
                     fireClutch(wp, nl.kmc.core.event.ClutchMomentEvent.ClutchType.PERFECT_GAME,
                             w.getName() + " won TNT Tag untouched!");
                 }
@@ -623,7 +683,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         l.add(api.tr(id, "sb.tnttag.round", currentRound));
         l.add(api.tr(id, "sb.tnttag.time", Math.max(0, remainingRoundSeconds)));
         l.add(api.tr(id, "sb.common.players-left", aliveCount()));
-        if (activeChaos != null) { l.add(""); l.add("§5§l" + activeChaos); }
+        if (activeChaos != null) { l.add(""); l.add("§5§l" + api.tr(id, "tnt.chaos." + activeChaos.toLowerCase())); }
         PlayerState me = players.get(id);
         if (me != null) {
             l.add("");
@@ -633,6 +693,22 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         }
         return l;
     }
+
+    /** Border / void elimination (used by the ring damage in TagListener). */
+    public void eliminateEnvironmental(Player p) {
+        PlayerState ps = players.get(p.getUniqueId());
+        if (ps == null || !ps.isAlive()) return;
+        ps.eliminate(eliminationCounter++);
+        clearTnt(p);
+        toSpectator(p);
+        tellAll("tnt.out.border", ps.getName());
+        updateVisuals();
+        updateBossBar();
+        if (aliveCount() <= 1) end();
+    }
+
+    /** Tagging is a player-hits-player event handled by TagListener (which cancels the real damage itself). */
+    @Override protected boolean handlesPlayerPvp() { return true; }
 
     @Override
     protected ArenaValidator getArenaValidator() {
@@ -706,7 +782,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(id);
             if (p == null) continue;
             GamePlayerUtil.resetPlayer(p);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         }
     }
 

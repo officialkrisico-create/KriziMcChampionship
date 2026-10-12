@@ -52,13 +52,26 @@ public final class AirstrikeWeapon {
         Bukkit.broadcastMessage(ChatColor.RED + "" + ChatColor.BOLD + "☢ Airstrike inkomend bij "
                 + target.getBlockX() + "," + target.getBlockZ() + "! Wegwezen!");
 
-        // Beam-down marker particles during the countdown
+        // Beam-down marker particles during the countdown + a siren for anyone standing in the zone
         final Location markCenter = target.clone();
+        final double alarmRadius = radius + killR;
         new org.bukkit.scheduler.BukkitRunnable() {
             int left = delay;
+            int beat = 0;
             @Override public void run() {
                 if (left <= 0 || markCenter.getWorld() == null) { cancel(); return; }
                 left -= 4;
+                beat++;
+                for (Player pl : markCenter.getWorld().getPlayers()) {
+                    if (pl.isDead() || pl.equals(caller)) continue;
+                    if (pl.getLocation().distanceSquared(markCenter) > alarmRadius * alarmRadius) continue;
+                    // Two-tone siren + a warning in the action bar
+                    float pitch = (beat % 2 == 0) ? 1.9f : 1.3f;
+                    pl.playSound(pl.getLocation(), Sound.BLOCK_NOTE_BLOCK_BIT, 1.0f, pitch);
+                    if (beat % 4 == 0) pl.playSound(pl.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 1.0f, 0.5f);
+                    pl.sendActionBar(net.kyori.adventure.text.Component.text(
+                            ChatColor.RED + "" + ChatColor.BOLD + "⚠ AIRSTRIKE — VERLAAT HET GEBIED! ⚠"));
+                }
                 markCenter.getWorld().spawnParticle(Particle.DUST, markCenter.clone().add(0, 0.1, 0),
                         20, radius * 0.7, 0.1, radius * 0.7,
                         new Particle.DustOptions(org.bukkit.Color.RED, 2.0f));
@@ -77,6 +90,17 @@ public final class AirstrikeWeapon {
                     strike(plugin, caller, impact, killR);
                 }, (long) idx * 4L);
             }
+            // The marked zone itself is lethal: whoever is still standing in it when the strike ends is hit.
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (markCenter.getWorld() == null) return;
+                double rSq = (radius + 1.0) * (radius + 1.0);
+                for (Player pl : markCenter.getWorld().getPlayers()) {
+                    if (pl.isDead() || pl.equals(caller)) continue;
+                    if (pl.getLocation().distanceSquared(markCenter) > rSq) continue;
+                    if (plugin.getGameManagerV2() != null)
+                        plugin.getGameManagerV2().handleHit(caller, pl, "airstrike");
+                }
+            }, (long) impacts * 4L + 2L);
         }, delay);
 
         return true;

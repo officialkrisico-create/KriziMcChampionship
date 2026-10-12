@@ -63,7 +63,7 @@ public class BridgeListener implements Listener {
         if (placed != team.getWoolMaterial()) {
             event.setCancelled(true);
             p.sendActionBar(net.kyori.adventure.text.Component.text(
-                    org.bukkit.ChatColor.RED + "Je kunt alleen je team wol plaatsen!"));
+                    plugin.getKmcCore().getLanguageManager().tr(p, "bridge.own-wool")));
             return;
         }
 

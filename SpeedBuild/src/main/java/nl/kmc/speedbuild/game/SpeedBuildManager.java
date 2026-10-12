@@ -77,12 +77,9 @@ public final class SpeedBuildManager extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§e§lSPEED BUILD"; }
+                    @Override public String introSubtitle() { return "@speedbuild.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§e§lSPEED BUILD CHALLENGE",
-                                "§710 builds. Kopieer elke §fblueprint §7zo precies mogelijk.",
-                                "§aGroene wol §7= voltooi · §cRode wol §7= blueprint · §6Goud §7= klaar",
-                                "§7Score = nauwkeurigheid + snelheid − fouten. §8(100% objectief)");
+                        return List.of("@speedbuild.tut.1", "@speedbuild.tut.2", "@speedbuild.tut.3", "@speedbuild.tut.4");
                     }
                     @Override public Location flyoverCenter() { return arena.getSpawn(); }
                     @Override public void onFinished() {
@@ -143,7 +140,7 @@ public final class SpeedBuildManager extends BaseGameManager {
         BuildDefinition def = builds.get(index);
         Clipboard clip = loader.load(def.schematic());
         if (clip == null) {
-            if (p != null) p.sendMessage("§c[SpeedBuild] Schematic ontbreekt: " + def.schematic());
+            if (p != null) p.sendMessage(api.tr(p.getUniqueId(), "speedbuild.schematic-missing", def.schematic()));
             return;
         }
         int[] dims = WorldEditAdapter.dimensions(clip);
@@ -163,11 +160,11 @@ public final class SpeedBuildManager extends BaseGameManager {
         buttons.give(p, index == builds.size() - 1);
         bossBars.update(p, index + 1, session.getTotalScore());
 
-        p.sendMessage("§e§l▶ Build " + (index + 1) + "/10 §8— §f" + def.name()
-                + " §7(moeilijkheid " + def.difficulty() + ")");
-        p.sendTitle("§e§lBUILD " + (index + 1), "§f" + def.name(), 5, 35, 8);
+        UUID pid = p.getUniqueId();
+        p.sendMessage(api.tr(pid, "speedbuild.build-line", index + 1, def.name(), def.difficulty()));
+        p.sendTitle(api.tr(pid, "speedbuild.build-title", index + 1), "§f" + def.name(), 5, 35, 8);
         p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.4f);
-        ActionBarManager.send(p, "§7Kopieer de blueprint — klik §aGroene wol §7als je klaar bent.");
+        ActionBarManager.send(p, api.tr(pid, "speedbuild.copy-hint"));
     }
 
     /** GREEN WOOL → score the current build and advance (or arm FINISH on the last). */
@@ -185,9 +182,12 @@ public final class SpeedBuildManager extends BaseGameManager {
         BuildResult result = engine.score(index, def, clip, s.getBuildMin(), time);
         s.recordResult(result);
 
-        p.sendMessage(String.format("§a✔ Build %d gescoord §8— §f%.1f%% §7nauwkeurig, §6%.0f ptn §8(§7+%.0f tijd, §c-%.0f fouten§8)",
-                index + 1, result.accuracyPercent(), result.finalScore(), result.bonusPoints(), result.penaltyPoints()));
-        p.sendTitle(String.format("§a%.0f%%", result.accuracyPercent()), "§6+" + (int) result.finalScore() + " ptn", 3, 30, 8);
+        UUID pid = p.getUniqueId();
+        p.sendMessage(api.tr(pid, "speedbuild.scored", index + 1,
+                String.format("%.1f", result.accuracyPercent()), String.format("%.0f", result.finalScore()),
+                String.format("%.0f", result.bonusPoints()), String.format("%.0f", result.penaltyPoints())));
+        p.sendTitle(String.format("§a%.0f%%", result.accuracyPercent()),
+                api.tr(pid, "speedbuild.score-sub", (int) result.finalScore()), 3, 30, 8);
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.3f);
 
         // Clear the area before the next build (and tidy the blueprint).
@@ -200,8 +200,8 @@ public final class SpeedBuildManager extends BaseGameManager {
             // Build 10 scored — leave only the GOLD finish button.
             readyToFinish.add(p.getUniqueId());
             buttons.giveFinishOnly(p);
-            p.sendMessage("§6§l★ Alle 10 builds klaar! §7Klik §6Goud §7om af te ronden.");
-            ActionBarManager.send(p, "§6Klik het gouden blok om je score te versturen.");
+            p.sendMessage(api.tr(pid, "speedbuild.all-done"));
+            ActionBarManager.send(p, api.tr(pid, "speedbuild.all-done-bar"));
         }
     }
 
@@ -212,7 +212,7 @@ public final class SpeedBuildManager extends BaseGameManager {
         if (s == null || s.isFinished()) return;
         // Only allowed once the final build has actually been scored.
         if (!readyToFinish.contains(p.getUniqueId()) && s.getResults().size() < arena.getBuilds().size()) {
-            p.sendMessage("§c[SpeedBuild] Voltooi eerst alle builds met de groene wol.");
+            p.sendMessage(api.tr(p.getUniqueId(), "speedbuild.finish-first"));
             return;
         }
 
@@ -240,7 +240,7 @@ public final class SpeedBuildManager extends BaseGameManager {
             RegionUtil.clear(s.getBlueprintMin(), slotDx, slotDy, slotDz);
             WorldEditAdapter.pasteAtMinCorner(clip, s.getBlueprintMin(), true);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.2f);
-            ActionBarManager.send(p, "§7Blueprint opnieuw getoond.");
+            ActionBarManager.send(p, api.tr(p.getUniqueId(), "speedbuild.blueprint-shown"));
         }
     }
 
@@ -253,15 +253,16 @@ public final class SpeedBuildManager extends BaseGameManager {
 
     private void showSummary(Player p, SpeedBuildSession s) {
         BuildResult best = s.bestBuild(), worst = s.worstBuild();
+        UUID pid = p.getUniqueId();
         p.sendMessage("§8§m                                        ");
-        p.sendMessage("  §e§lSPEED BUILD — JOUW RESULTAAT");
-        p.sendMessage("  §7Totaalscore: §6" + (int) s.getTotalScore() + " ptn");
-        p.sendMessage(String.format("  §7Gem. nauwkeurigheid: §a%.1f%%", s.averageAccuracy()));
-        if (best != null)  p.sendMessage(String.format("  §7Beste build: §f%s §8(§6%.0f ptn§8)", best.buildName(), best.finalScore()));
-        if (worst != null) p.sendMessage(String.format("  §7Zwakste build: §f%s §8(§6%.0f ptn§8)", worst.buildName(), worst.finalScore()));
-        p.sendMessage(String.format("  §7Totale tijd: §f%.1fs", s.totalTimeSeconds()));
+        p.sendMessage(api.tr(pid, "speedbuild.sum.title"));
+        p.sendMessage(api.tr(pid, "speedbuild.sum.total", (int) s.getTotalScore()));
+        p.sendMessage(api.tr(pid, "speedbuild.sum.accuracy", String.format("%.1f", s.averageAccuracy())));
+        if (best != null)  p.sendMessage(api.tr(pid, "speedbuild.sum.best", best.buildName(), String.format("%.0f", best.finalScore())));
+        if (worst != null) p.sendMessage(api.tr(pid, "speedbuild.sum.worst", worst.buildName(), String.format("%.0f", worst.finalScore())));
+        p.sendMessage(api.tr(pid, "speedbuild.sum.time", String.format("%.1f", s.totalTimeSeconds())));
         p.sendMessage("§8§m                                        ");
-        p.sendTitle("§6§lKLAAR!", "§e" + (int) s.getTotalScore() + " punten naar je team", 8, 50, 12);
+        p.sendTitle(api.tr(pid, "speedbuild.done.title"), api.tr(pid, "speedbuild.done.sub", (int) s.getTotalScore()), 8, 50, 12);
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
     }
 
@@ -296,13 +297,14 @@ public final class SpeedBuildManager extends BaseGameManager {
         if (!getState().isRunning()) return defaultScoreboardLines(viewer);
         SpeedBuildSession s = sessions.get(viewer.getUniqueId());
         java.util.List<String> l = new java.util.ArrayList<>();
-        if (s == null) { l.add("§7Toeschouwer"); return l; }
-        l.add("§7Build: §e" + Math.min(10, s.getCurrentBuildIndex() + 1) + "§7/10");
-        l.add("§7Score: §6" + (int) s.getTotalScore());
+        UUID vid = viewer.getUniqueId();
+        if (s == null) { l.add(api.tr(vid, "speedbuild.sb.spectator")); return l; }
+        l.add(api.tr(vid, "speedbuild.sb.build", Math.min(10, s.getCurrentBuildIndex() + 1)));
+        l.add(api.tr(vid, "speedbuild.sb.score", (int) s.getTotalScore()));
         if (!s.getResults().isEmpty())
-            l.add(String.format("§7Gem. nauwkeurig: §a%.0f%%", s.averageAccuracy()));
+            l.add(api.tr(vid, "speedbuild.sb.accuracy", String.format("%.0f", s.averageAccuracy())));
         l.add("");
-        l.add(s.isFinished() ? "§aKlaar!" : "§7Bezig met bouwen...");
+        l.add(s.isFinished() ? api.tr(vid, "speedbuild.sb.done") : api.tr(vid, "speedbuild.sb.building"));
         return l;
     }
 

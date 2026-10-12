@@ -68,6 +68,24 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             runners.put(p.getUniqueId(), new RunnerState(p.getUniqueId(), p.getName()));
         }
 
+        // Start line first: players are teleported to the first map NOW (frozen until GO), instead of standing
+        // in the lobby until the countdown ends — a lobby that lies below the map's void floor made the first
+        // move look like a "void fall".
+        if (!rotation.isEmpty()) {
+            List<Location> startSpawns = rotation.get(0).getStartSpawns();
+            List<Player> everyone = new ArrayList<>(Bukkit.getOnlinePlayers());
+            for (int i = 0; i < everyone.size(); i++) {
+                Player p = everyone.get(i);
+                if (!startSpawns.isEmpty()) {
+                    nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, startSpawns.get(i % startSpawns.size()));
+                }
+                p.setGameMode(GameMode.ADVENTURE);
+                p.setHealth(20); p.setFoodLevel(20);
+                nl.kmc.game.api.GamePlayerUtil.freezePlayer(p, 20 * 120);
+                nl.kmc.game.api.GamePlayerUtil.freezeJump(p, 20 * 120);
+            }
+        }
+
         bossBar = Bukkit.createBossBar(ChatColor.YELLOW + "" + ChatColor.BOLD + "TGTTOS",
                 BarColor.YELLOW, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
@@ -76,12 +94,24 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     @Override
     protected void onCountdownStart() {
         int maps = mapsPerGame();
-        broadcast("§e§l[TGTTOS] §e" + maps + " maps — verzamel plaatsingen over alle maps!");
+        tellKey("tgttos.intro", maps);
     }
 
     @Override
     protected void onGameStart() {
-        beginMap();
+        // Flyover over the first map (auto-generated orbit, or a recorded arena-tgttos route), then GO.
+        Map first = rotation.isEmpty() ? null : rotation.get(0);
+        List<Location> sp = first != null ? first.getStartSpawns() : List.of();
+        if (sp.isEmpty() || sp.get(0).getWorld() == null) { beginMap(); return; }
+        double x = 0, y = 0, z = 0;
+        for (Location l : sp) { x += l.getX(); y += l.getY(); z += l.getZ(); }
+        Location center = new Location(sp.get(0).getWorld(), x / sp.size(), y / sp.size(), z / sp.size());
+        boolean played = api.cinematics().playArenaFlyover(registration.getId(),
+                new ArrayList<>(Bukkit.getOnlinePlayers()), center,
+                plugin.getConfig().getDouble("start-sequence.flyover-radius", 20.0),
+                plugin.getConfig().getDouble("start-sequence.flyover-height", 0.0),
+                () -> { if (getState().isRunning()) beginMap(); });
+        if (!played) beginMap();
     }
 
     @Override
@@ -121,16 +151,19 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     }
 
     private void broadcastFinalStandings(List<RunnerState> ranked) {
-        broadcast("§8§m                                        ");
-        broadcast("        §e§l🏁 TGTTOS — EINDUITSLAG");
-        broadcast("§8§m                                        ");
-        for (int i = 0; i < Math.min(5, ranked.size()); i++) {
-            RunnerState rs = ranked.get(i);
-            String medal = i == 0 ? "§6#1" : i == 1 ? "§7#2" : i == 2 ? "§c#3" : "§7#" + (i + 1);
-            broadcast("  " + medal + " §f" + rs.getName() + " §8— §e" + rs.getTotalPoints() + " pts §8("
-                    + rs.getMapsWon() + " maps gewonnen, " + rs.getDnfCount() + " DNF)");
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            java.util.UUID vid = v.getUniqueId();
+            v.sendMessage("§8§m                                        ");
+            v.sendMessage(api.tr(vid, "tgttos.final"));
+            v.sendMessage("§8§m                                        ");
+            for (int i = 0; i < Math.min(5, ranked.size()); i++) {
+                RunnerState rs = ranked.get(i);
+                String medal = i == 0 ? "§6#1" : i == 1 ? "§7#2" : i == 2 ? "§c#3" : "§7#" + (i + 1);
+                v.sendMessage("  " + medal + " §f" + rs.getName() + " §8— "
+                        + api.tr(vid, "tgttos.final-line", rs.getTotalPoints(), rs.getMapsWon(), rs.getDnfCount()));
+            }
+            v.sendMessage("§8§m                                        ");
         }
-        broadcast("§8§m                                        ");
     }
 
     @Override
@@ -154,7 +187,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§e[TGTTOS] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -164,7 +197,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         java.util.List<String> l = new java.util.ArrayList<>();
         l.add(api.tr(id, "sb.tgttos.round", Math.max(1, currentMap), mapsPerGame()));
         if (mapPhase == MapPhase.COUNTDOWN) l.add(api.tr(id, "sb.tgttos.time", Math.max(0, countdownRemaining)));
-        l.add("§7Gefinisht §a" + mapFinishCounter + "§7/§a" + runners.size());
+        l.add(api.tr(id, "tgttos.sb.finished", mapFinishCounter, runners.size()));
         l.add(api.tr(id, "sb.tgttos.running", activeRacers()));
         RunnerState me = runners.get(id);
         if (me != null) {
@@ -203,8 +236,10 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         long elapsedMs = rs.getRoundElapsedMillis();
 
         String medal = placement == 1 ? "§6🥇" : placement == 2 ? "§7🥈" : placement == 3 ? "§c🥉" : "§7#" + placement;
-        broadcast(medal + " §e" + player.getName() + " §7finished in §b" + formatTime(elapsedMs)
-                + " §8(§e+" + pts + "§8 pts)");
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            v.sendMessage(medal + " " + api.tr(v.getUniqueId(), "tgttos.finished", player.getName(),
+                    formatTime(elapsedMs), pts));
+        }
         player.sendTitle(medal, "§7" + formatTime(elapsedMs), 5, 40, 10);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.4f);
         player.setGameMode(GameMode.SPECTATOR);
@@ -243,8 +278,11 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         nl.kmc.game.api.GamePlayerUtil.safeTeleport(player, dest);
         player.setHealth(20); player.setFoodLevel(20);
         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 0.8f);
-        player.sendActionBar(net.kyori.adventure.text.Component.text("§cIn de void gevallen — terug naar "
-                + (rs.getLastCheckpointIndex() >= 0 ? "checkpoint " + (rs.getLastCheckpointIndex() + 1) : "start")));
+        java.util.UUID pid = player.getUniqueId();
+        player.sendActionBar(net.kyori.adventure.text.Component.text(api.tr(pid, "tgttos.void",
+                rs.getLastCheckpointIndex() >= 0
+                        ? api.tr(pid, "tgttos.void-cp", rs.getLastCheckpointIndex() + 1)
+                        : api.tr(pid, "tgttos.void-start"))));
     }
 
     /** Once every member of a team currently racing this map has finished, the team gets a rank-based bonus. */
@@ -265,7 +303,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             if (!teamId.equals(api.teams().getTeamByPlayer(rs.getUuid()).map(t -> t.getId()).orElse(null))) continue;
             rs.giveBonusPoints(bonus);
         }
-        broadcast("§b§lTEAM-BONUS §7— het hele team is klaar! §8(§b+" + bonus + "§8 ptn elk)");
+        tellKey("tgttos.team-bonus", bonus);
     }
 
     private int mapPoints(int placement) {
@@ -319,21 +357,22 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, dest);
             p.setGameMode(GameMode.ADVENTURE);
             p.setHealth(20); p.setFoodLevel(20);
+            nl.kmc.game.api.GamePlayerUtil.unfreezePlayer(p);
         }
 
         // Threshold = 50% of the players actually racing this map.
         int pct = plugin.getConfig().getInt("game.finish-threshold-percent", 50);
         finishThreshold = Math.max(1, (int) Math.ceil(runners.size() * pct / 100.0));
 
-        broadcast("§e§l[TGTTOS] §eMap §6" + currentMap + "§e/§6" + mapsPerGame() + " §7— §b" + map.getDisplayName());
-        broadcast("§7De map eindigt §e" + minSec(countdownSeconds()) + " §7nadat §e" + pct + "% §7gefinisht is.");
+        tellKey("tgttos.map", currentMap, mapsPerGame(), map.getDisplayName());
+        tellKey("tgttos.map-rule", minSec(countdownSeconds()), pct);
         for (Player p : Bukkit.getOnlinePlayers()) p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 1.2f);
 
         fogOfWarActive = Math.random() < plugin.getConfig().getDouble("game.fog-of-war-chance", 0.15);
         if (fogOfWarActive) {
-            broadcast("§8§l🌫 FOG OF WAR §7— je ziet nu maar een klein stukje voor je!");
+            tellKey("tgttos.fog");
             for (Player p : online) {
-                p.sendTitle("§8§l🌫 FOG OF WAR", "§7Beperkt zicht deze map!", 8, 50, 12);
+                p.sendTitle("§8§l🌫 FOG OF WAR", api.tr(p.getUniqueId(), "tgttos.fog-sub"), 8, 50, 12);
                 applyFogOfWar(p);
             }
         }
@@ -372,13 +411,14 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         countdownRemaining = countdownSeconds();
 
         if (halfReached) {
-            broadcast("§e§l⚡ HELFT VAN HET VELD IS GEFINISHT!");
+            tellKey("tgttos.half");
             for (Player p : Bukkit.getOnlinePlayers()) {
-                p.sendTitle("§e§lHELFT GEFINISHT", "§cResterende spelers: " + minSec(countdownRemaining), 8, 50, 12);
+                p.sendTitle(api.tr(p.getUniqueId(), "tgttos.half-title"),
+                        api.tr(p.getUniqueId(), "tgttos.half-sub", minSec(countdownRemaining)), 8, 50, 12);
                 p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.2f);
             }
         }
-        broadcast("§e§l[TGTTOS] §cResterende spelers hebben §e" + minSec(countdownRemaining) + " §com te finishen!");
+        tellKey("tgttos.countdown", minSec(countdownRemaining));
         updateProgressDisplay();
     }
 
@@ -389,11 +429,11 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             rs.recordDnf(currentMap);
             Player p = Bukkit.getPlayer(rs.getUuid());
             if (p != null) {
-                p.sendTitle("§c§lDNF", "§7Te laat — geen punten", 5, 45, 10);
+                p.sendTitle("§c§lDNF", api.tr(p.getUniqueId(), "tgttos.dnf-sub"), 5, 45, 10);
                 p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 0.8f);
                 p.setGameMode(GameMode.SPECTATOR);
             }
-            broadcast("§c✗ §7" + rs.getName() + " §c— DNF");
+            tellKey("tgttos.dnf", rs.getName());
         });
         endMap();
     }
@@ -402,7 +442,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
     private void endMap() {
         if (mapTickTask != null) { mapTickTask.cancel(); mapTickTask = null; }
         if (currentMap >= mapsPerGame()) { end(); return; }
-        broadcast("§7Volgende map start zo...");
+        tellKey("tgttos.next-map");
         Bukkit.getScheduler().runTaskLater(plugin, this::beginMap, 100L);
     }
 
@@ -423,20 +463,21 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             else bossBar.setProgress(Math.max(0, Math.min(1, finished / (double) Math.max(1, runners.size()))));
             String leaderTag = raceOrder.isEmpty() ? "" : " §8| §6🏁 " + raceOrder.get(0).getKey().getName();
             bossBar.setTitle("§e§lTGTTOS §8| §7Map §e" + currentMap + "/" + mapsPerGame()
-                    + " §8| §aGefinisht " + finished + "/" + runners.size()
-                    + " §8| §cRacet " + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : "") + leaderTag);
+                    + " §8| §a✔ " + finished + "/" + runners.size()
+                    + " §8| §c🏃 " + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : "") + leaderTag);
         }
 
-        String hud = "§eGefinisht §a" + finished + "§7/§a" + runners.size()
-                + " §8| §eRacet §c" + racing + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : " §8| §7race naar de finish!");
-        for (Player p : Bukkit.getOnlinePlayers())
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            String hud = api.tr(p.getUniqueId(), "tgttos.hud", finished, runners.size(), racing)
+                    + (cd ? " §8| §c⏱ " + minSec(countdownRemaining) : api.tr(p.getUniqueId(), "tgttos.hud-race"));
             p.sendActionBar(net.kyori.adventure.text.Component.text(hud + raceGapSuffix(p, raceOrder)));
+        }
     }
 
     /** Per-player "you're closest / X blocks behind the leader" tag for the action bar. */
     private String raceGapSuffix(Player viewer, List<java.util.Map.Entry<Player, Double>> raceOrder) {
         if (raceOrder.isEmpty()) return "";
-        if (raceOrder.get(0).getKey().equals(viewer)) return " §8| §6👑 KOPLOPER";
+        if (raceOrder.get(0).getKey().equals(viewer)) return " §8| " + api.tr(viewer.getUniqueId(), "tgttos.leader");
         for (var entry : raceOrder) {
             if (entry.getKey().equals(viewer)) {
                 double gap = entry.getValue() - raceOrder.get(0).getValue();
@@ -515,7 +556,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 }

@@ -73,7 +73,7 @@ public final class LuckyBlockPlugin extends JavaPlugin {
 
             GameIntroCardRegistry.register(GameIntroCard.builder(GAME_ID, "Lucky Block")
                     .objective("Laatste speler die overleeft wint")
-                    .addScoringLine("+ptn — Lucky block-loot")
+                    .addScoringLine("+25 / +50 ptn — Lucky block met bonuspunten (kans)")
                     .addScoringLine("+35 ptn — Eliminatie")
                     .addScoringLine("+5 ptn — Overlevingsbonus")
                     .build());

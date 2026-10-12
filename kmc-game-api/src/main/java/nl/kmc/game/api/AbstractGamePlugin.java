@@ -181,6 +181,8 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                     .build();
 
             gameRegistry.register(reg);
+            try { kmcCore.getGameManager().ensureRegistered(gameId(), displayName(), icon(), minPlayers()); }
+            catch (Throwable t) { getLogger().warning("Could not add " + gameId() + " to the KMC rotation: " + t); }
             gameManagerV2 = createGameManagerV2(statsService, reg);
 
             // Build intro card

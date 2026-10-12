@@ -34,7 +34,12 @@ public final class CoreValidators {
         // Per-game validators derived from the SetupService registrations.
         SetupService setup = service(plugin, SetupService.class);
         if (setup != null) {
-            for (GameSetup gs : setup.getAll()) all.add(new GameSetupValidator(gs));
+            for (GameSetup gs : setup.getAll()) {
+                // A game switched off in /kmcauto's setup menu is not part of this tournament, so its missing
+                // arena must not block the start (it is still listed — as "disabled", not as an error).
+                boolean enabled = plugin.getConfig().getBoolean("games.list." + gs.gameId() + ".enabled", true);
+                all.add(new GameSetupValidator(gs, enabled));
+            }
         }
 
         // Any externally / future registered validators.
@@ -52,12 +57,16 @@ public final class CoreValidators {
     }
 
     /** Wraps each game's registered setup into a validator (reuses real arena validation). */
-    public record GameSetupValidator(GameSetup gs) implements Validator {
+    public record GameSetupValidator(GameSetup gs, boolean enabled) implements Validator {
         @Override public String   id()          { return "game_" + gs.gameId(); }
         @Override public String   displayName() { return gs.displayName(); }
         @Override public Material  icon()        { return gs.icon(); }
         @Override public ValidationReport validate() {
             ValidationReport r = new ValidationReport();
+            if (!enabled) {
+                r.ok("Rotatie", "Uitgeschakeld in /kmcauto — wordt niet gespeeld");
+                return r;
+            }
             List<String> issues;
             try { issues = gs.issues(); } catch (Throwable t) { issues = List.of("Validatie-fout: " + t); }
             if (issues.isEmpty()) {

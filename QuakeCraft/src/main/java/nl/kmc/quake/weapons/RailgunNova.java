@@ -33,7 +33,7 @@ public final class RailgunNova {
         if (world == null) return;
 
         world.spawnParticle(Particle.EXPLOSION, center, 1);
-        world.spawnParticle(Particle.FLASH, center, 1);
+        try { world.spawnParticle(Particle.FLASH, center, 1, org.bukkit.Color.WHITE); } catch (Exception ignored) { /* cosmetic — must never block the damage rays */ }
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 1.4f, 1.1f);
 
         int rays = Math.max(1, rayCount);

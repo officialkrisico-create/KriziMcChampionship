@@ -25,6 +25,8 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     private WorldCloner            worldCloner;
     private VoidWorldManager       voidWorldManager;
     private KitManager             kitManager;
+    private nl.kmc.mayhem.managers.UpgradeManager upgradeManager;
+    private nl.kmc.mayhem.managers.SpectatorCompass spectatorCompass;
     private MobMayhemGameManagerV2 mobMayhemV2;
 
     // ── AbstractGamePlugin metadata ───────────────────────────────────────────
@@ -37,8 +39,8 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     @Override protected String  objective()   { return "Overleef meer golven dan de andere teams."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+ptn — Per mob-kill (schaalt per golf, bosses extra)",
-                "+100 ptn — Golf verslagen",
+                "+1 tot +8 ptn — Per mob-kill (zombie +1, creeper +3, heks +4; bosses +20 tot +50)",
+                "+" + getConfig().getInt("points.per-wave", 100) + " ptn — Golf verslagen (per levende speler)",
                 "+500 ptn — 1e plaats (meeste golven)",
                 "Powerups — snelheid, kracht, genezing en meer, verspreid door de arena"
         );
@@ -50,6 +52,8 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         worldCloner      = new WorldCloner(this);
         voidWorldManager = new VoidWorldManager(this);
         kitManager       = new KitManager(this);
+        upgradeManager   = new nl.kmc.mayhem.managers.UpgradeManager(this);
+        spectatorCompass = new nl.kmc.mayhem.managers.SpectatorCompass(this);
         mobMayhemV2  = new MobMayhemGameManagerV2(this, reg, stats);
         return mobMayhemV2;
     }
@@ -98,6 +102,8 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         var bukkitCmd = getCommand("mobmayhem");
         if (bukkitCmd != null) { bukkitCmd.setExecutor(cmd); bukkitCmd.setTabCompleter(cmd); }
         getServer().getPluginManager().registerEvents(new MobListener(this), this);
+        if (upgradeManager != null) getServer().getPluginManager().registerEvents(upgradeManager, this);
+        if (spectatorCompass != null) getServer().getPluginManager().registerEvents(spectatorCompass, this);
     }
 
     @Override protected boolean supportsTestArena() { return true; }
@@ -152,5 +158,7 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
     public WorldCloner            getWorldCloner()   { return worldCloner; }
     public VoidWorldManager       getVoidWorldManager() { return voidWorldManager; }
     public KitManager             getKitManager()    { return kitManager; }
+    public nl.kmc.mayhem.managers.UpgradeManager getUpgradeManager() { return upgradeManager; }
+    public nl.kmc.mayhem.managers.SpectatorCompass getSpectatorCompass() { return spectatorCompass; }
     public MobMayhemGameManagerV2 getGameManagerV2() { return mobMayhemV2; }
 }

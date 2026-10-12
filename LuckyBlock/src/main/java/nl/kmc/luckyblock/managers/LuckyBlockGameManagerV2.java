@@ -75,10 +75,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
                     @Override public String introTitle() { return "§6§lLUCKY BLOCK"; }
                     @Override public List<String> defaultTutorialMessages() {
                         return List.of(
-                                "§6§l» §fSla lucky blocks kapot voor willekeurige loot.",
-                                "§6§l» §fSoms goed, soms... minder goed.",
-                                "§6§l» §fEen gevecht eliminert spelers permanent.",
-                                "§6§l» §fLaatste speler die overblijft wint!");
+                                "@lb.tut.1", "@lb.tut.2", "@lb.tut.3", "@lb.tut.4");
                     }
                     @Override public Location flyoverCenter() {
                         return plugin.getKmcCore().getSchematicManager().getOriginForGame("lucky_block");
@@ -161,7 +158,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§6[LuckyBlock] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -177,6 +174,8 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
         l.add(api.tr(id, "sb.luckyblock.tip2"));
         return l;
     }
+
+    @Override protected boolean handlesPlayerPvp() { return true; }
 
     @Override
     protected ArenaValidator getArenaValidator() {
@@ -204,12 +203,11 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
         Player p = Bukkit.getPlayer(uuid);
         if (p != null) {
             p.setGameMode(GameMode.SPECTATOR);
-            p.sendTitle(ChatColor.RED + "" + ChatColor.BOLD + "Eliminated!",
-                    ChatColor.GRAY + "Wait for the game to end.", 10, 50, 10);
+            p.sendTitle(api.tr(uuid, "lb.out.title"), api.tr(uuid, "lb.out.sub"), 10, 50, 10);
         }
 
         int killerPts = plugin.getConfig().getInt("points.per-elimination", 35);
-        broadcast("§c☠ §7" + name + " §7was eliminated! §e" + alivePlayers.size() + " §7players left.");
+        tellKey("lb.eliminated", name, alivePlayers.size());
 
         // Award survival bonus to remaining players
         int survivalBonus = plugin.getConfig().getInt("points.survival-bonus", 5);
@@ -238,7 +236,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
     private void updateBossBar() {
         if (bossBar == null) return;
         bossBar.setTitle(ChatColor.GOLD + "" + ChatColor.BOLD + "Lucky Block §8| §e"
-                + alivePlayers.size() + " §7players alive");
+                + alivePlayers.size() + " §7👤");
     }
 
     private void returnToLobby() {
@@ -250,7 +248,7 @@ public final class LuckyBlockGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
         plugin.getTracker().clear();
         plugin.getKmcCore().getArenaManager().resetArenaForGame("lucky_block");

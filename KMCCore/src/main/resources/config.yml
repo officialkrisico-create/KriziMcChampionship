@@ -35,7 +35,8 @@ automation:
   prestart-seconds: 10
 
   # How many games are played per round before the multiplier goes up
-  games-per-round: 3
+  # 0 = automatic: enabled games divided by total rounds (16 games / 8 rounds = 2 per round)
+  games-per-round: 2
 
   # Seconds between repetitions of the same game (when repetitions > 1)
   # Used for brief intermission / schematic reset time
@@ -263,6 +264,18 @@ games:
       min-players: 1
       repetitions: 1
 
+    hole_in_the_wall:
+      display-name: "Hole in the Wall"
+      icon: BRICK_WALL
+      min-players: 2
+      repetitions: 1
+
+    formula_mc:
+      display-name: "Formula MC"
+      icon: BLUE_ICE
+      min-players: 1
+      repetitions: 1
+
 # -----------------------------------------------------------------------
 # Points
 # -----------------------------------------------------------------------
@@ -345,3 +358,8 @@ commentary:
   # Games die al hun eigen chat-melding voor het moment sturen (alleen de titel wordt dan getoond)
   skip-chat-games:
     - tnt_tag
+
+# Flyovers / camera-routes: spectate een onzichtbare camera die client-side wordt geinterpoleerd (replay-mod gevoel).
+# Zet op false om terug te vallen op losse teleports per tick.
+cinematic:
+  smooth-camera: true

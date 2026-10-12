@@ -199,6 +199,12 @@ commands:
     permission: kmc.tournament.admin
     aliases: [kmcreadycheck, kmceventcheck, kmcdiagnostics]
 
+  kmcopeningsceremony:
+    description: Set up the opening ceremony fireworks per moment
+    usage: /kmcopeningsceremony [gui|list|test [moment]|addspot <moment>|clear <moment>]
+    permission: kmc.admin
+    aliases: [kmcopening, kmcceremonyfx]
+
   kmccamera:
     description: Record and manage cinematic camera routes
     usage: /kmccamera <list|info|create|addpoint|removepoint|save|discard|preview|delete|reload|stop> [args]

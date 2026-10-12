@@ -1,0 +1,253 @@
+achievements:
+  - id: adventure_champion
+    name: "Escape Artist"
+    description: "Win a game of Adventure Escape"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: MAP
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: adventure_escape
+
+  - id: adventure_legend
+    name: "Master of Escapes"
+    description: "Win 3 games of Adventure Escape"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: COMPASS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: adventure_escape
+    progress_target: 3
+
+  - id: bingo_champion
+    name: "Bingo!"
+    description: "Win a game of Bingo"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: PAPER
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: bingo_teams
+
+  - id: bingo_legend
+    name: "Full House"
+    description: "Win 3 games of Bingo"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: WRITABLE_BOOK
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: bingo_teams
+    progress_target: 3
+
+  - id: elytra_champion
+    name: "Wind Rider"
+    description: "Win a game of Elytra Endrium"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: ELYTRA
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: elytra_endrium
+
+  - id: elytra_legend
+    name: "Endrium Ace"
+    description: "Win 3 games of Elytra Endrium"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: FIREWORK_ROCKET
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: elytra_endrium
+    progress_target: 3
+
+  - id: luckyblock_champion
+    name: "Lucky Streak"
+    description: "Win a game of Lucky Block"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: GOLD_BLOCK
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: lucky_block
+
+  - id: luckyblock_legend
+    name: "Fortune's Favourite"
+    description: "Win 3 games of Lucky Block"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: RABBIT_FOOT
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: lucky_block
+    progress_target: 3
+
+  - id: parkour_champion
+    name: "Parkour Warrior"
+    description: "Win a game of Parkour Warrior"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: LEATHER_BOOTS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: parkour_warrior
+
+  - id: parkour_legend
+    name: "Unstoppable Runner"
+    description: "Win 3 games of Parkour Warrior"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: DIAMOND_BOOTS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: parkour_warrior
+    progress_target: 3
+
+  - id: quake_champion
+    name: "Sharpshooter"
+    description: "Win a game of QuakeCraft"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: BOW
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: quake_craft
+
+  - id: quake_legend
+    name: "Railgun Royalty"
+    description: "Win 3 games of QuakeCraft"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: SPECTRAL_ARROW
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: quake_craft
+    progress_target: 3
+
+  - id: speedbuild_champion
+    name: "Quick Builder"
+    description: "Win a game of Speed Build"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: BRICKS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: speed_build
+
+  - id: speedbuild_legend
+    name: "Master Architect"
+    description: "Win 3 games of Speed Build"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: GOLDEN_PICKAXE
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: speed_build
+    progress_target: 3
+
+  - id: spleef_champion
+    name: "Floor Breaker"
+    description: "Win a game of Spleef"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: DIAMOND_SHOVEL
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: spleef_teams
+
+  - id: spleef_legend
+    name: "Ground Zero"
+    description: "Win 3 games of Spleef"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: NETHERITE_SHOVEL
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: spleef_teams
+    progress_target: 3
+
+  - id: sg_champion
+    name: "Last Tribute"
+    description: "Win a game of Survival Games"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: IRON_SWORD
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: survival_games
+
+  - id: sg_legend
+    name: "District Legend"
+    description: "Win 3 games of Survival Games"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: DIAMOND_SWORD
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: survival_games
+    progress_target: 3
+
+  - id: skywars_champion
+    name: "Sky High"
+    description: "Win a game of SkyWars"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: FEATHER
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: team_skywars
+
+  - id: skywars_legend
+    name: "Sky Lord"
+    description: "Win 3 games of SkyWars"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: ENDER_EYE
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: team_skywars
+    progress_target: 3
+
+  - id: tgttos_champion
+    name: "Chicken Crosser"
+    description: "Win a game of TGTTOS"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: EGG
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: tgttos
+
+  - id: tgttos_legend
+    name: "Road Master"
+    description: "Win 3 games of TGTTOS"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: GOLDEN_CARROT
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: tgttos
+    progress_target: 3
+
+  - id: bridge_champion
+    name: "Bridge Builder"
+    description: "Win a game of The Bridge"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: STONE_BRICKS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: the_bridge
+
+  - id: bridge_legend
+    name: "Bridge Keeper"
+    description: "Win 3 games of The Bridge"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: IRON_BARS
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: the_bridge
+    progress_target: 3
+

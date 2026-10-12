@@ -26,7 +26,7 @@ public final class BossBarManager {
         BossBar bar = bars.get(p.getUniqueId());
         if (bar == null) return;
         bar.setProgress(Math.max(0, Math.min(1, (buildNumber - 1) / 10.0)));
-        bar.setTitle("§e§lSpeed Build §8| §fBuild §e" + buildNumber + "§7/§e10 §8| §6" + (int) totalScore + " ptn");
+        bar.setTitle("§e§lSpeed Build §8| §fBuild §e" + buildNumber + "§7/§e10 §8| §6" + (int) totalScore);
     }
 
     public void remove(Player p) {

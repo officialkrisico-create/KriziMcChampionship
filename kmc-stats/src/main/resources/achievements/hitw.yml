@@ -1,0 +1,33 @@
+achievements:
+  - id: hitw_needle
+    name: "Needle Threader"
+    description: "Survive 25 walls in a single Hole in the Wall round"
+    category: MOVEMENT
+    rarity: RARE
+    icon: TARGET
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: hole_in_the_wall
+    objective_type: WALLS_SURVIVED_MILESTONE
+
+  - id: hitw_last_through
+    name: "Last Through the Wall"
+    description: "Be the last player standing in a Hole in the Wall round"
+    category: MOVEMENT
+    rarity: COMMON
+    icon: BRICK_WALL
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: hole_in_the_wall
+    objective_type: LAST_STANDING
+
+  - id: hitw_clean_sweep
+    name: "Clean Sweep"
+    description: "Win every round of Hole in the Wall"
+    category: CHAMPIONSHIP
+    rarity: EPIC
+    icon: NETHER_STAR
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: hole_in_the_wall
+    objective_type: CLEAN_SWEEP

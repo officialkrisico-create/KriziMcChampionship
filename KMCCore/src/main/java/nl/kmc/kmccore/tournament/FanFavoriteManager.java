@@ -43,7 +43,7 @@ public final class FanFavoriteManager {
         Bukkit.broadcastMessage(MessageUtil.color(
                 "&6&l🌟 Stem op je Fan Favorite van dit toernooi! &7(" + seconds + "s)"));
         for (Player p : Bukkit.getOnlinePlayers()) {
-            new FanFavoriteVoteGui(plugin, this).open(p);
+            new FanFavoriteVoteGui(plugin, this, p).open(p);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.2f);
         }
 
@@ -53,6 +53,16 @@ public final class FanFavoriteManager {
     /** Casts (or changes) one player's vote. Ignored once voting has closed. */
     public void castVote(Player voter, UUID candidate) {
         if (!active) return;
+        if (voter.getUniqueId().equals(candidate)) {
+            voter.sendMessage(MessageUtil.color("&cJe kunt niet op jezelf stemmen."));
+            return;
+        }
+        var mine   = plugin.getTeamManager().getTeamByPlayer(voter.getUniqueId());
+        var theirs = plugin.getTeamManager().getTeamByPlayer(candidate);
+        if (mine != null && theirs != null && mine.getId().equals(theirs.getId())) {
+            voter.sendMessage(MessageUtil.color("&cJe kunt niet op je eigen team stemmen."));
+            return;
+        }
         votes.put(voter.getUniqueId(), candidate);
         voter.sendMessage(MessageUtil.color("&a✔ Stem genoteerd."));
     }

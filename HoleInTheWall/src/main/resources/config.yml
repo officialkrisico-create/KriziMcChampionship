@@ -1,0 +1,264 @@
+# ================================================================
+# Hole in the Wall — Configuration
+# ================================================================
+# Straight walls with gaps sweep across a round platform over the void.
+# A wall that hits you shoves you toward the edge; fall off the platform and you're out. Last one standing wins the round;
+# placements per round add up to the final standing.
+#
+# Set up the platform with:  /hitw setcenter  →  /hitw setradius <n>  →  /hitw build
+# Look at a wall without playing:  /hitw testwall <type> [degrees]
+
+# ----------------------------------------------------------------------
+# Start presentation — intro, arena flyover, tutorial tips, countdown
+# ----------------------------------------------------------------------
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Ontwijk de muren — spring, sneak of loop door het gat"
+  flyover-radius: 26
+  tutorial-seconds: 8
+  countdown-seconds: 5
+  #tutorial-messages: ["Eigen regel 1", "Eigen regel 2"]  # overrides the built-in lines
+
+# Shortened pre-game wait (the start presentation above already builds the tension)
+games:
+  hole_in_the_wall:
+    countdown: 5
+    grace-period: 3
+
+# ----------------------------------------------------------------------
+# Arena (set with /hitw commands)
+# ----------------------------------------------------------------------
+arena:
+  radius: 18
+  platform-material: SMOOTH_QUARTZ
+  border-material: RED_CONCRETE      # the outer ring, so the edge is clearly visible
+
+# ----------------------------------------------------------------------
+# Rounds
+# ----------------------------------------------------------------------
+game:
+  rounds: 3
+  round-max-seconds: 120             # if several players are still alive then, they share first place
+  round-countdown-seconds: 3
+  round-results-seconds: 8
+  first-wall-delay-seconds: 2.5
+
+# ----------------------------------------------------------------------
+# Wall speed (blocks per second) over the course of a round. Linear in between.
+# ----------------------------------------------------------------------
+speed-curve:
+  - { t: 0,  speed: 5 }              # slow
+  - { t: 20, speed: 8 }              # normal
+  - { t: 40, speed: 12 }             # fast
+  - { t: 60, speed: 16 }             # very fast (stays at the last value)
+
+# ----------------------------------------------------------------------
+# Wall behaviour
+# ----------------------------------------------------------------------
+walls:
+  spawn-margin: 14                   # blocks beyond the platform edge where a wall appears
+  exit-margin: 10                    # walls are removed this far past the other edge
+  spacing-blocks: 22                 # distance between walls (so the time between them shrinks as they speed up)
+  min-arrival-separation-seconds: 1.1  # a faster wall never starts so close behind another that they overlap
+  update-ticks: 2                    # how often wall visuals are updated (collision is checked EVERY tick)
+  directions: [0, 45, 90, 135, 180, 225, 270, 315]   # sides walls can come from (0 = east, 90 = south)
+  sprint-speed: 5.6                  # how far a player can run — used to keep every gap reachable
+  reach-factor: 0.55
+  min-reach: 4.0
+  gap:
+    players-for-base: 6              # with this many players alive (or fewer) gaps have their normal width
+    extra-per-player: 0.08           # +8% gap width per extra player...
+    max-scale: 2.2                   # ...up to this multiplier
+
+# ----------------------------------------------------------------------
+# Collision — exact, per tick, against the real wall geometry
+# ----------------------------------------------------------------------
+collision:
+  player-radius: 0.3
+  tolerance: 0.05                    # grazing the corner of a hole is NOT a hit
+  stand-height: 1.8
+  sneak-height: 1.5                  # a HIGH wall's underside is above this, so sneaking passes beneath it
+  fall-below: 3.0                    # fall this far below the platform = eliminated
+
+# ----------------------------------------------------------------------
+# Wall types. shape HOLES = a full wall with openings, BAR = one bar from y-min to y-max.
+# Add your own: copy an entry, change the numbers/material.
+# ----------------------------------------------------------------------
+wall-types:
+  NORMAL:
+    shape: HOLES
+    display-name: "NORMAL"
+    material: ORANGE_CONCRETE
+    holes: 1
+    gap-width: 3.0
+    height: 5.0
+    thickness: 1.0
+    speed-mult: 1.0
+  DOUBLE_HOLE:
+    shape: HOLES
+    display-name: "DOUBLE HOLE"
+    material: PURPLE_CONCRETE
+    holes: 2
+    gap-width: 2.6
+    height: 5.0
+    thickness: 1.0
+    speed-mult: 1.0
+  SPLIT:
+    shape: HOLES
+    display-name: "SPLIT"
+    material: PINK_CONCRETE
+    holes: 4
+    gap-width: 1.7
+    height: 5.0
+    thickness: 1.0
+    speed-mult: 1.0
+  LOW:
+    shape: BAR                       # jump over it
+    display-name: "LOW WALL"
+    material: YELLOW_CONCRETE
+    y-min: 0.0
+    y-max: 0.7
+    thickness: 0.5
+    speed-mult: 1.0
+  HIGH:
+    shape: BAR                       # sneak under it
+    display-name: "HIGH WALL"
+    material: CYAN_CONCRETE
+    y-min: 1.6
+    y-max: 4.5
+    thickness: 0.7
+    speed-mult: 1.0
+  FAST:
+    shape: HOLES
+    display-name: "FAST"
+    material: RED_CONCRETE
+    holes: 1
+    gap-width: 3.4                   # a bit wider to compensate for the speed
+    height: 5.0
+    thickness: 1.0
+    speed-mult: 1.6
+
+# ----------------------------------------------------------------------
+# Patterns — a pattern is a run of walls from ONE direction; the next pattern comes from another.
+# weight = how likely; min-time/max-time = seconds into the round it can appear;
+# rotation = degrees/second the walls swing around the centre (random direction); speed-mult = extra speed.
+# ----------------------------------------------------------------------
+patterns:
+  single_hole:
+    weight: 4
+    steps: [ { type: NORMAL, count: 4 } ]
+  double_hole:
+    weight: 3
+    min-time: 8
+    steps: [ { type: DOUBLE_HOLE, count: 3 } ]
+  low_wall:
+    weight: 3
+    min-time: 5
+    steps: [ { type: LOW, count: 3 } ]
+  high_wall:
+    weight: 3
+    min-time: 12
+    steps: [ { type: HIGH, count: 3 } ]
+  split_hole:
+    weight: 2
+    min-time: 20
+    steps: [ { type: SPLIT, count: 3 } ]
+  fast_wall:
+    weight: 2
+    min-time: 25
+    steps: [ { type: FAST, count: 3 } ]
+  alternating_height:
+    weight: 3
+    min-time: 20
+    steps:
+      - { type: LOW,    count: 1 }
+      - { type: HIGH,   count: 1 }
+      - { type: LOW,    count: 1 }
+      - { type: HIGH,   count: 1 }
+      - { type: NORMAL, count: 1 }
+  mixed:
+    weight: 2
+    min-time: 15
+    steps:
+      - { type: NORMAL,      count: 1 }
+      - { type: LOW,         count: 1 }
+      - { type: DOUBLE_HOLE, count: 1 }
+      - { type: HIGH,        count: 1 }
+  sweeping_wall:
+    weight: 1
+    min-time: 30
+    rotation: 6
+    steps: [ { type: NORMAL, count: 2 } ]
+
+# ----------------------------------------------------------------------
+# Special events — temporary twists. Every number below is a parameter, so new events are just new entries.
+#   duration 0 = instant (only speed-bonus applies, and it stays for the rest of the round)
+#   speed-mult / spacing-mult / gap-scale multiply while active; pattern-weights make patterns more likely
+# ----------------------------------------------------------------------
+events:
+  enabled: true
+  start-after-seconds: 15
+  min-gap-seconds: 10
+  max-gap-seconds: 22
+  list:
+    speed_surge:
+      weight: 3
+      duration: 8
+      title: "SPEED SURGE"
+      subtitle: "&7De muren gaan sneller!"
+      sound: ENTITY_WITHER_SPAWN
+      speed-mult: 1.35
+    double_trouble:
+      weight: 2
+      duration: 10
+      title: "MURENREGEN"
+      subtitle: "&7Muren komen dicht op elkaar!"
+      sound: ENTITY_ENDER_DRAGON_GROWL
+      spacing-mult: 0.55
+    tiny_holes:
+      weight: 2
+      duration: 10
+      title: "KLEINE GATEN"
+      subtitle: "&7De openingen krimpen!"
+      sound: BLOCK_BEACON_DEACTIVATE
+      gap-scale: 0.7
+    height_chaos:
+      weight: 2
+      duration: 14
+      title: "HOOGTE-CHAOS"
+      subtitle: "&7Springen en bukken!"
+      sound: ENTITY_PHANTOM_SWOOP
+      pattern-weights: { low_wall: 4, high_wall: 4, alternating_height: 5 }
+    speed_spike:
+      weight: 1
+      duration: 0
+      title: "PLOTSELINGE VERSNELLING"
+      subtitle: "&7Het tempo gaat omhoog!"
+      sound: ENTITY_LIGHTNING_BOLT_THUNDER
+      speed-bonus: 1.5
+
+# ----------------------------------------------------------------------
+# Points. Each round awards points by placement (survivors share 1st). The total after the last round
+# decides the final standing, which is paid out through the normal KMC placement scoring.
+# ----------------------------------------------------------------------
+points:
+  round-placement:
+    1: 100
+    2: 75
+    3: 60
+    4: 50
+    5: 40
+    6: 30
+    7: 25
+    8: 20
+    9: 15
+    10: 10
+    default: 5
+  # Walls survived in one round that triggers the "Needle Threader" achievement
+  walls-milestone: 25

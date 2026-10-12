@@ -181,6 +181,7 @@ public class ChestStocker {
     private ItemStack buildStack(LootEntry e, Random rng) {
         int amount = e.minAmount() + rng.nextInt(Math.max(1, e.maxAmount() - e.minAmount() + 1));
         ItemStack stack = new ItemStack(e.material(), amount);
+        nl.kmc.game.api.PotionLoot.apply(stack, rng, null);
         if (!e.enchants().isEmpty()) {
             for (var entry : e.enchants().entrySet()) {
                 try {

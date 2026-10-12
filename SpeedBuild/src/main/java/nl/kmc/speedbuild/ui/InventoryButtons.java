@@ -29,13 +29,14 @@ public final class InventoryButtons {
     }
 
     public void give(Player p, boolean finalStage) {
-        p.getInventory().setItem(0, make(Material.GREEN_WOOL, "§a§lVOLTOOI BUILD", Button.COMPLETE,
-                "§7Klik om te scoren en door te gaan."));
-        p.getInventory().setItem(7, make(Material.RED_WOOL, "§c§lBEKIJK BLUEPRINT", Button.BLUEPRINT,
-                "§7Toont de te bouwen schematic nog eens."));
+        var lm = nl.kmc.kmccore.KMCCore.getInstance().getLanguageManager();
+        p.getInventory().setItem(0, make(Material.GREEN_WOOL, lm.tr(p, "speedbuild.btn.complete"), Button.COMPLETE,
+                lm.tr(p, "speedbuild.btn.complete-lore")));
+        p.getInventory().setItem(7, make(Material.RED_WOOL, lm.tr(p, "speedbuild.btn.blueprint"), Button.BLUEPRINT,
+                lm.tr(p, "speedbuild.btn.blueprint-lore")));
         if (finalStage)
-            p.getInventory().setItem(8, make(Material.GOLD_BLOCK, "§6§lVOLTOOI UITDAGING", Button.FINISH,
-                    "§7Beëindig en stuur je score naar je team."));
+            p.getInventory().setItem(8, make(Material.GOLD_BLOCK, lm.tr(p, "speedbuild.btn.finish"), Button.FINISH,
+                    lm.tr(p, "speedbuild.btn.finish-lore")));
         else
             p.getInventory().setItem(8, null);
         p.getInventory().setHeldItemSlot(0);

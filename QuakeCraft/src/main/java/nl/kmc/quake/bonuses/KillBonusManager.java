@@ -232,7 +232,7 @@ public class KillBonusManager {
         api.givePoints(p.getUniqueId(), points);
 
         String banner = ChatColor.translateAlternateColorCodes('&', type.banner);
-        p.sendTitle(banner, ChatColor.GREEN + "+" + points + " points",
+        p.sendTitle(banner, plugin.getKmcCore().getLanguageManager().tr(p, "qc.bonus-points", points),
                 5, 30, 10);
         p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.5f);
         // Broadcast the more dramatic ones

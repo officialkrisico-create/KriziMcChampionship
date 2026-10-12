@@ -54,8 +54,14 @@ public final class StandardStartFlow {
         /** Shown as the big intro title (e.g. "§c§lQUAKECRAFT"). */
         String introTitle();
 
-        /** Default tutorial lines if {@code start-sequence.tutorial-messages} isn't set. */
+        /**
+         * Default tutorial lines if {@code start-sequence.tutorial-messages} isn't set. A line starting with
+         * {@code @} is a language key ("@sw.tut.1") shown to each player in their own language.
+         */
         default List<String> defaultTutorialMessages() { return List.of(); }
+
+        /** Intro subtitle; a leading {@code @} makes it a language key. {@code null} = use the config value. */
+        default String introSubtitle() { return null; }
 
         /**
          * Centre point for the auto-generated flyover fallback (only used if
@@ -97,12 +103,9 @@ public final class StandardStartFlow {
      */
     public void prepareAndFreeze() {
         int freezeTicks = 20 * 60 * 10; // generous ceiling — explicitly removed in finish(), never relies on expiry
-        PotionTypeHolder jump = PotionTypeHolder.jumpBoost();
         for (Player p : callbacks.participants()) {
             GamePlayerUtil.freezePlayer(p, freezeTicks);
-            if (jump.type() != null) {
-                p.addPotionEffect(new org.bukkit.potion.PotionEffect(jump.type(), freezeTicks, 128, true, false, false));
-            }
+            GamePlayerUtil.freezeJump(p, freezeTicks);
         }
     }
 
@@ -135,9 +138,12 @@ public final class StandardStartFlow {
     // ── Stages ───────────────────────────────────────────────────────────────
 
     private void showIntroduction() {
-        String sub = plugin.getConfig().getString("start-sequence.intro-subtitle", "");
+        String cfgSub = plugin.getConfig().getString("start-sequence.intro-subtitle", "");
+        String keyed = callbacks.introSubtitle();
         for (Player p : callbacks.participants()) {
-            p.sendTitle(callbacks.introTitle(), ChatColor.translateAlternateColorCodes('&', "&e" + sub), 8, 70, 12);
+            String sub = keyed != null ? resolve(p, keyed)
+                    : ChatColor.translateAlternateColorCodes('&', "&e" + cfgSub);
+            p.sendTitle(resolve(p, callbacks.introTitle()), sub, 8, 70, 12);
             p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.01);
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
@@ -164,7 +170,7 @@ public final class StandardStartFlow {
             long step = msgs.isEmpty() ? 0 : Math.max(20L, (tutSec * 20L) / msgs.size());
             for (int i = 0; i < msgs.size(); i++) {
                 final String m = msgs.get(i);
-                schedule(t + i * step, () -> broadcast.accept(m));
+                schedule(t + i * step, () -> showTutorialLine(m));
             }
             t += tutSec * 20L;
         }
@@ -184,21 +190,38 @@ public final class StandardStartFlow {
 
     private void showCountdownNumber(int n) {
         for (Player p : callbacks.participants()) {
-            p.sendTitle("§e§l" + n, "§7Maak je klaar...", 0, 22, 4);
+            p.sendTitle("§e§l" + n, api.tr(p.getUniqueId(), "flow.get-ready"), 0, 22, 4);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.2f);
         }
     }
 
     private void finish() {
-        PotionTypeHolder jump = PotionTypeHolder.jumpBoost();
         for (Player p : callbacks.participants()) {
-            GamePlayerUtil.unfreezePlayer(p);
-            if (jump.type() != null) p.removePotionEffect(jump.type());
+            GamePlayerUtil.unfreezePlayer(p);   // slowness + jump freeze
         }
         callbacks.onFinished();
     }
 
     // ── Config / scheduling helpers ────────────────────────────────────────────
+
+    /** "@key" or "@key|arg0|arg1" → the player's translation of key; anything else is returned unchanged. */
+    private String resolve(Player p, String text) {
+        if (text != null && text.startsWith("@")) {
+            String[] parts = text.substring(1).split("\\|");
+            Object[] args = new Object[Math.max(0, parts.length - 1)];
+            System.arraycopy(parts, 1, args, 0, args.length);
+            return api.tr(p.getUniqueId(), parts[0], args);
+        }
+        return text;
+    }
+
+    private void showTutorialLine(String m) {
+        if (m.startsWith("@")) {
+            for (Player p : callbacks.participants()) p.sendMessage(resolve(p, m));
+        } else {
+            broadcast.accept(m);
+        }
+    }
 
     private List<String> tutorialMessages() {
         List<String> cfg = plugin.getConfig().getStringList("start-sequence.tutorial-messages");

@@ -35,6 +35,10 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private StandardStartFlow startFlow;
 
+    /** True from "GO!" until the game ends — the old RaceManager-gated listeners key off this. */
+    private volatile boolean raceLive;
+    private BukkitTask pollTask;
+
     public AdventureEscapeGameManagerV2(AdventureEscapePlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
         this.plugin = plugin;
@@ -56,10 +60,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.setHealth(20); p.setFoodLevel(20);
 
-            int countdownSec = plugin.getConfig().getInt("game.countdown-seconds", 10);
-            p.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, countdownSec * 20, 255, true, false, false));
-            p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, countdownSec * 20, 128, true, false, false));
-
+            // Freezing is handled by StandardStartFlow (lasts through intro/flyover/countdown).
             racers.put(p.getUniqueId(), new RacerData(p.getUniqueId(), p.getName()));
         }
 
@@ -76,12 +77,9 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§a§lADVENTURE ESCAPE"; }
+                    @Override public String introSubtitle() { return "@ae.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§a§l» §fRace door de puzzel-ontsnappingsroute.",
-                                "§a§l» §fRaak checkpoints om je voortgang te bewaren.",
-                                "§a§l» §fBuiten de route? Je respawnt bij je laatste checkpoint.",
-                                "§a§l» §fAls eerste alle rondes voltooien wint!");
+                        return List.of("@ae.tut.1", "@ae.tut.2", "@ae.tut.3", "@ae.tut.4");
                     }
                     @Override public Location flyoverCenter() { return center; }
                     @Override public void onFinished() { beginRace(); }
@@ -100,6 +98,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
     }
 
     private void beginRace() {
+        raceLive = true;
         long now = System.currentTimeMillis();
 
         for (RacerData rd : racers.values()) {
@@ -107,8 +106,11 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             rd.startFirstLap(now);
             Player p = Bukkit.getPlayer(rd.getUuid());
             if (p == null) continue;
+            // Only the boots show: invisible racers in team-coloured boots.
+            var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
+            nl.kmc.game.api.FeetOnlyVisibility.apply(p, team != null ? team.getColor() : null);
             p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
-                    ChatColor.YELLOW + "Race is live!", 0, 40, 10);
+                    api.tr(p.getUniqueId(), "ae.go-sub"), 0, 40, 10);
         }
 
         bossBar.setColor(BarColor.GREEN);
@@ -120,10 +122,21 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
                     racers.keySet().stream().map(Bukkit::getPlayer).filter(Objects::nonNull).toList());
         }
 
+        // Position poll every 2 ticks: finish / checkpoints / effect blocks also work for bots and teleports
+        // (neither fires move events) and for generous effect-block overlap.
+        pollTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!raceLive) return;
+            for (UUID id : new ArrayList<>(racers.keySet())) {
+                Player p = Bukkit.getPlayer(id);
+                if (p == null || !p.isOnline()) continue;
+                plugin.getLineCrossListener().check(p, p.getLocation());
+                plugin.getBlockStepListener().check(p);
+            }
+        }, 2L, 2L);
+
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long t = System.currentTimeMillis();
             racers.values().forEach(rd -> rd.tickUpdate(t));
-            plugin.getRaceScoreboard().refresh();
             if (plugin.getCheckpointManager() != null)
                 plugin.getCheckpointManager().tickCheckpointDetection(racers.keySet());
         }, 20L, 10L);
@@ -131,14 +144,23 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         int maxDuration = plugin.getConfig().getInt("game.max-duration-seconds", 600);
         if (maxDuration > 0) {
             timeLimitTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (getState().isRunning()) { broadcast("§c[Adventure Escape] §eTime's up!"); end(); }
+                if (getState().isRunning()) { tellKey("ae.time-up"); end(); }
             }, maxDuration * 20L);
         }
     }
 
     @Override
     protected void onGameEnd() {
-        if (tickTask      != null) { tickTask.cancel();      tickTask      = null; }
+        raceLive = false;
+        if (pollTask != null) { pollTask.cancel(); pollTask = null; }
+        for (UUID id : racers.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) nl.kmc.game.api.FeetOnlyVisibility.clear(p);
+        }
+        if (plugin.getTrialKeyManager() != null) plugin.getTrialKeyManager().onRaceEnd();
+        if (plugin.getCheckpointManager() != null) plugin.getCheckpointManager().resetAllRacerState();
+        plugin.getRaceScoreboard().cleanup();
+        if (tickTask     != null) { tickTask.cancel();      tickTask      = null; }
         if (timeLimitTask != null) { timeLimitTask.cancel(); timeLimitTask = null; }
         if (bossBar       != null) { bossBar.removeAll();    bossBar       = null; }
         if (startFlow     != null) { startFlow.cancel();     startFlow     = null; }
@@ -191,7 +213,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§a[Adventure Escape] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -228,8 +250,12 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
+    public boolean isRaceLive() { return raceLive; }
+
+    public List<UUID> getFinishOrder() { return Collections.unmodifiableList(finishOrder); }
+
     public void onPlayerCrossFinish(Player player) {
-        if (!getState().isRunning()) return;
+        if (!raceLive || !getState().isRunning()) return;
         RacerData rd = racers.get(player.getUniqueId());
         if (rd == null || rd.hasFinished()) return;
 
@@ -248,17 +274,24 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             int finishBonus = plugin.getConfig().getInt("points.finish-bonus", 150);
             api.points().givePoints(player.getUniqueId(), finishBonus, PointAward.Reason.OBJECTIVE, registration.getId());
 
-            broadcast("§6[Adventure Escape] §e" + player.getName() + " §bfinished #" + placement
-                    + " §7(" + RacerData.formatMs(rd.getTotalTimeMs()) + ")");
+            tellKey("ae.finished", player.getName(), placement, RacerData.formatMs(rd.getTotalTimeMs()));
             player.sendTitle(ChatColor.GOLD + "#" + placement,
-                    ChatColor.YELLOW + "Time: " + RacerData.formatMs(rd.getTotalTimeMs()), 10, 60, 20);
+                    api.tr(player.getUniqueId(), "ae.time", RacerData.formatMs(rd.getTotalTimeMs())), 10, 60, 20);
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
             player.setGameMode(GameMode.SPECTATOR);
 
+            if (finishOrder.size() == 1 && racers.size() > 1) {
+                int grace = plugin.getConfig().getInt("game.finish-grace-seconds", 60);
+                if (grace > 0) {
+                    tellKey("ae.grace", grace);
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        if (getState().isRunning()) { tellKey("ae.grace-over"); end(); }
+                    }, grace * 20L);
+                }
+            }
             if (finishOrder.size() >= racers.size()) end();
         } else {
-            broadcast("§6[Adventure Escape] §e" + player.getName() + " §7completed lap §6"
-                    + rd.getLapsCompleted() + "/" + targetLaps);
+            tellKey("ae.lap", player.getName(), rd.getLapsCompleted(), targetLaps);
         }
     }
 
@@ -275,7 +308,7 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 }

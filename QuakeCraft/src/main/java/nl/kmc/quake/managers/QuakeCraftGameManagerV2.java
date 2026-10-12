@@ -69,6 +69,9 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
     }
 
     // ── INITIALIZING ────────────────────────────────────────────────────────
+    /** Hit-scan shooter: nobody should be readable (or targetable) by the floating nametag. */
+    @Override protected boolean hidesNametags() { return true; }
+
     @Override
     protected void onPrepare() {
         phase = MatchPhase.INITIALIZING;
@@ -79,7 +82,8 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         cancelStartFlow();
 
         // Players stay frozen for the entire presentation (intro+tutorial+countdown).
-        int freezeTicks = Math.max(20, totalStartSeconds() * 20);
+        // + 45 s head-room for the arena flyover; beginRunning() lifts the freeze explicitly.
+        int freezeTicks = Math.max(20, totalStartSeconds() * 20) + 45 * 20;
         PotionEffectType jumpType = effect("jump_boost");
 
         assignTeamSpawns();
@@ -88,7 +92,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             p.teleport(teamSpawnFor(p));
             GamePlayerUtil.resetPlayer(p);
             GamePlayerUtil.freezePlayer(p, freezeTicks);
-            if (jumpType != null) p.addPotionEffect(new PotionEffect(jumpType, freezeTicks, 128, true, false, false));
+            GamePlayerUtil.freezeJump(p, freezeTicks);
         }
 
         bossBar = Bukkit.createBossBar(ChatColor.RED + "" + ChatColor.BOLD + "QuakeCraft",
@@ -123,10 +127,10 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) continue;
             GamePlayerUtil.unfreezePlayer(p);
-            if (jumpType != null) p.removePotionEffect(jumpType);
+            GamePlayerUtil.unfreezeJump(p);
             giveBaseLoadout(p);
             p.sendTitle(ChatColor.GREEN + "" + ChatColor.BOLD + "GO!",
-                    ChatColor.YELLOW + "Veel succes en plezier!", 0, 40, 10);
+                    api.tr(p.getUniqueId(), "qc.go-sub"), 0, 40, 10);
         }
         nl.kmc.quake.util.Sfx.playGlobal(plugin, "match.start", Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
 
@@ -136,6 +140,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
             updateBossBar();
+            ensureBaseSpeed();
             if (remainingSeconds <= 0) { end(); return; }
             if (checkKillTargetReached()) end();
         }, 20L, 20L);
@@ -197,6 +202,33 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         long t = 0;
         if (introSec > 0) { schedule(t, this::showIntroduction); t += introSec * 20L; }
 
+        // Arena flyover (auto-generated orbit around the spawn spread unless a route was recorded with /qc cam).
+        Location center = arenaCenter();
+        if (flowEnabled("flyover") && center != null) {
+            final int tutF = tutSec, cdF = cdSec;
+            schedule(t, () -> {
+                boolean played = api.cinematics().playArenaFlyover(registration.getId(),
+                        new java.util.ArrayList<>(participants()), center,
+                        plugin.getConfig().getDouble("start-sequence.flyover-radius", 30.0),
+                        plugin.getConfig().getDouble("start-sequence.flyover-height", 0.0),
+                        () -> afterIntro(0, tutF, cdF));
+                if (!played) afterIntro(0, tutF, cdF);
+            });
+            return;
+        }
+        afterIntro(t, tutSec, cdSec);
+    }
+
+    /** Average of the arena's spawn points (the middle of the playing field), or null without spawns. */
+    private Location arenaCenter() {
+        var spawns = plugin.getArenaManager().getSpawns();
+        if (spawns.isEmpty() || spawns.get(0).getWorld() == null) return null;
+        double x = 0, y = 0, z = 0;
+        for (Location l : spawns) { x += l.getX(); y += l.getY(); z += l.getZ(); }
+        return new Location(spawns.get(0).getWorld(), x / spawns.size(), y / spawns.size(), z / spawns.size());
+    }
+
+    private void afterIntro(long t, int tutSec, int cdSec) {
         if (tutSec > 0) {
             final long base = t;
             schedule(t, () -> phase = MatchPhase.TUTORIAL);
@@ -204,7 +236,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             long step = msgs.isEmpty() ? 0 : Math.max(20L, (tutSec * 20L) / msgs.size());
             for (int i = 0; i < msgs.size(); i++) {
                 final String m = msgs.get(i);
-                schedule(base + i * step, () -> broadcast(m));
+                schedule(base + i * step, () -> showTutorialLine(m));
             }
             t += tutSec * 20L;
         }
@@ -224,30 +256,33 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     private void showIntroduction() {
         phase = MatchPhase.INTRODUCTION;
-        String sub = plugin.getConfig().getString("start-sequence.intro-subtitle",
-                "Eerste die de kill-limiet haalt wint");
         for (Player p : participants()) {
-            p.sendTitle("§c§lQUAKECRAFT", "§e" + sub, 8, 70, 12);
+            p.sendTitle("§c§lQUAKECRAFT", api.tr(p.getUniqueId(), "qc.intro-sub"), 8, 70, 12);
             p.getWorld().spawnParticle(Particle.FLAME, p.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.01);
         }
         nl.kmc.quake.util.Sfx.playGlobal(plugin, "match.intro", Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
     }
 
     private void showCountdownNumber(int n) {
-        for (Player p : participants()) p.sendTitle("§e§l" + n, "§7Maak je klaar...", 0, 22, 4);
+        for (Player p : participants()) p.sendTitle("§e§l" + n, api.tr(p.getUniqueId(), "flow.get-ready"), 0, 22, 4);
         nl.kmc.quake.util.Sfx.playGlobal(plugin, "match.countdown", Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.2f);
+    }
+
+    /** "@key" lines are shown in each player's own language; others are broadcast as they are. */
+    private void showTutorialLine(String m) {
+        if (m.startsWith("@")) {
+            int target = plugin.getConfig().getInt("game.kill-target", 25);
+            for (Player p : participants()) p.sendMessage(api.tr(p.getUniqueId(), m.substring(1), target));
+        } else {
+            broadcast(m);
+        }
     }
 
     private List<String> tutorialMessages() {
         List<String> cfg = plugin.getConfig().getStringList("start-sequence.tutorial-messages");
         if (cfg != null && !cfg.isEmpty())
             return cfg.stream().map(s -> ChatColor.translateAlternateColorCodes('&', s)).toList();
-        return List.of(
-                "§b§l» §fWelkom bij §cQuakeCraft§f!",
-                "§b§l» §fLinksklik met je §erailgun §fom een one-shot straal te vuren.",
-                "§b§l» §fPak §dpowerups §fvoor bazooka's, granaten en meer.",
-                "§b§l» §fJe kunt je eigen teamgenoten §cniet §fraken — let op je vuur!",
-                "§b§l» §fEerste tot §e" + plugin.getConfig().getInt("game.kill-target", 25) + " kills §fwint. Veel succes!");
+        return List.of("@qc.tut.1", "@qc.tut.2", "@qc.tut.3", "@qc.tut.4", "@qc.tut.5");
     }
 
     private void schedule(long delayTicks, Runnable r) {
@@ -334,6 +369,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         if (gameTimerTask != null) { gameTimerTask.cancel(); gameTimerTask = null; }
         if (bossBar       != null) { bossBar.removeAll();   bossBar       = null; }
 
+        nl.kmc.quake.weapons.MimicDeviceWeapon.restoreAll();
         plugin.getPowerupSpawner().stop();
         plugin.getMineManager().stop();
         plugin.getDecoyManager().stop();
@@ -388,7 +424,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§c[QuakeCraft] Status hersteld!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -418,6 +454,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         PlayerState shooterState = players.get(shooter.getUniqueId());
         PlayerState targetState  = players.get(target.getUniqueId());
         if (shooterState == null || targetState == null) return;
+        if (isSpawnProtected(target)) return;   // just respawned: untouchable for a moment
 
         // Centralized, global friendly-fire immunity — no damage, no kill credit,
         // no assist credit. Every weapon routes through here (or TeamUtil directly).
@@ -445,16 +482,17 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
         // Hit/kill feed: "<shooter> heeft <target> geraakt met een <weapon>".
         if (plugin.getConfig().getBoolean("game.hit-messages", true)) {
-            String wpn = weaponDisplay(weapon);
-            broadcast("§e" + shooter.getName() + " §7heeft §e" + target.getName()
-                    + " §7geraakt met een §b" + wpn + (headshot ? " §c§l✪ HEADSHOT" : ""));
+            for (Player rp : Bukkit.getOnlinePlayers()) {
+                rp.sendMessage(api.tr(rp.getUniqueId(), "qc.hit", shooter.getName(), target.getName(),
+                        weaponDisplay(rp, weapon)) + (headshot ? " §c§l✪ HEADSHOT" : ""));
+            }
         }
 
         if (isRevenge) {
             int revengeBonus = plugin.getConfig().getInt("points.revenge-kill-bonus", 25);
             if (revengeBonus > 0)
                 api.points().givePoints(shooter.getUniqueId(), revengeBonus, PointAward.Reason.BONUS, registration.getId());
-            broadcast("§d⚡ WRAAK! §7" + shooter.getName() + " §enam wraak op §7" + target.getName() + "§e!");
+            tellKey("qc.revenge", shooter.getName(), target.getName());
         }
 
         Location deathLoc = target.getLocation().add(0, 1, 0);
@@ -474,18 +512,11 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
-    private String weaponDisplay(String weapon) {
-        return switch (weapon) {
-            case "railgun"     -> "Railgun";
-            case "sniper"      -> "Sniper";
-            case "shotgun"     -> "Shotgun";
-            case "machine_gun" -> "Machine Gun";
-            case "grenade"     -> "Granaat";
-            case "bazooka"     -> "Bazooka";
-            case "airstrike"   -> "Airstrike";
-            case "proximity_mine" -> "Proximity Mine";
-            default            -> weapon;
-        };
+    /** Weapon name in the viewer's language (keys qc.weapon.*), falling back to the raw id. */
+    private String weaponDisplay(Player viewer, String weapon) {
+        String key = "qc.weapon." + weapon;
+        String t = api.tr(viewer.getUniqueId(), key);
+        return t.equals(key) ? weapon : t;
     }
 
     private boolean checkKillTargetReached() {
@@ -504,14 +535,67 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             if (!getState().isRunning()) return;
             // Respawn near a living teammate (or the team's home spawn) so teams
             // stay grouped instead of being scattered to opposite sides.
-            Location spawn = teamRespawnFor(target);
+            Location spawn = safeRandomRespawn(target);
             if (spawn != null) target.teleport(spawn);
+            protectedUntil.put(target.getUniqueId(), System.currentTimeMillis()
+                    + plugin.getConfig().getLong("game.spawn-protection-ms", 2000));
+            target.sendActionBar(net.kyori.adventure.text.Component.text(api.tr(target.getUniqueId(), "qc.spawn-protection")));
             target.setGameMode(GameMode.ADVENTURE);
             target.setHealth(20); target.setFoodLevel(20);
             target.setFireTicks(0); target.setFallDistance(0);
             target.getActivePotionEffects().forEach(e -> target.removePotionEffect(e.getType()));
             giveBaseLoadout(target);
         }, delay);
+    }
+
+    // ── Spawn protection + random, safe respawns ─────────────────────────────
+
+    private final Map<UUID, Long> protectedUntil = new HashMap<>();
+
+    private boolean isSpawnProtected(Player p) {
+        Long until = protectedUntil.get(p.getUniqueId());
+        return until != null && System.currentTimeMillis() < until;
+    }
+
+    /**
+     * A random arena spawn, preferring the ones furthest from living enemies (so nobody respawns in front
+     * of someone's gun). Picks randomly among the best few so respawns are not predictable.
+     */
+    private Location safeRandomRespawn(Player target) {
+        List<Location> spawns = new ArrayList<>(plugin.getArenaManager().getSpawns());
+        if (spawns.isEmpty()) return teamRespawnFor(target);
+        List<Player> enemies = new ArrayList<>();
+        for (UUID id : players.keySet()) {
+            Player o = Bukkit.getPlayer(id);
+            if (o == null || o.equals(target) || o.isDead() || o.getGameMode() == GameMode.SPECTATOR) continue;
+            if (!TeamUtil.areTeammates(plugin, target, o)) enemies.add(o);
+        }
+        final List<Player> en = enemies;
+        spawns.sort((a, b) -> Double.compare(nearestEnemy(b, en), nearestEnemy(a, en)));   // furthest first
+        int pool = Math.max(1, Math.min(spawns.size(), 3));
+        return spreadAround(spawns.get((int) (Math.random() * pool)));
+    }
+
+    private static double nearestEnemy(Location l, List<Player> enemies) {
+        double best = Double.MAX_VALUE;
+        for (Player e : enemies) {
+            if (e.getWorld() != l.getWorld()) continue;
+            best = Math.min(best, e.getLocation().distanceSquared(l));
+        }
+        return best;
+    }
+
+    /** Speed I for everyone, all game long (it is lost to powerups, milk, etc.). */
+    private void ensureBaseSpeed() {
+        if (!plugin.getConfig().getBoolean("game.base-speed-boost", true)) return;
+        PotionEffectType speed = effect("speed");
+        if (speed == null) return;
+        for (UUID id : players.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
+            var cur = p.getPotionEffect(speed);
+            if (cur == null) p.addPotionEffect(new PotionEffect(speed, Integer.MAX_VALUE, 0, true, false, false));
+        }
     }
 
     private void giveBaseLoadout(Player p) {
@@ -538,7 +622,14 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
         if (bonusPoints > 0)
             api.points().givePoints(shooter.getUniqueId(), bonusPoints, PointAward.Reason.BONUS, registration.getId());
         String msg = section.getString("message", "");
-        if (!msg.isBlank()) broadcast(msg.replace("{player}", shooter.getName()));
+        String langKey = "qc.streak." + key;
+        for (Player rp : Bukkit.getOnlinePlayers()) {
+            // Language file first (nl/en); the config message is the fallback for streaks without a key.
+            String text = api.tr(rp.getUniqueId(), langKey, shooter.getName());
+            if (text.equals(langKey)) text = ChatColor.translateAlternateColorCodes('&',
+                    msg.replace("{player}", shooter.getName()));
+            if (!text.isBlank()) rp.sendMessage(text);
+        }
     }
 
     private void updateBossBar() {
@@ -559,7 +650,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) return;
             GamePlayerUtil.resetPlayer(p);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
     }
 

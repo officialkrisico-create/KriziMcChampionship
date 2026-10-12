@@ -36,6 +36,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
     private int  remainingSeconds;
     private boolean deathmatchActive = false;
     private StandardStartFlow startFlow;
+    private Difficulty previousDifficulty;
+    /** True during the opening grace minute: nobody can be hurt, loot up in peace. */
+    private volatile boolean graceActive;
 
     private final AssistTracker assistTracker = new AssistTracker();
 
@@ -53,7 +56,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         assistTracker.clearAll();
 
         plugin.getChestStocker().stockAllAsync(() ->
-                broadcast("§6[SG] §e" + plugin.getChestStocker().getStockedCount() + " chests stocked."));
+                tellKey("sg.stocked", plugin.getChestStocker().getStockedCount()));
 
         // Teleport players to scatter spawns
         List<Location> spawns = plugin.getArenaManager().getSpawnLocations();
@@ -76,6 +79,11 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
         var world = plugin.getArenaManager().getWorld();
         if (world != null) world.setPVP(true);
+        // Peaceful would switch off hunger and make health regenerate far too fast.
+        if (world != null && world.getDifficulty() == Difficulty.PEACEFUL) {
+            previousDifficulty = Difficulty.PEACEFUL;
+            world.setDifficulty(Difficulty.NORMAL);
+        }
 
         List<Player> parts = stats.keySet().stream()
                 .map(Bukkit::getPlayer).filter(Objects::nonNull).toList();
@@ -85,12 +93,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§e§lSURVIVAL GAMES"; }
+                    @Override public String introSubtitle() { return "@sg.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§e§lSURVIVAL GAMES",
-                                "§7Graai spullen uit de cornucopia en omliggende kisten.",
-                                "§7De wereldgrens sluit langzaam richting het midden.",
-                                "§7Laatste speler die overleeft wint!");
+                        return List.of("@sg.tut.1", "@sg.tut.2", "@sg.tut.3");
                     }
                     @Override public Location flyoverCenter() { return plugin.getArenaManager().getArena().getCornucopiaCenter(); }
                     @Override public void onFinished() { beginBloodbath(); }
@@ -109,13 +114,28 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
     }
 
     private void beginBloodbath() {
+        int graceSec = plugin.getConfig().getInt("game.grace-seconds", 60);
+        if (graceSec > 0) {
+            graceActive = true;
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendMessage(api.tr(p.getUniqueId(), "sg.grace.start", graceSec));
+                p.sendTitle(api.tr(p.getUniqueId(), "sg.grace.title"), api.tr(p.getUniqueId(), "sg.grace.sub", graceSec), 10, 60, 20);
+            }
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!getState().isRunning()) return;
+                graceActive = false;
+                tellKey("sg.grace.over");
+                titleKey("sg.pvp", 5, 40, 10);
+            }, graceSec * 20L);
+        }
         if (bossBar != null) {
             bossBar.setColor(BarColor.RED);
-            bossBar.setTitle(ChatColor.RED + "" + ChatColor.BOLD + "Bloodbath — PvP ACTIVE");
+            bossBar.setTitle(ChatColor.RED + "" + ChatColor.BOLD + "Bloodbath — PvP");
         }
-        broadcast("§c§l[SG] §eBloodbath started — all PvP active!");
+        if (graceSec <= 0) tellKey("sg.bloodbath");
 
-        remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480);
+        remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480)
+                + Math.max(0, graceSec);
         int dmTrigger    = plugin.getConfig().getInt("game.deathmatch-trigger-seconds", 120);
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
@@ -136,8 +156,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
             restockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 if (!getState().isRunning() || deathmatchActive) return;
                 plugin.getChestStocker().stockAllAsync(() ->
-                        broadcast("§6[SG] §eDe kisten zijn opnieuw gevuld! §7("
-                                + plugin.getChestStocker().getStockedCount() + ")"));
+                        tellKey("sg.restock", plugin.getChestStocker().getStockedCount()));
             }, restockSec * 20L, restockSec * 20L);
         }
     }
@@ -169,6 +188,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
     @Override
     protected void onGameEnd() {
+        graceActive = false;
         if (gameTimerTask   != null) { gameTimerTask.cancel();   gameTimerTask   = null; }
         if (voidCheckTask   != null) { voidCheckTask.cancel();   voidCheckTask   = null; }
         if (restockTask     != null) { restockTask.cancel();     restockTask     = null; }
@@ -179,6 +199,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
         var world = plugin.getArenaManager().getWorld();
         if (world != null) world.setPVP(false);
+        if (world != null && previousDifficulty != null) { world.setDifficulty(previousDifficulty); previousDifficulty = null; }
 
         List<PlayerStats> ranked = new ArrayList<>(stats.values());
         ranked.sort((a, b) -> {
@@ -205,7 +226,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(uuid);
             if (p == null) return;
             GamePlayerUtil.resetPlayer(p);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         });
         stats.clear();
 
@@ -237,7 +258,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§a[SG] Your state has been restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -257,6 +278,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         if (deathmatchActive) { l.add(""); l.add(api.tr(id, "sb.common.deathmatch")); }
         return l;
     }
+
+    /** SGListener cancels PvP itself outside the PvP phases, so the server-wide no-PvP rule must stand aside. */
+    @Override protected boolean handlesPlayerPvp() { return true; }
 
     @Override
     protected ArenaValidator getArenaValidator() {
@@ -306,15 +330,17 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
                 api.points().givePoints(assistId, split.assistAmount(), PointAward.Reason.ASSIST, registration.getId());
                 Player assistPlayer = Bukkit.getPlayer(assistId);
                 if (assistPlayer != null)
-                    assistPlayer.sendMessage("§e+ " + split.assistAmount() + " §7punten voor de assist op §f" + victim.getName());
+                    assistPlayer.sendMessage(api.tr(assistId, "game.assist", split.assistAmount(), victim.getName()));
             }
             assistTracker.clear(victim.getUniqueId());
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         } else {
             assistTracker.clear(victim.getUniqueId());
-            broadcast("§c☠ §7" + victim.getName() + " §7" + reason);
+            for (Player rp : Bukkit.getOnlinePlayers())
+                rp.sendMessage("§c☠ §7" + victim.getName() + " §7" + api.tr(rp.getUniqueId(), reason));
         }
-        victim.sendTitle("§c§lEliminated!", "§7" + reason, 10, 50, 10);
+        victim.sendTitle(api.tr(victim.getUniqueId(), "game.eliminated.title"),
+                "§7" + api.tr(victim.getUniqueId(), reason), 10, 50, 10);
 
         // Survival bonus
         int bonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
@@ -327,14 +353,15 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         updateBossBar();
     }
 
-    public boolean isPvpAllowed() { return getState().isRunning(); }
+    public boolean isPvpAllowed() { return getState().isRunning() && !graceActive; }
+    public boolean isGraceActive() { return graceActive; }
     public Map<UUID, PlayerStats> getStatsMap() { return Collections.unmodifiableMap(stats); }
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
     private void startDeathmatch() {
         deathmatchActive = true;
-        broadcast("§c§l[DEATHMATCH] §eDe ring sluit nu snel naar het midden!");
+        tellKey("game.deathmatch.chat");
         PotionEffectType glow = GamePlayerUtil.glowing();
         if (glow != null) {
             stats.values().stream().filter(PlayerStats::isAlive).forEach(ps -> {
@@ -354,9 +381,9 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         Location cor = arena != null ? arena.getCornucopiaCenter() : null;
         if (cor == null || !plugin.getChestStocker().spawnFeastChest(cor)) return;
 
-        broadcast("§6§l🍗 THE FEAST §eis verschenen bij de cornucopia — topspul, kom en haal het!");
+        tellKey("sg.feast.chat");
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.sendTitle("§6§l🍗 THE FEAST", "§eTop-loot bij de cornucopia!", 10, 60, 15);
+            p.sendTitle(api.tr(p.getUniqueId(), "sg.feast.title"), api.tr(p.getUniqueId(), "sg.feast.sub"), 10, 60, 15);
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 0.8f);
         }
         cor.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, cor.clone().add(0, 1.5, 0), 40, 1, 1, 1, 0.3);
@@ -375,7 +402,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
             if (ps == null || !ps.isAlive()) continue;
             Player p = Bukkit.getPlayer(uuid);
             if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
-            if (p.getLocation().getY() < voidY) handleDeath(p, getRecentAttacker(uuid), "fell into the void");
+            if (p.getLocation().getY() < voidY) handleDeath(p, getRecentAttacker(uuid), "game.reason.void");
         }
     }
 
@@ -384,7 +411,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         long alive = stats.values().stream().filter(PlayerStats::isAlive).count();
         int min = remainingSeconds / 60, sec = remainingSeconds % 60;
         bossBar.setTitle((deathmatchActive ? "§4DEATHMATCH" : "§cSG")
-                + " §8| §e" + alive + " alive §8| §b" + String.format("%02d:%02d", min, sec));
+                + " §8| §e" + alive + "👤 §8| §b" + String.format("%02d:%02d", min, sec));
     }
 
 }

@@ -1,0 +1,63 @@
+# ================================================================
+# Formula MC — boat racing on ice
+# ================================================================
+# Circuits are built by hand and registered with /fmc (see /fmc help):
+#   /fmc create <id> [name]   → new circuit (becomes the selected one)
+#   /fmc spawn add            → add a grid slot where you stand (yaw = the way the boat faces)
+#   /fmc pos1 / pos2          → select a gate (stand inside it)
+#   /fmc line                 → the selected gate becomes the START/FINISH line
+#   /fmc cp add               → the selected gate becomes the next checkpoint (fixed order)
+#   /fmc reset                → safe reset location for stuck racers
+#   /fmc laps <n>             → number of laps
+# Everything below is tuning; circuits themselves are stored under "circuits:".
+# ================================================================
+
+# Which circuit the next race uses ("" = a random ready circuit)
+selected: ""
+
+game:
+  # Hard limit for a race (seconds). 0 = no limit.
+  max-duration-seconds: 900
+  # A lap faster than this does not count (anti shortcut / double crossing).
+  min-lap-seconds: 4
+  # More than this many blocks between two position polls = a teleport: no checkpoint credit.
+  max-teleport-step: 30
+  # Seconds without moving before a racer is put back on the track.
+  stuck-seconds: 8
+  # How long (seconds) after the first finisher the others still have to finish. 0 = wait for everyone.
+  finish-grace-seconds: 60
+
+boat:
+  # OAK, BIRCH, SPRUCE, JUNGLE, ACACIA, DARK_OAK, CHERRY, MANGROVE, PALE_OAK
+  type: OAK
+  # Let boats hop up 1-block steps (ramps) without losing speed.
+  step-assist: true
+  # Boats drive on land/ice too, not only in water.
+  work-on-land: true
+
+# Other racers only show up when they are this close (blocks).
+visibility:
+  enabled: true
+  radius: 10
+
+points:
+  # Awarded to whoever sets the fastest lap of the race.
+  fastest-lap-bonus: 25
+  # Points for each completed lap.
+  per-lap: 0
+
+# Start presentation (same keys as the other games)
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Race over het ijs — eerste over de streep wint"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+# Circuits (managed by /fmc)
+circuits: {}

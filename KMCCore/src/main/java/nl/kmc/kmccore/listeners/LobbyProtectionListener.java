@@ -37,6 +37,15 @@ public class LobbyProtectionListener implements Listener {
 
     public LobbyProtectionListener(KMCCore plugin) { this.plugin = plugin; }
 
+    /**
+     * True while a game is on — either KMC's own rotation has an active game, or any game manager is running
+     * (a game started with its own command, or a test arena that happens to lie within the lobby radius).
+     * The lobby rules must not apply then.
+     */
+    private boolean gameRunning() {
+        return plugin.getGameManager().isGameActive() || nl.kmc.core.RunningGames.anyRunning();
+    }
+
     // ----------------------------------------------------------------
 
     /**
@@ -66,7 +75,7 @@ public class LobbyProtectionListener implements Listener {
         // Only protect if in lobby zone AND no active game is running for them
         if (isInLobbyZone(player.getLocation())) {
             // Also skip if game is active — let Lucky Block etc. handle damage
-            if (!plugin.getGameManager().isGameActive()) {
+            if (!gameRunning()) {
                 event.setCancelled(true);
             }
         }
@@ -79,7 +88,8 @@ public class LobbyProtectionListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onHunger(FoodLevelChangeEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        if (isInLobbyZone(player.getLocation())) event.setCancelled(true);
+        // Only when no game is running — a test arena within the lobby radius must still get hungry.
+        if (!gameRunning() && isInLobbyZone(player.getLocation())) event.setCancelled(true);
     }
 
     // ----------------------------------------------------------------
@@ -104,7 +114,7 @@ public class LobbyProtectionListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player p = event.getPlayer();
         if (p.getGameMode() == GameMode.CREATIVE) return;
-        if (!plugin.getGameManager().isGameActive()
+        if (!gameRunning()
                 && isInLobbyZone(event.getBlock().getLocation())) {
             event.setCancelled(true);
         }
@@ -114,7 +124,7 @@ public class LobbyProtectionListener implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         Player p = event.getPlayer();
         if (p.getGameMode() == GameMode.CREATIVE) return;
-        if (!plugin.getGameManager().isGameActive()
+        if (!gameRunning()
                 && isInLobbyZone(event.getBlock().getLocation())) {
             event.setCancelled(true);
         }
@@ -128,7 +138,7 @@ public class LobbyProtectionListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         Player p = event.getPlayer();
         if (p.getGameMode() == GameMode.CREATIVE) return;
-        if (!plugin.getGameManager().isGameActive() && isInLobbyZone(p.getLocation())) {
+        if (!gameRunning() && isInLobbyZone(p.getLocation())) {
             event.setCancelled(true);
         }
     }

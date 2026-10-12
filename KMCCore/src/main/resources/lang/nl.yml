@@ -22,6 +22,18 @@ scoreboard:
   your-points: "&b&lJouw Punten: &e{0}"
 
 game:
+  state-restored: "&aJe status is hersteld!"
+  assist: "&e+{0} &7punten voor de assist op &f{1}"
+  eliminated:
+    title: "&c&lUitgeschakeld!"
+  reason:
+    killed: "is uitgeschakeld"
+    died: "is gestorven"
+    void: "viel in de void"
+  deathmatch:
+    title: "&c&lDEATHMATCH"
+    sub: "&eGlowing actief — vind elkaar!"
+    chat: "&c&l[DEATHMATCH] &eDe ring sluit nu snel naar het midden!"
   board:
     phase: "&7Fase &e{0}"
     round: "&7Ronde &e{0}"
@@ -85,6 +97,16 @@ sb:
     you-finished: "&7Jij: &aGefinisht"
     you-running: "&7Jij: &eOnderweg"
     rounds-done: "&7Rondes af &e{0}"
+  hitw:
+    round: "&7Ronde &e{0}&7/&e{1}"
+    alive: "&7Levend &a{0}"
+    time: "&7Tijd &f{0}"
+    next: "&7Volgende muur {0}"
+    event: "&c⚡ &f{0}"
+    speed: "&7Tempo {0}"
+    eliminated: "&c&lUITGESCHAKELD"
+    survival: "&7Overleefd"
+    placement: "&7Plaats &e#{0}"
   ae:
     your-laps: "&7Jouw ronden &e{0}"
     finished: "&7Status &aGefinisht"
@@ -159,3 +181,565 @@ commentary:
     title: "&a&lLAATSTE OVERLEVENDE"
     line1: "&e{0} &7houdt het als laatste uit!"
     line2: "&e{0} &7staat als enige nog overeind!"
+
+# ── TNT Tag ───────────────────────────────────────────────────────────────────
+tnt:
+  intro:
+    title: "&c&lTNT TAG"
+    sub: "&eOverleef. Ontsnap. Explodeer niet."
+  countdown:
+    sub: "&7Maak je klaar..."
+  go:
+    title: "&a&lGO!"
+    sub: "&eRen!"
+  tut:
+    "1": "&c&l» &fWelkom bij &cTNT Tag&f!"
+    "2": "&c&l» &fHoud geen TNT vast als de timer op nul staat."
+    "3": "&c&l» &fSla een andere speler om de TNT door te geven."
+    "4": "&c&l» &fPak &epowerups &fop (rechtsklik om te gebruiken) en overleef de chaos-events."
+    "5": "&c&l» &fLaatste speler die overblijft wint. Succes!"
+  round: "&c&l[TNT Tag] &eRonde {0} — {1} bom(men) geactiveerd!"
+  boom:
+    title: "&c&lBOEM!"
+    sub: "&7Jij hield de bom vast!"
+    chat: "&c💥 &7{0} &7is ontploft!"
+  out:
+    border: "&c☠ &7{0} &7is buiten de ring gevallen!"
+  hold: "&c☢ &lJIJ HEBT DE BOM &r&c☢  &7{0}s"
+  shield:
+    blocked: "&e&lSCHILD GEBLOKKEERD!"
+  clutch: "&6&l⚡ CLUTCH TAG! &e{0} &7gaf de bom door in de laatste seconde!"
+  safe:
+    title: "&a&lVEILIG!"
+    sub: "&7Bom doorgegeven!"
+  transferred:
+    title: "&c&lTNT OVERGEDRAGEN"
+    sub: "&7Geef hem door!"
+  stage:
+    five:
+      title: "&c&lLAATSTE VIJF"
+      sub: "&eNog vijf spelers over!"
+    three:
+      title: "&c&lLAATSTE DRIE"
+      sub: "&eDe spanning stijgt!"
+    showdown:
+      title: "&4&lFINALE SHOWDOWN"
+      sub: "&eÉén bom. Geen powerups. Geen ontsnapping."
+  chaos:
+    title: "&5&lCHAOS EVENT"
+    double-note: "&5&lDOUBLE TROUBLE! &7De volgende ronde krijgt extra bommen!"
+    low_gravity: "Lage zwaartekracht"
+    speed_frenzy: "Snelheidsrazernij"
+    darkness: "Duisternis"
+    tracker_failure: "Tracker uitgevallen"
+    double_trouble: "Dubbele problemen"
+    teleport_madness: "Teleportgekte"
+    shrinking_arena: "Krimpende arena"
+  hud: "&7Levend &a{0} &8| &7TNT &c{1} &8| &7Ronde &e{2}"
+  untouchable: "&6&l⭐ ONAANRAAKBAAR! &e{0} &7won zonder ooit de bom vast te houden!"
+
+# ── Formula MC ────────────────────────────────────────────────────────────────
+fmc:
+  intro-sub: "&bRace over het ijs"
+  tut:
+    "1": "&b&l» &fRace {0} rondes over het ijs."
+    "2": "&b&l» &fRijd door alle checkpoints in de juiste volgorde."
+    "3": "&b&l» &fBotsen kan niet — iedereen racet z'n eigen race."
+    "4": "&b&l» &fEerste over de finish wint!"
+  go-sub: "&b{0} rondes"
+  time-up: "&b[Formula MC] &eTijd is om!"
+  time-up-race: "&b[Formula MC] &eTijd om — einde race!"
+  fastest: "&b[Formula MC] &6⏱ Snelste ronde: &e{0} &7({1}, +{2})"
+  results: "&b&l═══ Formula MC — uitslag ═══"
+  best-lap: "&8(beste ronde {0})"
+  checkpoint: "&b✔ Checkpoint {0}/{1}"
+  lap: "&bRonde {0}/{1} &7— &e{2}"
+  lap-points: "&7+{0} punten voor deze ronde (aan het einde uitgekeerd)"
+  finished: "&b[Formula MC] &e{0} &bfinisht als &6#{1} &7({2})"
+  grace: "&b[Formula MC] &7De anderen hebben nog &f{0}s &7om te finishen!"
+  back-on-track: "&e↩ Terug op de baan"
+  sb:
+    circuit: "&7Circuit &f{0}"
+    position: "&7Positie &e{0}&7/&e{1}"
+    lap: "&7Ronde &e{0}&7/&e{1}"
+    last: "&7Laatste &f{0}"
+    best: "&7Beste &a{0}"
+    time: "&7Racetijd &f{0}"
+
+# ── Survival Games ────────────────────────────────────────────────────────────
+sg:
+  grace:
+    start: "&a&l[SG] &eGrace period: &f{0}s &7— verzamel loot, niemand kan geraakt worden."
+    title: "&a&lGRACE PERIOD"
+    sub: "&7PvP begint over &f{0}s"
+    over: "&c&l[SG] &eDe grace period is voorbij — PvP is actief!"
+  pvp:
+    title: "&c&lPVP ACTIEF"
+    sub: "&7Succes!"
+  bloodbath: "&c&l[SG] &eBloodbath gestart — PvP is actief!"
+  stocked: "&6[SG] &e{0} kisten gevuld."
+  restock: "&6[SG] &eDe kisten zijn opnieuw gevuld! &7({0})"
+  feast:
+    chat: "&6&l🍗 THE FEAST &eis verschenen bij de cornucopia — topspul, kom en haal het!"
+    title: "&6&l🍗 THE FEAST"
+    sub: "&eTop-loot bij de cornucopia!"
+  intro-sub: "&eLaatste overlevende wint"
+  tut:
+    "1": "&7Graai spullen uit de cornucopia en omliggende kisten."
+    "2": "&7De wereldgrens sluit langzaam richting het midden."
+    "3": "&7Laatste speler die overleeft wint!"
+
+# ── Gedeelde start-flow ───────────────────────────────────────────────────────
+flow:
+  starting: "&7Game start..."
+  get-ready: "&7Maak je klaar..."
+
+# ── Adventure Escape ──────────────────────────────────────────────────────────
+ae:
+  intro-sub: "&aRace door de puzzel-route"
+  tut:
+    "1": "&a&l» &fRace door de puzzel-ontsnappingsroute."
+    "2": "&a&l» &fRaak checkpoints om je voortgang te bewaren."
+    "3": "&a&l» &fBuiten de route? Je respawnt bij je laatste checkpoint."
+    "4": "&a&l» &fAls eerste alle rondes voltooien wint!"
+  go-sub: "&eDe race is begonnen!"
+  time-up: "&c[Adventure Escape] &eTijd om!"
+  finished: "&6[Adventure Escape] &e{0} &bfinishte als #{1} &7({2})"
+  time: "&eTijd: {0}"
+  grace: "&6[Adventure Escape] &7De anderen hebben nog &f{0}s &7om te finishen!"
+  grace-over: "&6[Adventure Escape] &eTijd om — einde race!"
+  lap: "&6[Adventure Escape] &e{0} &7voltooide ronde &6{1}/{2}"
+  cp: "&b✔ Checkpoint {0}/{1}"
+  cp-order: "&c✘ Sla geen checkpoints over! Je moet eerst checkpoint {0} halen."
+  cp-missing: "&c✘ Je mist nog {0} checkpoint(s)!"
+  cp-named: "&a✔ Checkpoint bereikt: &e{0}"
+  oob: "&cBuiten de baan! &7(Teruggezet bij {0})"
+  cooldown: "&cCooldown: {0}s"
+  no-respawn: "&cGeen respawn-locatie beschikbaar."
+  label-start: "het begin van de race"
+  label-cp: "checkpoint {0}"
+  label-last: "je laatste checkpoint"
+  returned: "&6↩ Teruggesprongen naar &e{0}"
+
+# ── Bingo ─────────────────────────────────────────────────────────────────────
+bingo:
+  intro-sub: "&eVerzamel items, haal lijnen"
+  tut:
+    "1": "&e• &7Verzamel de items op je &ebingokaart&7."
+    "2": "&e• &7Elk voltooid item kleurt een &evakje&7."
+    "3": "&e• &7Voltooi een &6lijn&7 (rij, kolom of diagonaal) voor bonuspunten."
+    "4": "&e• &7Het team met de meeste lijnen/vakjes wint!"
+  go-sub: "&eVoltooi je kaart!"
+  item-done: "&e{0} &7van {1} &7heeft &b{2} &7als &6{3}e &7voltooid! &8(+{4} ptn)"
+  line: "&6&l[Bingo] &e🟡 Team {0} &6heeft een lijn voltooid! &8(+{1} elk)"
+  full: "&6&l[Bingo] &e🏆 Team {0} &6heeft de VOLLEDIGE kaart voltooid!"
+  no-team: "&cJe zit niet in een team!"
+  no-game: "&cGeen Bingo-game actief!"
+  card-title: "{0} Kaart"
+  squares: "✔ Vakjes: {0}/{1}"
+  lines: "✔ Lijnen: {0}/{1}"
+  done: "✔ Compleet!"
+  progress: "Voortgang: {0} / {1}"
+  collect: "Verzamel dit item"
+
+# ── Block Party ───────────────────────────────────────────────────────────────
+bp:
+  intro-sub: "&dVind de juiste kleur"
+  tut:
+    "1": "&7Vind de &fjuiste kleur &7voordat de tijd om is."
+    "2": "&7Ga op de getoonde kleur staan."
+    "3": "&cVerkeerde kleur = &4eliminatie&c."
+  first-round: "&7Eerste ronde over &f{0}s &8— zoek je plek"
+  vanish: "&4&lVERDWIJN!"
+  clutch:
+    title: "&a&l⚡ CLUTCH SAVE"
+    sub: "&7Op het laatste moment!"
+  dropped: "&c☠ &7{0} speler(s) geëlimineerd &8— &a{1} &7over"
+  out:
+    title: "&c&l✖ JE BENT UITGESCHAKELD!"
+    sub: "&7Ronde {0} &8• &7je overleefde {1} rondes"
+  avoid: "&c&lVERMIJD"
+  goal: "&7Doel:"
+  avoid-title: "&c&lVERMIJD"
+  goal-title: "&7DOELKLEUR"
+  round-line: "  &7Ronde &f{0} &8• {1} {2}"
+  nohint: "&8&o(geen hint — kijk goed!)"
+  fake-hint: "  &c⚠ &7Verborgen hint — de échte kleur is &o{0}..."
+  mirror-note: "  &5⇄ &7Sta op ELKE ANDERE kleur — deze is dodelijk!"
+  hud:
+    avoid: "&c&lVERMIJD &r{0} &8| &c{1}s &8| &a{2} spelers over"
+    goal: "&7Sta op &r{0} &8| &c{1}s &8| &a{2} spelers over"
+  sb:
+    round: "&7Ronde &f{0}{1}"
+    goal: "&7Doelkleur: {0}"
+    avoid: "&c&lVermijd: {0}"
+    time: "&7Tijd: &c{0}s"
+    players: "&7Spelers over: &a{0}"
+    teams: "&7Teams over: &b{0}"
+    alive: "&aJe leeft nog!"
+    out: "&cGeëlimineerd (R{0})"
+    clutches: "&eClutches: &6{0}"
+  results: "        &d&l🎉 BLOCK PARTY — UITSLAG"
+  wins: "&ewint Block Party!"
+  result-line: "&7overleefde &e{0} &7rondes&8, &6{1} clutches"
+  chaos:
+    low_gravity:
+      title: "&b⬆ LAGE ZWAARTEKRACHT"
+      sub: "&7Spring hoog — verminderde zwaartekracht"
+    speed_round:
+      title: "&e» SNELLE RONDE"
+      sub: "&7Iedereen krijgt snelheid"
+    ice_floor:
+      title: "&f❄ IJSVLOER"
+      sub: "&7Gladde vloer — pas op met sturen"
+    darkness:
+      title: "&8🌑 DUISTERNIS"
+      sub: "&7Beperkt zicht — vertrouw je ogen"
+    double_color:
+      title: "&a⧉ DUBBELE KLEUR"
+      sub: "&7Twee kleuren overleven deze ronde"
+    fake_color:
+      title: "&c⚠ NEPKLEUR"
+      sub: "&7De getoonde kleur is FOUT — let op de hint"
+    random_tp:
+      title: "&d✦ WILLEKEURIGE TELEPORT"
+      sub: "&7Iedereen wordt herplaatst"
+    color_blind:
+      title: "&7◑ KLEURBLIND"
+      sub: "&7Geen kleurnaam — herken het zelf"
+    rapid_fire:
+      title: "&6⚡ SNELVUUR"
+      sub: "&7Extra korte timer"
+    mirror:
+      title: "&5⇄ SPIEGEL"
+      sub: "&7De getoonde kleur is juist FOUT om op te staan!"
+
+# ── The Bridge ────────────────────────────────────────────────────────────────
+bridge:
+  intro-sub: "&9Scoor in het doel van de tegenstander"
+  tut:
+    "1": "&9&l» &fBouw een brug naar het doel van de tegenstander."
+    "2": "&9&l» &fScoor door in hun doelgat te stappen."
+    "3": "&9&l» &fVal in de void? Dan respawn je bij je eigen team."
+    "4": "&9&l» &fEerste team tot &e{0} &fdoelpunten wint!"
+  no-side: "&9[The Bridge] &7Je team heeft geen eigen kant — je speelt mee voor &f{0}&7."
+  scored: "&b⚽ &e{0} &9scoorde voor {1}&9! ({2}/{3})"
+  assist: "&e+{0} &7punten voor de assist op &f{1}"
+  goal:
+    title: "&b&lDOELPUNT!"
+    sub: "&7Respawnen…"
+  own-wool: "&cJe kunt alleen de wol van je eigen team plaatsen!"
+
+# ── Elytra Endrium ────────────────────────────────────────────────────────────
+ee:
+  intro-sub: "&6Vlieg door alle checkpoints"
+  tut:
+    "1": "&6&l» &fVlieg door alle checkpoints in volgorde."
+    "2": "&6&l» &fGebruik boost-hoepels voor extra snelheid."
+    "3": "&6&l» &fCrash je? Je respawnt bij je laatste checkpoint."
+    "4": "&6&l» &fAls eerste alle checkpoints halen wint!"
+  go:
+    title: "&a&lGO!"
+    sub: "&eVlieg door de hoepels!"
+  cp-reached: "&b✔ {0} &7(+{1} ptn)"
+  finished: "&6[Elytra] &e{0} &bfinishte als #{1} &7({2}, +{3} ptn)"
+  time: "&7Tijd: {0}"
+  grace: "&6[Elytra] &7De anderen hebben nog &f{0}s &7om te finishen!"
+  time-up: "&6[Elytra] &eTijd om — einde race!"
+  crash:
+    title: "&c&lCrash!"
+    sub: "&7Respawnen..."
+  return:
+    name: "&b&lTerug naar vorig checkpoint"
+    lore1: "&7Rechtsklik: vlieg weer vanaf je laatste checkpoint"
+    lore2: "&8Geen straf, wel 3s wachttijd"
+    done: "&b↩ Terug bij {0}"
+  start: "de start"
+
+# ── Hole in the Wall ──────────────────────────────────────────────────────────
+hitw:
+  intro-sub: "&6Ga door het gat in de muur"
+  tut:
+    "1": "&6&l» &fMuren komen op je af — ga door het gat!"
+    "2": "&6&l» &eLage muur: &fspring eroverheen.  &bHoge muur: &fsneak eronderdoor."
+    "3": "&6&l» &fEen muur duwt je mee naar de rand — wie van het platform valt, is eruit."
+    "4": "&6&l» &fDe muren worden steeds sneller. Overleef zo lang mogelijk!"
+  round-sub: "&7Ronde &f{0}&7/&f{1}"
+  go:
+    title: "&a&lGO!"
+    sub: "&7Ga door de gaten!"
+  nobody: "niemand"
+  n-players: "{0} spelers"
+  round-done: "Ronde {0}/{1} voltooid"
+  round-done-title: "&6&lRONDE {0} VOLTOOID"
+  winner: "Winnaar: {0}"
+  others: "  &8... en {0} anderen"
+  you: "&7Jij: &e#{0} &8| &a{1} &8| &7Totaal &e{2} &7ptn"
+  wall-warn: "&e⚠ &f&l{0} &7— uit het &6{1}"
+  hit: "&c💥 Geraakt! &7Je wordt van het platform geduwd"
+  eliminated: "&c💥 &f{0} &cIS UITGESCHAKELD!"
+  eliminated-fell: "&c💥 &f{0} &cIS UITGESCHAKELD! &7(van het platform gevallen)"
+  out:
+    title: "&c&lUITGESCHAKELD"
+  final: "Hole in the Wall — eindstand"
+  final-line: "&e{0} ptn &8({1} rondes gewonnen, beste: {2} muren)"
+  compass:
+    "0": "OOSTEN"
+    "1": "ZUIDOOSTEN"
+    "2": "ZUIDEN"
+    "3": "ZUIDWESTEN"
+    "4": "WESTEN"
+    "5": "NOORDWESTEN"
+    "6": "NOORDEN"
+    "7": "NOORDOOSTEN"
+
+# ── Lucky Block ───────────────────────────────────────────────────────────────
+lb:
+  tut:
+    "1": "&6&l» &fSla lucky blocks kapot voor willekeurige loot."
+    "2": "&6&l» &fSoms goed, soms... minder goed."
+    "3": "&6&l» &fEen gevecht elimineert spelers permanent."
+    "4": "&6&l» &fLaatste speler die overblijft wint!"
+  out:
+    title: "&c&lUitgeschakeld!"
+    sub: "&7Wacht tot de game afgelopen is."
+  eliminated: "&c☠ &7{0} &7is uitgeschakeld! &e{1} &7spelers over."
+  kill-pts: "&6+{0} punten voor de kill!"
+  assist-pts: "&e+{0} &7punten voor de assist op &f{1}"
+
+# ── Mob Mayhem ────────────────────────────────────────────────────────────────
+mm:
+  intro: "&4&l[Mob Mayhem] &eOverleef de golven! Het team dat het langst standhoudt wint!"
+  intro-sub: "&cOverleef de golven"
+  tut:
+    "1": "&4&l» &fOverleef zoveel mogelijk golven mobs samen met je team."
+    "2": "&4&l» &fElke golf wordt moeilijker — let op speciale modifiers!"
+    "3": "&4&l» &fPak powerups op voor tijdelijke boosts."
+    "4": "&4&l» &fGa je dood? Dan kijk je de rest van de wedstrijd toe."
+  revived:
+    title: "&a&lTERUG!"
+    sub: "&7Je team heeft je teruggehaald"
+  revived-chat: "&4[Mob Mayhem] &a{0} &7is teruggehaald door een teamgenoot!"
+  no-arena: "&4[Mob Mayhem] &cTeam {0} &ckon niet starten (arena ontbreekt)."
+  time-limit: "&4[Mob Mayhem] &eTijdslimiet bereikt — de game eindigt."
+  grace-over: "&4[Mob Mayhem] &eEen team heeft alle golven gehaald en de wachttijd is voorbij — einde!"
+  wave-cleared: "&4[Mob Mayhem] &eTeam {0} &ahaalde golf {1}! &8(+{2} ptn elk)"
+  all-cleared: "&4&l[Mob Mayhem] &eTeam {0} &6haalde ALLE golven! Ongelofelijk!"
+  others-grace: "&4[Mob Mayhem] &7De andere teams hebben nog &f{0}s&7 om verder te komen."
+  team-out: "&4☠ &7Team {0} &7is uitgeschakeld!"
+  player-out: "&c☠ &7{0} is uitgeschakeld op golf {1}"
+  glow: "&4[Mob Mayhem] &eDe laatste mobs gloeien — maak ze af!"
+  wave:
+    title: "&6&lGolf {0}"
+    line: "&6Golf {0}: &e{1}"
+  bloodmoon:
+    title: "&4&l🌕 BLOEDMAAN"
+    sub: "&cDe mobs zijn nu véél gevaarlijker..."
+  compass:
+    name: "&6&lSpectator-kompas"
+    lore1: "&7Rechtsklik: kies een speler om naar toe te gaan"
+    lore2: "&8Werkt voor alle teams en arena's"
+    gone: "&c[Mob Mayhem] Die speler is niet meer beschikbaar."
+    watching: "&4[Mob Mayhem] &7Je kijkt nu mee met &f{0}&7."
+    menu: "&6&lKies een speler"
+    team: "&7Team: &f{0}"
+    wave: "&7Golf: &f{0}"
+    click: "&aKlik om naar toe te gaan"
+    nobody: "&7[Mob Mayhem] Er is niemand meer om naar te kijken."
+  upgrade:
+    title: "&4&lKies je upgrade"
+    offer: "&4[Mob Mayhem] &eGolf {0} gehaald! &7Kies een upgrade ({1}s) — hij blijft de rest van de game."
+    timeout: "&7Tijd om — willekeurige upgrade gekozen."
+    level: "&7(niveau {0})"
+    click: "&aKlik om te kiezen"
+    picked: "&4[Mob Mayhem] &aUpgrade: &e{0}"
+    mate-picked: "&4[Mob Mayhem] &7{0} koos &e{1}&7."
+  perk:
+    weapon:
+      name: "Sterker wapen"
+      desc: "Je zwaard en bijl worden een tier beter (hout → steen → ijzer → diamant)."
+    armor:
+      name: "Sterker harnas"
+      desc: "Je hele harnas wordt een tier beter (leer → maliën → ijzer → diamant)."
+    sharp:
+      name: "Scherpte"
+      desc: "Je zwaard krijgt Sharpness (+1 per keer)."
+    hearts:
+      name: "Extra harten"
+      desc: "+2 harten maximale gezondheid en je wordt direct genezen."
+    speed:
+      name: "Snelle voeten"
+      desc: "Permanente snelheid voor de rest van de game."
+    bow:
+      name: "Boogschutter"
+      desc: "Betere boog (Power) en 32 extra pijlen."
+    feast:
+      name: "Festijn"
+      desc: "6 gouden appels en 16 gekookte biefstuk."
+    medic:
+      name: "Medic"
+      desc: "Volledig genezen + 4 extra absorptie-harten voor de volgende golf."
+    revive:
+      name: "Wederopstanding"
+      desc: "Een gevallen teamgenoot komt terug in het gevecht."
+  powerup:
+    picked: "&b✦ &7Je hebt &b{0} &7opgepakt!"
+    speed: "Snelheid"
+    strength: "Kracht"
+    regeneration: "Regeneratie"
+    resistance: "Weerstand"
+    absorption: "Absorptie"
+    instant_health: "Genezing"
+
+# ── Parkour Warrior ───────────────────────────────────────────────────────────
+pw:
+  intro-sub: "&aRen door het parkour"
+  tut:
+    "1": "&a&l» &fRen zo ver mogelijk door het parkour."
+    "2": "&a&l» &fElk checkpoint geeft punten."
+    "3": "&a&l» &fVal je? Je respawnt bij je laatste checkpoint."
+    "4": "&a&l» &fAls finishen geblokkeerd lijkt: genoeg fails geeft een skip."
+  checkpoint-stage: "&aCheckpoint (stage {0}) +{1} ptn"
+  checkpoint: "&aCheckpoint {0} / {1}"
+  boost:
+    speed: "&a✦ Speed Boost!"
+    jump: "&a✦ Jump Boost!"
+  respawned: "&c✘ Gerespawnd!"
+  skip:
+    no-game: "Geen game actief."
+    not-playing: "Je doet niet mee aan de race."
+    finished: "Je bent al gefinisht!"
+    need-fails: "Je hebt nog {0} meer fail(s) nodig om te skippen."
+    none: "Geen volgend checkpoint om te skippen."
+  skipped: "&7{0} &7sloeg stage &e{1} &7over (geen punten)"
+  finished: "&a&l[Parkour] &e{0} &agefinisht!"
+  finish:
+    title: "&a&lGEFINISHT!"
+    sub: "&7Mooie run!"
+
+# ── QuakeCraft ────────────────────────────────────────────────────────────────
+qc:
+  go-sub: "&eVeel succes en plezier!"
+  intro-sub: "&eEerste die de kill-limiet haalt wint"
+  tut:
+    "1": "&b&l» &fWelkom bij &cQuakeCraft&f!"
+    "2": "&b&l» &fLinksklik met je &erailgun &fom een one-shot straal te vuren."
+    "3": "&b&l» &fPak &dpowerups &fvoor bazooka's, granaten en meer."
+    "4": "&b&l» &fJe kunt je eigen teamgenoten &cniet &fraken — let op je vuur!"
+    "5": "&b&l» &fEerste tot &e{0} kills &fwint. Veel succes!"
+  hit: "&e{0} &7heeft &e{1} &7geraakt met een &b{2}"
+  revenge: "&d⚡ WRAAK! &7{0} &enam wraak op &7{1}&e!"
+  spawn-protection: "&a🛡 Spawnbescherming"
+  bonus-points: "&a+{0} punten"
+  weapon:
+    railgun: "Railgun"
+    sniper: "Sniper"
+    shotgun: "Shotgun"
+    machine_gun: "Machinegeweer"
+    grenade: "Granaat"
+    bazooka: "Bazooka"
+    airstrike: "Airstrike"
+    proximity_mine: "Proximity Mine"
+  streak:
+    "3": "&e{0} &7is op een streak! &e×3"
+    "5": "&6{0} &7is HOT! &6×5 &c(SPEED BOOST)"
+    "7": "&c{0} &7is &c&lUNSTOPPABLE! &7×7"
+    "10": "&4&l{0} &c&lDOMINATING! &7×10"
+
+# ── Speed Build ───────────────────────────────────────────────────────────────
+speedbuild:
+  intro-sub: "&eKopieer de blueprints"
+  tut:
+    "1": "&e&lSPEED BUILD CHALLENGE"
+    "2": "&710 builds. Kopieer elke &fblueprint &7zo precies mogelijk."
+    "3": "&aGroene wol &7= voltooi · &cRode wol &7= blueprint · &6Goud &7= klaar"
+    "4": "&7Score = nauwkeurigheid + snelheid − fouten. &8(100% objectief)"
+  schematic-missing: "&c[SpeedBuild] Schematic ontbreekt: {0}"
+  build-line: "&e&l▶ Build {0}/10 &8— &f{1} &7(moeilijkheid {2})"
+  build-title: "&e&lBUILD {0}"
+  copy-hint: "&7Kopieer de blueprint — klik &aGroene wol &7als je klaar bent."
+  scored: "&a✔ Build {0} gescoord &8— &f{1}% &7nauwkeurig, &6{2} ptn &8(&7+{3} tijd, &c-{4} fouten&8)"
+  score-sub: "&6+{0} ptn"
+  all-done: "&6&l★ Alle 10 builds klaar! &7Klik &6Goud &7om af te ronden."
+  all-done-bar: "&6Klik het gouden blok om je score te versturen."
+  finish-first: "&c[SpeedBuild] Voltooi eerst alle builds met de groene wol."
+  blueprint-shown: "&7Blueprint opnieuw getoond."
+  sum:
+    title: "  &e&lSPEED BUILD — JOUW RESULTAAT"
+    total: "  &7Totaalscore: &6{0} ptn"
+    accuracy: "  &7Gem. nauwkeurigheid: &a{0}%"
+    best: "  &7Beste build: &f{0} &8(&6{1} ptn&8)"
+    worst: "  &7Zwakste build: &f{0} &8(&6{1} ptn&8)"
+    time: "  &7Totale tijd: &f{0}s"
+  done:
+    title: "&6&lKLAAR!"
+    sub: "&e{0} punten naar je team"
+  sb:
+    spectator: "&7Toeschouwer"
+    build: "&7Build: &e{0}&7/10"
+    score: "&7Score: &6{0}"
+    accuracy: "&7Gem. nauwkeurig: &a{0}%"
+    done: "&aKlaar!"
+    building: "&7Bezig met bouwen..."
+  btn:
+    complete: "&a&lVOLTOOI BUILD"
+    complete-lore: "&7Klik om te scoren en door te gaan."
+    blueprint: "&c&lBEKIJK BLUEPRINT"
+    blueprint-lore: "&7Toont de te bouwen schematic nog eens."
+    finish: "&6&lVOLTOOI UITDAGING"
+    finish-lore: "&7Beëindig en stuur je score naar je team."
+  no-break: "&cJe kunt hier niets slopen!"
+  own-area: "&cBouw alleen in je eigen bouwgebied!"
+
+# ── Spleef ────────────────────────────────────────────────────────────────────
+spleef:
+  intro-sub: "&bBreek de vloer onder je tegenstanders"
+  tut:
+    "1": "&7Breek de sneeuwvloer onder je tegenstanders weg."
+    "2": "&7Val jij in de void? Dan ben je uitgeschakeld."
+    "3": "&7Laatste speler die overblijft wint!"
+  go-sub: "&eBreek de vloer!"
+  out:
+    title: "&c&lUitgeschakeld!"
+  shovel: "&b&lSpleef-schep"
+  snowballs: "&b❄ Sneeuwballen! Rechtsklik om te gooien"
+
+# ── SkyWars ───────────────────────────────────────────────────────────────────
+sw:
+  intro-sub: "&eLaatste team dat overblijft wint"
+  tut:
+    "1": "&7Open kisten op je eigen eiland — geen PvP tot de start."
+    "2": "&7Verzamel spullen en kruis dan naar andere eilanden."
+    "3": "&7Laatste team dat overblijft wint!"
+  stocked: "&6[SkyWars] &e{0} kisten gevuld met loot."
+  pvp-live: "&c&l[SkyWars] &ePvP is actief! Laatste team wint!"
+  restock: "&6[SkyWars] &eDe kisten zijn opnieuw gevuld! &7({0})"
+  results: "&6&lSkyWars — Uitslag"
+  result-line: "&e{0} levend ({1} kills)"
+
+# ── TGTTOS ────────────────────────────────────────────────────────────────────
+tgttos:
+  intro: "&e&l[TGTTOS] &e{0} maps — verzamel plaatsingen over alle maps!"
+  final: "        &e&l🏁 TGTTOS — EINDUITSLAG"
+  final-line: "&e{0} pts &8({1} maps gewonnen, {2} DNF)"
+  sb:
+    finished: "&7Gefinisht &a{0}&7/&a{1}"
+  finished: "&e{0} &7finishte in &b{1} &8(&e+{2}&8 pts)"
+  void: "&cIn de void gevallen — terug naar {0}"
+  void-cp: "checkpoint {0}"
+  void-start: "de start"
+  team-bonus: "&b&lTEAM-BONUS &7— het hele team is klaar! &8(&b+{0}&8 ptn elk)"
+  map: "&e&l[TGTTOS] &eMap &6{0}&e/&6{1} &7— &b{2}"
+  map-rule: "&7De map eindigt &e{0} &7nadat &e{1}% &7gefinisht is."
+  fog: "&8&l🌫 FOG OF WAR &7— je ziet nu maar een klein stukje voor je!"
+  fog-sub: "&7Beperkt zicht deze map!"
+  half: "&e&l⚡ DE HELFT VAN HET VELD IS GEFINISHT!"
+  half-title: "&e&lHELFT GEFINISHT"
+  half-sub: "&cResterende spelers: {0}"
+  countdown: "&e&l[TGTTOS] &cResterende spelers hebben &e{0} &com te finishen!"
+  dnf: "&c✗ &7{0} &c— DNF"
+  dnf-sub: "&7Te laat — geen punten"
+  next-map: "&7Volgende map start zo..."
+  hud: "&eGefinisht &a{0}&7/&a{1} &8| &eRacet &c{2}"
+  hud-race: " &8| &7race naar de finish!"
+  leader: "&6👑 KOPLOPER"

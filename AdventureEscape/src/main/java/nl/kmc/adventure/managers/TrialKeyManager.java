@@ -211,7 +211,7 @@ public class TrialKeyManager implements Listener {
         if (now - last < COOLDOWN_MS) {
             long left = (COOLDOWN_MS - (now - last)) / 100;  // tenths
             p.sendActionBar(net.kyori.adventure.text.Component.text(
-                    ChatColor.RED + "Cooldown: " + (left / 10.0) + "s"));
+                    plugin.getKmcCore().getLanguageManager().tr(p, "ae.cooldown", (left / 10.0))));
             return;
         }
         cooldowns.put(p.getUniqueId(), now);
@@ -225,14 +225,15 @@ public class TrialKeyManager implements Listener {
             // Fallback: first spawn point
             List<Location> spawns = plugin.getArenaManager().getSpawns();
             if (spawns.isEmpty()) {
-                p.sendMessage(ChatColor.RED + "Geen respawn locatie beschikbaar.");
+                p.sendMessage(plugin.getKmcCore().getLanguageManager().tr(p, "ae.no-respawn"));
                 return;
             }
             target = spawns.get(0);
-            label = "begin van de race";
+            label = plugin.getKmcCore().getLanguageManager().tr(p, "ae.label-start");
         } else {
             String cpName = plugin.getCheckpointManager().getLastCheckpointName(p.getUniqueId());
-            label = cpName != null ? "checkpoint " + cpName : "laatste checkpoint";
+            var lm = plugin.getKmcCore().getLanguageManager();
+            label = cpName != null ? lm.tr(p, "ae.label-cp", cpName) : lm.tr(p, "ae.label-last");
         }
 
         target = target.clone().add(0.5, 0.1, 0.5);
@@ -240,6 +241,6 @@ public class TrialKeyManager implements Listener {
         p.setVelocity(p.getVelocity().setX(0).setY(0).setZ(0));
         p.setFallDistance(0f);
         p.playSound(p.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, 0.6f, 1.4f);
-        p.sendMessage(ChatColor.GOLD + "↩ Teruggesprongen naar " + ChatColor.YELLOW + label);
+        p.sendMessage(plugin.getKmcCore().getLanguageManager().tr(p, "ae.returned", label));
     }
 }

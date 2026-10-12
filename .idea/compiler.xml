@@ -6,6 +6,7 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="HoleInTheWall" />
         <module name="TheBridge" />
         <module name="SkyWars" />
         <module name="kmc-game-api" />
@@ -27,6 +28,7 @@
         <module name="Bingo" />
         <module name="BlockParty" />
         <module name="ElytraEndrium" />
+        <module name="FormulaMC" />
       </profile>
     </annotationProcessing>
   </component>

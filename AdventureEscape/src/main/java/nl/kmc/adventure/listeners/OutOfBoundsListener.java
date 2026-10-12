@@ -73,10 +73,33 @@ public class OutOfBoundsListener {
         }
     }
 
+    /** Centre of the box of the last numbered checkpoint this racer passed (null if none yet). */
+    private Location lastRaceCheckpoint(Player p) {
+        var rd = plugin.getRaceManager().getRacers().get(p.getUniqueId());
+        if (rd == null || rd.getLastCheckpointIndex() <= 0) return null;
+        for (Checkpoint c : plugin.getArenaManager().getCheckpoints()) {
+            if (c.getIndex() != rd.getLastCheckpointIndex()) continue;
+            Location a = c.getPos1(), b = c.getPos2();
+            if (a == null || b == null || a.getWorld() == null) return null;
+            double x = (Math.min(a.getX(), b.getX()) + Math.max(a.getX(), b.getX()) + 1) / 2.0;
+            double z = (Math.min(a.getZ(), b.getZ()) + Math.max(a.getZ(), b.getZ()) + 1) / 2.0;
+            double y = Math.min(a.getY(), b.getY());
+            Location l = new Location(a.getWorld(), x - 0.5, y, z - 0.5, p.getLocation().getYaw(), 0f);
+            return l;
+        }
+        return null;
+    }
+
     private void sendBack(Player p, Checkpoint cp, String boxName) {
         // Determine respawn target: prefer player's last reached CP if they
         // have progressed beyond `cp`, else use `cp` itself.
         Location target = plugin.getCheckpointManager().getRespawnFor(p.getUniqueId());
+        String where = null;
+        if (target == null) {
+            // No named respawn reached: fall back to the last RACE checkpoint the player passed, not the start.
+            target = lastRaceCheckpoint(p);
+            if (target != null) where = "checkpoint";
+        }
         if (target == null) target = cp.getRespawn();
 
         // Center on block + safe offset
@@ -85,7 +108,6 @@ public class OutOfBoundsListener {
         p.setVelocity(p.getVelocity().setX(0).setY(0).setZ(0));
         p.setFallDistance(0f);
         p.playSound(p.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.7f, 0.9f);
-        p.sendMessage(ChatColor.RED + "Out of bounds! "
-                + ChatColor.GRAY + "(Teruggezet bij " + cp.getName() + ")");
+        p.sendMessage(plugin.getKmcCore().getLanguageManager().tr(p, "ae.oob", cp.getName()));
     }
 }

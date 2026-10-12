@@ -48,7 +48,11 @@ public final class GameObjectiveEvent extends Event {
         /** Player landed the killing blow on a boss-tier mob/entity. */
         BOSS_KILLED,
         /** Player was the last one standing among all participants in a co-op game. */
-        LAST_STANDING
+        LAST_STANDING,
+        /** Hole in the Wall: player survived a milestone number of walls in a single round. */
+        WALLS_SURVIVED_MILESTONE,
+        /** Player won every round of a multi-round game. */
+        CLEAN_SWEEP
     }
 
     private final Player player;

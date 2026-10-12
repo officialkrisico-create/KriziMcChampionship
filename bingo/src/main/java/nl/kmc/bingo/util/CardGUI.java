@@ -48,13 +48,13 @@ public final class CardGUI {
     public static void open(BingoPlugin plugin, Player viewer) {
         var team = plugin.getKmcCore().getTeamManager().getTeamByPlayer(viewer.getUniqueId());
         if (team == null) {
-            viewer.sendMessage(ChatColor.RED + "Je zit niet in een team!");
+            viewer.sendMessage(tr(plugin, viewer, "bingo.no-team"));
             return;
         }
         TeamCardState state = plugin.getBingoManagerV2() != null
                 ? plugin.getBingoManagerV2().getTeamState(team.getId()) : null;
         if (state == null) {
-            viewer.sendMessage(ChatColor.RED + "Geen Bingo game actief!");
+            viewer.sendMessage(tr(plugin, viewer, "bingo.no-game"));
             return;
         }
 
@@ -70,11 +70,11 @@ public final class CardGUI {
         // Header row — team info
         ItemStack header = new ItemStack(Material.PAPER);
         var hMeta = header.getItemMeta();
-        hMeta.displayName(Component.text(team.getDisplayName() + " Card",
+        hMeta.displayName(Component.text(tr(plugin, viewer, "bingo.card-title", team.getDisplayName()),
                 getTeamColor(team), TextDecoration.BOLD));
         hMeta.lore(List.of(
-                Component.text("✔ Vakjes: " + state.getCompletedSquareCount() + "/25", NamedTextColor.GRAY),
-                Component.text("✔ Lijnen: " + state.getCompletedLineCount() + "/12", NamedTextColor.GRAY)
+                Component.text(tr(plugin, viewer, "bingo.squares", state.getCompletedSquareCount(), 25), NamedTextColor.GRAY),
+                Component.text(tr(plugin, viewer, "bingo.lines", state.getCompletedLineCount(), 12), NamedTextColor.GRAY)
         ));
         header.setItemMeta(hMeta);
         inv.setItem(4, header);
@@ -83,14 +83,20 @@ public final class CardGUI {
         BingoCard card = state.getCard();
         for (int idx = 0; idx < BingoCard.TOTAL; idx++) {
             BingoObjective obj = card.get(idx);
-            ItemStack item = buildSquareItem(obj, state, idx);
+            ItemStack item = buildSquareItem(plugin, viewer, obj, state, idx);
             inv.setItem(CARD_SLOTS[idx], item);
         }
 
         viewer.openInventory(inv);
     }
 
-    private static ItemStack buildSquareItem(BingoObjective obj, TeamCardState state, int idx) {
+    private static String tr(BingoPlugin plugin, Player viewer, String key, Object... args) {
+        return org.bukkit.ChatColor.stripColor(
+                plugin.getKmcCore().getLanguageManager().tr(viewer, key, args));
+    }
+
+    private static ItemStack buildSquareItem(BingoPlugin plugin, Player viewer, BingoObjective obj,
+                                             TeamCardState state, int idx) {
         boolean done = state.isCompleted(idx);
 
         // Completed: show as barrier for clear visual distinction.
@@ -112,14 +118,14 @@ public final class CardGUI {
 
         List<Component> lore = new ArrayList<>();
         if (done) {
-            lore.add(Component.text("✔ Compleet!", NamedTextColor.GREEN)
+            lore.add(Component.text(tr(plugin, viewer, "bingo.done"), NamedTextColor.GREEN)
                     .decoration(TextDecoration.ITALIC, false));
         } else if (target > 1) {
-            lore.add(Component.text("Voortgang: " + progress + " / " + target,
+            lore.add(Component.text(tr(plugin, viewer, "bingo.progress", progress, target),
                     NamedTextColor.YELLOW)
                     .decoration(TextDecoration.ITALIC, false));
         } else {
-            lore.add(Component.text("Verzamel dit item",
+            lore.add(Component.text(tr(plugin, viewer, "bingo.collect"),
                     NamedTextColor.YELLOW)
                     .decoration(TextDecoration.ITALIC, false));
         }

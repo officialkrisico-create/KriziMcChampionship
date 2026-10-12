@@ -87,6 +87,8 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
             case "skip" -> {
                 if (am.skipCeremony())
                     sender.sendMessage(MessageUtil.color("&a[KMC] Openingspresentatie overgeslagen."));
+                else if (am.skipMidBreak())
+                    sender.sendMessage(MessageUtil.color("&a[KMC] Pauze overgeslagen."));
                 else
                     sender.sendMessage(MessageUtil.color("&c[KMC] Er speelt nu geen openingspresentatie."));
             }

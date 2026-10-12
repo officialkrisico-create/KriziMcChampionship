@@ -42,9 +42,32 @@ public final class Colors {
             Map.entry(Material.RED_CONCRETE,        "§cROOD"),
             Map.entry(Material.BLACK_CONCRETE,      "§0ZWART"));
 
-    /** Coloured display label, e.g. {@code §cROOD}. */
+    private static final Map<Material, String> EN_NAMES = Map.ofEntries(
+            Map.entry(Material.WHITE_CONCRETE,      "§fWHITE"),
+            Map.entry(Material.ORANGE_CONCRETE,     "§6ORANGE"),
+            Map.entry(Material.MAGENTA_CONCRETE,    "§dMAGENTA"),
+            Map.entry(Material.LIGHT_BLUE_CONCRETE, "§bLIGHT BLUE"),
+            Map.entry(Material.YELLOW_CONCRETE,     "§eYELLOW"),
+            Map.entry(Material.LIME_CONCRETE,       "§aLIME"),
+            Map.entry(Material.PINK_CONCRETE,       "§dPINK"),
+            Map.entry(Material.GRAY_CONCRETE,       "§8GRAY"),
+            Map.entry(Material.LIGHT_GRAY_CONCRETE, "§7LIGHT GRAY"),
+            Map.entry(Material.CYAN_CONCRETE,       "§3CYAN"),
+            Map.entry(Material.PURPLE_CONCRETE,     "§5PURPLE"),
+            Map.entry(Material.BLUE_CONCRETE,       "§9BLUE"),
+            Map.entry(Material.BROWN_CONCRETE,      "§6BROWN"),
+            Map.entry(Material.GREEN_CONCRETE,      "§2GREEN"),
+            Map.entry(Material.RED_CONCRETE,        "§cRED"),
+            Map.entry(Material.BLACK_CONCRETE,      "§0BLACK"));
+
+    /** Coloured display label in Dutch, e.g. {@code §cROOD}. */
     public static String label(Material concrete) {
         return NAMES.getOrDefault(concrete, "§7" + concrete.name());
+    }
+
+    /** Coloured display label in Dutch or English. */
+    public static String label(Material concrete, boolean english) {
+        return english ? EN_NAMES.getOrDefault(concrete, "§7" + concrete.name()) : label(concrete);
     }
 
     /** Display label with the chat-colour prefix stripped (plain text). */

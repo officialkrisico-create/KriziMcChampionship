@@ -43,10 +43,40 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private BukkitTask heartbeatTask;
 
+    /** Teams that cleared every wave: still alive, but nothing left to do. */
+    private final Set<String> finishedTeams = new HashSet<>();
+    private long gameStartMs;
+    private long firstFinishMs;
+
     public MobMayhemGameManagerV2(MobMayhemPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
         this.plugin = plugin;
         this.waves  = WaveLibrary.loadWaves(plugin.getConfig().getConfigurationSection("waves"));
+        if (plugin.getUpgradeManager() != null) plugin.getUpgradeManager().setReviver(this::reviveOne);
+    }
+
+    /** "Wederopstanding" perk: brings one fallen teammate of {@code ts} back into the fight. */
+    private void reviveOne(TeamGameState ts) {
+        Arena arena = teamArenas.get(ts.getTeamId());
+        if (arena == null || ts.isEliminated()) return;
+        for (UUID id : ts.getAllPlayers()) {
+            if (ts.getAlivePlayers().contains(id)) continue;
+            Player p = Bukkit.getPlayer(id);
+            if (p == null || !p.isOnline()) continue;
+            ts.revivePlayer(id);
+            p.setGameMode(GameMode.ADVENTURE);
+            p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
+            Location spawn = arena.getPlayerSpawn();
+            if (spawn != null) p.teleport(spawn);
+            plugin.getKitManager().giveStarterKit(p);
+            plugin.getUpgradeManager().restoreGear(p);
+            var maxHp = p.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+            p.setHealth(maxHp != null ? maxHp.getValue() : 20.0);
+            p.setFoodLevel(20);
+            p.sendTitle(api.tr(p.getUniqueId(), "mm.revived.title"), api.tr(p.getUniqueId(), "mm.revived.sub"), 5, 40, 10);
+            tellKey("mm.revived-chat", p.getName());
+            return;
+        }
     }
 
     @Override
@@ -58,6 +88,8 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         teamPowerupSpawners.clear();
         playerMobKills.clear();
         teamStartFlows.clear();
+        finishedTeams.clear();
+        firstFinishMs = 0;
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             var kmcTeam = plugin.getKmcCore().getTeamManager().getTeamByPlayer(p.getUniqueId());
@@ -152,7 +184,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
 
     @Override
     protected void onCountdownStart() {
-        broadcast("§4§l[Mob Mayhem] §eSurvive the waves! The team that lasts longest wins!");
+        tellKey("mm.intro");
     }
 
     @Override
@@ -172,19 +204,36 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             Arena arena = teamArenas.get(ts.getTeamId());
             if (arena == null) {
                 plugin.getLogger().severe("[MobMayhem] Team " + ts.getTeamId() + " has no pasted arena — eliminating.");
-                broadcast("§4[Mob Mayhem] §cTeam " + ts.getTeamId() + " kon niet starten (arena ontbreekt).");
+                tellKey("mm.no-arena", teamLabel(ts.getTeamId()));
                 onTeamEliminated(ts.getTeamId());
                 continue;
             }
             beginTeamPresentation(ts, arena, wave1);
         }
 
-        // Heartbeat: check if all teams eliminated
+        // Heartbeat. The game ends when: every team is eliminated or has cleared all waves; or a time limit
+        // passes (game.max-duration-seconds); or, once one team finished everything, the others get
+        // game.finish-grace-seconds more and then the game closes.
+        gameStartMs = System.currentTimeMillis();
         heartbeatTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            long alive = teamStates.values().stream()
-                    .filter(ts -> !ts.isEliminated()).count();
-            if (alive == 0) end();
-            else updateBossBar();
+            long active = teamStates.values().stream()
+                    .filter(ts -> !ts.isEliminated() && !finishedTeams.contains(ts.getTeamId())).count();
+            if (active == 0) { end(); return; }
+
+            long now = System.currentTimeMillis();
+            int maxSec = plugin.getConfig().getInt("game.max-duration-seconds", 1800);
+            if (maxSec > 0 && now - gameStartMs > maxSec * 1000L) {
+                tellKey("mm.time-limit");
+                end();
+                return;
+            }
+            int graceSec = plugin.getConfig().getInt("game.finish-grace-seconds", 120);
+            if (firstFinishMs > 0 && graceSec > 0 && now - firstFinishMs > graceSec * 1000L) {
+                tellKey("mm.grace-over");
+                end();
+                return;
+            }
+            updateBossBar();
         }, 20L, 20L);
     }
 
@@ -203,16 +252,15 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         if (spawn != null) parts.forEach(p -> p.teleport(spawn));
 
         StandardStartFlow flow = new StandardStartFlow(plugin, api, registration.getId(),
-                () -> getState().isRunning() && !ts.isEliminated(), this::broadcast,
+                () -> getState().isRunning() && !ts.isEliminated(),
+                // Every team runs its own flow: tell only that team, or each line shows up once per team (x4).
+                msg -> parts.forEach(p -> p.sendMessage(msg)),
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§4§lMOB MAYHEM"; }
+                    @Override public String introSubtitle() { return "@mm.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§4§l» §fOverleef zoveel mogelijk golven mobs samen met je team.",
-                                "§4§l» §fElke golf wordt moeilijker — let op speciale modifiers!",
-                                "§4§l» §fPak powerups op voor tijdelijke boosts.",
-                                "§4§l» §fGa je dood? Dan kijk je de rest van de wedstrijd toe.");
+                        return List.of("@mm.tut.1", "@mm.tut.2", "@mm.tut.3", "@mm.tut.4");
                     }
                     @Override public Location flyoverCenter() { return spawn; }
                     @Override public void onFinished() {
@@ -240,6 +288,13 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         } else {
             plugin.getLogger().severe("[MobMayhem] Team " + ts.getTeamId()
                     + " has no player spawn set — players were NOT teleported into the arena!");
+        }
+
+        if (plugin.getUpgradeManager() != null) {
+            for (UUID uuid : ts.getAlivePlayers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null) plugin.getUpgradeManager().reapply(p);
+            }
         }
 
         final String teamId = ts.getTeamId();
@@ -302,8 +357,9 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         }
 
         String winnerDesc = ranked.isEmpty() ? "No winner"
-                : (ranked.get(0).getHighestWaveSurvived() + " waves — team " + ranked.get(0).getTeamId());
+                : (ranked.get(0).getHighestWaveSurvived() + " waves — team " + teamLabel(ranked.get(0).getTeamId()));
 
+        if (plugin.getUpgradeManager() != null) plugin.getUpgradeManager().clearAll();
         returnToLobby();
         clearAllPockets();
         teamStates.clear();
@@ -331,7 +387,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         player.getInventory().setArmorContents(snapshot.armor);
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§4[MobMayhem] State restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -353,7 +409,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
                 .sorted((a, b) -> Math.max(b.getCurrentWave(), b.getHighestWaveSurvived())
                         - Math.max(a.getCurrentWave(), a.getHighestWaveSurvived()))
                 .limit(5)
-                .forEach(ts -> l.add(api.tr(id, "sb.mob.team-entry", ts.getTeamId(),
+                .forEach(ts -> l.add(api.tr(id, "sb.mob.team-entry", teamLabel(ts.getTeamId()),
                         Math.max(ts.getCurrentWave(), ts.getHighestWaveSurvived()))));
         return l;
     }
@@ -409,7 +465,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         for (UUID uuid : ts.getAlivePlayers()) {
             api.points().givePoints(uuid, wavePts, PointAward.Reason.OBJECTIVE, registration.getId());
         }
-        broadcast("§4[Mob Mayhem] §eTeam " + teamId + " §acleared wave " + waveNumber + "! §8(+" + wavePts + " pts each)");
+        tellKey("mm.wave-cleared", teamLabel(teamId), waveNumber, wavePts);
 
         for (UUID uuid : ts.getAlivePlayers()) {
             Player p = Bukkit.getPlayer(uuid);
@@ -421,10 +477,13 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         int maxWaves = plugin.getConfig().getInt("game.max-waves", waves.size());
         WaveDefinition next = getWaveByNumber(waveNumber + 1);
         if (waveNumber >= maxWaves || next == null) {
-            broadcast("§4§l[Mob Mayhem] §eTeam " + teamId + " §6cleared ALL waves! Incredible!");
-            long otherAlive = teamStates.values().stream()
-                    .filter(t -> !t.getTeamId().equals(teamId) && !t.isEliminated()).count();
-            if (otherAlive == 0) end();
+            tellKey("mm.all-cleared", teamLabel(teamId));
+            finishedTeams.add(teamId);
+            if (firstFinishMs == 0) firstFinishMs = System.currentTimeMillis();
+            long stillPlaying = teamStates.values().stream()
+                    .filter(t -> !t.isEliminated() && !finishedTeams.contains(t.getTeamId())).count();
+            if (stillPlaying == 0) end();
+            else tellKey("mm.others-grace", plugin.getConfig().getInt("game.finish-grace-seconds", 120));
             updateBossBar();
             return;
         }
@@ -439,17 +498,25 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
 
         int intermissionSeconds = plugin.getConfig().getInt("game.intermission-seconds", 5);
         teamExecutors.remove(teamId);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        Runnable startNext = () -> Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!getState().isRunning() || ts.isEliminated()) return;
             startWaveForTeam(ts, arena, next);
         }, intermissionSeconds * 20L);
+
+        // Upgrade pick (1 of 3 perks per player) before the next wave — makes later waves easier to handle.
+        var upgrades = plugin.getUpgradeManager();
+        if (upgrades != null && plugin.getConfig().getBoolean("upgrades.enabled", true)) {
+            upgrades.offer(ts, waveNumber, plugin.getConfig().getInt("upgrades.choose-seconds", 15), startNext);
+        } else {
+            startNext.run();
+        }
 
         updateBossBar();
     }
 
     private void onTeamEliminated(String teamId) {
         if (!getState().isRunning()) return;
-        broadcast("§4☠ §7Team " + teamId + " §7has been eliminated!");
+        tellKey("mm.team-out", teamLabel(teamId));
         PowerupSpawner spawner = teamPowerupSpawners.remove(teamId);
         if (spawner != null) spawner.stop();
         long alive = teamStates.values().stream().filter(ts -> !ts.isEliminated()).count();
@@ -502,11 +569,24 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
 
     // ── Internals ─────────────────────────────────────────────────────────────
 
+    /** Team name in its own colour (e.g. "§cRode Ratten"); falls back to the raw id if the team is unknown. */
+    /** Team name in its own colour, for menus outside this class. */
+    public String teamLabelFor(String teamId) { return teamLabel(teamId); }
+
+    /** Team name in its own colour (e.g. "§cRode Ratten"); falls back to the raw id if the team is unknown. */
+    private String teamLabel(String teamId) {
+        try {
+            return api.teams().getTeam(teamId).map(t -> t.getColor() + t.getDisplayName()).orElse(teamId);
+        } catch (Throwable t) {
+            return teamId;
+        }
+    }
+
     private void updateBossBar() {
         if (bossBar == null) return;
         StringBuilder sb = new StringBuilder(ChatColor.DARK_RED + "" + ChatColor.BOLD + "Mob Mayhem §8| ");
         teamStates.values().forEach(ts ->
-                sb.append("§e").append(ts.getTeamId())
+                sb.append("§e").append(teamLabel(ts.getTeamId()))
                   .append(" §7w").append(ts.getHighestWaveSurvived())
                   .append(ts.isEliminated() ? " §c✗" : " §a✓").append(" §8| "));
         bossBar.setTitle(sb.toString());
@@ -521,7 +601,7 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
             p.getInventory().clear();
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20); p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         }));
     }
 

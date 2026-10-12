@@ -161,6 +161,17 @@ public final class AnnouncementUtil {
 
                 // Variant C: every '_' → '.'  (last-resort fallback)
                 attempts.add(NamespacedKey.minecraft(lower.replace('_', '.')));
+
+                // Variant D: every underscore→dot/underscore combination
+                // (UI_TOAST_CHALLENGE_COMPLETE → ui.toast.challenge_complete needs a mix).
+                int n = 0;
+                int[] pos = new int[16];
+                for (int i = 0; i < lower.length() && n < pos.length; i++) if (lower.charAt(i) == '_') pos[n++] = i;
+                for (int mask = 0; mask < (1 << n); mask++) {
+                    char[] c = lower.toCharArray();
+                    for (int b = 0; b < n; b++) if ((mask & (1 << b)) != 0) c[pos[b]] = '.';
+                    try { attempts.add(NamespacedKey.minecraft(new String(c))); } catch (Exception ignored) { }
+                }
             }
 
             // Try them in order

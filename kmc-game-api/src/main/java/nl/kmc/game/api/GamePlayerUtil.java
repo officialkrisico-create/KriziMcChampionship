@@ -30,6 +30,7 @@ public final class GamePlayerUtil {
     public static void resetPlayer(Player player) {
         player.setGameMode(GameMode.ADVENTURE);
         player.getInventory().clear();
+        unfreezeJump(player);
         player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));
         // getMaxHealth() is deprecated but version-stable — it avoids referencing the
         // Attribute enum constant (renamed MAX_HEALTH ↔ GENERIC_MAX_HEALTH between
@@ -61,6 +62,23 @@ public final class GamePlayerUtil {
     }
 
     /**
+     * Sends a player back to the lobby after a game. If no lobby is configured, falls back to the main
+     * world's spawn — never leaves them where they are: after a game that is usually a floating arena over
+     * the void, and the game-mode reset that precedes this takes away a spectator's flight, so they'd fall.
+     */
+    public static void teleportToLobby(Player player, org.bukkit.Location lobby) {
+        org.bukkit.Location dest = lobby;
+        if (dest == null || dest.getWorld() == null) {
+            var worlds = org.bukkit.Bukkit.getWorlds();
+            if (worlds.isEmpty()) return;
+            dest = worlds.get(0).getSpawnLocation();
+        }
+        unfreezeJump(player);
+        player.setFallDistance(0f);
+        player.teleport(dest);
+    }
+
+    /**
      * Applies a Slowness 255 (movement-freeze) potion for the given number of
      * ticks.  Used during the countdown / prepare phase to hold players in place.
      *
@@ -81,6 +99,43 @@ public final class GamePlayerUtil {
     public static void unfreezePlayer(Player player) {
         PotionEffectType slow = slowness();
         if (slow != null) player.removePotionEffect(slow);
+        unfreezeJump(player);
+    }
+
+    private static final NamespacedKey FREEZE_JUMP_KEY = new NamespacedKey("kmc", "freeze_jump");
+
+    /**
+     * Takes away a player's jump (for freezes). The old "Jump Boost 128" potion trick no longer works —
+     * the amplifier is unsigned now, so it gives a HUGE jump instead of none. A transient -100% jump-strength
+     * modifier is used instead; it is never saved with the player, and removed after {@code ticks} (or by
+     * {@link #unfreezeJump}).
+     */
+    public static void freezeJump(Player player, int ticks) {
+        try {
+            var attr = player.getAttribute(org.bukkit.attribute.Attribute.JUMP_STRENGTH);
+            if (attr == null) return;
+            removeJumpModifier(attr);
+            attr.addTransientModifier(new org.bukkit.attribute.AttributeModifier(FREEZE_JUMP_KEY, -1.0,
+                    org.bukkit.attribute.AttributeModifier.Operation.MULTIPLY_SCALAR_1));
+            if (ticks > 0 && ticks < 20 * 60 * 60) {
+                var owner = org.bukkit.plugin.java.JavaPlugin.getProvidingPlugin(GamePlayerUtil.class);
+                org.bukkit.Bukkit.getScheduler().runTaskLater(owner, () -> unfreezeJump(player), ticks);
+            }
+        } catch (Throwable ignored) { /* cosmetic freeze must never break a game start */ }
+    }
+
+    /** Gives the jump back (counterpart of {@link #freezeJump}). Safe to call at any time. */
+    public static void unfreezeJump(Player player) {
+        try {
+            var attr = player.getAttribute(org.bukkit.attribute.Attribute.JUMP_STRENGTH);
+            if (attr != null) removeJumpModifier(attr);
+        } catch (Throwable ignored) { }
+    }
+
+    private static void removeJumpModifier(org.bukkit.attribute.AttributeInstance attr) {
+        for (var m : new java.util.ArrayList<>(attr.getModifiers())) {
+            if (FREEZE_JUMP_KEY.equals(m.getKey())) attr.removeModifier(m);
+        }
     }
 
     /**

@@ -145,7 +145,7 @@ public class SpleefListener implements Listener {
             // Let the pickup proceed — player gets the snowballs in inventory
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.8f);
             p.sendActionBar(net.kyori.adventure.text.Component.text(
-                    org.bukkit.ChatColor.AQUA + "❄ Snowballs! Right-click to throw"));
+                    plugin.getKmcCore().getLanguageManager().tr(p, "spleef.snowballs")));
         }
     }
 

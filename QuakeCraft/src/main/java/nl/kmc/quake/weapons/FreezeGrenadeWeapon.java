@@ -67,7 +67,7 @@ public final class FreezeGrenadeWeapon {
             if (pl.getLocation().distanceSquared(loc) > rSq) continue;
             if (slow != null) pl.addPotionEffect(new PotionEffect(slow, dur, slowAmp, true, true, true));
             // jump_boost amplifier 128 cripples jump height (vanilla overflow trick)
-            if (jump != null) pl.addPotionEffect(new PotionEffect(jump, dur, 128, true, false, false));
+            nl.kmc.game.api.GamePlayerUtil.freezeJump(pl, dur);
             pl.playSound(pl.getLocation(), Sound.BLOCK_POWDER_SNOW_STEP, 1f, 0.6f);
         }
     }

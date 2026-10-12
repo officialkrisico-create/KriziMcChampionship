@@ -37,11 +37,11 @@ public final class MimicDeviceWeapon {
 
         // Candidate teams to mimic (config allow-list, or all other teams).
         List<String> allowed = plugin.getConfig().getStringList("powerups.mimic_device.allowed-targets");
-        List<Object[]> candidates = new ArrayList<>(); // [id, ChatColor]
+        List<Object[]> candidates = new ArrayList<>(); // [displayName, ChatColor, KMCTeam]
         for (var team : teamManager.getAllTeams()) {
             if (myTeam != null && team.getId().equals(myTeam.getId())) continue;
             if (!allowed.isEmpty() && !allowed.contains(team.getId())) continue;
-            candidates.add(new Object[]{ team.getDisplayName(), team.getColor() });
+            candidates.add(new Object[]{ team.getDisplayName(), team.getColor(), team });
         }
         if (candidates.isEmpty()) {
             player.sendActionBar(net.kyori.adventure.text.Component.text(
@@ -53,6 +53,11 @@ public final class MimicDeviceWeapon {
         Object[] pick = candidates.get((int) (Math.random() * candidates.size()));
         String mimicName  = (String) pick[0];
         Color  mimicColor = toColor((ChatColor) pick[1]);
+        var mimicTeam = (nl.kmc.core.domain.KMCTeam) pick[2];
+
+        // Skin swap: take the skin of an online member of the mimicked team (Paper profile API).
+        // Purely visual; falls back silently to the dyed armour only.
+        boolean skinSwapped = swapSkin(plugin, player, mimicTeam);
 
         // Save current armour, equip dyed leather in the mimicked colour.
         ItemStack[] original = player.getInventory().getArmorContents().clone();
@@ -72,12 +77,50 @@ public final class MimicDeviceWeapon {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             player.getInventory().setArmorContents(original);
+            restoreSkin(player);
             Sfx.play(plugin, player.getLocation(), "mimic_device.deactivate", Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1f, 1.2f);
             player.sendActionBar(net.kyori.adventure.text.Component.text(
                     ChatColor.GRAY + "Vermomming uitgewerkt."));
         }, durationSec * 20L);
 
         return true;
+    }
+
+    /** Original profiles of players currently wearing a borrowed skin. */
+    private static final java.util.Map<java.util.UUID, com.destroystokyo.paper.profile.PlayerProfile> ORIGINAL =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static boolean swapSkin(QuakeCraftPlugin plugin, Player player, nl.kmc.core.domain.KMCTeam team) {
+        if (!plugin.getConfig().getBoolean("powerups.mimic_device.skin-swap", true)) return false;
+        try {
+            Player donor = null;
+            for (java.util.UUID id : team.getMembers()) {
+                Player p = Bukkit.getPlayer(id);
+                if (p != null && p.isOnline() && !p.equals(player)) { donor = p; break; }
+            }
+            if (donor == null) return false;
+            ORIGINAL.putIfAbsent(player.getUniqueId(), player.getPlayerProfile());
+            var swapped = Bukkit.createProfile(player.getUniqueId(), player.getName());
+            swapped.setProperties(donor.getPlayerProfile().getProperties());
+            player.setPlayerProfile(swapped);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static void restoreSkin(Player player) {
+        var original = ORIGINAL.remove(player.getUniqueId());
+        if (original == null || !player.isOnline()) return;
+        try { player.setPlayerProfile(original); } catch (Throwable ignored) { }
+    }
+
+    /** Puts every borrowed skin back (game end / plugin disable). */
+    public static void restoreAll() {
+        for (java.util.UUID id : new java.util.ArrayList<>(ORIGINAL.keySet())) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) restoreSkin(p); else ORIGINAL.remove(id);
+        }
     }
 
     private static ItemStack dyed(Material mat, Color color) {

@@ -160,6 +160,7 @@ public class KMCApi {
     /** Releases scoreboard ownership. Only the current owner can release. */
     public void releaseScoreboard(String minigameName) {
         if (minigameName == null) return;
+        if (scoreboardOwner == null) return;   // already released (end() and signalGameEnd both release)
         if (!minigameName.equals(scoreboardOwner)) {
             plugin.getLogger().warning("Release called by '" + minigameName
                     + "' but owner is '" + scoreboardOwner + "' — ignored.");

@@ -95,8 +95,7 @@ public class RaceManager {
             // Freeze: give slowness IV + jump reduction during countdown
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     PotionEffectType.SLOWNESS, countdownSeconds * 20, 255, true, false, false));
-            p.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    PotionEffectType.JUMP_BOOST, countdownSeconds * 20, 128, true, false, false));
+            nl.kmc.game.api.GamePlayerUtil.freezeJump(p, countdownSeconds * 20);
         }
 
         // BossBar
@@ -144,6 +143,7 @@ public class RaceManager {
             if (p != null) {
                 // Remove freeze effects
                 p.removePotionEffect(PotionEffectType.SLOWNESS);
+                nl.kmc.game.api.GamePlayerUtil.unfreezeJump(p);
                 p.removePotionEffect(PotionEffectType.JUMP_BOOST);
                 p.sendTitle(ChatColor.GREEN + "GO!", ChatColor.YELLOW + "Race is live!", 0, 40, 10);
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1f, 1.5f);
@@ -191,6 +191,7 @@ public class RaceManager {
      * Called when a player crosses the finish line.
      */
     public void onPlayerCrossFinish(Player player) {
+        if (v2() != null) { v2().onPlayerCrossFinish(player); return; }
         if (state != State.ACTIVE) return;
         RacerData rd = racers.get(player.getUniqueId());
         if (rd == null || rd.hasFinished()) return;
@@ -236,8 +237,8 @@ public class RaceManager {
      * Starts their lap timer if they haven't started yet.
      */
     public void onPlayerCrossStart(Player player) {
-        if (state != State.ACTIVE) return;
-        RacerData rd = racers.get(player.getUniqueId());
+        if (!isActive()) return;
+        RacerData rd = getRacers().get(player.getUniqueId());
         if (rd == null || rd.hasStarted()) return;
 
         rd.startFirstLap(System.currentTimeMillis());
@@ -375,9 +376,7 @@ public class RaceManager {
                     p.getInventory().clear();
                     for (var eff : p.getActivePotionEffects()) p.removePotionEffect(eff.getType());
                     // TP to KMCCore lobby
-                    if (plugin.getKmcCore().getArenaManager().getLobby() != null) {
-                        p.teleport(plugin.getKmcCore().getArenaManager().getLobby());
-                    }
+                    nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, plugin.getKmcCore().getArenaManager().getLobby());
                 }
             }
             racers.clear();
@@ -408,10 +407,29 @@ public class RaceManager {
     }
 
     // ---- Getters ---------------------------------------------------
-    public State     getState()    { return state; }
-    public boolean   isActive()    { return state == State.ACTIVE; }
-    public Map<UUID, RacerData> getRacers() { return Collections.unmodifiableMap(racers); }
-    public List<UUID> getFinishOrder()      { return Collections.unmodifiableList(finishOrder); }
+    /**
+     * When the V2 tournament manager exists it owns the race; this class then only
+     * mirrors its state so the listeners/managers that were written against
+     * RaceManager (line crossing, checkpoints, trial keys, out-of-bounds, scoreboard)
+     * keep working. The legacy standalone race (no KMCCore V2) still uses its own state.
+     */
+    private AdventureEscapeGameManagerV2 v2() { return plugin.getGameManagerV2(); }
+
+    public State getState() {
+        var v = v2();
+        if (v == null) return state;
+        if (v.isRaceLive()) return State.ACTIVE;
+        return v.isRunning() ? State.COUNTDOWN : State.IDLE;
+    }
+    public boolean   isActive()    { return getState() == State.ACTIVE; }
+    public Map<UUID, RacerData> getRacers() {
+        var v = v2();
+        return v != null ? v.getRacers() : Collections.unmodifiableMap(racers);
+    }
+    public List<UUID> getFinishOrder() {
+        var v = v2();
+        return v != null ? v.getFinishOrder() : Collections.unmodifiableList(finishOrder);
+    }
 
     // ----------------------------------------------------------------
     // Helpers used by CheckpointManager / OutOfBoundsListener / TrialKeyManager
@@ -419,18 +437,18 @@ public class RaceManager {
 
     /** Set of UUIDs currently enrolled in the race (active or finished). */
     public Set<UUID> getActiveRacerUuids() {
-        return racers.keySet();
+        return getRacers().keySet();
     }
 
     /** True if the player has crossed the final finish line. */
     public boolean hasFinished(UUID uuid) {
-        RacerData rd = racers.get(uuid);
+        RacerData rd = getRacers().get(uuid);
         return rd != null && rd.hasFinished();
     }
 
     /** Returns racers sorted by: finish order (finished first), then by laps+currentLap position. */
     public List<RacerData> getRankedRacers() {
-        List<RacerData> list = new ArrayList<>(racers.values());
+        List<RacerData> list = new ArrayList<>(getRacers().values());
         list.sort((a, b) -> {
             // Finished players ranked first by placement
             if (a.hasFinished() && b.hasFinished()) return Integer.compare(a.getPlacement(), b.getPlacement());

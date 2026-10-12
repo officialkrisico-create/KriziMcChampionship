@@ -19,7 +19,8 @@ import java.util.*;
 public final class LanguageManager {
 
     private static final String DEFAULT = "nl";
-    private static final String[] BUNDLED = {"nl", "en", "tr"};
+    /** The supported languages — Dutch (default) and English. Other files in the lang folder are ignored. */
+    private static final String[] BUNDLED = {"nl", "en"};
     private static final String PREF_GAME = "core";
     private static final String PREF_KEY  = "language";
 
@@ -50,9 +51,12 @@ public final class LanguageManager {
             }
         }
 
-        // ...then load EVERY .yml in the folder. Adding a new language is just
-        // dropping a "<code>.yml" file here (e.g. fr.yml) — no recompile needed.
-        File[] files = dir.listFiles((d, n) -> n.toLowerCase().endsWith(".yml"));
+        // ...then load the on-disk copies of the supported languages (edits made by admins win).
+        File[] files = dir.listFiles((d, n) -> {
+            String lower = n.toLowerCase();
+            return lower.endsWith(".yml")
+                    && java.util.Arrays.asList(BUNDLED).contains(lower.substring(0, lower.length() - 4));
+        });
         if (files != null) {
             for (File f : files) {
                 String code = f.getName().substring(0, f.getName().length() - 4).toLowerCase();
@@ -75,6 +79,11 @@ public final class LanguageManager {
     public String getLanguage(UUID uuid) {
         String code = plugin.getPlayerPreferences().getString(uuid, PREF_GAME, PREF_KEY, DEFAULT);
         return bundles.containsKey(code) ? code : DEFAULT;
+    }
+
+    /** True once the player has explicitly picked a language (so the opening ceremony need not ask again). */
+    public boolean hasChosen(UUID uuid) {
+        return plugin.getPlayerPreferences().has(uuid, PREF_GAME, PREF_KEY);
     }
 
     public void setLanguage(UUID uuid, String code) {

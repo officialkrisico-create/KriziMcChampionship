@@ -1,0 +1,19 @@
+name: HoleInTheWall
+version: 1.0.0
+main: nl.kmc.hitw.HoleInTheWallPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Hole in the Wall minigame for KMC tournaments
+
+commands:
+  hitw:
+    description: Hole in the Wall control + setup
+    aliases: [holeinthewall]
+    usage: /hitw <start|stop|status|setcenter|setradius|setspectator|build|types|testwall|reload>
+    permission: hitw.admin
+
+permissions:
+  hitw.admin:
+    description: Hole in the Wall admin commands
+    default: op

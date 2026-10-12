@@ -58,13 +58,19 @@ block-party:
   game:
     # ── Round timers per phase (seconds) ──────────────────────────────
     timer:
-      phase1: 8        # rounds 1-4   (early game)
-      phase2: 6        # rounds 5-8   (mid game)
-      phase3: 5        # rounds 9-12  (advanced)
-      phase4: 4        # rounds 13-16 (late game)
-      phase5: 3        # rounds 17+   (endgame)
-      endgame: 3       # < 8 players alive
-      final-showdown: 2 # < 4 players alive
+      phase1: 12       # rounds 1-4   (early game)
+      phase2: 9        # rounds 5-8   (mid game)
+      phase3: 7        # rounds 9-12  (advanced)
+      phase4: 5        # rounds 13-16 (late game)
+      phase5: 4        # rounds 17+   (endgame)
+      endgame: 4       # < 8 players alive (only after the relaxed rounds)
+      final-showdown: 3 # < 4 players alive (only after the relaxed rounds)
+
+    # The first N rounds always use the phase timer, no matter how few players are alive.
+    relaxed-rounds: 4
+
+    # Seconds everyone gets on the floor before the first target colour appears.
+    first-round-delay-seconds: 5
 
     # ── Floor generation per phase ────────────────────────────────────
     # Round 1 uses the captured preset above if one is set, otherwise a random

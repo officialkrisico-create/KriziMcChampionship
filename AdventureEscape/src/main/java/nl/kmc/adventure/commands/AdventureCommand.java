@@ -61,12 +61,17 @@ public class AdventureCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
 
             case "start" -> {
-                String error = plugin.getRaceManager().startCountdown();
+                var v2 = plugin.getGameManagerV2();
+                String error = v2 != null
+                        ? (v2.start() ? null : "Start mislukt (arena niet klaar of er loopt al een game).")
+                        : plugin.getRaceManager().startCountdown();
                 if (error != null) sender.sendMessage(ChatColor.RED + error);
                 else sender.sendMessage(ChatColor.GREEN + "Race gestart!");
             }
             case "stop" -> {
-                plugin.getRaceManager().forceStop();
+                if (plugin.getGameManagerV2() != null) {
+                    if (plugin.getGameManagerV2().isRunning()) plugin.getGameManagerV2().end();
+                } else plugin.getRaceManager().forceStop();
                 sender.sendMessage(ChatColor.YELLOW + "Race gestopt.");
             }
             case "setworld" -> {

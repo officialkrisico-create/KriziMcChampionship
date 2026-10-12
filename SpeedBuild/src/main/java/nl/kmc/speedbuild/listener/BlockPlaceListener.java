@@ -22,7 +22,8 @@ public final class BlockPlaceListener implements Listener {
         if (!gm.hasActiveSession(p)) return;
         if (!gm.isInsideBuildArea(p, e.getBlock().getLocation())) {
             e.setCancelled(true);
-            p.sendActionBar(net.kyori.adventure.text.Component.text("§cBouw alleen in je eigen bouwgebied!"));
+            p.sendActionBar(net.kyori.adventure.text.Component.text(
+                    nl.kmc.kmccore.KMCCore.getInstance().getLanguageManager().tr(p, "speedbuild.own-area")));
         }
     }
 }

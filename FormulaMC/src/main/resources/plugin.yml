@@ -1,0 +1,19 @@
+name: FormulaMC
+version: 1.0.0
+main: nl.kmc.formula.FormulaMCPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Formula MC - boat racing on ice for KMC tournaments
+
+commands:
+  fmc:
+    description: Formula MC control + circuit setup
+    aliases: [formula, formulamc]
+    usage: /fmc <start|stop|status|list|create|select|laps|spawn|pos1|pos2|line|cp|reset|info|cam>
+    permission: formula.admin
+
+permissions:
+  formula.admin:
+    description: Formula MC admin commands
+    default: op

@@ -27,6 +27,7 @@ public final class GameApiPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(new ResultBridge(), this);
+        getServer().getPluginManager().registerEvents(new CameraCommandBridge(), this);
 
         var testCmd = new TestArenaCommand(this);
         var bukkitCmd = getCommand("kmctest");
@@ -45,6 +46,37 @@ public final class GameApiPlugin extends JavaPlugin {
     }
 
     /** Forwards V2 game results to the V1 automation flow. */
+    /**
+     * "/<game> cam" for every game command (e.g. /bp cam, /sg cam): opens that game's camera setup menu.
+     * Handled here, before the game's own executor sees it, so no game needs its own camera code.
+     */
+    private final class CameraCommandBridge implements Listener {
+        @EventHandler(priority = EventPriority.LOWEST)
+        public void onCommand(org.bukkit.event.player.PlayerCommandPreprocessEvent e) {
+            String[] parts = e.getMessage().trim().split("\s+");
+            if (parts.length < 2 || !parts[1].equalsIgnoreCase("cam")) return;
+            String label = parts[0].substring(1).toLowerCase();
+            var cmd = Bukkit.getPluginCommand(label);
+            if (cmd == null) return;
+            var owner = cmd.getPlugin();
+            String gameId = null, name = owner.getName();
+            if (owner instanceof AbstractGamePlugin agp) {
+                gameId = agp.gameId();
+                name   = agp.displayName();
+            } else {
+                try {   // plain game plugins (Adventure Escape, Lucky Block) expose a public static GAME_ID
+                    var fld = owner.getClass().getField("GAME_ID");
+                    if (fld.get(null) instanceof String s) gameId = s;
+                } catch (ReflectiveOperationException ignored) { }
+            }
+            if (gameId == null) return;
+            var p = e.getPlayer();
+            if (!p.hasPermission("kmc.camera.admin") && !p.isOp()) return;
+            e.setCancelled(true);
+            if (Bukkit.getPluginManager().getPlugin("KMCCore") instanceof KMCCore core) core.openGameCamera(p, gameId, name);
+        }
+    }
+
     private final class ResultBridge implements Listener {
 
         @EventHandler(priority = EventPriority.MONITOR)

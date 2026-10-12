@@ -51,6 +51,9 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     private ShrinkingRingRenderer ringRenderer;
     private boolean deathmatchActive = false;
     private StandardStartFlow startFlow;
+    private Difficulty previousDifficulty;
+    private nl.kmc.game.api.ShrinkingBorderRing borderRing;
+    private BukkitTask borderRingTask;
 
     public SkyWarsGameManagerV2(SkyWarsPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
@@ -77,7 +80,14 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         }
 
         int stocked = plugin.getChestStocker().stockAll();
-        broadcast("§6[SkyWars] §e" + stocked + " chests stocked with loot.");
+        tellKey("sw.stocked", stocked);
+
+        var swWorld = plugin.getArenaManager().getWorld();
+        // Peaceful would switch off hunger and make health regenerate far too fast.
+        if (swWorld != null && swWorld.getDifficulty() == Difficulty.PEACEFUL) {
+            previousDifficulty = Difficulty.PEACEFUL;
+            swWorld.setDifficulty(Difficulty.NORMAL);
+        }
 
         teleportAndFreezePlayers();
 
@@ -94,12 +104,9 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
                 new StandardStartFlow.Callbacks() {
                     @Override public List<Player> participants() { return parts; }
                     @Override public String introTitle() { return "§e§lSKYWARS"; }
+                    @Override public String introSubtitle() { return "@sw.intro-sub"; }
                     @Override public List<String> defaultTutorialMessages() {
-                        return List.of(
-                                "§e§lSKYWARS",
-                                "§7Open kisten op je eigen eiland — geen PvP tot de start.",
-                                "§7Verzamel spullen en kruis dan naar andere eilanden.",
-                                "§7Laatste team dat overblijft wint!");
+                        return List.of("@sw.tut.1", "@sw.tut.2", "@sw.tut.3");
                     }
                     @Override public Location flyoverCenter() { return plugin.getArenaManager().getMiddleSpawn(); }
                     @Override public void onFinished() { beginCombat(); }
@@ -126,11 +133,14 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
 
         if (bossBar != null) bossBar.setColor(BarColor.RED);
         updateBossBar();
-        broadcast("§c§l[SkyWars] §ePvP is live! Last team standing wins!");
+        tellKey("sw.pvp-live");
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
             updateBossBar();
+            // Other plugins (Multiverse world settings) may switch PvP off again — keep it on while we fight.
+            var w = plugin.getArenaManager().getWorld();
+            if (w != null && !w.getPVP()) w.setPVP(true);
             int dmTrigger = plugin.getConfig().getInt("game.deathmatch-trigger-seconds", 360);
             int totalSec  = plugin.getConfig().getInt("game.max-duration-seconds", 600);
             if (!deathmatchActive && remainingSeconds <= totalSec - dmTrigger) beginDeathmatch();
@@ -138,6 +148,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         }, 20L, 20L);
 
         voidCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, this::checkVoidFalls, 5L, 5L);
+        startBorderRing();
 
         // Optional periodic chest restock (0 = off). Pauses during deathmatch.
         int restockSec = plugin.getConfig().getInt("game.chest-restock-seconds", 0);
@@ -145,7 +156,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             restockTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
                 if (!getState().isRunning() || deathmatchActive) return;
                 int n = plugin.getChestStocker().stockAll();
-                broadcast("§6[SkyWars] §eDe kisten zijn opnieuw gevuld! §7(" + n + ")");
+                tellKey("sw.restock", n);
             }, restockSec * 20L, restockSec * 20L);
         }
     }
@@ -156,6 +167,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
 
         var world = plugin.getArenaManager().getWorld();
         if (world != null) world.setPVP(false);
+        if (world != null && previousDifficulty != null) { world.setDifficulty(previousDifficulty); previousDifficulty = null; }
 
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
@@ -168,12 +180,14 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         });
 
         broadcast("§6═══════════════════════════════════");
-        broadcast("§6§lSkyWars — Results");
+        tellKey("sw.results");
         for (int i = 0; i < teamList.size(); i++) {
             Team t = teamList.get(i);
             String medal = i == 0 ? "§6🥇" : i == 1 ? "§7🥈" : i == 2 ? "§c🥉" : "§7#" + (i + 1);
-            broadcast("  " + medal + " " + t.getChatColor() + t.getDisplayName()
-                    + " §8- §e" + countAlive(t) + " alive (" + teamKills(t) + " kills)");
+            for (Player rp : Bukkit.getOnlinePlayers()) {
+                rp.sendMessage("  " + medal + " " + t.getChatColor() + t.getDisplayName()
+                        + " §8- " + api.tr(rp.getUniqueId(), "sw.result-line", countAlive(t), teamKills(t)));
+            }
             api.points().awardTeamPlacement(t.getId(), i + 1, registration.getId());
         }
 
@@ -219,7 +233,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.setHealth(20);
             p.setFoodLevel(20);
-            if (lobby != null) p.teleport(lobby);
+            nl.kmc.game.api.GamePlayerUtil.teleportToLobby(p, lobby);
         }
 
         stats.clear();
@@ -256,7 +270,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         player.setHealth(Math.min(snapshot.health, snapshot.maxHealth));
         player.getActivePotionEffects().forEach(e -> player.removePotionEffect(e.getType()));
         snapshot.effects.forEach(player::addPotionEffect);
-        player.sendMessage("§a[SkyWars] Your state has been restored!");
+        player.sendMessage(api.tr(player.getUniqueId(), "game.state-restored"));
     }
 
     @Override
@@ -279,6 +293,8 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         if (deathmatchActive) { l.add(""); l.add(api.tr(id, "sb.common.deathmatch")); }
         return l;
     }
+
+    @Override protected boolean handlesPlayerPvp() { return true; }
 
     @Override
     protected ArenaValidator getArenaValidator() {
@@ -332,17 +348,19 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
                 api.points().givePoints(assistId, split.assistAmount(), PointAward.Reason.ASSIST, registration.getId());
                 Player assistPlayer = Bukkit.getPlayer(assistId);
                 if (assistPlayer != null)
-                    assistPlayer.sendMessage("§e+ " + split.assistAmount() + " §7punten voor de assist op §f" + victim.getName());
+                    assistPlayer.sendMessage(api.tr(assistId, "game.assist", split.assistAmount(), victim.getName()));
             }
             assistTracker.clear(victim.getUniqueId());
 
             broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
         } else {
             assistTracker.clear(victim.getUniqueId());
-            broadcast("§c☠ §7" + victim.getName() + " §7" + reason);
+            for (Player rp : Bukkit.getOnlinePlayers())
+                rp.sendMessage("§c☠ §7" + victim.getName() + " §7" + api.tr(rp.getUniqueId(), reason));
         }
 
-        victim.sendTitle("§c§lEliminated!", "§7" + reason, 10, 50, 10);
+        victim.sendTitle(api.tr(victim.getUniqueId(), "game.eliminated.title"),
+                "§7" + api.tr(victim.getUniqueId(), reason), 10, 50, 10);
 
         // Survival bonus for still-alive players
         int survivalBonus = plugin.getConfig().getInt("points.living-while-someone-dies", 5);
@@ -425,6 +443,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
                 if (p == null) { memberIdx++; continue; }
                 p.teleport((Location) t.getIsland().getSpawnForMember(memberIdx++));
                 GamePlayerUtil.resetPlayer(p);
+                p.setGameMode(GameMode.SURVIVAL);   // SkyWars is about building bridges and looting — not adventure mode
                 GamePlayerUtil.freezePlayer(p, countdownTicks);
             }
         }
@@ -432,9 +451,8 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
 
     private void beginDeathmatch() {
         deathmatchActive = true;
-        broadcast("§c§l[DEATHMATCH] §eThe ring closes in!");
-        Bukkit.getOnlinePlayers().forEach(p ->
-                p.sendTitle("§c§lDEATHMATCH", "§eGlowing active — find each other!", 10, 60, 20));
+        tellKey("game.deathmatch.chat");
+        titleKey("game.deathmatch", 10, 60, 20);
 
         var glow = GamePlayerUtil.glowing();
         if (glow != null) {
@@ -443,26 +461,37 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
                 if (p != null) p.addPotionEffect(new PotionEffect(glow, Integer.MAX_VALUE, 0, true, false, true));
             });
         }
-        ringRenderer.reset();
-        double dmg    = plugin.getConfig().getDouble("game.deathmatch-ring-damage", 2.0);
-        double buffer = plugin.getConfig().getDouble("game.deathmatch-ring-buffer", 1.0);
-        deathmatchRingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            Location mid = plugin.getArenaManager().getMiddleSpawn();
-            ringRenderer.tick(mid);
-            if (mid == null || dmg <= 0) return;
-            // Damage anyone outside the closing ring (horizontal distance).
-            double limit = Math.max(1, ringRenderer.getCurrentRadius() - buffer);
-            double limitSq = limit * limit;
-            stats.values().stream().filter(PlayerStats::isAlive).forEach(ps -> {
-                Player p = Bukkit.getPlayer(ps.getUuid());
-                if (p == null || p.isDead()) return;
-                double dx = p.getLocation().getX() - mid.getX();
-                double dz = p.getLocation().getZ() - mid.getZ();
-                if (dx * dx + dz * dz > limitSq) {
-                    p.damage(dmg);
-                    p.getWorld().spawnParticle(org.bukkit.Particle.DAMAGE_INDICATOR, p.getEyeLocation(), 4, 0.2, 0.2, 0.2, 0);
-                }
-            });
+    }
+
+    /**
+     * The same closing particle ring Survival Games uses (nl.kmc.game.api.ShrinkingBorderRing): it starts at the
+     * outer islands and shrinks toward the middle island, damaging anyone outside it.
+     */
+    private void startBorderRing() {
+        Location mid = plugin.getArenaManager().getMiddleSpawn();
+        if (mid == null) return;
+        double far = 0;
+        for (var isl : plugin.getArenaManager().getIslands().values()) {
+            Location s = isl.getSpawn();
+            if (s == null || s.getWorld() == null || !s.getWorld().equals(mid.getWorld())) continue;
+            far = Math.max(far, Math.hypot(s.getX() - mid.getX(), s.getZ() - mid.getZ()));
+        }
+        double start = plugin.getConfig().getDouble("game.border-start-radius", 0);
+        if (start <= 0) start = Math.max(30, far + 14);
+        double min = plugin.getConfig().getDouble("game.border-min-radius", 8);
+        int shrinkSec = plugin.getConfig().getInt("game.border-shrink-seconds", 0);
+        if (shrinkSec <= 0) shrinkSec = Math.max(30, remainingSeconds - 20);
+        double perSec = (start - min) / shrinkSec;
+        double damage = plugin.getConfig().getDouble("game.border-damage", 1.0);
+        double buffer = plugin.getConfig().getDouble("game.border-buffer", 2.0);
+
+        borderRing = new nl.kmc.game.api.ShrinkingBorderRing(mid, start, min, perSec, damage, buffer, org.bukkit.Particle.FLAME);
+        borderRingTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!getState().isRunning()) return;
+            var alive = stats.values().stream().filter(PlayerStats::isAlive)
+                    .map(ps -> Bukkit.getPlayer(ps.getUuid()))
+                    .filter(java.util.Objects::nonNull).toList();
+            borderRing.tick(alive);
         }, 20L, 20L);
     }
 
@@ -474,7 +503,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             if (ps == null || !ps.isAlive()) continue;
             Player p = Bukkit.getPlayer(uuid);
             if (p == null || p.getGameMode() == GameMode.SPECTATOR) continue;
-            if (p.getLocation().getY() < voidY) handleDeath(p, getRecentAttacker(uuid), "fell into the void");
+            if (p.getLocation().getY() < voidY) handleDeath(p, getRecentAttacker(uuid), "game.reason.void");
         }
     }
 
@@ -494,8 +523,8 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         int min = remainingSeconds / 60, sec = remainingSeconds % 60;
         String phase = deathmatchActive ? "§4DEATHMATCH" : "§cPVP";
         bossBar.setTitle(ChatColor.translateAlternateColorCodes('&',
-                phase + " §8| §e" + aliveTeams + " teams (" + alivePlayers
-                + " alive) §8| §b" + String.format("%02d:%02d", min, sec)));
+                phase + " §8| §e" + aliveTeams + "T §7(" + alivePlayers
+                + "👤) §8| §b" + String.format("%02d:%02d", min, sec)));
         int totalSec = plugin.getConfig().getInt("game.max-duration-seconds", 600);
         bossBar.setProgress(Math.max(0, Math.min(1, (double) remainingSeconds / totalSec)));
     }
@@ -517,6 +546,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         cancel(voidCheckTask);      voidCheckTask      = null;
         cancel(deathmatchRingTask); deathmatchRingTask = null;
         cancel(restockTask);        restockTask        = null;
+        cancel(borderRingTask);     borderRingTask     = null;
         if (startFlow != null) { startFlow.cancel(); startFlow = null; }
     }
 

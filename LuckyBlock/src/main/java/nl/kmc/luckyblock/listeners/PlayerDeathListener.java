@@ -60,13 +60,14 @@ public class PlayerDeathListener implements Listener {
                         plugin.getConfig().getDouble("points.assist-fraction", 0.2));
 
                 plugin.getKmcCore().getApi().givePoints(killer.getUniqueId(), split.killerAmount());
-                killer.sendMessage("§6+" + split.killerAmount() + " punten voor de kill!");
+                killer.sendMessage(plugin.getKmcCore().getLanguageManager().tr(killer, "lb.kill-pts", split.killerAmount()));
 
                 if (assistId != null && split.assistAmount() > 0) {
                     plugin.getKmcCore().getApi().givePoints(assistId, split.assistAmount());
                     Player assistPlayer = Bukkit.getPlayer(assistId);
                     if (assistPlayer != null)
-                        assistPlayer.sendMessage("§e+" + split.assistAmount() + " §7punten voor de assist op §f" + dead.getName());
+                        assistPlayer.sendMessage(plugin.getKmcCore().getLanguageManager().tr(assistPlayer,
+                                "lb.assist-pts", split.assistAmount(), dead.getName()));
                 }
             }
             // Track the kill in HoF + per-player stats (not the points)

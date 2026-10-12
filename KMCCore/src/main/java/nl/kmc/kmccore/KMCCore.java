@@ -109,11 +109,33 @@ public final class KMCCore extends JavaPlugin {
             nl.kmc.kmccore.tournament.PowerRankings.reveal(this);
         });
 
+        lobbyMvpCrown = new nl.kmc.kmccore.lobby.LobbyMvpCrown(this);
+        lobbyMvpCrown.start();
+
+        // Per-game camera setup: "/<game> cam" (see GameApiPlugin) opens this menu; the wand adds waypoints.
+        getServer().getPluginManager().registerEvents(new nl.kmc.kmccore.listeners.CameraWandListener(this), this);
+        getServer().getPluginManager().registerEvents(new nl.kmc.kmccore.listeners.FireworkSafetyListener(), this);
+
         getLogger().info("KMCCore v" + getDescription().getVersion() + " enabled!");
+    }
+
+    private nl.kmc.kmccore.lobby.LobbyMvpCrown lobbyMvpCrown;
+    private nl.kmc.kmccore.presentation.CeremonyFireworks ceremonyFireworks;
+
+    /** Configurable opening-ceremony fireworks (/kmcopeningsceremony). */
+    public nl.kmc.kmccore.presentation.CeremonyFireworks getCeremonyFireworks() {
+        if (ceremonyFireworks == null) ceremonyFireworks = new nl.kmc.kmccore.presentation.CeremonyFireworks(this);
+        return ceremonyFireworks;
+    }
+
+    /** Opens the camera setup menu of one game ({@code /<game> cam}). */
+    public void openGameCamera(org.bukkit.entity.Player admin, String gameId, String gameName) {
+        new nl.kmc.kmccore.gui.GameCameraGui(this, gameId, gameName, admin).open(admin);
     }
 
     @Override
     public void onDisable() {
+        if (lobbyMvpCrown != null) lobbyMvpCrown.stop();
         // Release the shared API slot we own.
         try { nl.kmc.core.api.KMCApiProvider.clear(); } catch (Exception ignored) {}
         // Disable in reverse dependency order
@@ -156,6 +178,7 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcachievements",    new AchievementCommand());
         setCmd("kmcceremonies",      new CeremoniesCommand(this));
         setCmd("kmccamera",          new CameraCommand(this));
+        setCmd("kmcopeningsceremony", new nl.kmc.kmccore.commands.OpeningCeremonyCommand(this));
         setCmd("kmcpresentation",    new PresentationCommand(this));
         setCmd("kmcsetup",           new SetupCommand(this));
         setCmd("tutorial",           new GuiCommands.TutorialCommand(this));

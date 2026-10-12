@@ -10,6 +10,13 @@ public class TournamentCommand implements CommandExecutor {
     private final KMCCore plugin;
     public TournamentCommand(KMCCore plugin) { this.plugin = plugin; }
 
+    /** Ending/resetting a tournament must also stop the automation (and its running game) — otherwise it launches the next game. */
+    private void stopAutomationIfRunning() {
+        try {
+            if (plugin.getAutomationManager().isRunning()) plugin.getAutomationManager().stop();
+        } catch (Throwable ignored) { }
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (!sender.hasPermission("kmc.tournament.admin")) {
@@ -27,15 +34,18 @@ public class TournamentCommand implements CommandExecutor {
                     sender.sendMessage(MessageUtil.get("tournament.not-running"));
             }
             case "end" -> {
+                stopAutomationIfRunning();
                 // Announces winner and zeros points for next event
                 plugin.getTournamentManager().endTournament();
                 sender.sendMessage(MessageUtil.color("&a✔ Toernooi beëindigd. Punten zijn gereset."));
             }
             case "reset" -> {
+                stopAutomationIfRunning();
                 plugin.getTournamentManager().reset();
                 sender.sendMessage(MessageUtil.color("&aSoft reset gedaan: tournament stats gewist, lifetime stats behouden."));
             }
             case "hardreset" -> {
+                stopAutomationIfRunning();
                 plugin.getTournamentManager().hardReset();
                 sender.sendMessage(MessageUtil.color("&c⚠ HARD RESET: alle data gewist inclusief lifetime stats."));
             }

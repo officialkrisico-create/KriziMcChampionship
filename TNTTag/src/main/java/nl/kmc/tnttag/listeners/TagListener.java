@@ -36,6 +36,27 @@ public class TagListener implements Listener {
     private boolean running() { TNTTagGameManagerV2 m = gm(); return m != null && m.isRunning(); }
     private PlayerState state(UUID u) { TNTTagGameManagerV2 m = gm(); return m == null ? null : m.getPlayersMap().get(u); }
 
+    /** Hitting a decoy NPC wastes the carrier's hit. */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onHitDecoy(EntityDamageByEntityEvent event) {
+        if (!running()) return;
+        if (!(event.getDamager() instanceof Player)) return;
+        if (plugin.getPowerupManager().popDecoy(event.getEntity())) event.setCancelled(true);
+    }
+
+    /** Right-click with a stored powerup uses it. */
+    @EventHandler
+    public void onUsePowerup(org.bukkit.event.player.PlayerInteractEvent event) {
+        if (!live()) return;
+        var act = event.getAction();
+        if (act != org.bukkit.event.block.Action.RIGHT_CLICK_AIR && act != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        if (!plugin.getPowerupManager().isPowerupItem(event.getItem())) return;
+        event.setCancelled(true);
+        PlayerState ps = state(event.getPlayer().getUniqueId());
+        if (ps == null || !ps.isAlive()) return;
+        plugin.getPowerupManager().use(event.getPlayer());
+    }
+
     /** Hitting another player passes the bomb (if you hold it). */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHit(EntityDamageByEntityEvent event) {
@@ -56,6 +77,11 @@ public class TagListener implements Listener {
         PlayerState ps = state(p.getUniqueId());
         Item item = event.getItem();
         if (ps == null || !ps.isAlive()) { event.setCancelled(true); return; }
+        if (plugin.getPowerupManager().isPowerupItem(item.getItemStack()) && !plugin.getPowerupManager().canHold(p.getUniqueId())) {
+            event.setCancelled(true);
+            p.sendActionBar(net.kyori.adventure.text.Component.text("§cGebruik eerst je huidige powerup (rechtsklik)!"));
+            return;
+        }
         if (plugin.getPowerupManager().handlePickup(p, item)) {
             event.setCancelled(true); // we consume it ourselves
         }
@@ -66,7 +92,15 @@ public class TagListener implements Listener {
         if (!running()) return;
         if (!(event.getEntity() instanceof Player p)) return;
         if (state(p.getUniqueId()) == null) return;
-        // No real damage — eliminations come only from the round explosion / void.
+        // The closing border damages with CUSTOM damage; a lethal tick eliminates instead of killing.
+        if (event.getCause() == EntityDamageEvent.DamageCause.CUSTOM) {
+            if (event.getFinalDamage() >= p.getHealth()) {
+                event.setCancelled(true);
+                gm().eliminateEnvironmental(p);
+            }
+            return;
+        }
+        // No other real damage — eliminations come only from the round explosion / border.
         event.setCancelled(true);
     }
 

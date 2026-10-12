@@ -23,7 +23,8 @@ public final class BlockBreakListener implements Listener {
         if (!gm.hasActiveSession(p)) return;
         if (!gm.isInsideBuildArea(p, e.getBlock().getLocation())) {
             e.setCancelled(true);
-            p.sendActionBar(net.kyori.adventure.text.Component.text("§cJe kunt hier niets slopen!"));
+            p.sendActionBar(net.kyori.adventure.text.Component.text(
+                    nl.kmc.kmccore.KMCCore.getInstance().getLanguageManager().tr(p, "speedbuild.no-break")));
         }
     }
 }
