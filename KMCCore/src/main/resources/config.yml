@@ -469,6 +469,7 @@ season:
 # tablist.layout: mcc (team rows with live game points) or classic.
 # tablist.presented-by: line under the title in the MCC header ("" = none).
 # tablist.points-icon: symbol after the points of a team.
+# tablist.hide-players: true = hide the vanilla player entries (also your own name) under the MCC table.
 chat-gate:
   enabled: true            # mute chat (also for OP) during explanations and ceremonies
 

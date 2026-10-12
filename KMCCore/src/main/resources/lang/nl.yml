@@ -1148,7 +1148,9 @@ platform:
   first-join: "&6&lWelkom! &7Kies je taal in het menu — Choose your language in the menu."
   hud:
     usage: "&7Gebruik: &e/kmchud <normal|compact|minimal|test>"
-    test: "&7HUD-stand &e{0}&7, maximale regelbreedte &e{1}px&7. Zo wordt een te lange regel afgekapt:"
+    test-start: "&6&lHUD-test &8({2}s) &7— stand &e{0}&7, max. regelbreedte &e{1}px&7. Kijk: sidebar &erechts&7, bossbar &eboven&7, titel &emidden&7, actionbar &eonder&7."
+    test-hint: "&7Een regel met &f…&7 is met opzet afgekapt (LANG/VET). Past een KORTE regel of titel niet in beeld? Zet je GUI-schaal lager of gebruik &e/kmchud compact&7."
+    test-title: "&7titel {0}/{1} &8| &f{2}px &8| &7past op GUI-schaal &e≤ {3}"
     set: "&aHUD-weergave: &e{0}"
   clip:
     started: "&a[Clip] Streamklok gestart — tijdcodes tellen nu vanaf dit moment."

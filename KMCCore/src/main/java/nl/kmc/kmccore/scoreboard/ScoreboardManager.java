@@ -165,7 +165,11 @@ public class ScoreboardManager {
         boolean owned = plugin.getApi().isScoreboardOwnedByMinigame();
         String title;
         List<String> lines;
-        if (owned) {
+        List<String> hudTest = nl.kmc.kmccore.platform.HudTest.sidebar(player);   // /kmchud test
+        if (hudTest != null) {
+            title = nl.kmc.kmccore.platform.HudTest.sidebarTitle();
+            lines = hudTest;
+        } else if (owned) {
             if (gameBoard == null) return;            // game owns board, no custom sidebar → freeze
             title = MessageUtil.color(safeTitle(player));
             lines = safeLines(player);
@@ -195,6 +199,8 @@ public class ScoreboardManager {
             try { next.unregister(); } catch (Exception ignored) {}
         }
         next = board.registerNewObjective(nextName, Criteria.DUMMY, title);
+        // the score is only the line order: hide the red numbers so they take no width in the sidebar
+        try { next.numberFormat(io.papermc.paper.scoreboard.numbers.NumberFormat.blank()); } catch (Throwable ignored) { }
         if (lines.size() > MAX_SIDEBAR_LINES)
             lines = new ArrayList<>(lines.subList(0, MAX_SIDEBAR_LINES));
 

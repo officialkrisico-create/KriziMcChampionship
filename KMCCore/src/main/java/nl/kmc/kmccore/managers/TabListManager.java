@@ -55,6 +55,7 @@ public class TabListManager {
 
         if (mccLayout()) {
             player.sendPlayerListHeaderAndFooter(fromLegacy(mccHeader(player)), fromLegacy(mccFooter(player)));
+            hideVanillaEntries();
             return;
         }
         player.sendPlayerListHeaderAndFooter(fromLegacy(buildHeader(player)), fromLegacy(buildFooter(player)));
@@ -69,30 +70,75 @@ public class TabListManager {
         return plugin.getConfig().getString("tablist.layout", "mcc").equalsIgnoreCase("mcc");
     }
 
+    /**
+     * The client centres every header/footer line by itself, so a line is not padded here: padding on
+     * one side only would push the text to the right of the table.
+     */
     private static String centred(String s) {
-        int pad = (TAB_W - ChatLayout.px(s)) / 2;
-        return ChatLayout.spaces(pad) + s;
+        return s;
     }
 
-    /** {@code left} flush left, {@code right} flush right, padded to the table width. */
-    private static String leftRight(String left, String right) {
+    /**
+     * {@code left} flush left, {@code right} flush right, padded to the table width. The padding is
+     * reset first: a bold team name would otherwise make every space of the gap one pixel wider and
+     * push that row out of line with the others.
+     */
+    static String leftRight(String left, String right) {
         int gap = TAB_W - ChatLayout.px(left) - ChatLayout.px(right);
-        return left + ChatLayout.spaces(gap) + right;
+        return left + "§r" + ChatLayout.spaces(gap) + right;
     }
 
-    /** The names spread evenly over the table width. */
-    private static String spread(List<String> names) {
-        if (names.isEmpty()) return "";
-        int total = 0;
-        for (String n : names) total += ChatLayout.px(n);
-        int gaps = Math.max(1, names.size() - 1);
-        int gap = Math.max(8, (TAB_W - 24 - total) / gaps);
-        StringBuilder sb = new StringBuilder(ChatLayout.spaces(12));
-        for (int i = 0; i < names.size(); i++) {
-            if (i > 0) sb.append(ChatLayout.spaces(gap));
-            sb.append(names.get(i));
+    /** Max lines of player names under a team; the rest becomes "+N" (the tab has to fit on small GUI scales). */
+    private static final int MAX_NAME_LINES = 2;
+
+    /**
+     * Player names as centred lines (the client centres), separated by a dot, wrapped when a line would be
+     * wider than the table, and cut to {@link #MAX_NAME_LINES} lines with a "+N" for the rest.
+     */
+    static List<String> nameLines(List<String> names) {
+        List<String> lines = new ArrayList<>();
+        if (names.isEmpty()) return lines;
+        final String sep = "  §8•  ";
+        final int limit = TAB_W - 20;
+        List<List<String>> groups = new ArrayList<>();
+        List<String> cur = new ArrayList<>();
+        for (String n : names) {
+            List<String> trial = new ArrayList<>(cur);
+            trial.add(n);
+            if (!cur.isEmpty() && ChatLayout.px(String.join(sep, trial)) > limit) {
+                groups.add(cur);
+                cur = new ArrayList<>();
+            }
+            cur.add(n);
         }
-        return sb.toString();
+        groups.add(cur);
+        int hidden = 0;
+        for (int i = 0; i < groups.size(); i++) {
+            if (i < MAX_NAME_LINES) lines.add(String.join(sep, groups.get(i)));
+            else hidden += groups.get(i).size();
+        }
+        if (hidden > 0) {
+            int last = lines.size() - 1;
+            lines.set(last, lines.get(last) + "  §8+" + hidden);
+        }
+        return lines;
+    }
+
+    /**
+     * Takes the vanilla player entries (head, name, ping) out of everybody's tab: the MCC layout lives in the
+     * header, so a leftover entry (your own name below the table) only gets in the way.
+     */
+    private void hideVanillaEntries() {
+        if (!mccLayout() || !plugin.getConfig().getBoolean("tablist.hide-players", true)) return;
+        for (Player viewer : Bukkit.getOnlinePlayers()) {
+            for (Player other : Bukkit.getOnlinePlayers()) {
+                try {
+                    if (viewer.isListed(other)) viewer.unlistPlayer(other);
+                } catch (Exception e) {
+                    plugin.getLogger().log(Level.FINE, "unlist failed for " + other.getName(), e);
+                }
+            }
+        }
     }
 
     /** Team rows with the points of the running game (live), or the tournament totals outside a game. */
@@ -124,7 +170,7 @@ public class TabListManager {
                 if (n == null) continue;
                 names.add((online != null ? c : "§8") + n);
             }
-            rows.add(spread(names));
+            rows.addAll(nameLines(names));
             rank++;
         }
         return rows;
@@ -174,6 +220,7 @@ public class TabListManager {
                 plugin.getLogger().log(Level.FINE, "tab refresh failed for " + p.getName(), e);
             }
         }
+        hideVanillaEntries();
     }
 
     /** MCC-style header: championship title + round + active game (in viewer's language). */

@@ -1148,7 +1148,9 @@ platform:
   first-join: "&6&lWelcome! &7Choose your language in the menu — Kies je taal in het menu."
   hud:
     usage: "&7Usage: &e/kmchud <normal|compact|minimal|test>"
-    test: "&7HUD mode &e{0}&7, maximum line width &e{1}px&7. This is how a too-long line gets shortened:"
+    test-start: "&6&lHUD test &8({2}s) &7— mode &e{0}&7, max line width &e{1}px&7. Look: sidebar &eright&7, bossbar &etop&7, title &ecentre&7, actionbar &ebottom&7."
+    test-hint: "&7A line ending in &f…&7 is cut on purpose (LONG/BOLD). If a SHORT line or title does not fit on screen, lower your GUI scale or use &e/kmchud compact&7."
+    test-title: "&7title {0}/{1} &8| &f{2}px &8| &7fits GUI scale &e≤ {3}"
     set: "&aHUD density: &e{0}"
   clip:
     started: "&a[Clip] Stream clock started — timecodes count from now."

@@ -36,9 +36,7 @@ public final class PlatformCommands implements CommandExecutor, TabCompleter {
             case "kmchud" -> {
                 if (!(s instanceof Player p)) { s.sendMessage("§cAlleen spelers."); return true; }
                 if (a.length > 0 && a[0].equalsIgnoreCase("test")) {
-                    int px = HudScale.maxPx(plugin, p);
-                    p.sendMessage(lm.tr(p, "platform.hud.test", HudScale.get(plugin, p), px));
-                    p.sendMessage("§7" + HudScale.fit("§aDit is een heel erg lange testregel die nooit mag overlappen met andere HUD-onderdelen", px, HudScale.MAX_ENTRY_CHARS));
+                    HudTest.start(plugin, p);
                     return true;
                 }
                 String mode = a.length > 0 ? a[0].toLowerCase(Locale.ROOT) : HudScale.next(HudScale.get(plugin, p));
