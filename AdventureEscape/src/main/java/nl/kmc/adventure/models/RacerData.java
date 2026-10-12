@@ -18,6 +18,7 @@ public class RacerData {
 
     private long raceStart;
     private long currentLapStart;
+    private long sectorStart;
 
     private int  lapsCompleted;
     private long bestLapMs;
@@ -60,10 +61,18 @@ public class RacerData {
         lapsCompleted++;
         if (bestLapMs == 0 || lapTime < bestLapMs) bestLapMs = lapTime;
         currentLapStart = now;
+        sectorStart = 0;
         currentLapMs = 0;
         checkpointsThisLap.clear();
         lastCheckpointIndex = 0;
         return lapTime;
+    }
+
+    /** Time since the previous split (or the start of the lap) — and starts the next sector. */
+    public long splitSector(long now) {
+        long from = sectorStart > 0 ? sectorStart : currentLapStart;
+        sectorStart = now;
+        return from > 0 ? now - from : -1;
     }
 
     public void tickUpdate(long now) {

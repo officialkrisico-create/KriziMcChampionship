@@ -1,0 +1,19 @@
+name: KnockoutKings
+version: 1.0.0
+main: nl.kmc.knockout.KnockoutKingsPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Knockout Kings - knock your opponents off the platform
+
+commands:
+  knockout:
+    description: Knockout Kings control + setup
+    aliases: [knockoutkings, kk]
+    usage: /knockout <start|stop|status|validate|world|spawn|respawn|platform|killy|pos1|pos2>
+    permission: knockout.admin
+
+permissions:
+  knockout.admin:
+    description: Knockout Kings admin commands
+    default: op

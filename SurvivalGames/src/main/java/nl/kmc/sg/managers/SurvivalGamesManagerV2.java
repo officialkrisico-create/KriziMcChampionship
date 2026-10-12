@@ -41,18 +41,32 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
     private volatile boolean graceActive;
 
     private final AssistTracker assistTracker = new AssistTracker();
+    private final SupplyDropManager supplyDrops;
+    private int bloodbathElapsed;
 
     public SurvivalGamesManagerV2(SurvivalGamesPlugin plugin, GameRegistration reg,
                                    StatisticsService statsService) {
         super(plugin, reg, statsService);
         this.plugin = plugin;
+        this.supplyDrops = new SupplyDropManager(plugin,
+                (key, args) -> tellKey(key, args),
+                base -> titleKey(base, 10, 50, 10),
+                () -> {
+                    if (borderRing != null) return borderRing.getRadius();
+                    var a = plugin.getArenaManager().getArena();
+                    return a != null ? a.getBorderRadius() : 0;
+                });
     }
+
+    public SupplyDropManager getSupplyDrops() { return supplyDrops; }
 
     @Override
     protected void onPrepare() {
         stats.clear();
         eliminationCounter = 0;
         deathmatchActive   = false;
+        bloodbathElapsed   = 0;
+        supplyDrops.reset();
         assistTracker.clearAll();
 
         plugin.getChestStocker().stockAllAsync(() ->
@@ -140,6 +154,8 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
+            bloodbathElapsed++;
+            if (!deathmatchActive) supplyDrops.tick(bloodbathElapsed);
             updateBossBar();
             if (!deathmatchActive && remainingSeconds <= dmTrigger) startDeathmatch();
             if (remainingSeconds <= 0) end();
@@ -194,6 +210,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         if (restockTask     != null) { restockTask.cancel();     restockTask     = null; }
         if (borderRingTask  != null) { borderRingTask.cancel();  borderRingTask  = null; }
         if (startFlow       != null) { startFlow.cancel();       startFlow       = null; }
+        supplyDrops.clearAll();
 
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
@@ -318,6 +335,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         victim.setHealth(20); victim.setFoodLevel(20);
 
         if (killer != null && !killer.equals(victim)) {
+            api.games().announceElimination(victim.getUniqueId(), killer.getUniqueId(), registration.getId());
             PlayerStats ks = stats.get(killer.getUniqueId());
             if (ks != null) ks.incrementKills();
             int killPts = plugin.getConfig().getInt("points.per-kill", 50);
@@ -361,6 +379,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
 
     private void startDeathmatch() {
         deathmatchActive = true;
+        supplyDrops.stopScheduling();
         tellKey("game.deathmatch.chat");
         PotionEffectType glow = GamePlayerUtil.glowing();
         if (glow != null) {

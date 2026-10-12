@@ -204,10 +204,9 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                     if (!id.equals(event.getGame().getId())) return;
                     getLogger().info("[" + pluginName + "] Tournament start signal — resetting arena then launching.");
                     Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
-                        // Paste schematic to restore arena (no-op if not configured)
-                        resetArena();
-                        // Start game 1 second after paste so world changes settle
-                        Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
+                        // Restore the arena (async: chunks preloaded, schematic read off-thread; no-op if
+                        // not configured), then start the game 1 second later so world changes settle.
+                        resetArenaThen(() -> Bukkit.getScheduler().runTaskLater(AbstractGamePlugin.this, () -> {
                             if (!gameManagerV2.start()) {
                                 java.util.List<String> issues = gameManagerV2.getArenaIssues();
                                 getLogger().warning("[" + pluginName + "] V2 start() rejected — arena not ready:");
@@ -220,7 +219,7 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                                     issues.forEach(i -> op.sendMessage("§7  - §f" + i));
                                 }
                             }
-                        }, 20L);
+                        }, 20L));
                     }, 20L);
                 }
             }, this);
@@ -277,6 +276,26 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
         return sm.resetArena(schematicName, origin);
     }
 
+    /**
+     * Like {@link #resetArena()} but without the main-thread stall: the schematic is read asynchronously and
+     * the arena's chunks are preloaded first. {@code next} runs on the main thread when the paste is done (or
+     * straight away when there is nothing to paste).
+     */
+    protected void resetArenaThen(Runnable next) {
+        try {
+            var sm = kmcCore.getSchematicManager();
+            org.bukkit.Location origin = sm.getOriginForGame(gameId());
+            if (!sm.isWorldEditAvailable() || origin == null) { next.run(); return; }
+            String schematicName = gameId() + "mapschematic.schem";
+            getLogger().info("[" + gameId() + "] Resetting arena (async): " + schematicName);
+            sm.pasteSchematicAsync(schematicName, origin, ok -> next.run());
+        } catch (Throwable t) {
+            getLogger().warning("[" + gameId() + "] Async arena reset failed, continuing: " + t);
+            next.run();
+        }
+    }
+
+
     // ── Setup Dashboard integration ───────────────────────────────────────────
 
     /**
@@ -309,7 +328,7 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
                 java.util.List<nl.kmc.core.setup.SetupStep> out = new java.util.ArrayList<>();
 
                 // Shared: arena schematic origin (used to auto-reset arenas between rounds).
-                var sm = kmcCore.getSchematicManager();
+                nl.kmc.kmccore.managers.SchematicManager sm = kmcCore.getSchematicManager();
                 boolean originSet = sm.getOriginForGame(id) != null;
                 out.add(nl.kmc.core.setup.SetupStep.action(
                         "Arena origin", originSet ? "✓ ingesteld" : "niet ingesteld", originSet,

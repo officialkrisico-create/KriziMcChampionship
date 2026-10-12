@@ -52,7 +52,9 @@ public final class GameObjectiveEvent extends Event {
         /** Hole in the Wall: player survived a milestone number of walls in a single round. */
         WALLS_SURVIVED_MILESTONE,
         /** Player won every round of a multi-round game. */
-        CLEAN_SWEEP
+        CLEAN_SWEEP,
+        /** Rising Inferno: player collected every bonus orb of the arena in one game. */
+        ALL_BONUSES_COLLECTED
     }
 
     private final Player player;

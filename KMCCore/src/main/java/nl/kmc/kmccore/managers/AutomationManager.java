@@ -33,7 +33,7 @@ import java.util.Set;
  */
 public class AutomationManager {
 
-    public enum State { IDLE, GAME_ACTIVE, INTERMISSION, VOTING, PRE_START, PAUSED }
+    public enum State { IDLE, GAME_ACTIVE, INTERMISSION, READY_CHECK, VOTING, PRE_START, PAUSED }
 
     private final KMCCore plugin;
 
@@ -41,6 +41,32 @@ public class AutomationManager {
     private State      stateBeforePause = State.IDLE;
     private int        gamesThisRound   = 0;
     private int        countdownSeconds = 0;
+
+    /** Regular games finished this tournament (the finale does not count). */
+    private int        gamesPlayedTotal = 0;
+
+    // Finale: after the last regular game the top teams play one decisive game.
+    private boolean      finalePhase;
+    private List<String> finaleTeamIds = List.of();
+    private String       finaleWinnerTeamId;
+
+    /** /pause during a game: the automation holds still as soon as that game is over. */
+    private boolean    pauseAfterGame;
+    /** True while a rerun is tearing the running game down, so its end isn't treated as a result. */
+    private boolean    rerunInProgress;
+
+    /** Everything needed to roll the tournament back to the moment just before the last game launched. */
+    private record PreGameState(String gameId, String snapshotLabel, String tournamentData,
+                                int gamesThisRound, int gamesPlayedTotal, int round,
+                                String repGameId, int repetition, int maxRepetitions,
+                                boolean goldenActive, double goldenMultiplier,
+                                boolean finale, List<String> finaleTeams,
+                                int ledgerEntries, int ledgerHighlights, int ledgerGameSeq) {}
+    private PreGameState preGame;
+
+    /** Standings just before the running game started — for the rise/fall animation afterwards. */
+    private Map<String, Integer> ranksBefore = new HashMap<>();
+    private Map<String, Integer> pointsBefore = new HashMap<>();
 
     private BukkitTask tickTask;
     private BossBar    bossBar;
@@ -121,15 +147,24 @@ public class AutomationManager {
         if (state != State.IDLE || ceremonyActive) return;
         disableLocatorBar();
         gamesThisRound = 0;
+        gamesPlayedTotal = 0;
+        finalePhase = false;
+        finaleTeamIds = List.of();
+        finaleWinnerTeamId = null;
+        pauseAfterGame = false;
+        preGame = null;
+        plugin.getTournamentManager().setChampion(null, null);
         attemptedThisCycle.clear();
         createBossBar();
         // Opening presentation: opening → how it works → rounds & points → teams → games.
         // Each stage shows its title, reveals its chat lines one at a time (with a soft chime),
         // keeps a progress bar, and always leaves a read-pause before the next stage.
         ceremonyActive = true;
+        plugin.getChatGate().mute("ceremony:opening");
         final int gen = ++ceremonyGeneration;
         runCeremonyStage(gen, 0, () -> {
             ceremonyActive = false;
+            plugin.getChatGate().unmute("ceremony:opening");
             cancelStageBar();
             enterIntermission();
         });
@@ -156,6 +191,7 @@ public class AutomationManager {
         boolean wasActive = ceremonyActive;
         ceremonyGeneration++;
         ceremonyActive = false;
+        plugin.getChatGate().unmute("ceremony:opening");
         ceremonyTasks.forEach(BukkitTask::cancel);
         ceremonyTasks.clear();
         cancelStageBar();
@@ -286,12 +322,15 @@ public class AutomationManager {
         long tick = startTick;
         for (int i = 0; i < games.size(); i++) {
             KMCGame g = games.get(i);
-            String objective   = lookupObjective(g.getId());
-            String description = lookupDescription(g.getId());
-            List<String> scoring = lookupScoring(g.getId());
+            boolean secret = plugin.getGameManager().isSurpriseHidden(g.getId());
+            String objective   = secret ? "" : lookupObjective(g.getId());
+            String description = secret ? "Een verborgen game — jullie horen pas wat het is als hij gekozen wordt!"
+                    : lookupDescription(g.getId());
+            List<String> scoring = secret ? List.of() : lookupScoring(g.getId());
             int n = i + 1, total = games.size();
 
-            List<String> card = ChatLayout.gameCard(n, total, g.getDisplayName(), description, objective, scoring);
+            String shownName = secret ? "??? Verrassingsgame" : g.getDisplayName();
+            List<String> card = ChatLayout.gameCard(n, total, shownName, description, objective, scoring);
             int chars = card.stream().mapToInt(ChatLayout::visibleLength).sum();
             // Each card stays up long enough to actually read: at least seconds-per-game, more for wordy ones.
             long hold = Math.min(cm.getMaxSecondsPerGame() * 20L,
@@ -305,7 +344,7 @@ public class AutomationManager {
                 try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.GAME_CARD); }
                 catch (Throwable ignored) { }
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    p.sendTitle(MessageUtil.color("&e&l" + g.getDisplayName()), MessageUtil.color("&7" + shorten(sub, 60)),
+                    p.sendTitle(MessageUtil.color("&e&l" + shownName), MessageUtil.color("&7" + shorten(sub, 60)),
                             5, (int) Math.max(20, holdFinal - 15), 10);
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
                     p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, pitch);
@@ -474,11 +513,15 @@ public class AutomationManager {
     }
 
     public void stop() {
+        plugin.getChatGate().clear();
         cancelCeremony();
         restoreLocatorBar();
         cancelTick();
         hideBossBar();
+        try { plugin.getReadyUpManager().shutdown(); } catch (Throwable ignored) { }
         state = State.IDLE;
+        finalePhase = false;
+        pauseAfterGame = false;
         // A game that is still running must not be left behind as a ghost (it would keep its scoreboard,
         // timers and listeners and could kick players out of the next game later).
         try {
@@ -540,6 +583,7 @@ public class AutomationManager {
     private long lastGameEndMs = 0;
 
     public void onGameEnd(String winnerName) {
+        if (rerunInProgress) return;   // the game was torn down for a rerun — not a result
         if (state != State.GAME_ACTIVE && state != State.PAUSED) {
             if (state == State.IDLE) return;
         }
@@ -587,18 +631,33 @@ public class AutomationManager {
 
     /** Advances the round counter and moves to the next game / round / finale. */
     private void proceedAfterGame(String winnerName) {
+        // The finale was the last game: whoever won it is the champion.
+        if (finalePhase) {
+            finishFinale(winnerName);
+            return;
+        }
+
         gamesThisRound++;
+        gamesPlayedTotal++;
         attemptedThisCycle.clear();
 
         int gamesPerRound = gamesPerRound();
+        int totalGames = getTotalGames();
+        boolean lastGame = totalGames > 0 && gamesPlayedTotal >= totalGames;
         boolean roundComplete = false;
         boolean midBreakNow = false;
-        if (gamesThisRound >= gamesPerRound) {
+        if (gamesThisRound >= gamesPerRound || lastGame) {
             gamesThisRound = 0;
             roundComplete  = true;
             int completedRound = plugin.getTournamentManager().getCurrentRound();
-            if (!plugin.getTournamentManager().nextRound()) {
-                endTournament(winnerName);
+            // The number of games decides when the regular part is over. A schedule with more games than
+            // rounds simply stays on the last round (and its multiplier) — nextRound() just refuses.
+            boolean regularDone = lastGame;
+            if (!regularDone) plugin.getTournamentManager().nextRound();
+            if (regularDone) {
+                ceremony("round-end");
+                if (shouldPlayFinale()) startFinale();
+                else endTournament(winnerName);
                 return;
             }
             // Mid-tournament break (default: after half of the rounds, 5 minutes, skippable).
@@ -614,6 +673,13 @@ public class AutomationManager {
         plugin.getArenaManager().teleportAllToLobby();
         postGameLeaderboardChain();
         createBossBar();
+        if (pauseAfterGame) {
+            // /pause was used during the game: hold still here until /resume.
+            pauseAfterGame = false;
+            state = State.INTERMISSION;
+            pause();
+            return;
+        }
         if (midBreakNow) {
             int secs = plugin.getConfig().getInt("automation.mid-break.seconds", 300);
             broadcast("&6&l[KMC] &eHalverwege het toernooi! &7Pauze van &f" + formatDuration(secs)
@@ -622,6 +688,118 @@ public class AutomationManager {
         } else {
             enterIntermission();
         }
+    }
+
+    // ----------------------------------------------------------------
+    // Total games / finale
+    // ----------------------------------------------------------------
+
+    /**
+     * Regular games in this tournament: {@code automation.total-games} when set, otherwise
+     * rounds × games-per-round (the classic behaviour).
+     */
+    public int getTotalGames() {
+        int cfg = plugin.getConfig().getInt("automation.total-games", 0);
+        if (cfg > 0) return cfg;
+        return Math.max(1, plugin.getTournamentManager().getTotalRounds()) * gamesPerRound();
+    }
+
+    public int getGamesPlayedTotal() { return gamesPlayedTotal; }
+    public boolean isFinalePhase()   { return finalePhase; }
+    public List<String> getFinaleTeamIds() { return List.copyOf(finaleTeamIds); }
+
+    /** The finale game calls this with the winning team just before it reports its result. */
+    public void reportFinaleWinner(String teamId) { this.finaleWinnerTeamId = teamId; }
+
+    private boolean shouldPlayFinale() {
+        var cfg = plugin.getConfig();
+        if (!cfg.getBoolean("automation.finale.enabled", true)) return false;
+        String gameId = cfg.getString("automation.finale.game", "dodgebolt");
+        KMCGame game = plugin.getGameManager().getGame(gameId);
+        if (game == null) {
+            plugin.getLogger().warning("[KMC] Finale staat aan maar game '" + gameId + "' bestaat niet — geen finale.");
+            return false;
+        }
+        if (plugin.getTeamManager().getTeamsSortedByPoints().size() < 2) return false;
+        if (!isGameReadyUnified(gameId)) {
+            broadcast("&e[KMC] &7De finale-game &e" + game.getDisplayName() + " &7is niet geconfigureerd ("
+                    + readinessReasonUnified(gameId) + ") — het toernooi eindigt op punten.");
+            return false;
+        }
+        return true;
+    }
+
+    /** The top two teams meet in the finale game; everybody else watches. */
+    private void startFinale() {
+        var standings = plugin.getTeamManager().getTeamsSortedByPoints();
+        List<KMCTeam> finalists = new ArrayList<>(standings.subList(0, Math.min(2, standings.size())));
+        finaleTeamIds = finalists.stream().map(KMCTeam::getId).toList();
+        finaleWinnerTeamId = null;
+        finalePhase = true;
+
+        plugin.getArenaManager().teleportAllToLobby();
+        postGameLeaderboardChain();
+        createBossBar();
+
+        int intro = Math.max(10, plugin.getConfig().getInt("automation.finale.intro-seconds", 30));
+        // The leaderboard chain takes ~22 s; the finale announcement follows it.
+        Bukkit.getScheduler().runTaskLater(plugin, this::announceFinale, 450L);
+        enterIntermission(intro + 22, true);
+    }
+
+    private void announceFinale() {
+        if (!finalePhase || state == State.IDLE) return;
+        List<KMCTeam> teams = new ArrayList<>();
+        for (String id : finaleTeamIds) {
+            KMCTeam t = plugin.getTeamManager().getTeam(id);
+            if (t != null) teams.add(t);
+        }
+        if (teams.size() < 2) return;
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            var lm = plugin.getLanguageManager();
+            String a = teams.get(0).getColor() + teams.get(0).getDisplayName();
+            String b = teams.get(1).getColor() + teams.get(1).getDisplayName();
+            p.sendMessage("");
+            p.sendMessage(ChatLayout.rule('6'));
+            p.sendMessage(ChatLayout.center(lm.tr(p, "director.finale.header")));
+            p.sendMessage(ChatLayout.center(lm.tr(p, "director.finale.versus", a, b)));
+            p.sendMessage(ChatLayout.center(lm.tr(p, "director.finale.points", teams.get(0).getPoints(), teams.get(1).getPoints())));
+            p.sendMessage(ChatLayout.rule('6'));
+            p.sendMessage("");
+            p.sendTitle(lm.tr(p, "director.finale.title"), a + " §7vs " + b, 10, 80, 20);
+            p.playSound(p.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 0.6f, 1.2f);
+            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 0.9f);
+        }
+        try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.FINALE); }
+        catch (Throwable ignored) { }
+        try {
+            plugin.getPresenter().say("presenter.finale", 10,
+                    teams.get(0).getColor() + teams.get(0).getDisplayName() + "§f",
+                    teams.get(1).getColor() + teams.get(1).getDisplayName() + "§f");
+        } catch (Throwable ignored) { }
+    }
+
+    /** The finale is over: set the champion, then run the closing ceremony. */
+    private void finishFinale(String winnerName) {
+        var tm = plugin.getTournamentManager();
+        String champId = finaleWinnerTeamId;
+        if (champId == null || !finaleTeamIds.contains(champId)) {
+            // The game did not report a winner: the finalist with the most points takes it.
+            champId = finaleTeamIds.stream()
+                    .map(id -> plugin.getTeamManager().getTeam(id)).filter(java.util.Objects::nonNull)
+                    .max(java.util.Comparator.comparingInt(KMCTeam::getPoints))
+                    .map(KMCTeam::getId).orElse(null);
+        }
+        String runnerUp = null;
+        for (String id : finaleTeamIds) if (!id.equals(champId)) runnerUp = id;
+        if (champId != null) {
+            tm.setChampion(champId, runnerUp);
+            int bonus = plugin.getConfig().getInt("automation.finale.winner-bonus", 0);
+            if (bonus > 0) plugin.getPointsManager().addTeamPoints(champId, bonus);
+        }
+        finalePhase = false;
+        finaleTeamIds = List.of();
+        endTournament(winnerName);
     }
 
     /** Games per round: the configured value, or enabled games / total rounds when it is 0. */
@@ -635,6 +813,93 @@ public class AutomationManager {
 
     private boolean midBreakActive;
 
+    // ----------------------------------------------------------------
+    // Rerun (rollback to just before the last game + play it again)
+    // ----------------------------------------------------------------
+
+    /** Remembers the whole tournament state just before a game launches, so it can be replayed safely. */
+    private void capturePreGame(KMCGame game) {
+        try {
+            ranksBefore = nl.kmc.kmccore.presentation.LeaderboardAnimation.currentRanks(plugin);
+            pointsBefore = nl.kmc.kmccore.presentation.LeaderboardAnimation.currentPoints(plugin);
+        } catch (Throwable ignored) { }
+        try {
+            var pm = plugin.getPointsManager();
+            String label = "auto-pre-" + game.getId() + "-" + (gamesPlayedTotal + 1)
+                    + (finalePhase ? "-finale" : "");
+            plugin.getSnapshotManager().snapshot(label);
+            preGame = new PreGameState(game.getId(), label,
+                    plugin.getTournamentDataStore().exportState(),
+                    gamesThisRound, gamesPlayedTotal, plugin.getTournamentManager().getCurrentRound(),
+                    currentRepGameId, currentRepetition, maxRepetitions,
+                    pm.isGoldenHourActive(), pm.getCurrentMultiplier(),
+                    finalePhase, List.copyOf(finaleTeamIds),
+                    plugin.getPointsLedger().size(), plugin.getPointsLedger().highlightCount(),
+                    plugin.getPointsLedger().lastGameSeq());
+        } catch (Throwable t) {
+            preGame = null;
+            plugin.getLogger().warning("[KMC] Could not capture the pre-game state (rerun unavailable): " + t);
+        }
+    }
+
+    /** The game a rerun would replay, or {@code null} when none is available. */
+    public String getRerunnableGameId() { return preGame != null ? preGame.gameId() : null; }
+
+    /**
+     * Rolls points, rounds and counters back to just before the last launched game and plays that game
+     * again. A running game is stopped without a result; a finished one is simply undone. Because the
+     * state is restored (not patched), nothing is rewarded twice.
+     *
+     * @return null on success, otherwise a Dutch error message
+     */
+    public String rerunLastGame() {
+        if (state == State.IDLE) return "De automatisering draait niet.";
+        if (preGame == null) return "Er is nog geen game gestart — niets om opnieuw te spelen.";
+        KMCGame game = plugin.getGameManager().getGame(preGame.gameId());
+        if (game == null) return "Game " + preGame.gameId() + " bestaat niet meer.";
+        var snap = plugin.getSnapshotManager().findSnapshot(preGame.snapshotLabel());
+        if (snap == null) return "De snapshot van voor de game is niet meer beschikbaar.";
+
+        PreGameState pg = preGame;
+        rerunInProgress = true;
+        try {
+            cancelCeremony();
+            cancelTick();
+            plugin.getReadyUpManager().shutdown();
+            pauseAfterGame = false;
+            if (plugin.getGameManager().getActiveGame() != null) plugin.getGameManager().forceSkipCurrentGame();
+            else {
+                plugin.getArenaManager().resetArenaForGame(pg.gameId());
+                plugin.getArenaManager().teleportAllToLobby();
+            }
+
+            plugin.getSnapshotManager().restore(pg.snapshotLabel());
+            plugin.getTournamentDataStore().importState(pg.tournamentData());
+            plugin.getPointsLedger().truncate(pg.ledgerEntries(), pg.ledgerHighlights(), pg.ledgerGameSeq());
+            plugin.getTournamentManager().setRound(pg.round());
+            plugin.getPointsManager().deactivateGoldenHour();
+            if (pg.goldenActive()) plugin.getPointsManager().activateGoldenHour(pg.goldenMultiplier());
+
+            gamesThisRound   = pg.gamesThisRound();
+            gamesPlayedTotal = pg.gamesPlayedTotal();
+            currentRepGameId  = pg.repGameId();
+            currentRepetition = pg.repetition();
+            maxRepetitions    = pg.maxRepetitions();
+            finalePhase       = pg.finale();
+            finaleTeamIds     = pg.finaleTeams();
+            finaleWinnerTeamId = null;
+            plugin.getTournamentManager().setChampion(null, null);
+            attemptedThisCycle.clear();
+        } finally {
+            rerunInProgress = false;
+        }
+
+        broadcast("&6&l[KMC] &e" + game.getDisplayName() + " &7wordt opnieuw gespeeld — punten van deze game zijn teruggedraaid.");
+        createBossBar();
+        enterPreStart(game);
+        return null;
+    }
+
     /** Ends the mid-tournament break early (/kmcauto skip). */
     public boolean skipMidBreak() {
         if (!midBreakActive || state != State.INTERMISSION) return false;
@@ -643,26 +908,52 @@ public class AutomationManager {
         return true;
     }
 
+    /**
+     * Pauses the tournament. Between games it holds the clocks at once; during a game it is a request:
+     * the automation pauses as soon as that game is over (a running game can't be frozen safely).
+     *
+     * @return {@code true} if paused now, {@code false} if it was queued for after the game
+     */
+    public boolean requestPause() {
+        if (state == State.GAME_ACTIVE) {
+            pauseAfterGame = true;
+            broadcast("&6[KMC] &ePauze aangevraagd — het toernooi pauzeert na deze game.");
+            return false;
+        }
+        pause();
+        return true;
+    }
+
+    public boolean isPauseQueued() { return pauseAfterGame; }
+
+    public void cancelQueuedPause() { pauseAfterGame = false; }
+
     public void pause() {
         if (state == State.PAUSED || state == State.IDLE) return;
+        if (state == State.GAME_ACTIVE) { requestPause(); return; }
         stateBeforePause = state;
+        if (state == State.READY_CHECK) plugin.getReadyUpManager().shutdown();
         state = State.PAUSED;
         cancelTick();
         hideBossBar();
-        broadcast("&6[KMC] &eAutomatisering gepauzeerd door een admin.");
+        broadcast("&6[KMC] &eHet toernooi is gepauzeerd door een admin. &7(hervatten: &e/resume&7)");
     }
 
     public void resume() {
+        pauseAfterGame = false;
         if (state != State.PAUSED) return;
         state = stateBeforePause;
         createBossBar();
         switch (state) {
             case INTERMISSION -> enterIntermission();
+            case READY_CHECK  -> beginReadyStep();
             case VOTING       -> enterVoting();
-            case PRE_START    -> enterPreStart(plugin.getGameManager().getNextGame());
+            case PRE_START    -> enterPreStart(finalePhase
+                    ? plugin.getGameManager().getGame(plugin.getConfig().getString("automation.finale.game", "dodgebolt"))
+                    : plugin.getGameManager().getNextGame());
             default           -> {}
         }
-        broadcast("&6[KMC] &aAutomatisering hervat.");
+        broadcast("&6[KMC] &aHet toernooi gaat verder.");
     }
 
     // ----------------------------------------------------------------
@@ -680,7 +971,8 @@ public class AutomationManager {
         final int intermissionTotal = Math.max(1, totalSeconds);
 
         boolean votingEnabled = plugin.getConfig().getBoolean("games.voting-enabled", true);
-        String label = votingEnabled
+        String label = finalePhase ? "De FINALE begint over"
+                : votingEnabled
                 ? "Volgende game wordt gekozen over"
                 : "Volgende game start over";
 
@@ -694,20 +986,69 @@ public class AutomationManager {
             setBossBarProgress(progress);
             if (!longBreak || countdownSeconds <= 10) playTickSound(countdownSeconds);
             bossBar.setTitle(MessageUtil.color(longBreak
-                    ? "&6&lHalverwege-pauze: &e" + formatDuration(countdownSeconds) + " &8(/kmcauto skip)"
+                    ? (finalePhase ? "&6&l🏆 FINALE begint over: &e" : "&6&lHalverwege-pauze: &e")
+                            + formatDuration(countdownSeconds) + " &8(/kmcauto skip)"
                     : "&eTussenpauze: &6" + countdownSeconds + "s"));
 
             if (countdownSeconds <= 0) {
                 cancelTick();
+                boolean wasLongBreak = midBreakActive;
                 midBreakActive = false;
-                if (plugin.getConfig().getBoolean("games.voting-enabled", true)) {
-                    enterVoting();
-                } else {
-                    KMCGame next = plugin.getGameManager().randomNextGame();
-                    enterPreStart(next);
-                }
+                afterIntermission(wasLongBreak);
             }
         });
+    }
+
+    /** What follows an intermission: an optional team ready-check, then the finale / voting / next game. */
+    private void afterIntermission(boolean wasLongBreak) {
+        String mode = plugin.getConfig().getString("automation.ready-check.mode", "mid-break").toLowerCase();
+        boolean ready = !mode.equals("off")
+                && (finalePhase || mode.equals("every-break") || (mode.equals("mid-break") && wasLongBreak));
+        if (ready) beginReadyStep();
+        else continueAfterReady();
+    }
+
+    private void beginReadyStep() {
+        state = State.READY_CHECK;
+        setBossBar("&a&lTeams: is jullie team ready?", BarColor.GREEN, 1.0);
+        int timeout = plugin.getConfig().getInt("automation.ready-check.timeout-seconds", 90);
+        var only = finalePhase ? finaleTeamIds : null;
+        String purpose = finalePhase ? "director.ready.purpose.finale" : "director.ready.purpose.next";
+        plugin.getReadyUpManager().beginReadyCheck(timeout, only, purpose, () -> {
+            if (state != State.READY_CHECK) return;      // stopped / paused meanwhile
+            continueAfterReady();
+        });
+    }
+
+    private void continueAfterReady() {
+        if (finalePhase) {
+            enterPreStart(plugin.getGameManager().getGame(
+                    plugin.getConfig().getString("automation.finale.game", "dodgebolt")));
+        } else if (plugin.getConfig().getBoolean("games.voting-enabled", true)) {
+            enterVoting();
+        } else {
+            enterPreStart(plugin.getGameManager().randomNextGame());
+        }
+    }
+
+    /**
+     * Skips whatever the automation is waiting on: the ceremony, an intermission/break, the vote or the
+     * pre-start countdown, or a ready-check. @return a short Dutch description, or null if nothing to skip.
+     */
+    public String skipWait() {
+        if (skipCeremony()) return "openingspresentatie";
+        if (state == State.INTERMISSION) { countdownSeconds = 1; return "pauze"; }
+        if (state == State.VOTING)       { countdownSeconds = 1; return "stemronde"; }
+        if (state == State.PRE_START)    { countdownSeconds = 1; return "aftelling"; }
+        if (skipReadyCheck()) return "ready-check";
+        return null;
+    }
+
+    /** Ends a running ready-check at once (admin skip). */
+    public boolean skipReadyCheck() {
+        if (state != State.READY_CHECK || !plugin.getReadyUpManager().isActive()) return false;
+        plugin.getReadyUpManager().forceSkip();
+        return true;
     }
 
     private void enterVoting() {
@@ -751,8 +1092,9 @@ public class AutomationManager {
         if (!isGameReadyUnified(game.getId())) {
             attemptedThisCycle.add(game.getId());
             String reason = readinessReasonUnified(game.getId());
-            broadcast("&e[KMC] &7Game &e" + game.getDisplayName()
-                    + " &7is niet geconfigureerd (" + reason + "). Overslaan...");
+            boolean secretGame = plugin.getGameManager().isSurpriseHidden(game.getId());
+            broadcast("&e[KMC] &7Game &e" + (secretGame ? "???" : game.getDisplayName())
+                    + " &7is niet geconfigureerd" + (secretGame ? "" : " (" + reason + ")") + ". Overslaan...");
 
             // Try another game — avoid already-attempted ones
             KMCGame fallback = pickNextReadyGame();
@@ -767,6 +1109,19 @@ public class AutomationManager {
             return;
         }
 
+        // A surprise game is revealed now, with a little fanfare, before its countdown starts.
+        if (plugin.getGameManager().isSurpriseHidden(game.getId())) {
+            plugin.getGameManager().revealSurprise(game.getId());
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendTitle("§d§l✦ VERRASSING! ✦", "§f" + game.getDisplayName(), 10, 70, 20);
+                p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 0.8f);
+                p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_TWINKLE, 1f, 1f);
+            }
+            broadcast("&d&l✦ DE VERRASSINGSGAME IS: &f&l" + game.getDisplayName() + " &d&l✦");
+            try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.GAME_CARD); }
+            catch (Throwable ignored) { }
+        }
+
         state            = State.PRE_START;
         countdownSeconds = plugin.getConfig().getInt("automation.prestart-seconds", 10);
 
@@ -774,6 +1129,10 @@ public class AutomationManager {
                 BarColor.GREEN, 1.0);
         broadcast("&6[KMC] &a" + game.getDisplayName() + " &estart over &6"
                 + countdownSeconds + " &eseconden!");
+        try {
+            plugin.getPresenter().say("presenter.next-game", Math.max(6, countdownSeconds),
+                    game.getDisplayName(), lookupObjective(game.getId()));
+        } catch (Throwable ignored) { }
 
         startTick(() -> {
             countdownSeconds--;
@@ -876,6 +1235,7 @@ public class AutomationManager {
         // showcase, intermission, voting, countdown) has already played by
         // now, so this can't collide with it.
         plugin.getTournamentManager().revealGoldenHourIfDue();
+        capturePreGame(game);
         // Hide the automation bossbar entirely while the game runs — the game
         // shows its OWN bossbar + scoreboard, so we don't stack a second one.
         hideBossBar();
@@ -889,18 +1249,12 @@ public class AutomationManager {
 
     private void endTournament(String lastWinner) {
         stop();
-        plugin.getTournamentManager().endTournament();
 
-        String topTeam = plugin.getTeamManager().getTeamsSortedByPoints().stream()
-                .findFirst().map(t -> t.getColor() + t.getDisplayName())
-                .orElse("Onbekend");
-
-        // Finale cinematic (no-op if unconfigured), then the staged Winner
-        // Ceremony 2.0 (reveal #3 → #2 → champions + MVP + records + fireworks).
+        // Closing cinematic (no-op if unconfigured) and ceremony text, then the full end sequence:
+        // podium → awards → credits → fan favorite → feedback → statsbooks → reset.
         playCinematic("closing", () -> {
             ceremony("closing");
-            broadcast("&6&l[KMC] &eHet toernooi is afgelopen! Winnaar: " + topTeam);
-            nl.kmc.kmccore.tournament.WinnerCeremony.run(plugin, null);
+            plugin.getTournamentManager().endTournament();
         });
     }
 
@@ -925,9 +1279,33 @@ public class AutomationManager {
 
         final String finalGameName = gameName;
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastTopPlayers(finalGameName), 20L);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastGameTeamLeaderboard(finalGameName), 200L);
-        Bukkit.getScheduler().runTaskLater(plugin, this::broadcastOverallTeamLeaderboard, 400L);
+        int seq = plugin.getPointsLedger().lastGameSeq();
+        try {
+            var byTeam = nl.kmc.kmccore.scoring.PointsLedger.byTeam(plugin.getPointsLedger().forGame(seq));
+            if (!byTeam.isEmpty()) {
+                KMCTeam top = plugin.getTeamManager().getTeam(byTeam.keySet().iterator().next());
+                if (top != null) plugin.getPresenter().say("presenter.game-result", 8, finalGameName,
+                        top.getColor() + top.getDisplayName());
+            }
+        } catch (Throwable ignored) { }
+        if (nl.kmc.kmccore.scoring.ScoreReport.hasData(plugin, seq)) {
+            // Where did THIS game's points come from: top players, per-team breakdown, "your game".
+            nl.kmc.kmccore.scoring.ScoreReport.schedule(plugin, seq, finalGameName);
+        } else {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastTopPlayers(finalGameName), 20L);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> broadcastGameTeamLeaderboard(finalGameName), 200L);
+        }
+        // The GG button, right after the score report has started.
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            try { plugin.getGgManager().open(); } catch (Throwable ignored) { }
+        }, 300L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (plugin.getConfig().getBoolean("presentation.leaderboard-animation", true)) {
+                nl.kmc.kmccore.presentation.LeaderboardAnimation.run(plugin, ranksBefore, pointsBefore, null);
+            } else {
+                broadcastOverallTeamLeaderboard();
+            }
+        }, 400L);
     }
 
     private void broadcastTopPlayers(String gameName) {
@@ -969,6 +1347,18 @@ public class AutomationManager {
             String medal = i == 0 ? "&6#1" : i == 1 ? "&7#2" : i == 2 ? "&c#3" : "&7#" + (i + 1);
             broadcast("  " + medal + " " + t.getColor() + t.getDisplayName() + " &8- &e" + t.getPoints());
         }
+        // Individual ranking next to the team one.
+        List<PlayerData> top = plugin.getPlayerDataManager().getLeaderboard().stream().limit(5).toList();
+        if (!top.isEmpty()) {
+            broadcast("&d&lTOP SPELERS (totaal)");
+            for (int i = 0; i < top.size(); i++) {
+                PlayerData pd = top.get(i);
+                KMCTeam pt = plugin.getTeamManager().getTeamByPlayer(pd.getUuid());
+                broadcast("  &7#" + (i + 1) + " &f" + pd.getName()
+                        + (pt != null ? " &8(" + pt.getColor() + pt.getDisplayName() + "&8)" : "")
+                        + " &8- &e" + pd.getPoints());
+            }
+        }
         broadcast("&6═══════════════════════════════════");
     }
 
@@ -1000,7 +1390,7 @@ public class AutomationManager {
 
     private void setBossBar(String title, BarColor color, double progress) {
         if (bossBar == null) return;
-        bossBar.setTitle(MessageUtil.color(title));
+        bossBar.setTitle(nl.kmc.kmccore.platform.HudScale.fit(MessageUtil.color(title), 330, 120));
         bossBar.setColor(color);
         bossBar.setProgress(Math.max(0.0, Math.min(1.0, progress)));
     }
@@ -1171,6 +1561,12 @@ public class AutomationManager {
             plugin.getLogger().warning("Failed to end tournament cleanly: " + t.getMessage());
         }
     }
+
+    /** Whether a game's arena/setup is complete (same check the automation uses before launching it). */
+    public boolean isGameReady(String gameId) { return isGameReadyUnified(gameId); }
+
+    /** Why a game is not ready (or "klaar"). */
+    public String  getGameReadinessReason(String gameId) { return readinessReasonUnified(gameId); }
 
     public State   getState()            { return state; }
     public boolean isRunning()           { return state != State.IDLE && state != State.PAUSED; }

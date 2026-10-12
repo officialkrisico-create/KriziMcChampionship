@@ -150,6 +150,68 @@ public abstract class BaseGameManager implements Listener {
     /** True if player nametags should be hidden for the duration of this game (e.g. QuakeCraft). */
     protected boolean hidesNametags() { return false; }
 
+    /**
+     * Closes player chat (also for operators) while this game explains itself — for games that run their
+     * own intro instead of {@link StandardStartFlow}. Always released when the game ends or aborts.
+     */
+    protected final void muteChat() {
+        try { nl.kmc.kmccore.KMCCore.getInstance().getChatGate().mute("flow:" + registration.getId()); }
+        catch (Throwable ignored) { }
+    }
+
+    protected final void unmuteChat() {
+        try { nl.kmc.kmccore.KMCCore.getInstance().getChatGate().unmute("flow:" + registration.getId()); }
+        catch (Throwable ignored) { }
+    }
+
+    // ── Automatic overtime ────────────────────────────────────────────────────
+
+    private int overtimeExtensions;
+    private boolean overtimeActive;
+
+    /**
+     * Override to say whether the game would end level right now on something that matters
+     * (the top places are tied). Only consulted when the clock runs out.
+     */
+    protected boolean isTiedForTheWin() { return false; }
+
+    /**
+     * Called when overtime begins: extend the game's own timer by {@code seconds} and switch to the
+     * tie-breaking rule (golden goal, next kill wins, ...). The game must NOT end itself afterwards.
+     */
+    protected void onOvertimeStart(int seconds) { }
+
+    /** Whether overtime is on when {@code games.<id>.overtime.enabled} is not set in the config. */
+    protected boolean overtimeDefault() { return true; }
+
+    /** True while an overtime is being played. */
+    protected final boolean isOvertime() { return overtimeActive; }
+
+    /**
+     * Call this where the game would end because time ran out. If the rules allow it (overtime enabled in
+     * config, extensions left, and the game is {@linkplain #isTiedForTheWin() tied}) the game is extended
+     * and this returns {@code true} — the caller must then NOT end the game. Otherwise it returns
+     * {@code false} and the caller ends the game as before.
+     */
+    protected final boolean tryOvertime() {
+        if (!state.isRunning()) return false;
+        var cfg = plugin.getConfig();
+        String base = "games." + registration.getId() + ".overtime.";
+        if (!cfg.getBoolean(base + "enabled", overtimeDefault())) return false;
+        if (overtimeExtensions >= Math.max(0, cfg.getInt(base + "max-extensions", 1))) return false;
+        try { if (!isTiedForTheWin()) return false; }
+        catch (Throwable t) { log.warning("isTiedForTheWin failed: " + t); return false; }
+
+        overtimeExtensions++;
+        overtimeActive = true;
+        int seconds = Math.max(10, cfg.getInt(base + "seconds", 60));
+        tellKey("game.overtime.chat", seconds);
+        titleKey("game.overtime", 5, 50, 10);
+        try { onOvertimeStart(seconds); }
+        catch (Throwable t) { log.warning("onOvertimeStart failed: " + t); }
+        return true;
+    }
+
     // ── FSM ───────────────────────────────────────────────────────────────────
 
     /**
@@ -279,6 +341,8 @@ public abstract class BaseGameManager implements Listener {
             validation.getWarnings().forEach(w -> log.warning("  " + w));
         }
 
+        overtimeExtensions = 0;
+        overtimeActive = false;
         transitionTo(GameState.PREPARING);
         nl.kmc.core.RunningGames.open(registration.getId(), handlesPlayerPvp(), () -> participants);
         if (hidesNametags()) nl.kmc.core.RunningGames.hideNametags(registration.getId(), true);
@@ -306,6 +370,7 @@ public abstract class BaseGameManager implements Listener {
         cancelTask(graceTask);
         stopMvpCrown();
         nl.kmc.core.RunningGames.close(registration.getId());
+        unmuteChat();
         try { HandlerList.unregisterAll(this); }                       catch (Exception ignored) {}
         try { api.games().clearScoreboard(registration.getId()); }     catch (Exception ignored) {}
         try { api.games().releaseScoreboard(registration.getId()); }   catch (Exception ignored) {}
@@ -374,6 +439,7 @@ public abstract class BaseGameManager implements Listener {
         cancelTask(graceTask);
         stopMvpCrown();
         nl.kmc.core.RunningGames.close(registration.getId());
+        unmuteChat();
         transitionTo(GameState.ENDED);
         GameSfx.playToAll(plugin, participantPlayers(), "game-end",
                 org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);

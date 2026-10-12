@@ -57,6 +57,20 @@ public final class RaceListener implements Listener {
         }
     }
 
+    /** Right-click with a power-up item uses it. */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onUsePowerup(org.bukkit.event.player.PlayerInteractEvent e) {
+        FormulaGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning()) return;
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+                && e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        if (e.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
+        if (!gm.hasRacer(e.getPlayer().getUniqueId())) return;
+        if (!gm.isPowerupItem(e.getItem())) return;
+        e.setCancelled(true);
+        gm.usePowerup(e.getPlayer());
+    }
+
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerDamage(EntityDamageEvent e) {
         FormulaGameManagerV2 gm = gm();

@@ -1,0 +1,72 @@
+# ================================================================
+# Knockout Kings — knock everybody off the platform
+# ================================================================
+# Setup:
+#   /knockout world                 arena world = your world
+#   /knockout pos1 + pos2           two corners of the platform, then:  /knockout platform
+#   /knockout spawn add             start positions (round start)
+#   /knockout respawn add           respawn positions (falls back to the start positions)
+#   /knockout killy                 players below your Y are out (default: 8 under the platform)
+#   /knockout validate | start [dry] | stop
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Sla ze van het platform"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  rounds: 3
+  round-seconds: 90
+  intermission-seconds: 8
+  # In the last N seconds nobody respawns any more (0 = off).
+  sudden-death-seconds: 15
+  # A hit within this many seconds before a fall counts as the eliminator / an assist.
+  attribution-seconds: 6
+  assist-window-seconds: 6
+  # Knockback of the stick (horizontal / vertical) and the delay between hits on one player (ticks).
+  knockback: 1.15
+  knockback-vertical: 0.42
+  hit-cooldown-ticks: 8
+  # Anti-farming: the same attacker gets at most farm-max-kills points for eliminating the same victim
+  # within farm-window-seconds.
+  farm-window-seconds: 20
+  farm-max-kills: 1
+  # Several round winners (equal eliminations and deaths): ALL = everybody gets the full bonus, SHARE = split.
+  tie-mode: ALL
+  # One modifier per round (cycles). NONE, LOW_GRAVITY, POWER_KNOCKBACK, VANISHING_PLATFORMS, SHRINKING_ARENA
+  modifiers: [NONE, POWER_KNOCKBACK, SHRINKING_ARENA]
+  power-knockback-multiplier: 1.6
+  vanishing:
+    interval-seconds: 6
+    warn-seconds: 2
+    size: 3
+  shrinking:
+    # The platform shrinks to this fraction of its size during the round...
+    final-fraction: 0.4
+    min-size: 8
+
+combat:
+  respawn-seconds: 3
+  spawn-protection-seconds: 3
+  friendly-fire: false
+
+points:
+  elimination: 15
+  assist: 5
+  survive-until-last-30: 20
+  round-winner: 40
+  perfect-round: 15
+  placement-curve: false
+  team-placement: true
+
+arena:
+  world: ""
+  kill-y: -1000

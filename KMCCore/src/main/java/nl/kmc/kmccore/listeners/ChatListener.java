@@ -26,6 +26,16 @@ public class ChatListener implements Listener {
         this.plugin = plugin;
     }
 
+    /** Chat is closed during explanations and ceremonies (see ChatGate) — for everybody, operators included. */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onChatGate(AsyncChatEvent event) {
+        var gate = plugin.getChatGate();
+        if (gate != null && gate.blocks(event.getPlayer())) {
+            event.setCancelled(true);
+            gate.notifyBlocked(event.getPlayer());
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();

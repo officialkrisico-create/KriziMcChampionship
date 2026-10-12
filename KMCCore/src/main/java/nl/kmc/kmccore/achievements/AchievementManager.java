@@ -157,6 +157,7 @@ public class AchievementManager {
      * Persists, broadcasts (per rarity), and plays the unlock sound.
      */
     public void unlock(UUID uuid, String aid) {
+        if (nl.kmc.core.DryRun.active()) return;   // dry-run: nothing is earned
         Achievement a = AchievementRegistry.get(aid);
         if (a == null) return;
         if (hasUnlocked(uuid, aid)) return;

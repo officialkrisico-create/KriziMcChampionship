@@ -31,7 +31,7 @@ public final class SurvivorBonusHelper {
         if (plugin == null || stillAlive == null || stillAlive.isEmpty() || amount <= 0) return;
         for (UUID uuid : stillAlive) {
             if (uuid == null) continue;
-            plugin.getApi().givePoints(uuid, amount);
+            plugin.getApi().givePoints(uuid, amount, nl.kmc.core.domain.PointAward.Reason.SURVIVAL_BONUS, null);
         }
     }
 }

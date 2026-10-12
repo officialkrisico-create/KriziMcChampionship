@@ -18,6 +18,15 @@ public interface PointsApi {
      */
     void givePoints(UUID uuid, int amount, PointAward.Reason reason, String gameId);
 
+    /**
+     * Like {@link #givePoints} but returns the points that were actually credited (after the round
+     * multiplier and any comeback bonus). The default just forwards and reports the base amount.
+     */
+    default int awardPoints(UUID uuid, int amount, PointAward.Reason reason, String gameId) {
+        givePoints(uuid, amount, reason, gameId);
+        return amount;
+    }
+
     /** Awards points directly to a team without attributing to a specific player. */
     void giveTeamPoints(String teamId, int amount, PointAward.Reason reason, String gameId);
 

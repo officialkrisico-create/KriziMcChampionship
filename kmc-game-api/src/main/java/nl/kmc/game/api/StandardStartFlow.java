@@ -102,6 +102,13 @@ public final class StandardStartFlow {
      * games) and resetting here would stomp on that choice.
      */
     public void prepareAndFreeze() {
+        // Warm up the chunks around the arena while the intro plays, so the flyover never shows void.
+        try {
+            if (plugin.getConfig().getBoolean("start-flow.preload-chunks", true)) {
+                Location c = callbacks.flyoverCenter();
+                if (c != null) nl.kmc.kmccore.util.ChunkPreloader.preload(plugin, c, 96, 3, 20 * 10, () -> { });
+            }
+        } catch (Throwable ignored) { }
         int freezeTicks = 20 * 60 * 10; // generous ceiling — explicitly removed in finish(), never relies on expiry
         for (Player p : callbacks.participants()) {
             GamePlayerUtil.freezePlayer(p, freezeTicks);
@@ -112,6 +119,7 @@ public final class StandardStartFlow {
     /** Runs the staged presentation. Call from {@code onGameStart()} (ACTIVE has already begun). */
     public void start() {
         cancel();
+        chatGate(true);   // nobody talks over the explanation (released in finish()/cancel())
         boolean introOn    = flowEnabled("introduction");
         boolean flyoverOn  = flowEnabled("flyover");
         boolean tutorialOn = flowEnabled("tutorial");
@@ -133,14 +141,38 @@ public final class StandardStartFlow {
     public void cancel() {
         for (BukkitTask t : tasks) if (t != null) t.cancel();
         tasks.clear();
+        chatGate(false);
     }
+
+    /** Closes / opens player chat for the presentation of this game (ChatGate in KMCCore). */
+    private void chatGate(boolean mute) {
+        try {
+            var gate = nl.kmc.kmccore.KMCCore.getInstance().getChatGate();
+            if (gate == null) return;
+            if (mute) gate.mute("flow:" + gameId); else gate.unmute("flow:" + gameId);
+        } catch (Throwable ignored) { /* KMCCore not available (tests) */ }
+    }
+
+    private boolean fxOn() { return plugin.getConfig().getBoolean("start-flow.fx", true); }
 
     // ── Stages ───────────────────────────────────────────────────────────────
 
     private void showIntroduction() {
         String cfgSub = plugin.getConfig().getString("start-sequence.intro-subtitle", "");
         String keyed = callbacks.introSubtitle();
-        for (Player p : callbacks.participants()) {
+        List<Player> parts = callbacks.participants();
+        if (fxOn() && !parts.isEmpty()) {
+            // The title types itself out per player (each in their own language), under arena lights.
+            IntroFx.arenaFlash(plugin, callbacks.flyoverCenter() != null ? callbacks.flyoverCenter()
+                    : parts.get(0).getLocation(), tasks::add);
+            for (Player p : parts) {
+                String sub = keyed != null ? resolve(p, keyed)
+                        : ChatColor.translateAlternateColorCodes('&', "&e" + cfgSub);
+                IntroFx.typewriter(plugin, List.of(p), resolve(p, callbacks.introTitle()), sub, 60, tasks::add);
+            }
+            return;
+        }
+        for (Player p : parts) {
             String sub = keyed != null ? resolve(p, keyed)
                     : ChatColor.translateAlternateColorCodes('&', "&e" + cfgSub);
             p.sendTitle(resolve(p, callbacks.introTitle()), sub, 8, 70, 12);
@@ -189,6 +221,11 @@ public final class StandardStartFlow {
     }
 
     private void showCountdownNumber(int n) {
+        if (fxOn()) {
+            IntroFx.countdown(callbacks.participants(), n, Math.max(2, seconds("countdown-seconds", 5)),
+                    p -> api.tr(p.getUniqueId(), "flow.get-ready"));
+            return;
+        }
         for (Player p : callbacks.participants()) {
             p.sendTitle("§e§l" + n, api.tr(p.getUniqueId(), "flow.get-ready"), 0, 22, 4);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 1.2f);
@@ -199,6 +236,8 @@ public final class StandardStartFlow {
         for (Player p : callbacks.participants()) {
             GamePlayerUtil.unfreezePlayer(p);   // slowness + jump freeze
         }
+        chatGate(false);
+        if (fxOn()) IntroFx.go(plugin, callbacks.participants());
         callbacks.onFinished();
     }
 
@@ -217,10 +256,22 @@ public final class StandardStartFlow {
 
     private void showTutorialLine(String m) {
         if (m.startsWith("@")) {
-            for (Player p : callbacks.participants()) p.sendMessage(resolve(p, m));
+            for (Player p : callbacks.participants()) {
+                String line = resolve(p, m);
+                p.sendMessage(line);
+                tutorialBar(p, line);
+            }
         } else {
             broadcast.accept(m);
+            for (Player p : callbacks.participants()) tutorialBar(p, m);
         }
+    }
+
+    /** The line also appears on the action bar with a soft chime, so it is read even in a busy chat. */
+    private void tutorialBar(Player p, String line) {
+        if (!fxOn()) return;
+        p.sendActionBar(net.kyori.adventure.text.Component.text(line));
+        p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.5f, 1.4f);
     }
 
     private List<String> tutorialMessages() {

@@ -1,0 +1,62 @@
+# ================================================================
+# Crafting Countdown — craft it and deliver it
+# ================================================================
+# One work area per team. Per area, in the same order for all three lists:
+#   /craftcountdown area center      where the team stands (a crafting table next to it)
+#   /craftcountdown area delivery    the block you LOOK at: right-click it to deliver items
+#   /craftcountdown area supply      the chest you LOOK at: it is filled with the raw materials each round
+# Then:  /craftcountdown world | validate | start [dry] | stop | reload
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Craft het doel-item en lever het in"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  rounds: 5
+  round-seconds: 45
+  rest-seconds: 10
+  # Difficulty per round (cycles when there are more rounds).
+  difficulty-order: [EASY, EASY, MEDIUM, MEDIUM, HARD]
+  # When the recipe pool of a difficulty is used up: allow repeats instead of mixing in other difficulties.
+  allow-repeat: false
+  # Per round: NONE or DOUBLE_RECIPE (two recipes, in order). Cycles.
+  modifiers: [NONE, NONE, NONE, DOUBLE_RECIPE, NONE]
+
+points:
+  easy: 10
+  medium: 25
+  hard: 45
+  first-delivery: 10
+  all-complete: 30
+  team-placement: true
+
+# Recipes. resources = what the supply chest gets (raw materials), item/amount = what has to be delivered.
+recipes:
+  - { id: torches, item: TORCH, amount: 8, difficulty: EASY, resources: { COAL: 2, OAK_PLANKS: 1 } }
+  - { id: bread, item: BREAD, amount: 4, difficulty: EASY, resources: { WHEAT: 12 } }
+  - { id: sticks, item: STICK, amount: 16, difficulty: EASY, resources: { OAK_PLANKS: 8 } }
+  - { id: crafting_table, item: CRAFTING_TABLE, amount: 1, difficulty: EASY, resources: { OAK_PLANKS: 4 } }
+  - { id: chest, item: CHEST, amount: 1, difficulty: EASY, resources: { OAK_PLANKS: 8 } }
+  - { id: bucket, item: BUCKET, amount: 1, difficulty: EASY, resources: { IRON_INGOT: 3 } }
+  - { id: shield, item: SHIELD, amount: 1, difficulty: MEDIUM, resources: { OAK_PLANKS: 6, IRON_INGOT: 1 } }
+  - { id: dispenser, item: DISPENSER, amount: 1, difficulty: MEDIUM, resources: { COBBLESTONE: 7, STICK: 3, STRING: 3, REDSTONE: 1 } }
+  - { id: hopper, item: HOPPER, amount: 1, difficulty: MEDIUM, resources: { IRON_INGOT: 5, OAK_PLANKS: 8 } }
+  - { id: piston, item: PISTON, amount: 1, difficulty: MEDIUM, resources: { OAK_PLANKS: 3, COBBLESTONE: 4, IRON_INGOT: 1, REDSTONE: 1 } }
+  - { id: observer, item: OBSERVER, amount: 1, difficulty: HARD, resources: { COBBLESTONE: 6, REDSTONE: 2, QUARTZ: 1 } }
+  - { id: golden_apple, item: GOLDEN_APPLE, amount: 1, difficulty: HARD, resources: { GOLD_INGOT: 8, APPLE: 1 } }
+  - { id: fireworks, item: FIREWORK_ROCKET, amount: 3, difficulty: HARD, resources: { PAPER: 1, GUNPOWDER: 1 } }
+  - { id: enchanting_table, item: ENCHANTING_TABLE, amount: 1, difficulty: HARD, resources: { PAPER: 3, LEATHER: 1, DIAMOND: 2, OBSIDIAN: 4 } }
+  - { id: comparator, item: COMPARATOR, amount: 1, difficulty: HARD, resources: { REDSTONE: 3, STICK: 3, QUARTZ: 1, STONE: 3 } }
+  - { id: brewing_stand, item: BREWING_STAND, amount: 1, difficulty: HARD, resources: { BLAZE_ROD: 1, COBBLESTONE: 3 } }
+
+arena:
+  world: ""

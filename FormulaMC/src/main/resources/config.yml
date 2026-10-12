@@ -40,9 +40,53 @@ visibility:
   enabled: true
   radius: 10
 
+# Qualifying: everybody drives one timed lap first (no collisions); the fastest starts on pole.
+qualifying:
+  enabled: true
+  # Maximum duration of the qualifying session (seconds). Slowpokes start at the back.
+  max-seconds: 120
+  # Countdown (seconds) between the qualifying results and the race start.
+  countdown-seconds: 5
+
+# Track weather, chosen per race. weather.forced: auto | clear | rain | storm | night (/fmc weather).
+# Rain/storm make the track slower ("drag" = extra speed loss per tick, ~1% is noticeable).
+weather:
+  enabled: true
+  forced: auto
+  chance:
+    CLEAR: 50
+    RAIN: 25
+    STORM: 10
+    NIGHT: 15
+  drag:
+    RAIN: 0.006
+    STORM: 0.012
+
+# Boost pads: gates added with /fmc pad add, plus optionally every block of this material the boat
+# drives over (empty = off), e.g. GOLD_BLOCK.
+boost:
+  pad-material: ""
+  pad-seconds: 1.5
+  turbo-seconds: 3.0
+  # Speed (blocks/tick) while boosting. A boat on ice does about 0.5 to 0.7.
+  min-speed: 0.55
+  max-speed: 1.1
+
+# Item boxes (/fmc box add) give power-ups: TURBO, SHIELD, BLIND, STUN. Right-click to use.
+powerups:
+  enabled: true
+  # Hotbar slot (0-8) of the held power-up.
+  slot: 4
+  box-respawn-seconds: 6
+  shield-seconds: 10.0
+  # Blind / stun duration for the racer who is hit.
+  hit-seconds: 3.0
+
 points:
   # Awarded to whoever sets the fastest lap of the race.
   fastest-lap-bonus: 25
+  # Pole position (fastest qualifying lap).
+  pole-bonus: 10
   # Points for each completed lap.
   per-lap: 0
 

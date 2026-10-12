@@ -11,6 +11,14 @@ import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.scoreboard.Scoreboard;
 
+import nl.kmc.kmccore.presentation.ChatLayout;
+import nl.kmc.kmccore.scoring.PointsLedger;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 
 /**
@@ -45,7 +53,127 @@ public class TabListManager {
         String colour = team != null ? team.getColor().toString() : "&7";
         player.playerListName(fromLegacy(colour + player.getName()));
 
+        if (mccLayout()) {
+            player.sendPlayerListHeaderAndFooter(fromLegacy(mccHeader(player)), fromLegacy(mccFooter(player)));
+            return;
+        }
         player.sendPlayerListHeaderAndFooter(fromLegacy(buildHeader(player)), fromLegacy(buildFooter(player)));
+    }
+
+    // ── MCC layout: title, "<game> - PUNTEN", then every team on one line with its players below ──
+
+    /** Pixel width every tab line is padded to, so the list reads as a clean table. */
+    private static final int TAB_W = 300;
+
+    private boolean mccLayout() {
+        return plugin.getConfig().getString("tablist.layout", "mcc").equalsIgnoreCase("mcc");
+    }
+
+    private static String centred(String s) {
+        int pad = (TAB_W - ChatLayout.px(s)) / 2;
+        return ChatLayout.spaces(pad) + s;
+    }
+
+    /** {@code left} flush left, {@code right} flush right, padded to the table width. */
+    private static String leftRight(String left, String right) {
+        int gap = TAB_W - ChatLayout.px(left) - ChatLayout.px(right);
+        return left + ChatLayout.spaces(gap) + right;
+    }
+
+    /** The names spread evenly over the table width. */
+    private static String spread(List<String> names) {
+        if (names.isEmpty()) return "";
+        int total = 0;
+        for (String n : names) total += ChatLayout.px(n);
+        int gaps = Math.max(1, names.size() - 1);
+        int gap = Math.max(8, (TAB_W - 24 - total) / gaps);
+        StringBuilder sb = new StringBuilder(ChatLayout.spaces(12));
+        for (int i = 0; i < names.size(); i++) {
+            if (i > 0) sb.append(ChatLayout.spaces(gap));
+            sb.append(names.get(i));
+        }
+        return sb.toString();
+    }
+
+    /** Team rows with the points of the running game (live), or the tournament totals outside a game. */
+    private List<String> mccTeamRows(Player viewer, boolean inGame) {
+        var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+        Map<String, Integer> gamePts = new HashMap<>();
+        if (inGame) {
+            var ledger = plugin.getPointsLedger();
+            gamePts.putAll(PointsLedger.byTeam(ledger.forGame(ledger.lastGameSeq())));
+        }
+        List<KMCTeam> ordered = new ArrayList<>(teams);
+        if (inGame) ordered.sort((a, b) -> Integer.compare(gamePts.getOrDefault(b.getId(), 0), gamePts.getOrDefault(a.getId(), 0)));
+        String icon = plugin.getConfig().getString("tablist.points-icon", "●");
+        KMCTeam mine = plugin.getTeamManager().getTeamByPlayer(viewer.getUniqueId());
+        List<String> rows = new ArrayList<>();
+        int rank = 1;
+        for (KMCTeam t : ordered) {
+            if (rank > 8) break;
+            int pts = inGame ? gamePts.getOrDefault(t.getId(), 0) : t.getPoints();
+            String c = t.getColor().toString();
+            boolean me = mine != null && mine.getId().equals(t.getId());
+            String left = "§f" + rank + ". " + c + "◆ " + c + (me ? "§l" : "") + t.getDisplayName();
+            String right = "§e" + pts + " §6" + icon;
+            rows.add(leftRight(left, right));
+            List<String> names = new ArrayList<>();
+            for (UUID u : t.getMembers()) {
+                Player online = Bukkit.getPlayer(u);
+                String n = online != null ? online.getName() : Bukkit.getOfflinePlayer(u).getName();
+                if (n == null) continue;
+                names.add((online != null ? c : "§8") + n);
+            }
+            rows.add(spread(names));
+            rank++;
+        }
+        return rows;
+    }
+
+    private String mccHeader(Player viewer) {
+        var lang = plugin.getLanguageManager();
+        String name = plugin.getConfig().getString("tournament.name", "Krizi Minecraft Championship");
+        String presented = plugin.getConfig().getString("tablist.presented-by", "");
+        var active = plugin.getGameManager().getActiveGame();
+        boolean inGame = active != null;
+
+        StringBuilder sb = new StringBuilder("\n");
+        sb.append(centred("§6§l" + name.toUpperCase())).append("\n");
+        if (!presented.isBlank()) sb.append(centred("§e" + presented)).append("\n");
+        sb.append("§c§m").append(ChatLayout.spaces(TAB_W)).append("\n");
+        String title = inGame
+                ? "§f§l" + ChatColor.stripColor(active.getDisplayName()) + " §7— " + lang.tr(viewer, "tablist.game-points")
+                : lang.tr(viewer, "tablist.standings-title");
+        sb.append(centred(title)).append("\n\n");
+        for (String row : mccTeamRows(viewer, inGame)) sb.append(row).append("\n");
+        return sb.toString().replace('§', '&');
+    }
+
+    private String mccFooter(Player viewer) {
+        var lang = plugin.getLanguageManager();
+        int round = plugin.getTournamentManager().getCurrentRound();
+        int total = plugin.getTournamentManager().getTotalRounds();
+        double mul = plugin.getTournamentManager().getMultiplier();
+        String line = lang.tr(viewer, "tablist.round-line", round, total, fmtMul(mul));
+        return ("\n" + centred(line) + "\n" + centred(lang.tr(viewer, "tablist.vote-hint")) + "\n").replace('§', '&');
+    }
+
+    private static String fmtMul(double m) {
+        return m == Math.rint(m) ? String.valueOf((int) m) : String.format(java.util.Locale.ROOT, "%.2f", m);
+    }
+
+    /**
+     * Refreshes the tab header/footer of everybody, also while a game owns the scoreboard — the MCC
+     * layout shows the live points of the running game, so it has to keep moving.
+     */
+    public void refreshLive() {
+        if (!mccLayout()) return;
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            try { p.sendPlayerListHeaderAndFooter(fromLegacy(mccHeader(p)), fromLegacy(mccFooter(p))); }
+            catch (Exception e) {
+                plugin.getLogger().log(Level.FINE, "tab refresh failed for " + p.getName(), e);
+            }
+        }
     }
 
     /** MCC-style header: championship title + round + active game (in viewer's language). */

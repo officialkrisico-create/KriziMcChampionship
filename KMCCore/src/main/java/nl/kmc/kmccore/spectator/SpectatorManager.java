@@ -74,11 +74,11 @@ public class SpectatorManager implements Listener {
     public void enableSpectatorMode(Player p, SpectatorContext ctx) {
         active.put(p.getUniqueId(), ctx);
         p.getInventory().clear();
-        p.getInventory().setItem(0, buildSpectatorCompass());
+        p.getInventory().setItem(0, buildSpectatorCompass(p));
         if (ctx.getLeader() != null) {
-            p.getInventory().setItem(8, buildLeaderTracker());
+            p.getInventory().setItem(8, buildLeaderTracker(p));
         }
-        p.sendMessage(ChatColor.GRAY + "Right-click compass to teleport. Sneak + right-click to follow.");
+        p.sendMessage(tr(p, "spectator.hint"));
     }
 
     /** Disables spectator mode — clears items, drops follow target. */
@@ -96,27 +96,31 @@ public class SpectatorManager implements Listener {
     // Item builders
     // ----------------------------------------------------------------
 
-    private ItemStack buildSpectatorCompass() {
+    private String tr(Player p, String key, Object... args) {
+        return plugin.getLanguageManager().tr(p, key, args);
+    }
+
+    private ItemStack buildSpectatorCompass(Player p) {
         ItemStack compass = new ItemStack(Material.COMPASS);
         ItemMeta m = compass.getItemMeta();
-        m.displayName(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "" + ChatColor.BOLD + "Spectator Compass"));
+        m.displayName(net.kyori.adventure.text.Component.text(tr(p, "spectator.compass.name")));
         m.lore(java.util.List.of(
-                net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Right-click: teleport menu"),
-                net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Sneak + right-click: follow mode"),
-                net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Drop: exit follow mode")
+                net.kyori.adventure.text.Component.text(tr(p, "spectator.compass.lore1")),
+                net.kyori.adventure.text.Component.text(tr(p, "spectator.compass.lore2")),
+                net.kyori.adventure.text.Component.text(tr(p, "spectator.compass.lore3"))
         ));
         m.getPersistentDataContainer().set(COMPASS_KEY, PersistentDataType.BYTE, (byte) 1);
         compass.setItemMeta(m);
         return compass;
     }
 
-    private ItemStack buildLeaderTracker() {
+    private ItemStack buildLeaderTracker(Player p) {
         ItemStack tracker = new ItemStack(Material.RECOVERY_COMPASS);
         ItemMeta m = tracker.getItemMeta();
-        m.displayName(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "" + ChatColor.BOLD + "Leader Tracker"));
+        m.displayName(net.kyori.adventure.text.Component.text(tr(p, "spectator.leader.name")));
         m.lore(java.util.List.of(
-                net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Always points at the current leader"),
-                net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Right-click: teleport to leader")
+                net.kyori.adventure.text.Component.text(tr(p, "spectator.leader.lore1")),
+                net.kyori.adventure.text.Component.text(tr(p, "spectator.leader.lore2"))
         ));
         m.getPersistentDataContainer().set(LEADER_KEY, PersistentDataType.BYTE, (byte) 1);
         tracker.setItemMeta(m);
@@ -159,10 +163,10 @@ public class SpectatorManager implements Listener {
             Player leader = ctx.getLeader();
             if (leader != null && leader.isOnline()) {
                 p.teleport(leader.getLocation());
-                p.sendMessage(ChatColor.GOLD + "Teleported to leader: " + leader.getName());
+                p.sendMessage(tr(p, "spectator.to-leader", leader.getName()));
                 p.playSound(p.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.5f, 1f);
             } else {
-                p.sendMessage(ChatColor.GRAY + "No leader to follow yet.");
+                p.sendMessage(tr(p, "spectator.no-leader"));
             }
         }
     }
@@ -176,7 +180,7 @@ public class SpectatorManager implements Listener {
             event.setCancelled(true);
             // Treat drop as "exit follow mode"
             if (followTarget.remove(p.getUniqueId()) != null) {
-                p.sendMessage(ChatColor.GRAY + "Exited follow mode.");
+                p.sendMessage(tr(p, "spectator.follow-off"));
             }
         }
     }
@@ -184,8 +188,7 @@ public class SpectatorManager implements Listener {
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player p)) return;
-        if (event.getView().getTitle() == null) return;
-        if (!event.getView().getTitle().contains("Teleport to")) return;
+        if (!(event.getView().getTopInventory().getHolder() instanceof TeleportMenu)) return;
 
         event.setCancelled(true);
         ItemStack clicked = event.getCurrentItem();
@@ -204,7 +207,7 @@ public class SpectatorManager implements Listener {
         if (target != null && target.isOnline()) {
             p.closeInventory();
             p.teleport(target.getLocation());
-            p.sendMessage(ChatColor.AQUA + "Teleported to " + target.getName());
+            p.sendMessage(tr(p, "spectator.teleported", target.getName()));
             p.playSound(p.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.5f, 1f);
         }
     }
@@ -213,13 +216,21 @@ public class SpectatorManager implements Listener {
     // Teleport menu
     // ----------------------------------------------------------------
 
+    /** Marks the teleport menu, so the click handler never depends on a (translated) title. */
+    private static final class TeleportMenu implements org.bukkit.inventory.InventoryHolder {
+        Inventory inv;
+        @Override public Inventory getInventory() { return inv; }
+    }
+
     private void openTeleportMenu(Player viewer) {
         SpectatorContext ctx = active.get(viewer.getUniqueId());
         if (ctx == null) return;
         List<Player> alive = ctx.getAlivePlayers();
         int rows = Math.max(1, (alive.size() + 8) / 9);
-        Inventory inv = Bukkit.createInventory(null, rows * 9,
-                ChatColor.DARK_AQUA + "Teleport to — " + ctx.getGameName());
+        TeleportMenu holder = new TeleportMenu();
+        Inventory inv = Bukkit.createInventory(holder, rows * 9,
+                tr(viewer, "spectator.menu-title", ctx.getGameName()));
+        holder.inv = inv;
 
         for (int i = 0; i < alive.size() && i < rows * 9; i++) {
             Player target = alive.get(i);
@@ -228,13 +239,11 @@ public class SpectatorManager implements Listener {
             sm.setOwningPlayer(target);
             sm.displayName(net.kyori.adventure.text.Component.text(ChatColor.YELLOW + target.getName()));
             sm.lore(java.util.List.of(
-                    net.kyori.adventure.text.Component.text(ChatColor.GRAY + "HP: "
-                            + ChatColor.RED + (int) target.getHealth() + "/20"),
-                    net.kyori.adventure.text.Component.text(ChatColor.GRAY + "Distance: "
-                            + ChatColor.AQUA
-                            + (viewer.getWorld().equals(target.getWorld())
-                                ? ((int) viewer.getLocation().distance(target.getLocation())) + " blocks"
-                                : "different world"))
+                    net.kyori.adventure.text.Component.text(tr(viewer, "spectator.hp", (int) target.getHealth())),
+                    net.kyori.adventure.text.Component.text(tr(viewer, "spectator.distance",
+                            viewer.getWorld().equals(target.getWorld())
+                                ? String.valueOf((int) viewer.getLocation().distance(target.getLocation()))
+                                : tr(viewer, "spectator.other-world")))
             ));
             head.setItemMeta(sm);
             inv.setItem(i, head);
@@ -251,7 +260,7 @@ public class SpectatorManager implements Listener {
         if (ctx == null) return;
         List<Player> alive = ctx.getAlivePlayers();
         if (alive.isEmpty()) {
-            viewer.sendMessage(ChatColor.GRAY + "No players to follow.");
+            viewer.sendMessage(tr(viewer, "spectator.nobody"));
             return;
         }
 
@@ -265,7 +274,7 @@ public class SpectatorManager implements Listener {
         if (nextTarget == null) nextTarget = alive.get(0);  // wrap
 
         followTarget.put(viewer.getUniqueId(), nextTarget.getUniqueId());
-        viewer.sendMessage(ChatColor.AQUA + "Now following: " + nextTarget.getName());
+        viewer.sendMessage(tr(viewer, "spectator.following", nextTarget.getName()));
         viewer.playSound(viewer.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.5f);
     }
 

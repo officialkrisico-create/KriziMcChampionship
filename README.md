@@ -1348,6 +1348,160 @@ built-in, so nothing is ever silent.
 
 ---
 
+## Event direction (presets, finale, pause, rerun)
+
+The automation (`/kmcauto`) is steered from a few places:
+
+| What | How |
+|---|---|
+| Number of games, finale, breaks, presets | the `/kmcauto start` menu (also shows the estimated duration) |
+| Everything live (skip, pause, rerun, round, finale, emergency stop) | `/kmcdirector` |
+| Presets | `/kmcauto preset list|show|apply|save <name>` — built in: `standard`, `short`, `special`, `test` |
+| Number of games | `/kmcauto games <n>` (rounds follow from `automation.games-per-round`) |
+| Estimated duration | `/kmcauto time [games]` — also in the start menu and director panel |
+| Pause | `/pause` (between games now; during a game right after it), `/resume`, `/pause cancel` |
+| Emergency freeze | `/pause now` — every player stands still; **game timers keep running** |
+| Rerun the last game | `/kmcauto rerun` — points, rounds and medals are rolled back, then the game is replayed |
+| Dry-run a game | `/kmcauto dryrun <game>` — no points, kills, medals, MVP or achievements; state restored afterwards |
+| Finale on/off | `/kmcauto finale on|off` |
+
+**Finale.** After the last regular game the top two teams play `automation.finale.game` (default
+`dodgebolt`, best of three). The winner of the finale is the tournament champion. The game is marked
+`finale-only`, so it is never part of the vote. Set it up with `/dodgebolt` (spawns per side, spectator
+spot, void level) or generate a test arena with `/kmctest dodgebolt`.
+
+**Ready check.** After the long mid-tournament break (`automation.ready-check.mode`: `off`,
+`mid-break`, `every-break`) every team gets a clickable "is your team ready?" message. Anyone in the team
+can click it (or type `/kmcready`); the game carries on when every team answered or after the timeout.
+`/kmcready force` ends it.
+
+**Overtime.** A game that supports it (The Bridge: golden goal, QuakeCraft: sudden death) is extended
+once when the top places are level at the end. Per game: `games.<id>.overtime.enabled|seconds|max-extensions`
+in that game's config.
+
+## Score breakdown, awards, archive & records
+
+**One book for every point.** Every award — from any game, the legacy API included — is booked by
+`PointsManager` in the points ledger (`ledger.csv`): who, which game, why (kill, placement, bonus, ...),
+base amount, round multiplier, comeback bonus. Games should call
+`api.points().givePoints(uuid, amount, Reason, gameId)` (or the legacy `KMCApi.givePoints(uuid, amount, Reason, gameId)`).
+
+| What | Where |
+|---|---|
+| Per game: top players, points per team with the biggest reasons, and a private "your game" card | after every game (automatic) |
+| Awards ceremony (MVP, most kills, game wins, most consistent, clutch, racer, parkour, teammate, team prizes) | end of the tournament |
+| Credits | after the awards |
+| Crowd rating (5 clickable stars + `/kmcfeedback <1-5> [comment]`) | after the Fan Favorite vote |
+| Personal statsbook (clickable contents, game by game, reasons, team, standings, awards, records) | handed out at the end |
+| Edition archive | `plugins/KMCCore/history/edition-<n>.yml` |
+| Season / all-time ranking | `/kmcseason [season|all]` |
+| Track records + your personal bests (Track Mastery) | `/kmctrack` |
+
+**End sequence order:** archive → announcement → podium → awards → credits → Fan Favorite → feedback → books → reset.
+Skip a part with `/kmcauto skip`. Settings: `end-sequence.*`, `awards-ceremony.*`, `credits.*`, `season.editions`.
+
+**Games report highlights and sector times** through `api.games()`:
+`recordHighlight(uuid, "clutch"|"racer"|"parkour"|"teammate", value, gameId)` feeds the awards;
+`recordSector(gameId, trackId, sector, uuid, name, millis)` feeds the track records (sector 0 = whole lap/course).
+Formula MC, Adventure Escape, Elytra Endrium, Parkour Warrior and TGTTOS report sector times.
+
+## Presentation (wave 3)
+
+| Feature | What it does | Config / command |
+|---|---|---|
+| MCC tablist | Header "presented by", `<game> - GAME POINTS:` line, per team a row with rank, icon, name and right-aligned points, team members below in team colour. Live game points from the ledger while a game runs. | `tablist.layout: mcc` (or `classic`) |
+| Rank NPCs | Top-10 leaderboard NPCs with the skin of the ranked player + a personal "your place" hologram per viewer. | `/kmcnpc rank set <1-10>`, `rank own`, `rank remove <n/own/all>`, `rank refresh` |
+| Presenter NPC | An NPC that announces the next game, results and the champions (speech bubble + chat). | `/kmcnpc presenter set/remove/skin <speler>/say <tekst>`, `presenter.enabled` |
+| Game intros | Typewriter title, arena flash, FX countdown, GO effect, tutorial lines on the actionbar. | `start-flow.fx` |
+| Leaderboard animation | Teams rise/fall with ▲/▼, +points and biggest riser/faller. | `presentation.leaderboard-animation` |
+| Team jingles | Every team gets a deterministic tune (note block instruments) in the team showcase and on the champion reveal. | `team-jingles.enabled`, `team-jingles.<id>.{instrument,notes,speed}` |
+| Wooden spoon | Last-place team gets a consolation ritual (title, roast line, item). Needs 3+ teams. | `consolation.enabled`, `consolation.seconds` |
+| Kill-cam / finish-cam | Victim spectates the killer for a few seconds; race winners get a finish title. | `cams.kill-cam.*`, `cams.finish-cam.*` |
+| Chat gate | Chat and `/tc` are muted during explanations/ceremonies, OP included (`kmc.chat.bypass` to opt out). | `chat-gate.enabled` |
+| GG button | A clickable `[GG]` appears after each game; counts go to the tournament data. | `/gg`, `gg.enabled`, `gg.window-seconds` |
+| Surprise game | Mark a game as surprise in the automation menu (right click). Name, icon and objective stay hidden in votes and the line-up card until the game is chosen. | right click in `/kmcauto` setup |
+
+## Games & lobby (wave 4)
+
+### Rising Inferno (new game, `RisingInferno.jar`)
+Climb a tower while the lava rises: a long safe route or a short risky route with bonus orbs. The lava is one
+scaled block display (no real lava blocks, nothing to clean up). Placement points + 30 for finishing + 10 per orb.
+
+```
+/inferno lava pos1 | pos2     corners of the area the lava fills (block you stand on)
+/inferno lava base            lava starts at the block you stand on
+/inferno finish pos1 | pos2   finish box (3 blocks high)
+/inferno spawn add | clear    start positions
+/inferno orb add | clear      bonus orbs (put them on the risky route)
+/inferno rise <seconds>       how long the lava needs to reach the top (0 = config default)
+/inferno start | stop | status
+```
+`/kmctest rising_inferno` builds a 30-step test tower (spiral = safe, magma helix = risky).
+
+### Survival Games: supply drops, loot tiers, cornucopia events
+- **Loot tiers**: gear shows its rarity (Common / Rare / Epic / Legendary); `loot.rare-chest-chance` turns a few outer chests into cornucopia-tier chests.
+- **Supply drops** (`drops.*`): an announced beam of light, a chest with epic loot (`loot.drop`) lands after 15 s; the first opener is announced.
+- **Cornucopia events** (`cornucopia-events`): `REFILL_CORNUCOPIA` restocks the rare chests, `CORNUCOPIA_DROP` drops a chest next to the cornucopia.
+
+### Formula MC: qualifying, boost pads, power-ups, weather
+- **Qualifying** (`qualifying.*`, `/fmc quali on|off`): everyone drives one timed lap, the fastest starts on pole (+10 points).
+- **Boost pads**: `/fmc pad add` (selected gate) or any block of `boost.pad-material`.
+- **Item boxes** (`/fmc box add`): TURBO, SHIELD, BLIND (ink bomb), STUN (ice cannon) — right-click to use, rubber-banded odds.
+- **Track weather** (`weather.*`, `/fmc weather <auto|clear|rain|storm|night>`): changes time of day, rain and the grip (drag).
+- **Track Mastery**: a clickable link to `/kmctrack` after every race.
+
+### Hole in the Wall: wall names from colours
+Walls are named by the side they come from: **Rood** = west, **Blauw** = zuid, **Geel** = oost, **Groen** = noord, corners combine
+two colours (e.g. **RoodBlauw** = south-west). Change the mapping in `walls.side-names` of the HITW config.
+
+### Lobby minigames (no tournament points)
+`/ttt <player>` tic-tac-toe duel (GUI, clickable accept), `/darts` snowball darts at Target blocks or `/lobbygames board add`,
+fishing contest with a biggest-fish record, a timed **parkour** (`/lobbygames parkour start|checkpoint|finish|clear`,
+`/lobbygames parkour` = back to checkpoint) and a **spleef** floor (`/lobbygames spleef pos1|pos2|material`, join with
+`/lobbyspleef`). `/lobbygames top [ttt|darts|fish|parkour|spleef]`. Config: `lobby-games.*`.
+
+## Platform (wave 5)
+
+| Feature | What it does | Config / command |
+|---|---|---|
+| Live-data API + overlay | Read-only JSON (`/api/state`) and a ready OBS browser-source page (`/overlay`): round, multiplier, game, next game (surprise hidden), team + player standings, live game points, recent moments. Off by default, localhost only unless you set `bind` + `token`. | `live-api.*`, `/kmcapi status\|start\|stop`, `/overlay?hide=evcard&token=...` |
+| Chunk preload + async paste | The arena chunks are loaded before the flyover; `SchematicManager.pasteSchematicAsync` reads the schematic off-thread and preloads chunks before pasting. | `start-flow.preload-chunks` |
+| Safe teleports | Every plugin teleport that would put a player inside blocks is nudged to the first free spot; unsafe ones are listed with the calling class. | `safe-teleport.*`, `/kmcaudit [clear]` |
+| Spline recorder | Fly a route and it writes itself (thinned with Ramer-Douglas-Peucker, timing preserved). | `/kmccamera record <route> [ticks]`, `record game <gameId>` (= `arena-<gameId>`), `record stop [tolerance]` |
+| Language on first join | New players get the language menu (nl/en). | `language.ask-on-first-join` |
+| HUD scale | Per-player sidebar density. | `/kmchud normal\|compact\|minimal` |
+| Spectator kit | Compass teleport menu, follow mode and leader tracker for every game, automatically. | `spectator-kit.enabled` |
+| Clip markers | Timecodes of game start/end, kills, clutch plays, track records, finishes, rounds; players add their own. Written to `clip-markers.csv`. | `/clip <text>`, `/clip list`, `/clip start` (stream clock), `clips.enabled` |
+| Team emblems | A banner per team (colour from the team, pattern from its id, overridable). | `/kmcemblem [give\|wear\|<team>]`, `emblems.<team>.*` |
+| Team profile | Emblem, rank, wins, best game, top scorer, members; click through the other teams. | `/teamprofile [team]` |
+| Storyline | A chapter at every round start and a recap after each game (lead change, biggest climb, closest gap). Custom chapter text per round possible. | `story.*` |
+| Lobby anti-grief | Item frames, armor stands, buckets, fire, farmland, containers, boats, spawn eggs, pearls. | `anti-grief.*`, permission `kmc.lobby.build` to build |
+
+## Arcade games (wave 6)
+
+Six new games, each its own jar, all on the shared `kmc-game-api` arcade framework
+(`nl.kmc.game.api.arcade`: `ArcadeGameManager`, `ArcadeCommand`, `ArenaConfig`, and the unit-tested `ArcadeLogic`).
+Common to all of them:
+
+- `/<cmd> world | spawn add|clear|list | pos1 | pos2 | validate | status | start [dry] | stop` — `start dry` plays the
+  whole game without booking points or statistics.
+- `/kmctest <gameId>` builds a test arena and configures the game in one go.
+- Every point goes through the normal KMC scoring (`api.points()`), keyed so a checkpoint/capture/bonus is paid once per run.
+- The game loop stands still while the tournament is paused; combat games respawn with spawn protection.
+- Game time of the energy/ability games (Crown Control, Core Charge) is game data — never coins.
+
+| Game | Id | Command | Setup (besides world + spawns) |
+|---|---|---|---|
+| Rocket Rush | `rocket_rush` | `/rocket` | `checkpoint add` (in order), `ring add`, `pickup add`, `finish`, `floor` |
+| Knockout Kings | `knockout_kings` | `/knockout` | `pos1`+`pos2` then `platform`, `respawn add`, `killy` |
+| Crafting Countdown | `crafting_countdown` | `/craftcountdown` | per area `area center`, `area delivery`, `area supply` (look at the block); recipes in config |
+| Zone Zero | `zone_zero` | `/zonezero` | `pos1`+`pos2` then `zone add <id>` (6+ zones for 2 open at a time) |
+| Crown Control | `crown_control` | `/crown` | `pos1`+`pos2` then `zone`; optional `lockdown add <id>`; menu: nether star or `/crown use` |
+| Core Charge | `core_charge` | `/corecharge` | `core add` (per team), `orb add`, `station add`; menu: nether star or `/corecharge use` |
+
+Tuning (times, points, modifiers, kit) is in each game's `config.yml`; points tables follow the spec defaults.
+Not built (optional in the spec): Crafting Countdown modifiers other than `DOUBLE_RECIPE`.
+
 ## Player commands
 
 | Command | What it does |

@@ -62,6 +62,44 @@ public final class ProfileGui extends Gui {
                 "&c🥉 Brons: &f" + medals[2],
                 "&7Gebruik &e/kmcmedals &7voor de ranglijst"));
 
+        // Last game: where the points came from (points ledger).
+        var mine = plugin.getPointsLedger().forPlayer(uuid);
+        int lastSeq = 0;
+        for (var e : mine) lastSeq = Math.max(lastSeq, e.gameSeq());
+        if (lastSeq > 0) {
+            final int seq = lastSeq;
+            var game = plugin.getPointsLedger().game(seq);
+            var gm = game != null ? plugin.getGameManager().getGame(game.gameId()) : null;
+            var es = mine.stream().filter(e -> e.gameSeq() == seq).toList();
+            var by = nl.kmc.kmccore.scoring.PointsLedger.byReason(es);
+            java.util.List<String> lore = new java.util.ArrayList<>();
+            lore.add("&7Game: &f" + (gm != null ? gm.getDisplayName() : "?"));
+            int total = 0;
+            for (var r : by.entrySet()) {
+                lore.add("&7" + r.getKey().toLowerCase().replace('_', ' ') + ": &a+" + r.getValue());
+                total += r.getValue();
+            }
+            lore.add("&7Totaal: &e+" + total);
+            set(29, item(Material.PAPER, "&b&lLaatste game", lore.toArray(new String[0])));
+        }
+
+        // History over the archived editions.
+        var editions = nl.kmc.kmccore.scoring.EditionArchive.readAll(plugin);
+        int played = 0, titles = 0, best = Integer.MAX_VALUE;
+        for (var ed : editions) {
+            for (var pr : ed.players()) {
+                if (!pr.uuid().equals(uuid)) continue;
+                played++;
+                best = Math.min(best, pr.rank());
+                if (ed.championTeamId() != null && ed.championTeamId().equals(pr.teamId())) titles++;
+            }
+        }
+        set(33, item(Material.BOOKSHELF, "&5&lEdities",
+                "&7Gespeeld: &f" + played,
+                "&7Titels: &6" + titles,
+                "&7Beste plek: &f" + (best == Integer.MAX_VALUE ? "—" : "#" + best),
+                "&7Gebruik &e/kmcseason &7voor de ranglijst"));
+
         // Achievements (V2).
         var ach = plugin.getAchievementServiceV2();
         if (ach != null) {

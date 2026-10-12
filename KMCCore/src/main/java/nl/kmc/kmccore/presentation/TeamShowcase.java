@@ -95,6 +95,8 @@ public final class TeamShowcase {
             }
             playCamera(team, members, stage, (int) duration);
         });
+        // The team's own tune, right as it takes the stage.
+        TeamJingles.schedule(plugin, team, at + 4, later);
 
         if (stage == null || n == 0) return n == 0 ? 50 : duration;
 

@@ -1,0 +1,19 @@
+name: RisingInferno
+version: 1.0.0
+main: nl.kmc.inferno.RisingInfernoPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Rising Inferno - climb a tower while the lava rises, safe or risky route
+
+commands:
+  inferno:
+    description: Rising Inferno control + setup
+    aliases: [risinginferno, ri]
+    usage: /inferno <start|stop|status|info|lava|finish|spawn|orb|spectator|rise>
+    permission: inferno.admin
+
+permissions:
+  inferno.admin:
+    description: Rising Inferno admin commands
+    default: op

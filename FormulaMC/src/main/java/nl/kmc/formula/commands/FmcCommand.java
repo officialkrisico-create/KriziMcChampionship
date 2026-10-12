@@ -28,6 +28,10 @@ import java.util.List;
  * /fmc line                  selected gate = start/finish line
  * /fmc cp add | clear | list selected gate = next checkpoint (order matters)
  * /fmc reset                 safe reset spot for stuck racers
+ * /fmc pad add | clear | list  selected gate = boost pad (speed boost)
+ * /fmc box add | clear | list  item box (power-up) where you stand
+ * /fmc weather <auto|clear|rain|storm|night>  force the track weather
+ * /fmc quali <on|off>        qualifying lap before the race
  * /fmc start | stop | status
  * /fmc cam                   flyover camera menu (arena-formula_mc)
  * </pre>
@@ -78,6 +82,8 @@ public final class FmcCommand implements CommandExecutor, TabCompleter {
                 s.sendMessage("§7Lijn: §f" + (sel.getLine() != null ? sel.getLine().describe() : "niet gezet"));
                 s.sendMessage("§7Checkpoints: §f" + sel.getCheckpoints().size()
                         + " §7| Reset: §f" + (sel.getReset() != null ? "gezet" : "niet gezet"));
+                s.sendMessage("§7Boost pads: §f" + sel.getBoostPads().size()
+                        + " §7| Item boxes: §f" + sel.getItemBoxes().size());
                 s.sendMessage(sel.isReady() ? "§a✔ Klaar om te racen" : "§c✘ " + sel.problems());
             }
             case "laps" -> {
@@ -132,6 +138,63 @@ public final class FmcCommand implements CommandExecutor, TabCompleter {
                 sel.setReset(p.getLocation()); mgr.save();
                 s.sendMessage("§a[Formula MC] Reset-locatie gezet.");
             }
+            case "pad" -> {
+                if (!need(s, sel, label) || !(s instanceof Player p)) return true;
+                String sub = a.length >= 2 ? a[1].toLowerCase() : "list";
+                switch (sub) {
+                    case "add" -> {
+                        Gate g = gateFromSelection(p);
+                        if (g == null) { s.sendMessage("§cZet eerst /" + label + " pos1 en pos2."); return true; }
+                        sel.getBoostPads().add(g); mgr.save();
+                        s.sendMessage("§a[Formula MC] Boost pad #" + sel.getBoostPads().size() + " toegevoegd.");
+                    }
+                    case "clear" -> { sel.getBoostPads().clear(); mgr.save(); s.sendMessage("§a[Formula MC] Boost pads gewist."); }
+                    default -> {
+                        int i = 1;
+                        for (Gate g : sel.getBoostPads()) s.sendMessage("§7#" + (i++) + " §f" + g.describe());
+                        if (i == 1) s.sendMessage("§7Geen boost pads. (Of zet boost.pad-material in de config.)");
+                    }
+                }
+            }
+            case "box" -> {
+                if (!need(s, sel, label) || !(s instanceof Player p)) return true;
+                String sub = a.length >= 2 ? a[1].toLowerCase() : "list";
+                switch (sub) {
+                    case "add" -> {
+                        sel.getItemBoxes().add(p.getLocation().getBlock().getLocation().add(0.5, 0, 0.5)); mgr.save();
+                        s.sendMessage("§a[Formula MC] Item box #" + sel.getItemBoxes().size() + " toegevoegd.");
+                    }
+                    case "clear" -> { sel.getItemBoxes().clear(); mgr.save(); s.sendMessage("§a[Formula MC] Item boxes gewist."); }
+                    default -> {
+                        int i = 1;
+                        for (Location l : sel.getItemBoxes())
+                            s.sendMessage("§7#" + (i++) + " §f" + l.getBlockX() + ", " + l.getBlockY() + ", " + l.getBlockZ());
+                        if (i == 1) s.sendMessage("§7Geen item boxes.");
+                    }
+                }
+            }
+            case "weather" -> {
+                String w = a.length >= 2 ? a[1].toLowerCase() : "";
+                if (!List.of("auto", "clear", "rain", "storm", "night").contains(w)) {
+                    s.sendMessage("§cGebruik: /" + label + " weather <auto|clear|rain|storm|night>  §7(nu: "
+                            + plugin.getConfig().getString("weather.forced", "auto") + ")");
+                    return true;
+                }
+                plugin.getConfig().set("weather.forced", w);
+                plugin.saveConfig();
+                s.sendMessage("§a[Formula MC] Baanweer voor de volgende race: §e" + w);
+            }
+            case "quali" -> {
+                String v = a.length >= 2 ? a[1].toLowerCase() : "";
+                if (!v.equals("on") && !v.equals("off")) {
+                    s.sendMessage("§cGebruik: /" + label + " quali <on|off>  §7(nu: "
+                            + (plugin.getConfig().getBoolean("qualifying.enabled", true) ? "on" : "off") + ")");
+                    return true;
+                }
+                plugin.getConfig().set("qualifying.enabled", v.equals("on"));
+                plugin.saveConfig();
+                s.sendMessage("§a[Formula MC] Kwalificatie: §e" + v);
+            }
             case "start" -> {
                 var gm = plugin.getGameManagerV2();
                 if (gm == null || !gm.start()) s.sendMessage("§c[Formula MC] Start mislukt (circuit niet klaar of er loopt al een game). /" + label + " list");
@@ -171,17 +234,20 @@ public final class FmcCommand implements CommandExecutor, TabCompleter {
     }
 
     private void help(CommandSender s, String l) {
-        s.sendMessage("§b§lFormula MC §7— /" + l + " create|delete|select|list|info|laps|spawn|pos1|pos2|line|cp|reset|start|stop|status|cam");
+        s.sendMessage("§b§lFormula MC §7— /" + l + " create|delete|select|list|info|laps|spawn|pos1|pos2|line|cp|reset|pad|box|weather|quali|start|stop|status|cam");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] a) {
         if (a.length == 1) return Arrays.asList("create", "delete", "select", "list", "info", "laps", "spawn", "pos1",
-                "pos2", "line", "cp", "reset", "start", "stop", "status", "cam");
+                "pos2", "line", "cp", "reset", "pad", "box", "weather", "quali", "start", "stop", "status", "cam");
         if (a.length == 2 && (a[0].equalsIgnoreCase("select") || a[0].equalsIgnoreCase("delete")))
             return new ArrayList<>(plugin.getCircuitManager().all().keySet());
         if (a.length == 2 && a[0].equalsIgnoreCase("spawn")) return Arrays.asList("add", "clear");
-        if (a.length == 2 && a[0].equalsIgnoreCase("cp")) return Arrays.asList("add", "clear", "list");
+        if (a.length == 2 && (a[0].equalsIgnoreCase("cp") || a[0].equalsIgnoreCase("pad") || a[0].equalsIgnoreCase("box")))
+            return Arrays.asList("add", "clear", "list");
+        if (a.length == 2 && a[0].equalsIgnoreCase("weather")) return Arrays.asList("auto", "clear", "rain", "storm", "night");
+        if (a.length == 2 && a[0].equalsIgnoreCase("quali")) return Arrays.asList("on", "off");
         return List.of();
     }
 }

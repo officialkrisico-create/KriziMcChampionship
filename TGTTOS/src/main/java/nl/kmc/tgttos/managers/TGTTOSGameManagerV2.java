@@ -234,6 +234,12 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         int pts = mapPoints(placement);
         rs.finishRound(currentMap, placement, pts); // internal map score only — KMC points come at game end
         long elapsedMs = rs.getRoundElapsedMillis();
+        var curMap = getCurrentMap();
+        api.games().recordSector(registration.getId(), curMap != null ? curMap.getDisplayName() : "map " + currentMap,
+                0, player.getUniqueId(), player.getName(), elapsedMs);
+        api.games().recordHighlight(player.getUniqueId(), "racer", Math.max(1, runners.size() - placement + 1),
+                registration.getId());
+        api.games().announceFinish(player.getUniqueId(), placement, runners.size(), registration.getId());
 
         String medal = placement == 1 ? "§6🥇" : placement == 2 ? "§7🥈" : placement == 3 ? "§c🥉" : "§7#" + placement;
         for (Player v : Bukkit.getOnlinePlayers()) {

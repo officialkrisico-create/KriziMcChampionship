@@ -1,0 +1,57 @@
+# ================================================================
+# Rocket Rush — elytra race
+# ================================================================
+# Setup (stand where it must be):
+#   /rocket world               arena world = your world
+#   /rocket spawn add           a start position per player (add 32 for a full server; they are reused)
+#   /rocket checkpoint add      the NEXT checkpoint, in flight order (centre = where you stand)
+#   /rocket ring add            a bonus ring (anywhere, also off the main route)
+#   /rocket pickup add          a rocket pickup
+#   /rocket finish              the finish zone centre
+#   /rocket floor               the height under which a player counts as fallen (your Y)
+#   /rocket validate | start [dry] | stop
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Vlieg door het parcours"
+  flyover-radius: 40
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 180
+  rockets-start: 12
+  rocket-power: 2
+  # Fallen players are put back at the last checkpoint (otherwise they are DNF).
+  respawn-enabled: true
+  respawn-penalty-seconds: 5
+  # A respawned player has at least this many rockets.
+  respawn-min-rockets: 3
+  # Seconds on the ground without moving before a player is put back on the course.
+  stuck-seconds: 12
+  checkpoint-radius: 8.0
+  ring-radius: 4.0
+  finish-radius: 10.0
+  pickup-radius: 3.0
+  pickup-rockets: 4
+  # PLAYER = every player can use each pickup once, ROUND = the first player takes it.
+  pickup-mode: PLAYER
+
+points:
+  checkpoint: 10
+  ring: 15
+  # 1st, 2nd, 3rd... (further places get 0)
+  finish-positions: [100, 85, 70]
+  finish-bonus: 25
+  # Extra: also give the standard KMC placement points at the end.
+  placement-curve: false
+
+arena:
+  world: ""
+  floor-y: -64

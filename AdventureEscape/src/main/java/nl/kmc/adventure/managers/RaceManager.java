@@ -271,7 +271,7 @@ public class RaceManager {
             UUID uuid = finishOrder.get(i);
             int placement = i + 1;
             int base = readPlacement("points.placement", placement);
-            int awarded = base > 0 ? api.givePoints(uuid, base) : 0;
+            int awarded = base > 0 ? api.givePoints(uuid, base, nl.kmc.core.domain.PointAward.Reason.PLACEMENT, GAME_ID) : 0;
 
             RacerData rd = racers.get(uuid);
             Player p = Bukkit.getPlayer(uuid);
@@ -292,7 +292,7 @@ public class RaceManager {
         int dnfPoints = plugin.getConfig().getInt("points.placement.default", 0);
         for (UUID uuid : allRacers) {
             if (finishOrder.contains(uuid)) continue;
-            if (dnfPoints > 0) api.givePoints(uuid, dnfPoints);
+            if (dnfPoints > 0) api.givePoints(uuid, dnfPoints, nl.kmc.core.domain.PointAward.Reason.PLACEMENT, GAME_ID);
             RacerData rd = racers.get(uuid);
             Player p = Bukkit.getPlayer(uuid);
             String name = p != null ? p.getName() : rd != null ? rd.getName() : "?";
@@ -312,7 +312,7 @@ public class RaceManager {
         if (fastestUuid != null) {
             int fastestBonus = plugin.getConfig().getInt("points.fastest-lap-bonus", 25);
             if (fastestBonus > 0) {
-                api.givePoints(fastestUuid, fastestBonus);
+                api.givePoints(fastestUuid, fastestBonus, nl.kmc.core.domain.PointAward.Reason.BONUS, GAME_ID);
                 RacerData rd = racers.get(fastestUuid);
                 String fastestName = rd != null ? rd.getName() : "?";
                 broadcast("&6&l⏱ Snelste ronde: &e" + fastestName
@@ -350,7 +350,7 @@ public class RaceManager {
             var team = teamLookup.get(teamId);
             if (team == null) continue;
             for (UUID memberId : team.getMembers()) {
-                api.givePoints(memberId, bonusEach);
+                api.givePoints(memberId, bonusEach, nl.kmc.core.domain.PointAward.Reason.TEAM_PLACEMENT, GAME_ID);
             }
             broadcast("&6&l✦ Team " + team.getDisplayName()
                     + " &7team-avg #" + teamRank

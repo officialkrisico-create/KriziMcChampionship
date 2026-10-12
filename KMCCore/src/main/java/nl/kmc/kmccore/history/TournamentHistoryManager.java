@@ -69,9 +69,8 @@ public class TournamentHistoryManager {
      * @return the new tournament_history.id, or -1 on failure
      */
     public long recordTournamentEnd(long startedAtMs, int totalRounds) {
-        // Determine winning team
-        List<KMCTeam> teamsByPoints = new ArrayList<>(plugin.getTeamManager().getAllTeams());
-        teamsByPoints.sort((a, b) -> Integer.compare(b.getPoints(), a.getPoints()));
+        // Determine winning team (the finale's champion comes first)
+        List<KMCTeam> teamsByPoints = new ArrayList<>(plugin.getTournamentManager().getFinalStandings());
         KMCTeam winner = teamsByPoints.isEmpty() ? null : teamsByPoints.get(0);
 
         // Get sorted player list

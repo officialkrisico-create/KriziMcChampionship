@@ -94,12 +94,12 @@ public class LootExecutor {
 
             case COINS -> {
                 // Coins removed from system — converted to points
-                api.givePoints(player.getUniqueId(), entry.getRewardAmount());
+                api.givePoints(player.getUniqueId(), entry.getRewardAmount(), nl.kmc.core.domain.PointAward.Reason.LUCKY_BLOCK, "lucky_block");
                 spawnParticles(location, Particle.TOTEM_OF_UNDYING, 20);
             }
 
             case POINTS -> {
-                api.givePoints(player.getUniqueId(), entry.getRewardAmount());
+                api.givePoints(player.getUniqueId(), entry.getRewardAmount(), nl.kmc.core.domain.PointAward.Reason.LUCKY_BLOCK, "lucky_block");
                 spawnParticles(location, Particle.ENCHANT, 20);
             }
 

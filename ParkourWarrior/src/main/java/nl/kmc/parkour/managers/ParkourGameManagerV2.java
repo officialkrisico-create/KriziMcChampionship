@@ -33,6 +33,8 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
     private BukkitTask tickTask;
     private BossBar    bossBar;
     private int        remainingSeconds;
+    private long       startedMs;
+    private final java.util.Map<UUID, Long> splitStart = new java.util.HashMap<>();
     private long       gameStartMs;
     private StandardStartFlow startFlow;
 
@@ -96,6 +98,8 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
             nl.kmc.game.api.FeetOnlyVisibility.apply(rp, team != null ? team.getColor() : null);   // boots only
         }
         remainingSeconds = plugin.getConfig().getInt("game.duration-seconds", 180);
+        startedMs = System.currentTimeMillis();
+        splitStart.clear();
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
@@ -262,6 +266,8 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
         int pts = checkpoint.getAwardedPoints();
         api.points().givePoints(player.getUniqueId(), pts,
                 nl.kmc.core.domain.PointAward.Reason.OBJECTIVE, registration.getId());
+        recordSplit(player, checkpoint.getStage());
+        api.games().recordHighlight(player.getUniqueId(), "parkour", 1, registration.getId());
         player.sendActionBar(net.kyori.adventure.text.Component.text(
                 api.tr(player.getUniqueId(), "pw.checkpoint-stage", checkpoint.getStage(), pts)));
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.5f);
@@ -358,12 +364,25 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
 
         int finishPts = plugin.getConfig().getInt("points.finish-bonus", 200);
         api.points().givePoints(player.getUniqueId(), finishPts, PointAward.Reason.OBJECTIVE, registration.getId());
+        if (startedMs > 0) api.games().recordSector(registration.getId(), "Parkour Warrior", 0,
+                player.getUniqueId(), player.getName(), System.currentTimeMillis() - startedMs);
+        api.games().recordHighlight(player.getUniqueId(), "parkour", 5, registration.getId());
+        api.games().announceFinish(player.getUniqueId(), finishOrder.size(), runners.size(), registration.getId());
         tellKey("pw.finished", player.getName());
         player.sendTitle(api.tr(player.getUniqueId(), "pw.finish.title"),
                 api.tr(player.getUniqueId(), "pw.finish.sub"), 5, 40, 10);
         player.setGameMode(GameMode.SPECTATOR);
 
         if (plugin.getConfig().getBoolean("game.end-on-first-finish", false)) end();
+    }
+
+    /** Sector record: time since the previous checkpoint (or the start). */
+    private void recordSplit(Player player, int stage) {
+        long now = System.currentTimeMillis();
+        long from = splitStart.getOrDefault(player.getUniqueId(), startedMs);
+        if (from > 0) api.games().recordSector(registration.getId(), "Parkour Warrior", stage,
+                player.getUniqueId(), player.getName(), now - from);
+        splitStart.put(player.getUniqueId(), now);
     }
 
     public Map<UUID, RunnerState> getRunnersMap() { return Collections.unmodifiableMap(runners); }

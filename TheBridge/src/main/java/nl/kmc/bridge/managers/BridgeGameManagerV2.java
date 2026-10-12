@@ -135,9 +135,26 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             remainingSeconds--;
             updateBossBar();
-            if (remainingSeconds <= 0) end();
+            if (remainingSeconds <= 0 && !tryOvertime()) end();
         }, 20L, 20L);
         voidCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, this::handleVoidAndBorder, 5L, 5L);
+    }
+
+    /** Level on goals at the whistle (the two best teams have the same score). */
+    @Override
+    protected boolean isTiedForTheWin() {
+        List<Integer> goals = new ArrayList<>();
+        for (BridgeTeam t : bridgeTeams.values()) goals.add(t.getGoalsScored());
+        if (goals.size() < 2) return false;
+        goals.sort(java.util.Comparator.reverseOrder());
+        return goals.get(0).equals(goals.get(1));
+    }
+
+    /** Overtime = golden goal: the clock restarts and the next goal wins. */
+    @Override
+    protected void onOvertimeStart(int seconds) {
+        remainingSeconds = seconds;
+        updateBossBar();
     }
 
     @Override
@@ -282,7 +299,8 @@ public final class BridgeGameManagerV2 extends BaseGameManager {
                     team.getGoalsScored(), plugin.getConfig().getInt("game.goals-to-win", 5));
 
             int goalsToWin = plugin.getConfig().getInt("game.goals-to-win", 5);
-            if (team.getGoalsScored() >= goalsToWin) end();
+            // Golden goal: in overtime the first goal decides it.
+            if (team.getGoalsScored() >= goalsToWin || isOvertime()) end();
             else respawnAfterGoal(scorer);
         }
         updateBossBar();

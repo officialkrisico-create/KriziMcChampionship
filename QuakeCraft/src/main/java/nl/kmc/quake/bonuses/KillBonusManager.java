@@ -229,7 +229,7 @@ public class KillBonusManager {
 
     private void award(Player p, BonusType type, int points) {
         KMCApi api = plugin.getKmcCore().getApi();
-        api.givePoints(p.getUniqueId(), points);
+        api.givePoints(p.getUniqueId(), points, nl.kmc.core.domain.PointAward.Reason.BONUS, "quake_craft");
 
         String banner = ChatColor.translateAlternateColorCodes('&', type.banner);
         p.sendTitle(banner, plugin.getKmcCore().getLanguageManager().tr(p, "qc.bonus-points", points),

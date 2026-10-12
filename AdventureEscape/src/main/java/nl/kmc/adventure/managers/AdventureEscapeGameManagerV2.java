@@ -260,7 +260,9 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
         if (rd == null || rd.hasFinished()) return;
 
         long now = System.currentTimeMillis();
-        rd.completeLap(now);
+        long lapTime = rd.completeLap(now);
+        if (lapTime > 0) api.games().recordSector(registration.getId(), "Adventure Escape", 0,
+                player.getUniqueId(), player.getName(), lapTime);
         int targetLaps = plugin.getArenaManager().getLaps();
 
         int lapPts = plugin.getConfig().getInt("points.per-lap", 50);
@@ -270,6 +272,9 @@ public final class AdventureEscapeGameManagerV2 extends BaseGameManager {
             int placement = finishOrder.size() + 1;
             rd.markFinished(now, placement);
             finishOrder.add(rd.getUuid());
+            api.games().recordHighlight(rd.getUuid(), "racer",
+                    Math.max(1, racers.size() - placement + 1), registration.getId());
+            api.games().announceFinish(rd.getUuid(), placement, racers.size(), registration.getId());
 
             int finishBonus = plugin.getConfig().getInt("points.finish-bonus", 150);
             api.points().givePoints(player.getUniqueId(), finishBonus, PointAward.Reason.OBJECTIVE, registration.getId());

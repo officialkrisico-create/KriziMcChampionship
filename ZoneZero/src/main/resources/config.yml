@@ -1,0 +1,63 @@
+# ================================================================
+# Zone Zero — control the zones that are open
+# ================================================================
+# Setup:
+#   /zonezero world
+#   /zonezero pos1 + pos2, then /zonezero zone add <id>      (repeat per zone; 5 by default)
+#   /zonezero spawn add     spawns; team N respawns on spawn N (teams in alphabetical id order)
+#   /zonezero validate | start [dry] | stop
+# Per-zone tuning below under zone-props.<id>.
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Controleer de open zones"
+  flyover-radius: 35
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 180
+  capture-seconds: 5
+  # How fast an unfinished capture drains when nobody stands in the zone (seconds per second).
+  decay-per-second: 1.0
+  score-interval-seconds: 10
+  active-zones: 2
+  rotate-seconds: 30
+  # RANDOM (never the same combination twice in a row) or FIXED (in the order the zones were added)
+  rotation: RANDOM
+  # A zone that closes becomes neutral again.
+  reset-owner-on-close: true
+  warn-seconds: 5
+
+points:
+  capture: 20
+  hold: 10
+  takeover: 10
+  all-active: 30
+  team-placement: true
+
+combat:
+  respawn-seconds: 5
+  spawn-protection-seconds: 3
+  friendly-fire: false
+
+kit:
+  team-armor: true
+  items:
+    - STONE_SWORD:1
+    - BOW:1
+    - ARROW:16
+    - COOKED_BEEF:8
+    - GOLDEN_APPLE:1
+
+# Optional per zone:  name, score-multiplier (2 = double points), speed (potion level, 0 = none)
+zone-props: {}
+
+arena:
+  world: ""

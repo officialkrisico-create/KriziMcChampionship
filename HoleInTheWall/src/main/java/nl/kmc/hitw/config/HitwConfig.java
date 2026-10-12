@@ -37,6 +37,8 @@ public final class HitwConfig {
     public double gapExtraPerPlayer;
     public double gapMaxScale;
     public List<Double> directionsDeg = new ArrayList<>();
+    /** Names of the 8 sides a wall can come from (see WallSideNames: index 0 = east, 45° steps clockwise). */
+    public List<String> sideNames = new ArrayList<>();
 
     // collision
     public double playerRadius;
@@ -85,6 +87,13 @@ public final class HitwConfig {
             if (o instanceof Number n) directionsDeg.add(n.doubleValue());
         }
         if (directionsDeg.isEmpty()) directionsDeg.add(0.0);
+
+        sideNames.clear();
+        for (String s : cfg.getStringList("walls.side-names")) sideNames.add(s);
+        if (sideNames.size() != 8) {
+            sideNames.clear();
+            sideNames.addAll(nl.kmc.hitw.wall.WallSideNames.DEFAULT);
+        }
 
         playerRadius = cfg.getDouble("collision.player-radius", 0.3);
         tolerance    = cfg.getDouble("collision.tolerance", 0.05);

@@ -46,6 +46,18 @@ public class PlayerJoinQuitListener implements Listener {
         if (plugin.getAchievementServiceV2() != null)
             plugin.getAchievementServiceV2().loadPlayer(player.getUniqueId());
 
+        // First join: ask for a language (the game messages follow it). Never during a running game.
+        if (plugin.getConfig().getBoolean("language.ask-on-first-join", true)
+                && !plugin.getLanguageManager().hasChosen(player.getUniqueId())) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline() || plugin.getLanguageManager().hasChosen(player.getUniqueId())) return;
+                if (plugin.getGameManager().isGameActive() || nl.kmc.core.RunningGames.anyRunning()) return;
+                player.sendMessage(plugin.getLanguageManager().tr("nl", "platform.first-join")
+                        + "\n" + plugin.getLanguageManager().tr("en", "platform.first-join"));
+                new nl.kmc.kmccore.gui.LanguageGui(plugin, player).open(player);
+            }, 60L);
+        }
+
         // Lobby teleport in adventure mode
         if (plugin.getArenaManager().getLobby() != null
                 && !plugin.getGameManager().isGameActive()) {

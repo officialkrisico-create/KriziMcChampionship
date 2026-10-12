@@ -19,8 +19,15 @@ public final class AutomationSetupGui extends Gui {
 
     private static final int SLOT_INTERMISSION  = 38;
     private static final int SLOT_VOTE_DURATION = 40;
+    private static final int SLOT_GAMES         = 36;
+    private static final int SLOT_FINALE        = 37;
+    private static final int SLOT_MIDBREAK      = 42;
+    private static final int SLOT_READY         = 43;
+    private static final int SLOT_PRESETS       = 44;
 
     private final KMCCore plugin;
+    /** Which game sits in which grid slot (for the right-click "surprise" toggle). */
+    private final java.util.Map<Integer, String> slotGames = new java.util.HashMap<>();
     /** Called (with the inventory already closed) when "Start Tournament Now" is clicked. */
     private final Consumer<Player> onStartNow;
 
@@ -34,6 +41,7 @@ public final class AutomationSetupGui extends Gui {
     private void render() {
         inventory.clear();
         clearActions();
+        slotGames.clear();
 
         List<KMCGame> games = new ArrayList<>(plugin.getGameManager().getAllGames());
         games.sort((a, b) -> a.getDisplayName().compareToIgnoreCase(b.getDisplayName()));
@@ -53,9 +61,79 @@ public final class AutomationSetupGui extends Gui {
         }
 
         renderTimers();
+        renderEventOptions();
         renderScheduleAndStart();
 
         fillEmpty();
+    }
+
+    // ── Games count, finale, breaks, presets ───────────────────────────────────
+
+    private void renderEventOptions() {
+        var am = plugin.getAutomationManager();
+        var cfg = plugin.getConfig();
+        int games = am.getTotalGames();
+        int gpr = Math.max(1, cfg.getInt("automation.games-per-round", 2));
+        var est = nl.kmc.kmccore.director.TimeBudget.forCurrent(plugin, games);
+        long enabled = plugin.getGameManager().getEnabledGames().size();
+
+        set(SLOT_GAMES, item(Material.PAPER, "&f&lAantal games dit toernooi: &e" + games,
+                "&7Rondes: &e" + nl.kmc.kmccore.director.PresetManager.roundsFor(games, gpr)
+                        + " &7(" + gpr + " games per ronde)",
+                "&7In de rotatie: &e" + enabled + " &7games" + (games > enabled ? " &c(te weinig!)" : ""),
+                "&7Geschatte duur: &e" + est.format(),
+                "",
+                "&aLinks&7: +1   &cRechts&7: -1"));
+
+        boolean finale = cfg.getBoolean("automation.finale.enabled", true);
+        button(SLOT_FINALE, item(finale ? Material.LIME_DYE : Material.GRAY_DYE,
+                        "&6&lFinale: " + (finale ? "&aaan" : "&7uit"),
+                        "&7De top 2 teams spelen na de laatste ronde",
+                        "&7een beslissende game.",
+                        "&eKlik om te wisselen"),
+                p -> {
+                    cfg.set("automation.finale.enabled", !finale);
+                    plugin.saveConfig();
+                    render();
+                    p.updateInventory();
+                });
+
+        boolean mid = cfg.getBoolean("automation.mid-break.enabled", true);
+        button(SLOT_MIDBREAK, item(mid ? Material.CLOCK : Material.GRAY_DYE,
+                        "&6&lHalverwege-pauze: " + (mid ? "&a" + cfg.getInt("automation.mid-break.seconds", 300) + "s" : "&7uit"),
+                        "&7Eén lange pauze halverwege het toernooi.",
+                        "&eKlik om te wisselen"),
+                p -> {
+                    cfg.set("automation.mid-break.enabled", !mid);
+                    plugin.saveConfig();
+                    render();
+                    p.updateInventory();
+                });
+
+        String mode = cfg.getString("automation.ready-check.mode", "mid-break").toLowerCase();
+        button(SLOT_READY, item(mode.equals("off") ? Material.GRAY_DYE : Material.LIME_CONCRETE,
+                        "&6&lReady-check: &e" + mode,
+                        "&7Na een pauze moet elk team bevestigen",
+                        "&7dat het klaar is (klikbaar bericht).",
+                        "&8off → mid-break → every-break",
+                        "&eKlik om te wisselen"),
+                p -> {
+                    String next = switch (mode) {
+                        case "off" -> "mid-break";
+                        case "mid-break" -> "every-break";
+                        default -> "off";
+                    };
+                    cfg.set("automation.ready-check.mode", next);
+                    plugin.saveConfig();
+                    render();
+                    p.updateInventory();
+                });
+
+        button(SLOT_PRESETS, item(Material.BOOK, "&b&lPresets",
+                        "&7Standaard, kort, speciaal of test:",
+                        "&7zet alles in één keer.",
+                        "&eKlik om te kiezen"),
+                p -> new PresetPickerGui(plugin, onStartNow).open(p));
     }
 
     // ── Game toggles ────────────────────────────────────────────────────────
@@ -66,12 +144,15 @@ public final class AutomationSetupGui extends Gui {
 
     private void renderGameToggle(int slot, KMCGame game) {
         boolean on = isEnabled(game.getId());
+        boolean surprise = plugin.getGameManager().isSurprise(game.getId());
+        slotGames.put(slot, game.getId());
         Material icon = on ? (game.getIcon() != null ? game.getIcon() : Material.PAPER) : Material.GRAY_DYE;
         button(slot, item(icon,
                         (on ? "&a&l✓ " : "&7&m") + game.getDisplayName(),
                         on ? "&7Zit in de rotatie dit toernooi." : "&7Overgeslagen dit toernooi.",
+                        surprise ? "&d✦ Verrassingsgame — verborgen tot hij gekozen wordt" : "&8Geen verrassing",
                         "",
-                        "&eKlik om te wisselen"),
+                        "&eLinks: &7aan/uit  &dRechts: &7verrassing aan/uit"),
                 p -> {
                     plugin.getConfig().set("games.list." + game.getId() + ".enabled", !on);
                     plugin.saveConfig();
@@ -191,8 +272,22 @@ public final class AutomationSetupGui extends Gui {
 
     @Override
     public void handleClick(Player p, int slot, boolean rightClick) {
+        if (rightClick && slotGames.containsKey(slot)) {
+            String id = slotGames.get(slot);
+            plugin.getGameManager().setSurprise(id, !plugin.getGameManager().isSurprise(id));
+            render();
+            p.updateInventory();
+            return;
+        }
         if (slot == SLOT_INTERMISSION) { adjustIntermission(rightClick ? -5 : 5); render(); p.updateInventory(); return; }
         if (slot == SLOT_VOTE_DURATION) { adjustVoteDuration(rightClick ? -5 : 5); render(); p.updateInventory(); return; }
+        if (slot == SLOT_GAMES) {
+            int n = Math.max(1, Math.min(40, plugin.getAutomationManager().getTotalGames() + (rightClick ? -1 : 1)));
+            plugin.getDirector().presets().applyGameCount(n);
+            render();
+            p.updateInventory();
+            return;
+        }
         super.handleClick(p, slot, rightClick);
     }
 }

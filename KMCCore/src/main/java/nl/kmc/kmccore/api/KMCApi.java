@@ -89,9 +89,17 @@ public class KMCApi {
      * @return actual points awarded after multiplier
      */
     public int givePoints(UUID uuid, int amount) {
+        return givePoints(uuid, amount, nl.kmc.core.domain.PointAward.Reason.OBJECTIVE, null);
+    }
+
+    /**
+     * As {@link #givePoints(UUID, int)} but names the reason and the game, so the award shows up with the
+     * right label in the score breakdown. Kills/assists stay flat (see {@code kills.apply-multiplier}).
+     */
+    public int givePoints(UUID uuid, int amount, nl.kmc.core.domain.PointAward.Reason reason, String gameId) {
         if (amount <= 0) return 0;
-        int scaled = applyMultiplier(amount);
-        return plugin.getPointsManager().awardPlayerPoints(uuid, scaled);
+        plugin.getPlayerDataManager().getOrCreate(uuid, null);
+        return plugin.getPointsManager().award(uuid, amount, reason, gameId);
     }
 
     /**
@@ -101,9 +109,8 @@ public class KMCApi {
      */
     public int giveTeamPoints(String teamId, int amount) {
         if (amount <= 0) return 0;
-        int scaled = applyMultiplier(amount);
-        plugin.getPointsManager().addTeamPoints(teamId, scaled);
-        return scaled;
+        return plugin.getPointsManager().awardTeam(teamId, amount,
+                nl.kmc.core.domain.PointAward.Reason.OBJECTIVE, null);
     }
 
     public int awardPlayerPlacement(UUID uuid, int position) {
@@ -190,6 +197,7 @@ public class KMCApi {
      * participant.
      */
     public void recordGameParticipation(UUID uuid, String name, String gameId, boolean won) {
+        if (nl.kmc.core.DryRun.active()) return;
         var pd = plugin.getPlayerDataManager().getOrCreate(uuid, name);
         if (pd == null) return;
         pd.incrementGamesPlayed();

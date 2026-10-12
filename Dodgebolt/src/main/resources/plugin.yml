@@ -1,0 +1,19 @@
+name: Dodgebolt
+version: 1.0.0
+main: nl.kmc.dodgebolt.DodgeboltPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Dodgebolt - 1v1 team bow duel, the KMC finale game
+
+commands:
+  dodgebolt:
+    description: Dodgebolt control + arena setup
+    aliases: [db, dodge]
+    usage: /dodgebolt <status|spawn|clearspawns|spectator|center|void|start|stop|cam>
+    permission: dodgebolt.admin
+
+permissions:
+  dodgebolt.admin:
+    description: Dodgebolt admin commands
+    default: op

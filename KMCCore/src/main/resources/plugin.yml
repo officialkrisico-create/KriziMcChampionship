@@ -64,8 +64,90 @@ commands:
 
   kmcauto:
     description: Control the automation engine
-    usage: /kmcauto <start|stop|pause|resume|status|endgame>
+    usage: /kmcauto <start|stop|skip|pause|resume|status|endgame|schedule|preset|games|time|rerun|dryrun|finale|director>
     permission: kmc.automation.admin
+
+  pause:
+    description: "Pause the tournament (between games now, during a game right after it). /pause now = emergency freeze"
+    usage: /pause [now|cancel]
+    permission: kmc.automation.admin
+    aliases: [kmcpause]
+
+  resume:
+    description: Resume a paused tournament / lift the emergency freeze
+    usage: /resume
+    permission: kmc.automation.admin
+    aliases: [kmcresume]
+
+  kmcdirector:
+    description: Open the event director panel (skip, pause, rerun, finale, presets)
+    usage: /kmcdirector
+    permission: kmc.automation.admin
+    aliases: [kmcdir, kmcregie]
+
+  kmcseason:
+    description: Season and all-time ranking over all past tournaments
+    usage: /kmcseason [season|all]
+    aliases: [kmcranking, kmcalltime]
+
+  kmctrack:
+    description: Track records and your personal bests (Track Mastery)
+    usage: /kmctrack
+    aliases: [kmcrecords, kmcbaan]
+
+  gg:
+    description: "Say GG after a game (sportsmanship button)"
+    usage: /gg
+
+  clip:
+    description: "Mark a moment for the editors (/clip <text>), list markers, start the stream clock"
+    usage: /clip <text|list|start>
+
+  kmcaudit:
+    description: "Safe-teleport audit: which teleports were corrected or unsafe"
+    usage: /kmcaudit [clear]
+    permission: kmc.audit
+
+  kmcapi:
+    description: "Live-data API / stream overlay server"
+    usage: /kmcapi <status|start|stop>
+    permission: kmc.api.admin
+
+  kmchud:
+    description: "Sidebar density: normal, compact or minimal"
+    usage: /kmchud [normal|compact|minimal]
+
+  kmcemblem:
+    description: "Get or wear your team banner"
+    usage: /kmcemblem [give|wear|<team>]
+
+  teamprofile:
+    description: "Team profile: emblem, rank, best game, members"
+    usage: /teamprofile [team]
+    aliases: [kmcteaminfo, teaminfo]
+
+  ttt:
+    description: "Play tic-tac-toe against another player in the lobby"
+    usage: /ttt <player|accept|decline|stop>
+    aliases: [tictactoe]
+
+  lobbyspleef:
+    description: "Join the lobby spleef queue"
+    usage: /lobbyspleef
+    aliases: [lspleef]
+
+  darts:
+    description: "Get five darts to throw at the target blocks in the lobby"
+    usage: /darts
+
+  lobbygames:
+    description: "Lobby minigames: leaderboards and dartboard setup"
+    usage: /lobbygames <top [ttt|darts|fish]|board add|board clear|board list>
+    aliases: [lg]
+
+  kmcfeedback:
+    description: Rate the tournament (1-5 stars) with an optional comment
+    usage: /kmcfeedback <1-5> [comment]
 
   kmcarena:
     description: Manage game arenas
@@ -98,7 +180,7 @@ commands:
     permission: kmc.health.admin
 
   kmcready:
-    description: Mark yourself as ready for the next game
+    description: "Say your team is ready (ready check). Admins: force / status"
     usage: /kmcready
     permission: kmc.ready
 
@@ -252,6 +334,11 @@ permissions:
   kmc.teamchat:         { description: Use team chat,           default: true }
   kmc.vote:             { description: Vote in game vote,       default: true }
   kmc.lobby:            { description: Use /kmclobby tp,        default: true }
+  kmc.lobbygames.admin: { description: Set up lobby dartboards,  default: op }
+  kmc.lobby.build:      { description: Build in the lobby (anti-grief exempt), default: op }
+  kmc.audit:            { description: View the safe-teleport audit, default: op }
+  kmc.api.admin:        { description: Control the live-data API,   default: op }
+  kmc.clip.admin:       { description: Reset the clip-marker clock, default: op }
   kmc.tournament.admin: { description: Manage tournament,       default: op }
   kmc.game.admin:       { description: Manage games,            default: op }
   kmc.npc.admin:        { description: Manage NPCs,             default: op }
@@ -266,6 +353,7 @@ permissions:
   kmc.medals:           { description: View medals,              default: true }
   kmc.health.admin:     { description: View plugin diagnostics,  default: op }
   kmc.ready:            { description: Use /kmcready,            default: true }
+  kmc.chat.bypass:      { description: Can chat while the chat is closed for explanations and ceremonies (not even OP has it by default), default: false }
   kmc.map.admin:        { description: Manage map rotation,      default: op }
   kmc.lobbynpc.admin:   { description: Manage decorative NPCs,   default: op }
   kmc.event.admin:      { description: Run simulations and rollbacks, default: op }

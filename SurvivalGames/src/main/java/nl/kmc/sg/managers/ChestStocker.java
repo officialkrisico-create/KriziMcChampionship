@@ -33,7 +33,8 @@ import java.util.*;
  */
 public class ChestStocker {
 
-    public enum Tier { CORNUCOPIA, OUTER, FEAST }
+    /** OUTER = common, CORNUCOPIA = rare, DROP = epic (supply drops), FEAST = legendary. */
+    public enum Tier { CORNUCOPIA, OUTER, FEAST, DROP }
 
     public record LootEntry(Material material, int minAmount, int maxAmount,
                             double chance, Map<String, Integer> enchants, String customName) {}
@@ -41,6 +42,8 @@ public class ChestStocker {
     private final SurvivalGamesPlugin plugin;
     private final Map<Tier, List<LootEntry>> lootTables = new EnumMap<>(Tier.class);
     private final Set<Long> stockedChests = new HashSet<>();
+    /** Every chest that was stocked as a cornucopia-tier chest (for the REFILL cornucopia event). */
+    private final List<Location> rareChests = new ArrayList<>();
     private BukkitTask scanTask;
 
     public ChestStocker(SurvivalGamesPlugin plugin) {
@@ -52,10 +55,13 @@ public class ChestStocker {
         lootTables.put(Tier.CORNUCOPIA, new ArrayList<>());
         lootTables.put(Tier.OUTER, new ArrayList<>());
         lootTables.put(Tier.FEAST, new ArrayList<>());
+        lootTables.put(Tier.DROP, new ArrayList<>());
         var cfg = plugin.getConfig();
         loadTier(cfg, "loot.cornucopia", Tier.CORNUCOPIA);
         loadTier(cfg, "loot.outer", Tier.OUTER);
         loadTier(cfg, "loot.feast", Tier.FEAST);
+        loadTier(cfg, "loot.drop", Tier.DROP);
+        if (lootTables.get(Tier.DROP).isEmpty()) lootTables.get(Tier.DROP).addAll(lootTables.get(Tier.FEAST));
         plugin.getLogger().info("Loaded loot tables: cornucopia="
                 + lootTables.get(Tier.CORNUCOPIA).size() + ", outer="
                 + lootTables.get(Tier.OUTER).size() + ", feast="
@@ -99,6 +105,9 @@ public class ChestStocker {
     public void stockAllAsync(Runnable onComplete) {
         cancelTasks();
         stockedChests.clear();
+        rareChests.clear();
+        double rareChance = Math.max(0, Math.min(1, plugin.getConfig().getDouble("loot.rare-chest-chance", 0.1)));
+        Random tierRng = new Random();
 
         var arena = plugin.getArenaManager().getArena();
         World world = arena.getWorld();
@@ -148,6 +157,9 @@ public class ChestStocker {
                     if (!stockedChests.add(key)) continue;
                     int distSq = (x - cx) * (x - cx) + (z - cz) * (z - cz);
                     Tier tier = (distSq <= cornucopiaInnerSq) ? Tier.CORNUCOPIA : Tier.OUTER;
+                    // A few outer chests are "rare": they hold cornucopia-tier loot, so exploring pays off.
+                    if (tier == Tier.OUTER && tierRng.nextDouble() < rareChance) tier = Tier.CORNUCOPIA;
+                    if (tier == Tier.CORNUCOPIA) rareChests.add(b.getLocation());
                     fillChest((Chest) b.getState(), tier);
                     count[0]++;
                 }
@@ -188,12 +200,21 @@ public class ChestStocker {
         for (LootEntry e : candidates) {
             if (placed >= targetItems) break;
             if (slotIdx >= slots.size()) break;
-            inv.setItem(slots.get(slotIdx++), buildStack(e, rng));
+            inv.setItem(slots.get(slotIdx++), buildStack(e, rng, tier));
             placed++;
         }
     }
 
-    private ItemStack buildStack(LootEntry e, Random rng) {
+    private static String rarityLabel(Tier tier) {
+        return switch (tier) {
+            case OUTER -> "§7Common";
+            case CORNUCOPIA -> "§9Rare";
+            case DROP -> "§5Epic";
+            case FEAST -> "§6Legendary";
+        };
+    }
+
+    private ItemStack buildStack(LootEntry e, Random rng, Tier tier) {
         int amount = e.minAmount() + rng.nextInt(Math.max(1, e.maxAmount() - e.minAmount() + 1));
         ItemStack stack = new ItemStack(e.material(), amount);
         nl.kmc.game.api.PotionLoot.apply(stack, rng, null);
@@ -214,6 +235,18 @@ public class ChestStocker {
                 stack.setItemMeta(m);
             }
         }
+        // Gear (not food/arrows) shows its rarity so players can read the loot tier at a glance.
+        if (plugin.getConfig().getBoolean("loot.rarity-lore", true) && stack.getMaxStackSize() == 1) {
+            ItemMeta m = stack.getItemMeta();
+            if (m != null) {
+                var lore = m.hasLore() && m.lore() != null ? new ArrayList<>(m.lore())
+                        : new ArrayList<net.kyori.adventure.text.Component>();
+                lore.add(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                        .deserialize(rarityLabel(tier)));
+                m.lore(lore);
+                stack.setItemMeta(m);
+            }
+        }
         return stack;
     }
 
@@ -230,6 +263,31 @@ public class ChestStocker {
         if (!(b.getState() instanceof Chest chest)) return false;
         fillChest(chest, Tier.FEAST);
         return true;
+    }
+
+    /**
+     * Puts an epic supply-drop chest at {@code at} (the block itself; an air block or a replaceable one).
+     * Returns the chest's location, or null when it could not be placed.
+     */
+    public Location spawnDropChest(Location at) {
+        if (at == null || at.getWorld() == null) return null;
+        Block b = at.getBlock();
+        b.setType(Material.CHEST);
+        if (!(b.getState() instanceof Chest chest)) return null;
+        fillChest(chest, Tier.DROP);
+        return b.getLocation();
+    }
+
+    /** Refills every cornucopia/rare chest found during the last scan; returns how many were refilled. */
+    public int restockRareChests() {
+        int n = 0;
+        for (Location l : rareChests) {
+            if (l.getWorld() == null) continue;
+            Block b = l.getBlock();
+            if (b.getType() != Material.CHEST && b.getType() != Material.TRAPPED_CHEST) continue;
+            if (b.getState() instanceof Chest chest) { fillChest(chest, Tier.CORNUCOPIA); n++; }
+        }
+        return n;
     }
 
     public void cancelTasks() {

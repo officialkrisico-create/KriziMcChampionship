@@ -38,6 +38,14 @@ public class TournamentManager {
 
     /** The one round this tournament that gets a surprise Golden Hour (picked fresh on every start()). */
     private Integer goldenRound;
+
+    /** When the running tournament started (epoch ms), for the history record. */
+    private long startedAtMs = System.currentTimeMillis();
+
+    /** Set by the finale: this team is the champion regardless of the points table. */
+    private String championTeamId;
+    /** Set by the finale: the beaten finalist (shown as runner-up). */
+    private String runnerUpTeamId;
     private final java.util.Random random = new java.util.Random();
 
     public TournamentManager(KMCCore plugin) {
@@ -87,6 +95,11 @@ public class TournamentManager {
         if (active) return false;
         active       = true;
         currentRound = 1;
+        championTeamId = null;
+        runnerUpTeamId = null;
+        if (plugin.getPointsLedger() != null) plugin.getPointsLedger().clear();   // a fresh book for a new event
+        startedAtMs = System.currentTimeMillis();
+        nl.kmc.kmccore.tournament.EventEndSequence.closeFeedback();
         incrementEventNumber();   // KMC #1, #2, ...
         plugin.getPointsManager().deactivateGoldenHour();
         goldenRound = plugin.getConfig().getBoolean("golden-hour.enabled", true)
@@ -140,9 +153,10 @@ public class TournamentManager {
         plugin.getScoreboardManager().refreshAll();
         return true;
     }
-
     /**
-     * Ends the tournament: announcements + book distribution + reset.
+     * Ends the tournament: runs the whole closing sequence (announcement, podium, awards, credits, fan
+     * favorite, feedback, statsbooks — see {@link nl.kmc.kmccore.tournament.EventEndSequence}) and only
+     * then resets points and stats.
      */
     public void endTournament() {
         active = false;
@@ -151,37 +165,7 @@ public class TournamentManager {
         save();
 
         int eventNumber = getEventNumber();
-        KMCTeam winner = plugin.getTeamManager().getTeamsSortedByPoints().stream()
-                .findFirst().orElse(null);
-        String winnerName = winner != null
-                ? winner.getColor() + winner.getDisplayName()
-                : "Onbekend";
-
-        // Phase 1: big winner announcement
-        Bukkit.broadcastMessage(MessageUtil.color("&6&l═══════════════════════════"));
-        Bukkit.broadcastMessage(MessageUtil.color("&6&l   KMC #" + eventNumber + " AFGELOPEN!"));
-        Bukkit.broadcastMessage(MessageUtil.color("&eWinnaar: " + winnerName));
-        Bukkit.broadcastMessage(MessageUtil.color("&6&l═══════════════════════════"));
-
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.sendTitle(
-                    MessageUtil.color("&6&l🏆 KMC #" + eventNumber),
-                    MessageUtil.color("Winnaar: " + winnerName),
-                    10, 80, 20);
-            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-        }
-
-        // Phase 2: top 3 players (5 seconds later)
-        Bukkit.getScheduler().runTaskLater(plugin, () -> announceTopPlayers(), 100L);
-
-        // Phase 2b: Fan Favorite crowd vote (6 seconds later, runs 20s — finishes well before the reset)
-        Bukkit.getScheduler().runTaskLater(plugin, () -> plugin.getFanFavoriteManager().startVote(20), 120L);
-
-        // Phase 3: hand out books (8 seconds later)
-        Bukkit.getScheduler().runTaskLater(plugin, () -> handOutBooks(eventNumber), 160L);
-
-        // Phase 4: reset season stats (10 seconds later, after books are made from the data)
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        nl.kmc.kmccore.tournament.EventEndSequence.run(plugin, eventNumber, () -> {
             plugin.getDatabaseManager().resetAll(false);
             plugin.getTeamManager().resetScores();
             plugin.getPlayerDataManager().resetSeasonStats();
@@ -195,54 +179,9 @@ public class TournamentManager {
                     "&aPunten gereset. Klaar voor het volgende toernooi!"));
 
             plugin.getApi().fireTournamentEnd();
-        }, 200L);
+        });
     }
 
-    private void announceTopPlayers() {
-        var top = plugin.getPlayerDataManager().getLeaderboard();
-        if (top.isEmpty()) return;
-
-        Bukkit.broadcastMessage(MessageUtil.color("&6&l═══ Top Spelers ═══"));
-        String[] medals = {"&6🥇", "&7🥈", "&c🥉"};
-        for (int i = 0; i < Math.min(3, top.size()); i++) {
-            PlayerData pd = top.get(i);
-            Bukkit.broadcastMessage(MessageUtil.color(
-                    medals[i] + " &f" + pd.getName() + " &8- &e" + pd.getPoints() + " punten"));
-        }
-
-        // Title for top player
-        PlayerData best = top.get(0);
-        Player bestOnline = Bukkit.getPlayer(best.getUuid());
-        if (bestOnline != null) {
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                p.sendTitle(
-                        MessageUtil.color("&6&l⭐ Beste Speler"),
-                        MessageUtil.color("&e" + best.getName() + " &7(" + best.getPoints() + ")"),
-                        10, 60, 20);
-            }
-        }
-    }
-
-    private void handOutBooks(int eventNumber) {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            try {
-                ItemStack book = EventStatsBookBuilder.buildBookFor(plugin, p, eventNumber);
-                // Try to fit into inventory; if full, drop at feet
-                var leftover = p.getInventory().addItem(book);
-                if (!leftover.isEmpty()) {
-                    p.getWorld().dropItem(p.getLocation(), book);
-                    p.sendMessage(MessageUtil.color(
-                            "&eJe inventaris is vol — het stat-boek ligt naast je."));
-                } else {
-                    p.sendMessage(MessageUtil.color(
-                            "&a✦ Je hebt het KMC #" + eventNumber + " stat-boek ontvangen!"));
-                    p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
-                }
-            } catch (Exception e) {
-                plugin.getLogger().warning("Book build failed for " + p.getName() + ": " + e.getMessage());
-            }
-        }
-    }
 
     // ----------------------------------------------------------------
     // Rounds
@@ -270,6 +209,40 @@ public class TournamentManager {
         return true;
     }
 
+    /** Changes the number of rounds (a /kmcauto preset or game count). The multiplier ladder keeps its last step. */
+    public void setTotalRounds(int rounds) {
+        this.totalRounds = Math.max(1, rounds);
+        plugin.getConfig().set("tournament.total-rounds", this.totalRounds);
+        plugin.saveConfig();
+        if (currentRound > this.totalRounds) currentRound = this.totalRounds;
+    }
+
+    /** Finale result: this team wins the tournament regardless of the points table. */
+    public void setChampion(String teamId, String runnerUpId) {
+        this.championTeamId = teamId;
+        this.runnerUpTeamId = runnerUpId;
+    }
+
+    public long   getStartedAtMs()    { return startedAtMs; }
+    public String getChampionTeamId() { return championTeamId; }
+    public String getRunnerUpTeamId() { return runnerUpTeamId; }
+
+    /**
+     * The final standings: champion first, then the beaten finalist, then everybody else by points.
+     * Without a finale this is simply the points table.
+     */
+    public java.util.List<KMCTeam> getFinalStandings() {
+        java.util.List<KMCTeam> table = new java.util.ArrayList<>(plugin.getTeamManager().getTeamsSortedByPoints());
+        if (championTeamId == null) return table;
+        java.util.List<KMCTeam> out = new java.util.ArrayList<>();
+        KMCTeam champ = plugin.getTeamManager().getTeam(championTeamId);
+        KMCTeam runner = runnerUpTeamId != null ? plugin.getTeamManager().getTeam(runnerUpTeamId) : null;
+        if (champ != null) out.add(champ);
+        if (runner != null && runner != champ) out.add(runner);
+        for (KMCTeam t : table) if (!out.contains(t)) out.add(t);
+        return out;
+    }
+
     public boolean setRound(int round) {
         if (round < 1 || round > totalRounds) return false;
         currentRound = round;
@@ -286,6 +259,8 @@ public class TournamentManager {
         active       = false;
         currentRound = 1;
         goldenRound  = null;
+        championTeamId = null;
+        runnerUpTeamId = null;
         plugin.getPointsManager().deactivateGoldenHour();
         save();
         plugin.getDatabaseManager().resetAll(false);
@@ -299,6 +274,8 @@ public class TournamentManager {
         active       = false;
         currentRound = 1;
         goldenRound  = null;
+        championTeamId = null;
+        runnerUpTeamId = null;
         plugin.getPointsManager().deactivateGoldenHour();
         save();
         for (KMCTeam t : plugin.getTeamManager().getAllTeams()) {

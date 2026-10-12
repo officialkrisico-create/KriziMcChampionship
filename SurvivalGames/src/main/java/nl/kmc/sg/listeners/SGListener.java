@@ -165,6 +165,16 @@ public class SGListener implements Listener {
                 Sound.ENTITY_TNT_PRIMED, 1f, 1f);
     }
 
+    /** The first opening of a supply-drop chest ends its light beam and announces who got there first. */
+    @EventHandler(ignoreCancelled = true)
+    public void onDropOpened(org.bukkit.event.inventory.InventoryOpenEvent e) {
+        SurvivalGamesManagerV2 m = gm();
+        if (m == null || !m.getState().isRunning()) return;
+        if (!(e.getPlayer() instanceof Player p)) return;
+        if (e.getInventory().getHolder() instanceof org.bukkit.block.Chest c)
+            m.getSupplyDrops().onChestOpened(p, c.getLocation());
+    }
+
     /** When a chest is looted empty during the match, break it so the map shows what's left. */
     @EventHandler
     public void onChestEmptied(org.bukkit.event.inventory.InventoryCloseEvent e) {

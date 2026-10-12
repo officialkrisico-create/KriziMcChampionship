@@ -59,6 +59,16 @@ public final class CircuitManager {
                     try { c.getCheckpoints().add(gateFromMap(m)); } catch (Exception ignored) { }
                 }
             }
+            for (Object o : s.getList("pads", List.of())) {
+                if (o instanceof Map<?, ?> m) {
+                    try { c.getBoostPads().add(gateFromMap(m)); } catch (Exception ignored) { }
+                }
+            }
+            for (Object o : s.getList("boxes", List.of())) {
+                if (!(o instanceof Map<?, ?> m) || w == null) continue;
+                try { c.getItemBoxes().add(new Location(w, num(m, "x"), num(m, "y"), num(m, "z"))); }
+                catch (Exception ignored) { }
+            }
             ConfigurationSection r = s.getConfigurationSection("reset");
             if (r != null && w != null) {
                 c.setReset(new Location(w, r.getDouble("x"), r.getDouble("y"), r.getDouble("z"),
@@ -89,6 +99,16 @@ public final class CircuitManager {
             List<Map<String, Object>> cps = new ArrayList<>();
             for (Gate g : c.getCheckpoints()) cps.add(toMap(g));
             cfg.set(p + "checkpoints", cps);
+            List<Map<String, Object>> pads = new ArrayList<>();
+            for (Gate g : c.getBoostPads()) pads.add(toMap(g));
+            cfg.set(p + "pads", pads);
+            List<Map<String, Object>> boxes = new ArrayList<>();
+            for (Location l : c.getItemBoxes()) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("x", l.getX()); m.put("y", l.getY()); m.put("z", l.getZ());
+                boxes.add(m);
+            }
+            cfg.set(p + "boxes", boxes);
             if (c.getReset() != null) {
                 Location r = c.getReset();
                 cfg.set(p + "reset.x", r.getX());

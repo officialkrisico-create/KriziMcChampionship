@@ -50,7 +50,7 @@ public final class WinnerCeremony {
     private void start() {
         if (!plugin.getConfig().getBoolean("winner-ceremony.enabled", true)) { finishNow(); return; }
 
-        List<KMCTeam> standings = plugin.getTeamManager().getTeamsSortedByPoints();
+        List<KMCTeam> standings = plugin.getTournamentManager().getFinalStandings();
         if (standings.isEmpty()) { finishNow(); return; }
 
         int pause = plugin.getConfig().getInt("winner-ceremony.reveal-pause-seconds", 4);
@@ -103,6 +103,8 @@ public final class WinnerCeremony {
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
         }
         launchFireworks(champ.getColor());
+        try { nl.kmc.kmccore.presentation.TeamJingles.playNow(plugin, champ); }
+        catch (Throwable ignored) { }
     }
 
     private void revealMvp() {

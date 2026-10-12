@@ -67,6 +67,24 @@ public class VoteGuiListener implements Listener {
 
     /** Builds the clickable item for one game in the vote GUI. */
     private ItemStack buildGameItem(KMCGame game, int optionNumber) {
+        if (plugin.getGameManager().isSurpriseHidden(game.getId())) {
+            // The surprise game: a mystery chest — name, icon and objective stay secret until it wins.
+            ItemStack mystery = new ItemStack(Material.ENDER_CHEST);
+            ItemMeta mm = mystery.getItemMeta();
+            mm.displayName(Component.text("??? Verrassingsgame", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)
+                    .decoration(TextDecoration.ITALIC, false));
+            int mv = plugin.getGameManager().getVoteCount(game.getId());
+            mm.lore(java.util.List.of(
+                    Component.text("Een verborgen game — pas bekend als hij gekozen wordt!", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false),
+                    Component.text(" ", NamedTextColor.DARK_GRAY),
+                    Component.text("Stemmen: " + mv, NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false),
+                    Component.text("Klik om te stemmen!  (Optie " + optionNumber + ")", NamedTextColor.YELLOW)
+                            .decoration(TextDecoration.ITALIC, false)));
+            mm.getPersistentDataContainer().set(GAME_ID_KEY, PersistentDataType.STRING, game.getId());
+            mystery.setItemMeta(mm);
+            return mystery;
+        }
         Material mat = game.getIcon() != null ? game.getIcon() : Material.PAPER;
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();

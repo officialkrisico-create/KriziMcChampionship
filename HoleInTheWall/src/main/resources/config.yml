@@ -68,6 +68,10 @@ walls:
   min-arrival-separation-seconds: 1.1  # a faster wall never starts so close behind another that they overlap
   update-ticks: 2                    # how often wall visuals are updated (collision is checked EVERY tick)
   directions: [0, 45, 90, 135, 180, 225, 270, 315]   # sides walls can come from (0 = east, 90 = south)
+  # Names of those 8 sides, in the same order as 0, 45, 90... degrees (east, south-east, south, south-west, west,
+  # north-west, north, north-east). Straight sides are a colour, corners combine two colours.
+  # Rood = west, Blauw = zuid, Geel = oost, Groen = noord. Change this to match your arena.
+  side-names: [Geel, BlauwGeel, Blauw, RoodBlauw, Rood, GroenRood, Groen, GeelGroen]
   sprint-speed: 5.6                  # how far a player can run — used to keep every gap reachable
   reach-factor: 0.55
   min-reach: 4.0

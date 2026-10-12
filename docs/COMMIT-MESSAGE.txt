@@ -1,0 +1,37 @@
+Golf 1-6: regie, punten/data, presentatie, nieuwe games, platform en zes arcade-games
+
+Regie (golf 1)
+- Finale (top-2) + Dodgebolt-module, /kmcauto preset|games|time|rerun|dryrun|finale|director
+- /pause en /resume, director-GUI, team ready-check, start-menu met aantal games en tijdsschatting
+- Pre-game snapshot + rerun, Automatic Overtime (TheBridge, QuakeCraft), extra checks in TournamentValidator
+
+Punten & data (golf 2)
+- PointsLedger (elke award geboekt), ScoreReport per game, AwardsEngine + ceremonie, credits
+- EventEndSequence (archive, podium, awards, credits, fan favorite, feedback, boeken, reset)
+- EditionArchive + SeasonRanking (/kmcseason), TrackRecords + /kmctrack (Track Mastery), /kmcfeedback
+
+Presentatie (golf 3)
+- MCC-tablist met live game-punten, rank-NPC's (top 10 + eigen plek), presenter-NPC
+- Intro-FX, leaderboard-animatie, team-jingles, houten-lepel-ritueel, kill-/finish-cam
+- Chat-gate (ook voor OP), GG-knop, verrassingsgame (verborgen tot gekozen)
+
+Games (golf 4)
+- Survival Games: supply drops, loot-tiers, cornucopia-events
+- Formula MC: kwalificatie, boost pads, item boxes/power-ups, baanweer, link naar Track Mastery
+- Hole in the Wall: muurnamen uit kleuren (Rood=W, Blauw=Z, Geel=O, Groen=N)
+- Rising Inferno (nieuw): klimtoren met stijgende lava, veilige vs riskante route, bonus-orbs
+- Lobbygames: boter-kaas-en-eieren, darts, vissen, parkour, spleef (geen toernooipunten)
+
+Platform (golf 5)
+- Live-data API + OBS-overlay, clip-markers, safe-teleport-guard + /kmcaudit, spline-recorder
+- Taalkeuze bij eerste join, HUD-schaal (/kmchud) met pixel-afkapping, spectator-kit voor elke game
+- Team-emblemen en teamprofiel, verhaallijn per event, lobby anti-grief, async chunk-preload/paste
+
+Arcade-games (golf 6)
+- Gedeeld framework in kmc-game-api (nl.kmc.game.api.arcade): lifecycle, pauze-bewuste loop,
+  eenmalige scoring, team-PvP met respawn, capture/energie-logica met unit-tests
+- Rocket Rush, Knockout Kings, Crafting Countdown, Zone Zero, Crown Control, Core Charge
+
+Fixes en overig
+- Taalsysteem nl/en, vloeiende flyovers, /gg in plugin.yml, spectator-teksten vertaald
+- Afkappen van sidebar-regels snijdt geen kleurcodes meer doormidden

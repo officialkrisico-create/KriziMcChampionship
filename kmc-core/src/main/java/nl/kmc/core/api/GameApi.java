@@ -36,6 +36,34 @@ public interface GameApi {
      */
     default void recordGameMvp(java.util.UUID mvp, String name, String gameId) {}
 
+    /**
+     * Reports a notable performance for the end-of-tournament awards (categories: {@code clutch},
+     * {@code racer}, {@code parkour}, {@code teammate}; others are kept but not shown). {@code value} is
+     * how much it counts for (e.g. 1 per clutch save, a placement score per race). No-op by default.
+     */
+    default void recordHighlight(java.util.UUID player, String category, int value, String gameId) {}
+
+    /**
+     * A player was knocked out of the game by {@code killer} (may be null). Lets the platform give the
+     * victim a short kill-cam. No-op by default.
+     */
+    default void announceElimination(java.util.UUID victim, java.util.UUID killer, String gameId) {}
+
+    /**
+     * A racer finished with this placement. Lets the platform show a finish-cam for the winner.
+     * No-op by default.
+     */
+    default void announceFinish(java.util.UUID finisher, int placement, int total, String gameId) {}
+
+    /**
+     * Reports a finished sector / lap / run on a race track for the track records.
+     *
+     * @param sector 0 = the whole run (lap or course), 1.. = sector number
+     * @param millis time in milliseconds
+     */
+    default void recordSector(String gameId, String trackId, int sector, java.util.UUID player,
+                              String playerName, long millis) {}
+
     boolean isScoreboardOwnedBy(String gameId);
 
     Optional<String> getScoreboardOwner();

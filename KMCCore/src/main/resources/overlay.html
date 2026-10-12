@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>KMC Overlay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg: rgba(12,14,24,.82); --fg: #f4f6ff; --dim: #9aa3c4; --gold: #ffcc33; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; color: var(--fg);
+    font: 600 20px/1.25 "Segoe UI", system-ui, sans-serif; }
+  .wrap { display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
+  .card { background: var(--bg); border-radius: 12px; padding: 12px 14px; min-width: 300px; backdrop-filter: blur(4px); }
+  h2 { margin: 0 0 8px; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .game { font-size: 28px; color: var(--gold); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; transition: transform .6s; }
+  .rank { width: 26px; color: var(--dim); text-align: right; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pts { font-variant-numeric: tabular-nums; }
+  .gp { color: #7dff9b; font-size: 15px; min-width: 50px; text-align: right; }
+  .meta { color: var(--dim); font-size: 15px; margin-top: 6px; }
+  .ev { font-size: 15px; color: var(--dim); padding: 2px 0; }
+  .ev b { color: var(--fg); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" id="top">
+    <h2 id="roundline">KMC</h2>
+    <div class="game" id="game">—</div>
+    <div class="meta" id="next"></div>
+  </div>
+  <div class="card" id="teams"><h2>Teams</h2><div id="teamrows"></div></div>
+  <div class="card" id="evcard"><h2>Moments</h2><div id="events"></div></div>
+</div>
+<script>
+const params = new URLSearchParams(location.search);
+const tokenQ = params.get('token') ? '?token=' + encodeURIComponent(params.get('token')) : '';
+const interval = parseInt(params.get('interval') || '1000', 10);
+if (params.get('hide')) params.get('hide').split(',').forEach(id => {
+  const el = document.getElementById(id); if (el) el.classList.add('hidden'); });
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function tick() {
+  try {
+    const r = await fetch('/api/state' + tokenQ, { cache: 'no-store' });
+    const s = await r.json();
+    document.getElementById("roundline").textContent =
+      s.active ? "Ronde " + s.round + "/" + s.totalRounds + " · x" + s.multiplier : "KMC Tournament";
+    document.getElementById('game').textContent = s.game ? s.game.name : (s.state === 'IDLE' ? '—' : s.state);
+    document.getElementById('next').textContent = s.next ? 'Volgende: ' + s.next.name : '';
+    const teams = s.teams.map(function (t) {
+      return "<div class=\"row\"><span class=\"rank\">" + t.rank + "</span><span class=\"dot\" style=\"background:" + t.color + "\"></span>"
+        + "<span class=\"name\">" + esc(t.name) + "</span>"
+        + (t.gamePoints ? "<span class=\"gp\">+" + t.gamePoints + "</span>" : "<span class=\"gp\"></span>")
+        + "<span class=\"pts\">" + t.points + "</span></div>";
+    }).join("");
+    document.getElementById('teamrows').innerHTML = teams;
+    document.getElementById("events").innerHTML = s.events.slice().reverse().map(function (e) {
+      return "<div class=\"ev\"><b>" + esc(e.time) + "</b> " + esc(e.label) + "</div>";
+    }).join("");
+  } catch (e) { /* server restarting — try again */ }
+}
+tick(); setInterval(tick, interval);
+</script>
+</body>
+</html>

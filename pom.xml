@@ -49,6 +49,14 @@
         <module>SurvivalGames</module>
         <module>HoleInTheWall</module>
         <module>FormulaMC</module>
+        <module>RisingInferno</module>
+        <module>RocketRush</module>
+        <module>KnockoutKings</module>
+        <module>CraftingCountdown</module>
+        <module>ZoneZero</module>
+        <module>CrownControl</module>
+        <module>CoreCharge</module>
+        <module>Dodgebolt</module>
     </modules>
 
     <!-- ================================================== -->

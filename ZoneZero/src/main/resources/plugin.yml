@@ -1,0 +1,19 @@
+name: ZoneZero
+version: 1.0.0
+main: nl.kmc.zonezero.ZoneZeroPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Zone Zero - teams fight for zones that open and close
+
+commands:
+  zonezero:
+    description: Zone Zero control + setup
+    aliases: [zz]
+    usage: /zonezero <start|stop|status|validate|world|spawn|zone|pos1|pos2>
+    permission: zonezero.admin
+
+permissions:
+  zonezero.admin:
+    description: Zone Zero admin commands
+    default: op

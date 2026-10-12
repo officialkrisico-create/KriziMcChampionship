@@ -1,0 +1,71 @@
+# ================================================================
+# Crown Control — one crown, eight teams
+# ================================================================
+# Setup:
+#   /crown world
+#   /crown pos1 + pos2, then /crown zone        the capture zone around the crown (give it some height)
+#   /crown spawn add                            spawns; team N respawns on spawn N (alphabetical team id)
+#   /crown pos1 + pos2, then /crown lockdown add <id>   (optional) areas that Lockdown closes for the others
+#   /crown validate | start [dry] | stop
+# Players open the ability menu with the nether star (slot 9) or /crown use.
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Pak de kroon en houd hem vast"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 180
+  capture-seconds: 5
+  decay-per-second: 1.0
+  # After a capture the crown cannot be contested for this long.
+  lock-seconds: 20
+  # The crown becomes neutral again this long after the capture (0 = never).
+  neutral-after-seconds: 0
+  score-interval-seconds: 10
+
+points:
+  capture: 25
+  hold: 10
+  takeover: 15
+  end-bonus: 50
+  team-placement: true
+
+# Team energy (game data, NOT coins): spent on abilities by the team that holds the crown.
+energy:
+  capacity: 100
+  per-capture: 20
+  per-hold: 10
+  per-takeover: 10
+
+abilities:
+  double-down: { cost: 20, seconds: 15, multiplier: 2.0, cooldown: 20 }
+  lockdown:    { cost: 30, seconds: 10, cooldown: 25 }
+  overdrive:   { cost: 25, seconds: 10, cooldown: 20, speed-level: 2 }
+  bounty:      { cost: 30, seconds: 30, cooldown: 30, bonus: 15 }
+  fortify:     { cost: 25, seconds: 10, cooldown: 20 }
+
+combat:
+  respawn-seconds: 5
+  spawn-protection-seconds: 3
+  friendly-fire: false
+
+kit:
+  team-armor: true
+  items:
+    - STONE_SWORD:1
+    - BOW:1
+    - ARROW:16
+    - COOKED_BEEF:8
+    - GOLDEN_APPLE:1
+
+arena:
+  world: ""

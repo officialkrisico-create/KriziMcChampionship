@@ -49,6 +49,21 @@ public final class ClickableVoteMessage {
         }
     }
 
+    /** Vote result — shown after voting closes. A hidden surprise game is announced as "???". */
+    public static void sendResult(KMCGame game, int voteCount, boolean hidden) {
+        if (hidden) {
+            Component msg = Component.text()
+                    .append(Component.text("✔ ", NamedTextColor.GREEN, TextDecoration.BOLD))
+                    .append(Component.text("Volgende game: ", NamedTextColor.YELLOW))
+                    .append(Component.text("??? VERRASSINGSGAME", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                    .append(Component.text(" (" + voteCount + " stemmen)", NamedTextColor.GRAY))
+                    .build();
+            for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(msg);
+            return;
+        }
+        sendResult(game, voteCount);
+    }
+
     /** Vote result — shown after voting closes. */
     public static void sendResult(KMCGame game, int voteCount) {
         Component msg = Component.text()

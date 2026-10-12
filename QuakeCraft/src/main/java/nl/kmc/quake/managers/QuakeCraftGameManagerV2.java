@@ -120,6 +120,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     // ── RUNNING — combat goes live ────────────────────────────────────────────
     private void beginRunning() {
+        unmuteChat();
         phase = MatchPhase.RUNNING;
 
         PotionEffectType jumpType = effect("jump_boost");
@@ -141,7 +142,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
             remainingSeconds--;
             updateBossBar();
             ensureBaseSpeed();
-            if (remainingSeconds <= 0) { end(); return; }
+            if (remainingSeconds <= 0) { if (!tryOvertime()) end(); return; }
             if (checkKillTargetReached()) end();
         }, 20L, 20L);
 
@@ -194,6 +195,7 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     /** Chains INTRODUCTION → TUTORIAL → COUNTDOWN → RUNNING as scheduled tasks. */
     private void runStartFlow() {
+        muteChat();   // chat stays closed while the game is explained (released in beginRunning)
         cancelStartFlow();
         int introSec = flowEnabled("introduction") ? startSeconds("intro-seconds", 5)  : 0;
         int tutSec   = flowEnabled("tutorial")     ? startSeconds("tutorial-seconds", 10) : 0;
@@ -521,7 +523,32 @@ public final class QuakeCraftGameManagerV2 extends BaseGameManager {
 
     private boolean checkKillTargetReached() {
         int target = plugin.getConfig().getInt("game.kill-target", 25);
+        if (isOvertime() && topKills() > overtimeBaseKills) return true;   // sudden death: next kill wins
         return players.values().stream().anyMatch(ps -> ps.getKills() >= target);
+    }
+
+    // ── Overtime: level on kills at the end → sudden death ────────────────────
+
+    private int overtimeBaseKills;
+
+    private int topKills() {
+        return players.values().stream().mapToInt(PlayerState::getKills).max().orElse(0);
+    }
+
+    @Override
+    protected boolean isTiedForTheWin() {
+        List<Integer> kills = new ArrayList<>();
+        for (PlayerState ps : players.values()) kills.add(ps.getKills());
+        if (kills.size() < 2) return false;
+        kills.sort(java.util.Comparator.reverseOrder());
+        return kills.get(0).equals(kills.get(1));
+    }
+
+    @Override
+    protected void onOvertimeStart(int seconds) {
+        overtimeBaseKills = topKills();
+        remainingSeconds = seconds;
+        updateBossBar();
     }
 
     private void respawnAfterDeath(Player target) {

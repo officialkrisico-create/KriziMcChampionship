@@ -1,0 +1,46 @@
+# ============================================================================
+# Dodgebolt — two teams, two platforms, one bow each. A hit knocks you out for the round.
+# Used as the KMC FINALE (top 2 teams) but can also be started by hand: /dodgebolt start [teamA teamB]
+# Arena (spawns, drop points, spectator spot) is set with /dodgebolt — see plugin.yml.
+# ============================================================================
+
+game:
+  # Rounds a team must win to win the match (2 = best of 3, 3 = best of 5)
+  rounds-to-win: 2
+  # Hard cap on rounds played (draws are replayed); after this the most kills decide
+  max-rounds: 7
+  # Seconds per round
+  round-seconds: 90
+  # Extra seconds when a round is level on time (one overtime, supply arrows every 5s)
+  overtime-seconds: 30
+  # Seconds frozen at the start of each round (3-2-1)
+  round-intro-seconds: 4
+  # Seconds between rounds
+  round-break-seconds: 6
+  # Arrows each team starts a round with (handed to different players)
+  team-arrows: 3
+  # Every N seconds each platform receives supply arrows (stops stalemates)
+  supply-seconds: 15
+  supply-arrows: 1
+  # Players with a lower Y than this are out (0 = automatic: lowest spawn - 12)
+  void-y: 0
+
+points:
+  # per elimination (flat, no multiplier)
+  per-kill: 25
+  # every member of the team that wins a round
+  round-win: 50
+  # every member of the winning / losing team at the end of the match
+  match-win: 150
+  match-loss: 50
+
+# Pre-game flow (shared StandardStartFlow): intro title, camera flyover, tutorial lines, countdown.
+start-sequence:
+  intro-seconds: 4
+  flyover-radius: 24
+  tutorial-seconds: 10
+  countdown-seconds: 5
+
+# Set by commands — do not edit by hand unless you know what you are doing.
+arena:
+  world: null

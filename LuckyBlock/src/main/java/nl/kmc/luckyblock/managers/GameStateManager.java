@@ -181,7 +181,7 @@ public class GameStateManager {
             // Award winner
             var winnerTeam = plugin.getKmcCore().getTeamManager().getTeamByPlayer(winnerUuid);
             if (winnerTeam != null) api.awardTeamPlacement(winnerTeam.getId(), 1);
-            api.givePoints(winnerUuid, plugin.getConfig().getInt("points.win", 200));
+            api.givePoints(winnerUuid, plugin.getConfig().getInt("points.win", 200), nl.kmc.core.domain.PointAward.Reason.PLACEMENT, "lucky_block");
 
             var pd = plugin.getKmcCore().getPlayerDataManager()
                     .getOrCreate(winnerUuid, winnerName);
@@ -203,7 +203,7 @@ public class GameStateManager {
         for (int i = 0; i < placements.size(); i++) {
             int place = i + 2;
             int pts = plugin.getConfig().getInt("points." + place, 0);
-            if (pts > 0) api.givePoints(placements.get(i), pts);
+            if (pts > 0) api.givePoints(placements.get(i), pts, nl.kmc.core.domain.PointAward.Reason.PLACEMENT, "lucky_block");
         }
 
         // Reset streaks for losers

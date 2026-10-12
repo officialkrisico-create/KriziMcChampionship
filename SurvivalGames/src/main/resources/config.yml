@@ -124,6 +124,11 @@ points:
 loot:
   min-items-per-chest: 3
   max-items-per-chest: 6
+
+  # Loot tiers: gear shows its rarity in the lore (Common / Rare / Epic / Legendary).
+  rarity-lore: true
+  # Chance that an OUTER chest turns out to be a "rare" chest (cornucopia-tier loot).
+  rare-chest-chance: 0.1
   
   # Cornucopia chests — best loot, encourage bloodbath
   cornucopia:
@@ -176,6 +181,35 @@ loot:
     - { material: SPLASH_POTION, min: 2, max: 2, chance: 0.5 }
     - { material: ARROW, min: 16, max: 24, chance: 0.7 }
     - { material: BOW, min: 1, max: 1, chance: 0.6, enchants: { POWER: 2 } }
+
+  # Supply drops: epic loot that falls from the sky (loot.drop; falls back to loot.feast).
+  drop:
+    - { material: DIAMOND_SWORD, min: 1, max: 1, chance: 0.5 }
+    - { material: DIAMOND_CHESTPLATE, min: 1, max: 1, chance: 0.4 }
+    - { material: DIAMOND_LEGGINGS, min: 1, max: 1, chance: 0.4 }
+    - { material: DIAMOND_BOOTS, min: 1, max: 1, chance: 0.4 }
+    - { material: BOW, min: 1, max: 1, chance: 0.5, enchants: { POWER: 2 } }
+    - { material: ARROW, min: 16, max: 32, chance: 0.7 }
+    - { material: GOLDEN_APPLE, min: 2, max: 3, chance: 0.8 }
+    - { material: ENDER_PEARL, min: 1, max: 2, chance: 0.5 }
+    - { material: SPLASH_POTION, min: 1, max: 2, chance: 0.5 }
+    - { material: COOKED_BEEF, min: 6, max: 10, chance: 0.6 }
+
+# Supply drops. Times are seconds after the bloodbath (PvP phase) starts. A beam of light marks the spot,
+# the chest lands after landing-delay-seconds. No new drops once the deathmatch begins.
+drops:
+  enabled: true
+  first-seconds: 150
+  interval-seconds: 120
+  max: 3
+  landing-delay-seconds: 15
+
+# Timed events at the cornucopia (seconds after the bloodbath starts):
+#   REFILL_CORNUCOPIA  - all cornucopia/rare chests get new loot
+#   CORNUCOPIA_DROP    - an epic supply drop lands right next to the cornucopia
+cornucopia-events:
+  - { at: 240, type: REFILL_CORNUCOPIA }
+  - { at: 330, type: CORNUCOPIA_DROP }
 
 # Arena (set via /sg commands)
 arena:

@@ -54,6 +54,7 @@ public final class AchievementLoader {
         "achievements/blockparty.yml",
         "achievements/mobmayhem.yml",
         "achievements/hitw.yml",
+        "achievements/inferno.yml",
         "achievements/games.yml"
     };
 

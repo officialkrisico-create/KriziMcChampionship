@@ -41,6 +41,24 @@ public final class TournamentDataStore {
 
     private void saveAsync() { Bukkit.getScheduler().runTaskAsynchronously(plugin, this::save); }
 
+    // ── Snapshots (used by the director to make a game rerun-safe) ────────────
+
+    /** The whole store (medals, MVPs, momentum, Elo) as text, to be restored with {@link #importState}. */
+    public String exportState() { return cfg.saveToString(); }
+
+    /** Restores a state captured by {@link #exportState()} and persists it. */
+    public void importState(String yaml) {
+        if (yaml == null) return;
+        try {
+            FileConfiguration restored = new YamlConfiguration();
+            ((YamlConfiguration) restored).loadFromString(yaml);
+            cfg = restored;
+            save();
+        } catch (Exception e) {
+            plugin.getLogger().warning("Could not restore tournament-data snapshot: " + e.getMessage());
+        }
+    }
+
     // ── Medals ────────────────────────────────────────────────────────────────
 
     /** Awards a medal for a per-game placement (1=gold, 2=silver, 3=bronze). */
@@ -97,6 +115,14 @@ public final class TournamentDataStore {
         if (name != null) cfg.set("mvp.name." + uuid, name);
         saveAsync();
     }
+
+    /** Sportsmanship: how often a player pressed the GG button (all time). */
+    public void addGg(UUID uuid) {
+        cfg.set("gg." + uuid, cfg.getInt("gg." + uuid, 0) + 1);
+        saveAsync();
+    }
+
+    public int getGg(UUID uuid) { return cfg.getInt("gg." + uuid, 0); }
 
     public int getTournamentMvp(UUID uuid) { return cfg.getInt("mvp.tournament." + uuid, 0); }
     public int getLifetimeMvp(UUID uuid)   { return cfg.getInt("mvp.lifetime." + uuid, 0); }

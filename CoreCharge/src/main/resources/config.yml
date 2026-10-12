@@ -1,0 +1,74 @@
+# ================================================================
+# Core Charge — charge the core, spend it wisely
+# ================================================================
+# Setup:
+#   /corecharge world
+#   /corecharge core add        a core per team (team N uses core N, alphabetical team id)
+#   /corecharge orb add         energy orbs
+#   /corecharge station add     charge stations (stand in them to capture: energy + objective points)
+#   /corecharge spawn add       respawn spots (optional: cores are used otherwise)
+#   /corecharge validate | start [dry] | stop
+# Players open the ability menu with the nether star (slot 9) or /corecharge use.
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Laad je kern op — gebruik de energie slim"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 180
+  final-charge-seconds: 30
+  orb-energy: 10
+  orb-radius: 1.8
+  orb-respawn-seconds: 20
+  station-capture-seconds: 8
+  station-energy: 20
+  station-radius: 3.5
+  station-cooldown-seconds: 30
+  # What happens with energy above the capacity: LOST or CONVERT (1 point per 5 overflow)
+  overflow: LOST
+  # Other teams can see your energy on the core hologram.
+  show-enemy-energy: true
+
+energy:
+  capacity: 100
+
+abilities:
+  speed-boost:    { cost: 20, seconds: 10, cooldown: 15, level: 2 }
+  shield-pulse:   { cost: 30, seconds: 5,  cooldown: 20 }
+  score-surge:    { cost: 40, seconds: 15, cooldown: 25, multiplier: 2.0 }
+  final-overload: { cost: 70, seconds: 10, multiplier: 2.0 }
+
+points:
+  per-10-energy: 5
+  objective: 15
+  full-charge: 30
+  per-5-left: 1
+  final-charge: 25
+  team-placement: true
+
+combat:
+  pvp: true
+  respawn-seconds: 5
+  spawn-protection-seconds: 3
+  friendly-fire: false
+
+kit:
+  team-armor: true
+  items:
+    - STONE_SWORD:1
+    - BOW:1
+    - ARROW:16
+    - COOKED_BEEF:8
+    - GOLDEN_APPLE:1
+
+arena:
+  world: ""

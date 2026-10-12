@@ -80,23 +80,23 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
     private final class V1PointsApi implements PointsApi {
         @Override
         public void givePoints(UUID uuid, int amount, PointAward.Reason reason, String gameId) {
+            awardPoints(uuid, amount, reason, gameId);
+        }
+
+        /**
+         * Kills and assists stay flat (unless configured), everything else gets the round multiplier —
+         * the rule lives in PointsManager.award(), which also books the award in the ledger.
+         */
+        @Override
+        public int awardPoints(UUID uuid, int amount, PointAward.Reason reason, String gameId) {
             // Ensure the player is loaded so the award isn't dropped.
             plugin.getPlayerDataManager().getOrCreate(uuid, null);
-            var pm = plugin.getPointsManager();
-            // Assists follow the same flat-rate rule as kills — they're kill-adjacent,
-            // not a placement reward, so the round multiplier shouldn't apply either.
-            boolean isKillLike = reason == PointAward.Reason.KILL || reason == PointAward.Reason.ASSIST;
-            boolean useMultiplier = !isKillLike || pm.killsUseMultiplier();
-            int finalAmount = useMultiplier
-                    ? (int) Math.round(amount * pm.getCurrentMultiplier())
-                    : amount;
-            pm.awardPlayerPoints(uuid, finalAmount); // credits player + team
+            return plugin.getPointsManager().award(uuid, amount, reason, gameId);
         }
 
         @Override
         public void giveTeamPoints(String teamId, int amount, PointAward.Reason reason, String gameId) {
-            int finalAmount = (int) Math.round(amount * plugin.getPointsManager().getCurrentMultiplier());
-            plugin.getPointsManager().addTeamPoints(teamId, finalAmount);
+            plugin.getPointsManager().awardTeam(teamId, amount, reason, gameId);
         }
 
         @Override
@@ -104,7 +104,7 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
             plugin.getPlayerDataManager().getOrCreate(uuid, null);
             plugin.getPointsManager().awardPlayerPlacement(uuid, placement);
             // Top-3 in a minigame earns a medal (centralised — every game gets it for free).
-            if (placement >= 1 && placement <= 3) {
+            if (placement >= 1 && placement <= 3 && !nl.kmc.core.DryRun.active()) {
                 var pd = plugin.getPlayerDataManager().get(uuid);
                 plugin.getTournamentDataStore().awardMedal(uuid, pd != null ? pd.getName() : null, placement);
             }
@@ -168,7 +168,7 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
         }
         @Override public void recordGameMvp(java.util.UUID mvp, String name, String gameId) {
             if (mvp == null) return;
-            plugin.getTournamentDataStore().recordGameMvp(mvp, name);
+            if (!nl.kmc.core.DryRun.active()) plugin.getTournamentDataStore().recordGameMvp(mvp, name);
             var team = plugin.getTeamManager().getTeamByPlayer(mvp);
             String teamPart = team != null ? " §7(" + team.getColor() + team.getDisplayName() + "§7)" : "";
             String mvpName = name != null ? name : plugin.getTournamentDataStore().getMvpName(mvp);
@@ -189,10 +189,74 @@ public final class V1KMCApi implements nl.kmc.core.api.KMCApi {
         @Override public boolean isScoreboardOwnedBy(String gameId) { return gameId.equals(scoreboardOwner); }
         @Override public Optional<String> getScoreboardOwner()      { return Optional.ofNullable(scoreboardOwner); }
 
-        @Override public void signalGameEnd(String gameId, String winnerDescription) { releaseScoreboard(gameId); }
+        @Override
+        public void recordHighlight(UUID player, String category, int value, String gameId) {
+            if (player == null || category == null || value <= 0 || nl.kmc.core.DryRun.active()) return;
+            var pd = plugin.getPlayerDataManager().get(player);
+            var team = plugin.getTeamManager().getTeamByPlayer(player);
+            var ledger = plugin.getPointsLedger();
+            ledger.recordHighlight(new nl.kmc.kmccore.scoring.PointsLedger.Highlight(
+                    category.toLowerCase(), player, pd != null ? pd.getName() : null,
+                    team != null ? team.getId() : null, value, gameId, ledger.lastGameSeq()));
+        }
+
+        @Override
+        public void announceElimination(UUID victim, UUID killer, String gameId) {
+            try { plugin.getCamService().killCam(victim, killer, gameId); } catch (Throwable ignored) { }
+        }
+
+        @Override
+        public void announceFinish(UUID finisher, int placement, int total, String gameId) {
+            try { plugin.getCamService().finishCam(finisher, placement, gameId); } catch (Throwable ignored) { }
+            try {
+                org.bukkit.entity.Player fp = org.bukkit.Bukkit.getPlayer(finisher);
+                if (placement == 1 && plugin.getClipMarkers() != null)
+                    plugin.getClipMarkers().add("finish", (fp != null ? fp.getName() : "?") + " wins the race ("
+                            + gameId + ")", fp != null ? fp.getName() : null);
+            } catch (Throwable ignored) { }
+        }
+
+        @Override
+        public void recordSector(String gameId, String trackId, int sector, UUID player, String playerName, long millis) {
+            if (player == null || trackId == null || millis <= 0 || nl.kmc.core.DryRun.active()) return;
+            var res = plugin.getTrackRecords().submit(gameId, trackId, sector, player, playerName, millis);
+            if (!res.personalBest() && !res.trackRecord()) return;
+            String label = sector == 0 ? "" : " §7(S" + sector + ")";
+            String time = nl.kmc.kmccore.scoring.TrackRecords.format(millis);
+            org.bukkit.entity.Player p = org.bukkit.Bukkit.getPlayer(player);
+            if (res.trackRecord()) {
+                // Only a real record once someone had set a time before (the very first run is just "the time").
+                boolean first = res.previousRecordMs() < 0;
+                if (!first) {
+                    for (org.bukkit.entity.Player v : org.bukkit.Bukkit.getOnlinePlayers()) {
+                        v.sendMessage(plugin.getLanguageManager().tr(v, "records.new-record",
+                                playerName, trackId + label, time));
+                    }
+                    org.bukkit.Bukkit.getOnlinePlayers().forEach(v ->
+                            v.playSound(v.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.6f, 1.4f));
+                    try {
+                        plugin.getClipMarkers().add("record", "Track record " + trackId + label.replaceAll("§.", "")
+                                + " — " + playerName + " " + time, playerName);
+                    } catch (Throwable ignored) { }
+                    return;
+                }
+            }
+            if (res.personalBest() && p != null && res.previousBestMs() > 0) {
+                long delta = res.previousBestMs() - millis;
+                p.sendMessage(plugin.getLanguageManager().tr(p, "records.new-pb", trackId + label, time,
+                        nl.kmc.kmccore.scoring.TrackRecords.format(delta)));
+            }
+        }
+
+        @Override public void signalGameEnd(String gameId, String winnerDescription) {
+            releaseScoreboard(gameId);
+            try { if (plugin.getDirector() != null) plugin.getDirector().onGameSignalEnd(gameId, winnerDescription); }
+            catch (Throwable t) { plugin.getLogger().warning("[KMC] director end-hook failed: " + t); }
+        }
 
         @Override
         public void recordGameParticipation(UUID playerUuid, String playerName, String gameId, boolean won) {
+            if (nl.kmc.core.DryRun.active()) return;
             plugin.getApi().recordGameParticipation(playerUuid, playerName, gameId, won);
         }
 

@@ -1,0 +1,19 @@
+name: CoreCharge
+version: 1.0.0
+main: nl.kmc.corecharge.CoreChargePlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Core Charge - charge your team core with energy and decide when to spend it
+
+commands:
+  corecharge:
+    description: Core Charge control + setup
+    aliases: [coc]
+    usage: /corecharge <start|stop|status|validate|world|spawn|core|orb|station|use>
+    permission: corecharge.admin
+
+permissions:
+  corecharge.admin:
+    description: Core Charge admin commands
+    default: op

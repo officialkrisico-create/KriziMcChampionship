@@ -110,6 +110,9 @@ public class GameManager {
         nextGame   = null;
         playedGamesThisTournament.add(gameId);
         save();
+        try {
+            plugin.getPointsLedger().beginGame(gameId, plugin.getTournamentManager().getCurrentRound());
+        } catch (Throwable t) { plugin.getLogger().warning("[KMC] ledger.beginGame failed: " + t); }
 
         final String gId = gameId;
         Bukkit.getScheduler().runTaskLater(plugin,
@@ -191,8 +194,8 @@ public class GameManager {
         plugin.getScoreboardManager().refreshAll();
         plugin.getApi().fireGameEnd(gameName, winnerName);
 
-        // Momentum: snapshot team standings after this game's points settled.
-        try {
+        // Momentum: snapshot team standings after this game's points settled (never for a dry-run).
+        if (!nl.kmc.core.DryRun.active()) try {
             java.util.List<String> ranked = plugin.getTeamManager().getTeamsSortedByPoints()
                     .stream().map(nl.kmc.core.domain.KMCTeam::getId).collect(java.util.stream.Collectors.toList());
             plugin.getTournamentDataStore().recordGameStandings(ranked);
@@ -241,7 +244,45 @@ public class GameManager {
     public List<KMCGame> getEnabledGames() {
         return games.values().stream()
                 .filter(g -> plugin.getConfig().getBoolean("games.list." + g.getId() + ".enabled", true))
+                // finale-only games (Dodgebolt) are never part of the voting rotation
+                .filter(g -> !plugin.getConfig().getBoolean("games.list." + g.getId() + ".finale-only", false))
                 .collect(Collectors.toList());
+    }
+
+    // ----------------------------------------------------------------
+    // Surprise game: a game flagged "surprise" stays hidden (as ???) until it is actually chosen
+    // ----------------------------------------------------------------
+
+    private final Set<String> revealedSurprises = new HashSet<>();
+
+    /** True when the game is configured as a surprise and has not been revealed yet. */
+    public boolean isSurpriseHidden(String gameId) {
+        return gameId != null
+                && plugin.getConfig().getBoolean("games.list." + gameId + ".surprise", false)
+                && !revealedSurprises.contains(gameId);
+    }
+
+    public boolean isSurprise(String gameId) {
+        return plugin.getConfig().getBoolean("games.list." + gameId + ".surprise", false);
+    }
+
+    public void setSurprise(String gameId, boolean on) {
+        plugin.getConfig().set("games.list." + gameId + ".surprise", on);
+        plugin.saveConfig();
+        if (!on) revealedSurprises.remove(gameId);
+    }
+
+    /** Marks the surprise as revealed (it is being played now). */
+    public void revealSurprise(String gameId) { revealedSurprises.add(gameId); }
+
+    /** A new tournament: every surprise is a surprise again. */
+    public void resetSurprises() { revealedSurprises.clear(); }
+
+    /** Takes a game back out of the "played" set (a dry-run must not use up a game). */
+    public void unmarkPlayed(String gameId) {
+        if (gameId == null) return;
+        playedGamesThisTournament.remove(gameId);
+        save();
     }
 
     public List<KMCGame> getAvailableGames() {
@@ -309,7 +350,7 @@ public class GameManager {
         votes.put(player.getUniqueId(), gameId);
         // Per-player language: confirmation is shown in the voter's chosen language.
         player.sendMessage(plugin.getLanguageManager().tr(player, "vote.confirm",
-                voteOptions.get(option - 1).getDisplayName()));
+                isSurpriseHidden(gameId) ? "§d???" : voteOptions.get(option - 1).getDisplayName()));
         return true;
     }
 
@@ -330,7 +371,7 @@ public class GameManager {
         if (winnerId != null) {
             KMCGame winner = games.get(winnerId);
             nextGame = winner;
-            ClickableVoteMessage.sendResult(winner, tally.getOrDefault(winnerId, 0));
+            ClickableVoteMessage.sendResult(winner, tally.getOrDefault(winnerId, 0), isSurpriseHidden(winner.getId()));
         }
 
         // Close any open vote GUIs
@@ -341,6 +382,7 @@ public class GameManager {
 
     public void resetPlayedGames() {
         playedGamesThisTournament.clear();
+        revealedSurprises.clear();
         save();
     }
 

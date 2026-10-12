@@ -108,6 +108,11 @@ public class LineCrossListener implements Listener {
 
         switch (result) {
             case OK -> {
+                long sector = rd.splitSector(System.currentTimeMillis());
+                if (sector > 0) {
+                    nl.kmc.core.api.KMCApiProvider.get().games().recordSector("adventure_escape", "Adventure Escape",
+                            cp.getIndex(), player.getUniqueId(), player.getName(), sector);
+                }
                 player.sendActionBar(net.kyori.adventure.text.Component.text(
                         lang(player, "ae.cp", cp.getIndex(), total)));
                 player.playSound(player.getLocation(),

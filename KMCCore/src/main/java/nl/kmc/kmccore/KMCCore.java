@@ -53,6 +53,52 @@ public final class KMCCore extends JavaPlugin {
     private nl.kmc.kmccore.tournament.TournamentDataStore tournamentDataStore;
     public nl.kmc.kmccore.tournament.TournamentDataStore getTournamentDataStore() { return tournamentDataStore; }
 
+    /** Book of every point award (score breakdown, awards, statsbook). */
+    private nl.kmc.kmccore.scoring.PointsLedger pointsLedger;
+    public nl.kmc.kmccore.scoring.PointsLedger getPointsLedger() { return pointsLedger; }
+
+    /** Kill-cam / finish-cam. */
+    private nl.kmc.kmccore.presentation.CamService camService;
+    public nl.kmc.kmccore.presentation.CamService getCamService() { return camService; }
+
+    /** The GG button after a game. */
+    private nl.kmc.kmccore.presentation.GgManager ggManager;
+    public nl.kmc.kmccore.presentation.GgManager getGgManager() { return ggManager; }
+    private nl.kmc.kmccore.platform.ClipMarkers clipMarkers;
+    private nl.kmc.kmccore.platform.LiveApiServer liveApi;
+    private nl.kmc.kmccore.platform.SafeTeleportGuard safeTeleportGuard;
+    private nl.kmc.kmccore.platform.TeamEmblems teamEmblems;
+    private nl.kmc.kmccore.platform.StoryManager storyManager;
+    private nl.kmc.kmccore.presentation.camera.SplineRecorder splineRecorder;
+    public nl.kmc.kmccore.platform.ClipMarkers getClipMarkers() { return clipMarkers; }
+    public nl.kmc.kmccore.platform.LiveApiServer getLiveApi() { return liveApi; }
+    public nl.kmc.kmccore.platform.SafeTeleportGuard getSafeTeleportGuard() { return safeTeleportGuard; }
+    public nl.kmc.kmccore.platform.TeamEmblems getTeamEmblems() { return teamEmblems; }
+    public nl.kmc.kmccore.presentation.camera.SplineRecorder getSplineRecorder() { return splineRecorder; }
+    private nl.kmc.kmccore.lobbygames.LobbyGamesManager lobbyGames;
+    private nl.kmc.kmccore.lobbygames.LobbyGamesListener lobbyGamesListener;
+    public nl.kmc.kmccore.lobbygames.LobbyGamesManager getLobbyGames() { return lobbyGames; }
+
+    /** Lobby presenter that announces games, results and the finale. */
+    private nl.kmc.kmccore.npc.PresenterManager presenter;
+    public nl.kmc.kmccore.npc.PresenterManager getPresenter() { return presenter; }
+
+    /** Live player ranking on NPCs (/kmcnpc rank ...). */
+    private nl.kmc.kmccore.npc.RankNpcManager rankNpcManager;
+    public nl.kmc.kmccore.npc.RankNpcManager getRankNpcManager() { return rankNpcManager; }
+
+    /** Closes player chat while something is explained or celebrated. */
+    private nl.kmc.kmccore.presentation.ChatGate chatGate;
+    public nl.kmc.kmccore.presentation.ChatGate getChatGate() { return chatGate; }
+
+    /** All-time track records and personal bests (Track Mastery). */
+    private nl.kmc.kmccore.scoring.TrackRecords trackRecords;
+    public nl.kmc.kmccore.scoring.TrackRecords getTrackRecords() { return trackRecords; }
+
+    /** Event-director tools: presets, dry-run, emergency freeze. */
+    private nl.kmc.kmccore.director.DirectorService director;
+    public nl.kmc.kmccore.director.DirectorService getDirector() { return director; }
+
     /** Post-tournament "Fan Favorite" crowd vote. */
     private nl.kmc.kmccore.tournament.FanFavoriteManager fanFavoriteManager;
     public nl.kmc.kmccore.tournament.FanFavoriteManager getFanFavoriteManager() { return fanFavoriteManager; }
@@ -62,6 +108,13 @@ public final class KMCCore extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        pointsLedger = new nl.kmc.kmccore.scoring.PointsLedger(this);
+        trackRecords = new nl.kmc.kmccore.scoring.TrackRecords(this);
+        chatGate = new nl.kmc.kmccore.presentation.ChatGate(this);
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            pointsLedger.flush();
+            trackRecords.flush();
+        }, 600L, 600L);
         saveResource("messages.yml", false);
         saveResource("points.yml",   false);
 
@@ -89,6 +142,32 @@ public final class KMCCore extends JavaPlugin {
         languageManager = new nl.kmc.kmccore.lang.LanguageManager(this);
         tournamentDataStore = new nl.kmc.kmccore.tournament.TournamentDataStore(this);
         fanFavoriteManager = new nl.kmc.kmccore.tournament.FanFavoriteManager(this);
+        director = new nl.kmc.kmccore.director.DirectorService(this);
+        rankNpcManager = new nl.kmc.kmccore.npc.RankNpcManager(this);
+        presenter = new nl.kmc.kmccore.npc.PresenterManager(this);
+        camService = new nl.kmc.kmccore.presentation.CamService(this);
+        ggManager = new nl.kmc.kmccore.presentation.GgManager(this);
+        clipMarkers = new nl.kmc.kmccore.platform.ClipMarkers(this);
+        safeTeleportGuard = new nl.kmc.kmccore.platform.SafeTeleportGuard(this);
+        teamEmblems = new nl.kmc.kmccore.platform.TeamEmblems(this);
+        storyManager = new nl.kmc.kmccore.platform.StoryManager(this);
+        splineRecorder = new nl.kmc.kmccore.presentation.camera.SplineRecorder(this);
+        liveApi = new nl.kmc.kmccore.platform.LiveApiServer(this);
+        var platformPm = getServer().getPluginManager();
+        platformPm.registerEvents(clipMarkers, this);
+        platformPm.registerEvents(new nl.kmc.kmccore.lobbygames.LobbyArcadeListener(lobbyGames), this);
+        platformPm.registerEvents(safeTeleportGuard, this);
+        platformPm.registerEvents(storyManager, this);
+        platformPm.registerEvents(new nl.kmc.kmccore.platform.SpectatorAutoHook(this), this);
+        platformPm.registerEvents(new nl.kmc.kmccore.platform.LobbyAntiGriefListener(this), this);
+        liveApi.start();
+        lobbyGames = new nl.kmc.kmccore.lobbygames.LobbyGamesManager(this);
+        lobbyGamesListener = new nl.kmc.kmccore.lobbygames.LobbyGamesListener(this, lobbyGames);
+        getServer().getPluginManager().registerEvents(lobbyGamesListener, this);
+        // The MCC tab layout shows the live points of the running game, so it keeps moving.
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            try { getTabListManager().refreshLive(); } catch (Throwable ignored) { }
+        }, 100L, 40L);
 
         registerCommands();
         registerListeners();
@@ -136,6 +215,13 @@ public final class KMCCore extends JavaPlugin {
     @Override
     public void onDisable() {
         if (lobbyMvpCrown != null) lobbyMvpCrown.stop();
+        if (rankNpcManager != null) rankNpcManager.shutdown();
+        if (lobbyGames != null) lobbyGames.shutdown();
+        if (liveApi != null) liveApi.stop();
+        if (splineRecorder != null) splineRecorder.shutdown();
+        if (presenter != null) presenter.shutdown();
+        if (pointsLedger != null) pointsLedger.flush();
+        if (trackRecords != null) trackRecords.flush();
         // Release the shared API slot we own.
         try { nl.kmc.core.api.KMCApiProvider.clear(); } catch (Exception ignored) {}
         // Disable in reverse dependency order
@@ -163,6 +249,21 @@ public final class KMCCore extends JavaPlugin {
         setCmd("tc",             new TeamChatCommand(this));
         setCmd("kmcvote",        new VoteCommand(this));
         setCmd("kmcauto",        new AutomationCommand(this));
+        setCmd("pause",          new nl.kmc.kmccore.commands.DirectorCommands.PauseCommand(this));
+        setCmd("resume",         new nl.kmc.kmccore.commands.DirectorCommands.ResumeCommand(this));
+        setCmd("kmcdirector",    new nl.kmc.kmccore.commands.DirectorCommands.DirectorCommand(this));
+        setCmd("gg",             new nl.kmc.kmccore.commands.HistoryCommands.GgCommand(this));
+        var lobbyGamesCmd = new nl.kmc.kmccore.lobbygames.LobbyGamesCommand(this, lobbyGames, lobbyGamesListener);
+        setCmd("lobbyspleef",    lobbyGamesCmd);
+        var platformCmd = new nl.kmc.kmccore.platform.PlatformCommands(this);
+        for (String c : new String[] {"clip", "kmcaudit", "kmcapi", "kmchud", "kmcemblem", "teamprofile"})
+            setCmd(c, platformCmd);
+        setCmd("ttt",            lobbyGamesCmd);
+        setCmd("darts",          lobbyGamesCmd);
+        setCmd("lobbygames",     lobbyGamesCmd);
+        setCmd("kmcseason",      new nl.kmc.kmccore.commands.HistoryCommands.SeasonCommand(this));
+        setCmd("kmctrack",       new nl.kmc.kmccore.commands.HistoryCommands.TrackCommand(this));
+        setCmd("kmcfeedback",    new nl.kmc.kmccore.commands.FeedbackCommand(this));
         setCmd("kmcarena",       new ArenaCommand(this));
         setCmd("kmclobby",       new LobbyCommand(this));
         setCmd("kmcrandomteams", new RandomTeamsCommand(this));

@@ -1,0 +1,19 @@
+name: RocketRush
+version: 1.0.0
+main: nl.kmc.rocket.RocketRushPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Rocket Rush - elytra race through a sky course with checkpoints, rings and rockets
+
+commands:
+  rocket:
+    description: Rocket Rush control + setup
+    aliases: [rocketrush, rr]
+    usage: /rocket <start|stop|status|validate|world|spawn|checkpoint|ring|pickup|finish|floor|pos1|pos2>
+    permission: rocket.admin
+
+permissions:
+  rocket.admin:
+    description: Rocket Rush admin commands
+    default: op

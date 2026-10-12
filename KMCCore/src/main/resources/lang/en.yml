@@ -22,6 +22,10 @@ scoreboard:
   your-points: "&b&lYour Points: &e{0}"
 
 game:
+  overtime:
+    title: "&c&lOVERTIME!"
+    sub: "&7Level scores — it is decided now"
+    chat: "&c&l[OVERTIME] &eLevel scores! The game is extended by &f{0}s &e— the next decisive play wins."
   state-restored: "&aYour state has been restored!"
   assist: "&e+{0} &7points for the assist on &f{1}"
   eliminated:
@@ -55,6 +59,9 @@ tablist:
   standings: "&6&lSTANDINGS"
   no-points: "&7No points yet"
   vote-hint: "&7Vote for the next game: &e/kmcvote"
+  game-points: "GAME POINTS:"
+  standings-title: "&6&lSTANDINGS"
+  round-line: "&7Round &e{0}&7/&e{1} &8| &7Multiplier &ex{2}"
 
 # Per-game scoreboards (translated per player via api.tr)
 sb:
@@ -258,6 +265,34 @@ fmc:
   finished: "&b[Formula MC] &e{0} &bfinishes as &6#{1} &7({2})"
   grace: "&b[Formula MC] &7The others have &f{0}s &7left to finish!"
   back-on-track: "&e↩ Back on track"
+  mastery: "&b[Formula MC] &7See your track records and Track Mastery: &e&n/kmctrack &7(click)"
+  quali:
+    sub: "&7Drive one lap — the fastest starts on pole"
+    start: "&e&l[Qualifying] &7One timed lap, no collisions. Fastest time starts in front!"
+    lap-done: "&7Qualified — waiting for the others"
+    results: "&e&l═══ Starting grid ═══"
+    pole: "&e[Qualifying] &6Pole position: &f{0} &7({1}, +{2} points)"
+    grid: "&7Grid slot &e#{0}"
+  weather:
+    clear: "&eSunny"
+    rain: "&9Rain &7(wet track)"
+    storm: "&5Thunderstorm &7(very slippery)"
+    night: "&1Night"
+  pu:
+    got: "&dItem: &f{0} &7— right-click to use!"
+    use: "&7Right-click to use"
+    turbo: "&6&lTurbo"
+    shield: "&b&lShield"
+    blind: "&8&lInk Bomb"
+    stun: "&3&lIce Cannon"
+    used-turbo: "&6&l⚡ TURBO!"
+    used-shield: "&b&l🛡 Shield active — blocks the next hit"
+    no-target: "&cNobody ahead of you to hit!"
+    blocked: "&b🛡 Your shield blocked an attack!"
+    was-blocked: "&7{0} blocked your attack with a shield"
+    hit-blind: "&8Ink bomb from &f{0}&8 — you can't see for a moment!"
+    hit-stun: "&3Ice cannon from &f{0}&3 — you are slowed down!"
+    hit-sent: "&aHit! &f{0} &7was struck"
   sb:
     circuit: "&7Circuit &f{0}"
     position: "&7Position &e{0}&7/&e{1}"
@@ -265,6 +300,9 @@ fmc:
     last: "&7Last Lap &f{0}"
     best: "&7Best Lap &a{0}"
     time: "&7Race Time &f{0}"
+    weather: "&7Weather: {0}"
+    quali: "&eQualifying"
+    item: "&7Item: &f{0}"
 
 # ── Survival Games ────────────────────────────────────────────────────────────
 sg:
@@ -283,6 +321,18 @@ sg:
     chat: "&6&l🍗 THE FEAST &ehas appeared at the cornucopia — top gear, come and get it!"
     title: "&6&l🍗 THE FEAST"
     sub: "&eTop loot at the cornucopia!"
+  drop:
+    chat-incoming: "&5&l📦 SUPPLY DROP &7lands in &e{2}s &7at &fX {0}&7, &fZ {1}&7 — follow the light beam!"
+    chat-landed: "&5&l📦 The supply drop has landed at &fX {0}&7, &fZ {1}&7!"
+    chat-opened: "&5📦 &f{0} &7got there first and opened the supply drop."
+    incoming:
+      title: "&5&l📦 SUPPLY DROP"
+      sub: "&7Epic loot is falling from the sky!"
+  event:
+    refill-chat: "&9&l⚡ CORNUCOPIA REFILL &7— &f{0} &7chests have been restocked!"
+    refill:
+      title: "&9&l⚡ CORNUCOPIA REFILL"
+      sub: "&7The rare chests have been refilled"
   intro-sub: "&eLast one standing wins"
   tut:
     "1": "&7Grab gear from the cornucopia and the chests around it."
@@ -475,7 +525,8 @@ hitw:
   winner: "Winner: {0}"
   others: "  &8... and {0} others"
   you: "&7You: &e#{0} &8| &a{1} &8| &7Total &e{2} &7pts"
-  wall-warn: "&e⚠ &f&l{0} &7— from the &6{1}"
+  wall-warn: "&e⚠ &f&l{0} &7— wall from &r{1}"
+  legend: "&7Walls come from colours: {0} &7= west, {1} &7= south, {2} &7= east, {3} &7= north &8(corners: two colours)"
   hit: "&c💥 Hit! &7You are being pushed off the platform"
   eliminated: "&c💥 &f{0} &cWAS ELIMINATED!"
   eliminated-fell: "&c💥 &f{0} &cWAS ELIMINATED! &7(fell off the platform)"
@@ -743,3 +794,640 @@ tgttos:
   hud: "&eFinished &a{0}&7/&a{1} &8| &eRacing &c{2}"
   hud-race: " &8| &7race to the finish!"
   leader: "&6👑 LEADER"
+
+# ── Director: ready check and finale ──────────────────────────────────────────
+director:
+  ready:
+    header: "&6&l═══════ ⚡ READY CHECK ⚡ ═══════"
+    question: "&eIs your team ({0}&e) ready for {1}? &7(up to {2}s)"
+    button: "&a&l   [ ✔ YES, OUR TEAM IS READY ]   "
+    hover: "Click to mark your team as ready"
+    title: "&a&lREADY CHECK"
+    sub: "&7Click the green message in chat"
+    already: "&7Your team is already ready."
+    team-ready: "&a✔ {0} &7is ready &8({1}/{2})"
+    bar-ready: "&a✔ Your team is ready"
+    bar-click: "&eClick in chat: is your team ready?"
+    bar-wait: "&7Waiting for the teams..."
+    all-ready: "&a&l✔ All teams are ready! Continuing..."
+    forced: "&e[KMC] Ready check skipped by an admin."
+    timeout: "&e[KMC] Not everyone answered in time ({0}&e) — carrying on anyway."
+    none: "&7There is no ready check right now."
+    no-team: "&cYou are not in a team that has to report ready."
+    purpose:
+      next: "the next game"
+      finale: "the FINALE"
+  finale:
+    header: "&6&l🏆 THE FINAL 🏆"
+    versus: "{0} &7vs {1}"
+    points: "&7Standings: &e{0} &7- &e{1} &7points"
+    title: "&6&l🏆 FINAL"
+
+# ── Dodgebolt (finale) ────────────────────────────────────────────────────────
+dodgebolt:
+  intro-sub: "&eTwo teams, one duel"
+  tut:
+    "1": "&c&l» &fTwo teams face each other on their own platform."
+    "2": "&c&l» &fAn arrow hit knocks a player out for the round."
+    "3": "&c&l» &fPick up arrows that land or appear — without arrows you cannot shoot."
+    "4": "&c&l» &fThe team that wins the most rounds wins the duel!"
+  bow: "&c&lDodgebolt bow"
+  round:
+    title: "&c&lROUND {0}"
+    sub: "&7Score: &e{0} &7- &e{1}"
+    result: "&6[Dodgebolt] &eRound {0}: {1} &8— &7{2} &8(&e{3} &7- &e{4}&8)"
+    draw: "&7&lDRAW"
+    won: "{0} &a&lWINS THE ROUND"
+  go:
+    title: "&a&lSHOOT!"
+    sub: "&7Hit the opponent"
+  supply: "&e➶ New arrows on your platform!"
+  nobody: "nobody"
+  reason:
+    more-alive: "more players left"
+    more-kills: "most hits"
+    draw: "level — the round is replayed"
+    eliminated: "all opponents knocked out"
+  out:
+    title: "&c&lHIT!"
+    sub: "&7You are out until the next round"
+  hit: "&c☠ &f{0} &7was hit by &f{1}"
+  arrow: "&c☠ &f{0} &7was hit"
+  void: "&c☠ &f{0} &7fell off the platform"
+  quit: "&c☠ &f{0} &7left the game"
+  final:
+    header: "&6&l═══ DODGEBOLT — FINAL STANDINGS ═══"
+    winner: "&eWinner: {0} &8(&e{1} &7- &e{2}&8)"
+    title: "&6&l🏆 WINNER"
+  sb:
+    round: "&7Round &e{0}"
+    alive: "&7Left: &a{0} &7vs &a{1}"
+    time: "&7Time: &c{0}s"
+    in: "&aYou are still in!"
+    out: "&cEliminated"
+    kills: "&7Hits: &e{0}"
+
+# ── Score report, awards, credits, feedback, statsbook, records ───────────────
+score:
+  players:
+    header: "&e&lTop players &7— {0}"
+  teams:
+    header: "&e&lPoints per team &7— {0}"
+    multiplier: "&7Round multiplier: &e×{0}"
+  you:
+    header: "&6&l▌ Your game &7— {0}"
+    total: "  &7Total: &e&l+{0} &7points"
+    rank: "  &7You ranked &f#{0}&7/{1} &8| &7your team ranked &f#{2}&7/{3}"
+    comeback: "  &7Of which &a+{0}&7 comeback bonus"
+  reason:
+    KILL: "kills"
+    ASSIST: "assists"
+    PLACEMENT: "placement"
+    TEAM_PLACEMENT: "team placement"
+    OBJECTIVE: "objectives"
+    BONUS: "bonus"
+    SURVIVAL_BONUS: "survival"
+    LUCKY_BLOCK: "lucky block"
+    DOUBLE_KILL: "double kill"
+    TRIPLE_KILL: "triple kill"
+    MEGA_KILL: "mega kill"
+    MANUAL: "admin"
+    OTHER: "other"
+
+awards:
+  intro:
+    title: "&6&l🏆 THE AWARDS"
+    sub: "&7Who earned which prize?"
+  mvp:
+    name: "&6&l★ TOURNAMENT MVP"
+    desc: "&7The player with the most points."
+    value: "&e{0} points"
+  killer:
+    name: "&c&l⚔ MOST KILLS"
+    desc: "&7The most opponents knocked out."
+    value: "&e{0} kills"
+  winner:
+    name: "&a&l🥇 MOST GAME WINS"
+    desc: "&7Finished the most games as the top player."
+    value: "&e{0} games"
+  consistent:
+    name: "&b&l≈ MOST CONSISTENT"
+    desc: "&7The fewest ups and downs between games."
+    value: "&e{0} spread"
+  clutch:
+    name: "&d&l⚡ BEST CLUTCH"
+    desc: "&7Saved it at the very last moment."
+    value: "&e{0} clutches"
+  racer:
+    name: "&b&l🏁 BEST RACER"
+    desc: "&7The best placements in the race games."
+    value: "&e{0} race points"
+  parkour:
+    name: "&a&l🧗 BEST PARKOUR PLAYER"
+    desc: "&7The most checkpoints and finishes."
+    value: "&e{0} parkour points"
+  teammate:
+    name: "&9&l🤝 BEST TEAMMATE"
+    desc: "&7Helped their team the most (assists, saves, support)."
+    value: "&e{0} support points"
+  team_wins:
+    name: "&6&l🏆 MOST GAME WINS (TEAM)"
+    desc: "&7The team that won the most games."
+    value: "&e{0} games"
+  team_consistent:
+    name: "&b&l≈ MOST CONSISTENT TEAM"
+    desc: "&7A solid score every game."
+    value: "&e{0} spread"
+  team_comeback:
+    name: "&a&l📈 BIGGEST COMEBACK"
+    desc: "&7Climbed the most places from the low point."
+    value: "&e{0} places up"
+
+credits:
+  numbers:
+    title: "&6&l{0} — edition #{1}"
+    games: "&7Games played: &f{0}"
+    players: "&7Players: &f{0}"
+    points: "&7Points awarded: &e{0}"
+    kills: "&7Kills: &c{0}"
+  team:
+    points: "&e{0} points"
+
+feedback:
+  header: "&6&l═══ HOW WAS IT? ═══"
+  question: "&eRate this tournament — click a star:"
+  comment-hint: "&7Want to add something? &e/kmcfeedback <1-5> <your comment>"
+  closed: "&7There is no rating open right now."
+  usage: "&cUsage: /kmcfeedback <1-5> [comment]"
+  thanks: "&a✔ Thanks for your rating: &e{0}&7/5"
+
+book:
+  champion: "Champions: {0}"
+  contents: "Contents"
+  p:
+    result: "Your result"
+    games: "Game by game"
+    reasons: "Where your points came from"
+    team: "Your team"
+    standings: "Standings"
+    awards: "Awards"
+    records: "Track records"
+  points: "Points"
+  rank: "Rank"
+  team-rank: "Team"
+  games-won: "Games won"
+  medals: "Medals"
+  none: "Nothing yet."
+  pts: "pts"
+  total: "Total"
+  no-team: "You were not in a team."
+  top-players: "Top players"
+  dropped: "&eYour inventory is full — the stats book is on the floor next to you."
+  received: "&a✦ You received the KMC #{0} stats book!"
+
+records:
+  new-record: "&6&l🏁 NEW TRACK RECORD! &e{0} &7— &f{1}&7: &a{2}"
+  new-pb: "&a✔ New personal best on &f{0}&a: &e{1} &8(&a-{2}&8)"
+
+# ── Wave 3: presentation ──────────────────────────────────────────────────────
+chatgate:
+  blocked: "&c✖ Chat is disabled during the explanation/ceremony."
+
+ranknpc:
+  own: "&7Your place: &e#{0}&7/{1} &8| &6{2} points"
+  own-none: "&7You are not on the leaderboard yet."
+  own-gap: "&8{0} points behind #{1}"
+
+presenter:
+  prefix: "&6&l🎙 &e"
+  next-game: "Next game: &f{0}&e! {1}"
+  game-result: "Game over — &f{0}&e won by {1}&e!"
+  finale: "This is it! The finale between {0}&e and {1}&e!"
+  champions: "And the champion is... {0}&e!"
+  custom: "{0}"
+
+leaderboard:
+  header: "&6&l▲▼ &eLEADERBOARD ON THE MOVE"
+  riser: "&a▲ {0} &7climbs &a{1} &7places"
+  faller: "&c▼ {0} &7drops &c{1} &7places"
+  riser-title: "&a&lBIGGEST RISER"
+
+cams:
+  kill: "&c☠ &7Eliminated by &f{0}"
+  finish: "&6&l🏁 &e{0} &7wins the race!"
+
+gg:
+  button: "&a&l[ GG ]"
+  hover: "Click to say GG!"
+  closed: "&7The GG window has closed."
+  already: "&7You already said GG!"
+  line: "&a&lGG &7— &f{0}"
+
+consolation:
+  title: "&6&lTHE WOODEN SPOON"
+  line:
+    "1": "&f{0} &7finishes the standings with honour... from the bottom."
+    "2": "&f{0} &7had a rough one. Better luck next time!"
+    "3": "&f{0} &7takes the wooden spoon home."
+  sub: "&7Final score: &e{0} points &8— &7but with style."
+  item: "&6&lThe Wooden Spoon"
+  item-lore: "&7For the team that always shows up."
+
+# ── Lobby games ───────────────────────────────────────────────────────────────
+lobbygames:
+  disabled: "&cLobby games are turned off."
+  busy: "&cYou can't do this during a game."
+  not-in-lobby: "&cThis only works in the lobby."
+  ttt:
+    usage: "&7Usage: &e/ttt <player> &7to challenge someone to tic-tac-toe."
+    self: "&cYou can't play against yourself."
+    offline: "&c{0} is not online."
+    already: "&cOne of you is already playing a match."
+    invite-sent: "&7Challenge sent to &e{0}&7. Waiting for an answer (30s)..."
+    invited: "&6&l⚔ &e{0} &7challenges you to tic-tac-toe!"
+    accept-btn: "&a&l[ ACCEPT ]"
+    none: "&7You have no pending challenge."
+    declined: "&7{0} doesn't want to play."
+    wait: "&7Hold on — it's the other player's turn."
+    your-turn: "&a▶ Your turn in tic-tac-toe!"
+    win: "&a&l✔ You won! &7Total: &e{0} &7wins."
+    lose: "&c✘ You lost. Better luck next time!"
+    draw: "&e= A draw!"
+    forfeit: "&a{0} gave up — you win!"
+    you-forfeit: "&7You gave up the match."
+  darts:
+    item: "&c&l🎯 Dart"
+    given: "&aYou have your darts. Throw them at a &6target block&a!"
+    hint: "&8There is no dartboard yet: place a Target block or use &e/lobbygames board add&8."
+    miss: "&7Miss!"
+    throw: "&6🎯 {0} &7points &8| &7dart {1}/{2} &8| &7total &e{3}"
+    turn-done: "&6🎯 Turn finished: &e{0} &7points &8(best: {1})"
+    new-best: "&a&l★ New personal best: &e{0} &apoints!"
+  fish:
+    caught: "&b🎣 Caught: &f{0} &7— &e{1} kg"
+    record: "&6&l🎣 LOBBY RECORD! &e{0} &7caught a &6{1} kg &7fish!"
+    pb: "&a★ Personal best!"
+  top:
+    usage: "&7Usage: &e/lobbygames top [ttt|darts|fish]"
+    empty: "&8  Nobody yet."
+    line: "&7  {0}. &f{1} &8— &e{2}"
+    header:
+      ttt: "&6&l═ Tic-tac-toe — wins ═"
+      darts: "&6&l═ Darts — best turn ═"
+      fish: "&6&l═ Fishing — biggest fish ═"
+      parkour: "&6&l═ Parkour — fastest times ═"
+      spleef: "&6&l═ Spleef — wins ═"
+  board:
+    look: "&cLook at the block that should become a dartboard."
+    added: "&aDartboard added."
+    exists: "&7That block is already a dartboard."
+    cleared: "&aDartboards cleared (Target blocks keep working)."
+    count: "&7Dartboards: &e{0}"
+  parkour:
+    not-ready: "&cThe lobby parkour has not been set up yet."
+    started: "&a&l▶ Parkour started! &7Touch the checkpoints in order."
+    bar: "&6⏱ {0} &8| &7checkpoint &e{1}&7/&e{2}"
+    checkpoint: "&a✔ Checkpoint {0}/{1}"
+    finished: "&a&l🏁 Finish! &e{0}"
+    pb: "&a★ Personal best! &7{0} faster than your previous time."
+    first: "&a★ Your first time is on the leaderboard."
+    reset: "&7Back to your last checkpoint."
+    cp-added: "&aCheckpoint #{0} added."
+    set:
+      start: "&aStart point set."
+      finish: "&aFinish set."
+      clear: "&aParkour course cleared."
+  spleef:
+    not-ready: "&cThe spleef floor has not been set up yet (/lobbygames spleef pos1 + pos2)."
+    running: "&cA spleef match is already running."
+    left: "&7You left the queue."
+    joined: "&6⛏ &f{0} &7joined &8({1} in the queue)"
+    countdown: "&6Spleef starts in &e{0}s"
+    go: "&6&l⛏ SPLEEF!"
+    out: "&c✘ You are out! &7{0} players left."
+    winner: "&6&l⛏ &e{0} &7wins the spleef! &8({1} wins)"
+    cancelled: "&7Spleef cancelled: not enough players."
+    shovel: "&6&lSpleef shovel"
+    bad-material: "&cUnknown or invalid block. Use for example SNOW_BLOCK."
+    set:
+      pos1: "&aSpleef corner 1 set (the block below you)."
+      pos2: "&aSpleef corner 2 set (the block below you)."
+      material: "&aFloor material set."
+
+# ── Rising Inferno ────────────────────────────────────────────────────────────
+inferno:
+  intro-sub: "&cClimb faster than the lava rises"
+  tut:
+    "1": "&c&l» &fClimb to the top of the tower — the lava is rising."
+    "2": "&c&l» &fChoose: the &blong, safe route &for the &cshort, risky route&f."
+    "3": "&c&l» &fThe risky route has &dbonus orbs &fwith extra points and effects."
+    "4": "&c&l» &fAnyone below the lava surface is out. First to the top wins!"
+  go-sub: "&7The lava is rising — don't look back!"
+  warn: "&c🔥 Lava {0} blocks below you!"
+  finished: "&c[Rising Inferno] &e{0} &7reaches the top as &6#{1} &8({2})"
+  burned: "&c🔥 &7{0} &7was burned!"
+  fell: "&c☠ &7{0} &7fell into the depths."
+  quit: "&c☠ &7{0} &7left the game."
+  out:
+    title: "&c&l🔥 BURNED"
+    sub: "&7You made it {0}% up the tower"
+  orb: "&d✦ Bonus orb! &a+{0} points &8({1}/{2})"
+  final: "&c&lRising Inferno — results"
+  reached: "{0}% up"
+  sb:
+    alive: "&7Alive: &e{0}&7/&e{1}"
+    lava: "&7Lava: &c{0} &7blocks"
+    rises: "&7Rise speed: &f{0}/s"
+    finished: "&aFinished as #{0}"
+    out: "&cEliminated"
+    height: "&7Height: &e{0}%"
+    orbs: "&7Orbs: &d{0}&7/&d{1}"
+
+# ── Wave 5: platform ──────────────────────────────────────────────────────────
+platform:
+  first-join: "&6&lWelcome! &7Choose your language in the menu — Kies je taal in het menu."
+  hud:
+    usage: "&7Usage: &e/kmchud <normal|compact|minimal|test>"
+    test: "&7HUD mode &e{0}&7, maximum line width &e{1}px&7. This is how a too-long line gets shortened:"
+    set: "&aHUD density: &e{0}"
+  clip:
+    started: "&a[Clip] Stream clock started — timecodes count from now."
+    empty: "&7No clip markers yet."
+    header: "&6&lClip markers &8({0})"
+    cooldown: "&7Wait a moment before the next marker."
+    added: "&a[Clip] Marker set at &e{0}&a."
+  audit:
+    cleared: "&aAudit cleared."
+    header: "&6&lTeleport audit &8— &7checked &f{0}&7, corrected &a{1}&7, no ground &c{2}"
+    clean: "&aNo unsafe teleports found."
+    lobby-bad: "&c✘ The lobby spawn is inside a block! Set it again with /kmclobby set."
+    lobby-ok: "&a✔ The lobby spawn is safe."
+  api:
+    started: "&aLive-data API started."
+    failed: "&cLive-data API could not start (port in use?). See the console."
+    stopped: "&7Live-data API stopped."
+    on: "&aLive-data API running at &fhttp://{0}:{1}/overlay"
+    off: "&7The live-data API is off. Enable &elive-api.enabled&7 or use &e/kmcapi start&7."
+  emblem:
+    no-team: "&cYou are not in a team."
+    worn: "&aYou are now wearing your team emblem."
+    given: "&aYou received your team emblem."
+  teaminfo:
+    none: "&7There are no teams yet."
+
+teaminfo:
+  members: "{0} members"
+  points: "Points"
+  pts: "pts"
+  rank: "Rank"
+  wins: "Games won"
+  best-game: "Best game"
+  top-scorer: "Top scorer"
+  event-points: "Points this event"
+  click: "Click for this team"
+  none: "Nothing yet"
+
+story:
+  prefix: "&8» &7"
+  round-first: "Round {0} of {1}: everybody starts with a clean slate. Who takes the first points?"
+  round-mid: "Round {0} of {1}. {2} is on top with {3} points — but the multiplier keeps climbing..."
+  round-final: "The final round! {2} leads by {3} points. Anything can still happen."
+  lead-change: "{0} takes the lead from {1}!"
+  climb: "{0} climbs {1} places in the standings."
+  haul: "{0} hauls in {1} points — the biggest score of this game."
+  close: "Only {2} points between {0} and {1} — it's anyone's game!"
+  runaway: "{0} is pulling away: a {1}-point lead."
+  champion: "Event #{1} is over — {0} takes the trophy home!"
+
+spectator:
+  hint: "&7Right-click the compass to teleport. Sneak + right-click to follow."
+  compass:
+    name: "&b&lSpectator Compass"
+    lore1: "&7Right-click: teleport menu"
+    lore2: "&7Sneak + right-click: follow mode"
+    lore3: "&7Drop: exit follow mode"
+  leader:
+    name: "&6&lLeader Tracker"
+    lore1: "&7Always points at the current leader"
+    lore2: "&7Right-click: teleport to the leader"
+  to-leader: "&6Teleported to the leader: &f{0}"
+  no-leader: "&7There is no leader to follow yet."
+  follow-off: "&7Exited follow mode."
+  teleported: "&bTeleported to &f{0}"
+  menu-title: "&3Teleport to — {0}"
+  hp: "&7HP: &c{0}/20"
+  distance: "&7Distance: &b{0}"
+  other-world: "different world"
+  nobody: "&7There is nobody to follow."
+  following: "&bNow following: &f{0}"
+
+# ── Wave 6: arcade games ──────────────────────────────────────────────────────
+arcade:
+  down:
+    title: "&c&lKNOCKED OUT"
+    sub: "&7You are back in {0}s"
+
+rocket:
+  intro-sub: "&bFly through the course"
+  tut:
+    "1": "&b&l» &fFly with your elytra and fireworks through the checkpoints — in order."
+    "2": "&b&l» &fBonus rings and rocket pickups sometimes lie off the main route."
+    "3": "&b&l» &fFallen? You go back to your last checkpoint (with a small time penalty)."
+    "4": "&b&l» &fThe first three finishers score the most!"
+  go-sub: "&b{0} checkpoints — fly!"
+  checkpoint: "&b✔ Checkpoint {0}/{1}"
+  ring: "&d◎ Bonus ring {0}/{1}"
+  pickup: "&a+{0} rockets"
+  finished: "&b[Rocket Rush] &e{0} &bfinishes as &6#{1}"
+  fell: "&e↩ Back on the course"
+  stuck: "&e↩ You were stuck — back on the course"
+  dnf: "&cYou cannot continue: DNF."
+  results: "&b&l═══ Rocket Rush — results ═══"
+  sb:
+    time: "&7Time &f{0}"
+    checkpoint: "&7Checkpoint &e{0}&7/&e{1}"
+    rings: "&7Rings &d{0}&7/&d{1}"
+    rockets: "&7Rockets &f{0}"
+    finished: "&aFinished as #{0}"
+    dnf: "&cDNF"
+    racing: "&7Position &e#{0}"
+    points: "&7Points &a{0}"
+
+knockout:
+  intro-sub: "&cKnock them off the platform"
+  tut:
+    "1": "&c&l» &fKnock your opponents off the platform with your stick."
+    "2": "&c&l» &fAn elimination counts for the player who hit last."
+    "3": "&c&l» &fEvery round has a modifier — adapt!"
+    "4": "&c&l» &fIn the last seconds you no longer come back."
+  weapon: "&c&lKnockout stick"
+  kill: "&c✔ You knocked {0} out"
+  round:
+    title: "&c&lROUND {0}/{1}"
+    over: "&c[Knockout Kings] &7Round {0} over — winner(s): &e{1} &8({2} eliminations)"
+  mod:
+    none: "&7No modifier"
+    low_gravity: "&bLow gravity"
+    power_knockback: "&6Power knockback"
+    vanishing_platforms: "&dVanishing platforms"
+    shrinking_arena: "&cShrinking arena"
+  results: "&c&l═══ Knockout Kings — results ═══"
+  sb:
+    round: "&7Round &e{0}&7/&e{1}"
+    time: "&7Time &f{0}"
+    mod: "&7Modifier: {0}"
+    kills: "&7Eliminations &a{0}"
+    deaths: "&7Knocked out &c{0}"
+    points: "&7Points &a{0}"
+
+crafting:
+  intro-sub: "&6Craft the target item and deliver it"
+  tut:
+    "1": "&6&l» &fThe target item is on the board at your delivery block."
+    "2": "&6&l» &fTake raw materials from your chest and craft at the crafting table."
+    "3": "&6&l» &fRight-click the delivery block to hand it in — piece by piece is fine."
+    "4": "&6&l» &fThe first delivery gives a bonus!"
+  round:
+    title: "&6&lROUND {0}/{1}"
+    over: "&6[Crafting Countdown] &7Round {0} is over."
+  first: "&6[Crafting] &e{0} &7is first to deliver: &f{1}&7!"
+  done: "&6[Crafting] &e{0} &7completed &f{2} &8(by {1})"
+  next-task: "&eNext task: {0}x {1}"
+  not-running: "&7There is no round running."
+  already-done: "&aYour task is already complete."
+  wrong-item: "&cYou are not carrying {1} (needed: {0})"
+  progress: "&e{0}/{1} {2} delivered"
+  results: "&6&l═══ Crafting Countdown — results ═══"
+  sb:
+    round: "&7Round &e{0}&7/&e{1}"
+    time: "&7Time &f{0}"
+    goal: "&7Goal &f{0}x {1}"
+    done: "&a✔ Done"
+    progress: "&7Progress &e{0}&7/&e{1}"
+    team: "&7Team &a{0}"
+    you: "&7Your tasks &f{0}"
+
+zonezero:
+  intro-sub: "&5Control the open zones"
+  tut:
+    "1": "&5&l» &fTwo zones are open at any time — only there you can score."
+    "2": "&5&l» &fCapture a zone by being the only team inside for 5 seconds."
+    "3": "&5&l» &fEvery 10 seconds a controlled zone pays out."
+    "4": "&5&l» &fThe zones rotate — keep moving!"
+  rotate:
+    title: "&5&lNEW ZONES"
+    warn: "&5The zones are about to change! Open now: {0}"
+  captured: "&5[Zone Zero] &e{0} &7captures &f{1}&7!"
+  takeover: "&5[Zone Zero] &e{0} &7takes &f{1} &7from {2}&7!"
+  all: "&5[Zone Zero] &e{0} &7controls all open zones at once!"
+  results: "&5&l═══ Zone Zero — results ═══"
+  sb:
+    time: "&7Time &f{0}"
+    next: "&7Switch in &e{0}s"
+    team: "&7Team &a{0}"
+    you: "&7Your contribution &f{0}"
+
+crown:
+  intro-sub: "&6Grab the crown and hold it"
+  tut:
+    "1": "&6&l» &fBe the only team in the crown zone for 5 seconds: the crown is yours."
+    "2": "&6&l» &fThe holder scores and earns energy."
+    "3": "&6&l» &fUse the nether star for abilities — only while your team holds the crown."
+    "4": "&6&l» &fWhoever holds the crown at the end gets a big bonus."
+  menu-item: "&6&lCrown abilities"
+  menu:
+    cost: "Cost: {0} energy"
+    ready: "Available"
+  ability:
+    double-down:
+      name: "Double Down"
+      desc: "Your objective points count double"
+    lockdown:
+      name: "Lockdown"
+      desc: "Closes areas for the other teams"
+    overdrive:
+      name: "Overdrive"
+      desc: "Your team runs faster for a while"
+    bounty:
+      name: "Bounty"
+      desc: "A price on the strongest enemy team"
+    fortify:
+      name: "Fortify"
+      desc: "Your team gets temporary defence"
+  err:
+    not-running: "&cThe game is not running."
+    not-active: "&cYou are not playing right now."
+    no-crown: "&cOnly the crown holder can use this."
+    cooldown: "&cStill on cooldown."
+    energy: "&cNot enough energy."
+    already-active: "&cThis effect is already active."
+    no-lockdown-zone: "&cNo lockdown zone has been set up."
+    no-target: "&cThere is no valid target."
+  activated: "&6[Crown] &e{0} &7activates &f{1} {2}"
+  bounty-paid: "&6+{0} bounty points!"
+  captured: "&6[Crown] &e{0} &7grabs the crown!"
+  takeover: "&6[Crown] &e{0} &7takes the crown from {1}&7!"
+  neutral: "&6[Crown] &7The crown is neutral again."
+  lockdown-over: "&6[Crown] &7Lockdown is over."
+  locked-out: "&cThis area is closed (Lockdown)."
+  results: "&6&l═══ Crown Control — results ═══"
+  sb:
+    time: "&7Time &f{0}"
+    holder: "&7Crown: {0}"
+    locked: "&7Protected &e{0}s"
+    capturing: "&7Capture &e{0}%"
+    team: "&7Team &a{0}"
+    energy: "&7Energy &b{0}&7/&b{1}"
+    double: "&6Double Down &e{0}s"
+    bounty: "&cBounty on {0}"
+    you: "&7Your contribution &f{0}"
+
+core:
+  intro-sub: "&bCharge your core — spend the energy wisely"
+  tut:
+    "1": "&b&l» &fCollect energy from orbs and charge stations for your team core."
+    "2": "&b&l» &fSpend energy on abilities — or save it."
+    "3": "&b&l» &fIn the last 30 seconds the Final Overload becomes available."
+    "4": "&b&l» &fLeft-over energy scores points at the end."
+  menu-item: "&b&lCore abilities"
+  menu:
+    cost: "Cost: {0} energy"
+    ready: "Available"
+  ability:
+    speed-boost:
+      name: "Speed Boost"
+      desc: "Your team runs faster for a while"
+    shield-pulse:
+      name: "Shield Pulse"
+      desc: "Temporary damage protection"
+    score-surge:
+      name: "Score Surge"
+      desc: "Objective points count double for a while"
+    final-overload:
+      name: "Final Overload"
+      desc: "Final Charge only: bonus + double points"
+  err:
+    not-running: "&cThe game is not running."
+    not-active: "&cYou are not playing right now."
+    no-core: "&cYour team has no core."
+    cooldown: "&cStill on cooldown."
+    energy: "&cNot enough energy."
+    not-final: "&cThis is only possible in the Final Charge."
+    used: "&cYour team already used this."
+    already-active: "&cThis effect is already active."
+  final:
+    title: "&c&lFINAL CHARGE"
+    sub: "&7Final Overload is available now"
+  orb: "&b+{0} energy"
+  station: "&b[Core Charge] &e{0} &7charges station &f{1}&7!"
+  full: "&b[Core Charge] &e{0} &7fully charged the core!"
+  activated: "&b[Core Charge] &e{0} &7activates &f{1}"
+  results: "&b&l═══ Core Charge — results ═══"
+  sb:
+    time: "&7Time &f{0}"
+    final: "&c&lFINAL CHARGE"
+    energy: "&7Energy &b{0}&7/&b{1}"
+    surge: "&eSurge &f{0}s"
+    overload: "&cOverload &f{0}s"
+    team: "&7Team &a{0}"
+    you: "&7Your contribution &f{0}"

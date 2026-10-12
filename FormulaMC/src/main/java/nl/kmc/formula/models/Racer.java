@@ -16,6 +16,7 @@ public final class Racer {
     private int nextCheckpoint;
     private int lapsCompleted;
     private long lapStartMs;
+    private long sectorStartMs;
     private long lastLapMs = -1;
     private long bestLapMs = -1;
     private boolean finished;
@@ -25,6 +26,10 @@ public final class Racer {
     private Location lastPoll;
     private long lastMovedMs;
     private Location lastSafe;
+
+    /** Qualifying lap time in ms (-1 = none yet) and whether the racer is done qualifying. */
+    private long qualiMs = -1;
+    private boolean qualiDone;
 
     public Racer(UUID uuid, String name, String teamId) {
         this.uuid = uuid;
@@ -43,6 +48,8 @@ public final class Racer {
     public void setNextCheckpoint(int i)   { this.nextCheckpoint = i; }
     public int  getLapsCompleted()         { return lapsCompleted; }
     public long getLapStartMs()            { return lapStartMs; }
+    public long getSectorStartMs()         { return sectorStartMs; }
+    public void setSectorStartMs(long ms)  { this.sectorStartMs = ms; }
     public void setLapStartMs(long ms)     { this.lapStartMs = ms; }
     public long getLastLapMs()             { return lastLapMs; }
     public long getBestLapMs()             { return bestLapMs; }
@@ -56,6 +63,23 @@ public final class Racer {
         lapStartMs = now;
         nextCheckpoint = 0;
         return lap;
+    }
+
+    public long getQualiMs()             { return qualiMs; }
+    public boolean isQualiDone()         { return qualiDone; }
+    public void markQualiDone(long ms)   { this.qualiDone = true; this.qualiMs = ms; }
+
+    /** Clears the lap state of the qualifying session so the race starts from zero. */
+    public void resetForRace() {
+        nextCheckpoint = 0;
+        lapsCompleted = 0;
+        lastLapMs = -1;
+        bestLapMs = -1;
+        lapStartMs = 0;
+        sectorStartMs = 0;
+        lastPoll = null;
+        lastMovedMs = 0;
+        finished = false;
     }
 
     public boolean isFinished()   { return finished; }

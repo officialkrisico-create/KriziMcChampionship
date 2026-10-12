@@ -19,6 +19,10 @@ public class TeamChatCommand implements CommandExecutor {
 
         PlayerData pd = plugin.getPlayerDataManager().get(player.getUniqueId());
         if (pd == null || !pd.hasTeam()) { player.sendMessage(MessageUtil.get("team.no-team")); return true; }
+        if (args.length > 0 && plugin.getChatGate() != null && plugin.getChatGate().blocks(player)) {
+            plugin.getChatGate().notifyBlocked(player);
+            return true;
+        }
 
         if (args.length == 0) {
             // Toggle team chat mode

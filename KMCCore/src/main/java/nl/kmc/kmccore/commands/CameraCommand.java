@@ -199,6 +199,31 @@ public class CameraCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§a[Camera] cameras.yml reloaded. Routes: " + cm.getAllRoutes().size());
             }
 
+            // ── record (fly it, the route writes itself) ───────────────────────
+            case "record" -> {
+                if (!(sender instanceof Player p)) { sender.sendMessage("§cPlayers only."); return true; }
+                var rec = plugin.getSplineRecorder();
+                String sub = args.length > 1 ? args[1].toLowerCase() : "";
+                if (sub.equals("stop")) {
+                    int n = rec.stop(p, args.length > 2 ? parseIntSafe(args[2], 1) : 1);
+                    if (n < 0) sender.sendMessage("§cJe neemt geen route op. Start met /kmccamera record <route>.");
+                    else if (n == 0) sender.sendMessage("§cTe weinig opgenomen — niets opgeslagen.");
+                    else sender.sendMessage("§a[Camera] Route opgeslagen met §e" + n + "§a waypoints (vlieg-opname).");
+                } else if (sub.equals("cancel")) {
+                    rec.cancel(p.getUniqueId());
+                    sender.sendMessage("§7[Camera] Opname geannuleerd.");
+                } else if (sub.isEmpty()) {
+                    sender.sendMessage("§cGebruik: /kmccamera record <routeId> [ticks per sample] | game <gameId> | stop [tolerantie] | cancel");
+                } else {
+                    String id = sub.equals("game") && args.length > 2 ? "arena-" + args[2] : args[1];
+                    int interval = parseIntSafe(args.length > (sub.equals("game") ? 3 : 2) ? args[sub.equals("game") ? 3 : 2] : "", 10);
+                    if (rec.start(p, id, id, interval))
+                        sender.sendMessage("§c● Opname gestart voor §e" + id + "§c — vlieg de route (creative/spectator). "
+                                + "Stop met §e/kmccamera record stop§c.");
+                    else sender.sendMessage("§cJe neemt al een route op.");
+                }
+            }
+
             // ── stop ──────────────────────────────────────────────────────────
             case "stop" -> {
                 cm.stopAll();
@@ -213,7 +238,7 @@ public class CameraCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1)
-            return List.of("list","info","create","addpoint","removepoint","save","discard","preview","delete","reload","stop")
+            return List.of("list","info","create","addpoint","removepoint","save","discard","preview","delete","reload","record","stop")
                     .stream().filter(o -> o.startsWith(args[0].toLowerCase())).collect(Collectors.toList());
         if (args.length == 2) {
             if (List.of("info","preview","delete").contains(args[0].toLowerCase()))
@@ -230,7 +255,7 @@ public class CameraCommand implements CommandExecutor, TabCompleter {
     }
 
     private void usage(CommandSender s) {
-        s.sendMessage("§6/kmccamera §e<list|info|create|addpoint|removepoint|save|discard|preview|delete|reload|stop>");
+        s.sendMessage("§6/kmccamera §e<list|info|create|addpoint|removepoint|save|discard|preview|delete|reload|record|stop>");
     }
 
     private static int parseIntSafe(String s, int def) {

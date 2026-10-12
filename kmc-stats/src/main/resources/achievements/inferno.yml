@@ -1,0 +1,55 @@
+achievements:
+  - id: inferno_champion
+    name: "Phoenix"
+    description: "Win a game of Rising Inferno"
+    category: CHAMPIONSHIP
+    rarity: RARE
+    icon: LAVA_BUCKET
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: rising_inferno
+
+  - id: inferno_legend
+    name: "Fire Walker"
+    description: "Win 3 games of Rising Inferno"
+    category: LEGENDARY
+    rarity: EPIC
+    icon: BLAZE_POWDER
+    hidden: false
+    trigger: GAME_WIN_SPECIFIC
+    scope_game_id: rising_inferno
+    progress_target: 3
+
+  - id: inferno_top
+    name: "Out of the Fire"
+    description: "Reach the top of the tower in Rising Inferno"
+    category: MOVEMENT
+    rarity: COMMON
+    icon: CAMPFIRE
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: rising_inferno
+    objective_type: RACE_FINISHED
+
+  - id: inferno_fast
+    name: "Hot Foot"
+    description: "Reach the top of Rising Inferno in under 60 seconds"
+    category: MOVEMENT
+    rarity: RARE
+    icon: MAGMA_CREAM
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: rising_inferno
+    objective_type: RACE_FINISHED_FAST
+    objective_threshold: 60000
+
+  - id: inferno_risk
+    name: "Risk Taker"
+    description: "Collect every bonus orb in one game of Rising Inferno"
+    category: MOVEMENT
+    rarity: RARE
+    icon: NETHER_STAR
+    hidden: false
+    trigger: GAME_OBJECTIVE
+    scope_game_id: rising_inferno
+    objective_type: ALL_BONUSES_COLLECTED

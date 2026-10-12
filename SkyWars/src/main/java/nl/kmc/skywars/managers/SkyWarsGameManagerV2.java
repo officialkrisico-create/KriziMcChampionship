@@ -335,6 +335,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
         victim.setFoodLevel(20);
 
         if (killer != null && !killer.equals(victim)) {
+            api.games().announceElimination(victim.getUniqueId(), killer.getUniqueId(), registration.getId());
             PlayerStats ks = stats.get(killer.getUniqueId());
             if (ks != null) ks.incrementKills();
             int killPts = plugin.getConfig().getInt("points.per-kill", 50);

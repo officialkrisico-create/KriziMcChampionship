@@ -97,6 +97,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     }
 
     private void runStartFlow() {
+        muteChat();   // chat stays closed while the game is explained (released in beginRound)
         cancelFlow();
         int intro = flowOn("introduction") ? seconds("intro-seconds", 5)    : 0;
         int tut   = flowOn("tutorial")     ? seconds("tutorial-seconds", 10) : 0;
@@ -211,6 +212,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     }
 
     private void beginRound() {
+        unmuteChat();
         currentRound++;
         long alive = aliveCount();
         if (alive <= 1) { end(); return; }

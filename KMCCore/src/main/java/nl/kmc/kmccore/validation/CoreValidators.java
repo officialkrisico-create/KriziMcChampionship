@@ -104,6 +104,41 @@ public final class CoreValidators {
             else r.warn("Multipliers", "Geen round-multipliers", "config.yml: tournament.multipliers");
 
             r.ok("Stemmen", cfg.getBoolean("games.voting-enabled", true) ? "AAN" : "UIT");
+
+            // ── Event checklist (director) ─────────────────────────────────────
+            var enabled = plugin.getGameManager().getEnabledGames();
+            int totalGames = plugin.getAutomationManager().getTotalGames();
+            if (totalGames > enabled.size())
+                r.warn("Aantal games", totalGames + " games gepland, maar maar " + enabled.size()
+                        + " in de rotatie — games komen dubbel voor", "/kmcauto games " + enabled.size());
+            else r.ok("Aantal games", totalGames + " van " + enabled.size() + " games in de rotatie");
+
+            for (var team : plugin.getTeamManager().getAllTeams()) {
+                int size = team.getMembers().size();
+                if (size == 0) r.warn("Team " + team.getDisplayName(), "Geen spelers", "/kmcteam add");
+                else if (size > 4) r.warn("Team " + team.getDisplayName(), size + " spelers (max. 4 aanbevolen)", "/kmcteam remove");
+            }
+
+            if (cfg.getBoolean("automation.finale.enabled", true)) {
+                String fg = cfg.getString("automation.finale.game", "dodgebolt");
+                var fgame = plugin.getGameManager().getGame(fg);
+                // Not an error: without a ready finale game the tournament simply ends on points.
+                if (fgame == null) r.warn("Finale", "Finale-game '" + fg + "' bestaat niet — toernooi eindigt op punten", "automation.finale.game");
+                else if (plugin.getAutomationManager().isGameReady(fg)) r.ok("Finale", fgame.getDisplayName() + " klaar");
+                else r.warn("Finale", fgame.getDisplayName() + " is niet geconfigureerd — toernooi eindigt op punten",
+                        "/kmcsetup → " + fgame.getDisplayName() + " of /kmcauto finale off");
+            } else r.ok("Finale", "Uitgeschakeld");
+
+            int untested = 0;
+            for (var g : enabled) {
+                if (!plugin.getDirector().isTested(g.getId())) untested++;
+            }
+            if (untested > 0)
+                r.warn("Dry-run", untested + " game(s) nog niet getest met een dry-run", "/kmcauto dryrun <game>");
+            else r.ok("Dry-run", "Alle games getest");
+
+            var est = nl.kmc.kmccore.director.TimeBudget.forCurrent(plugin, totalGames);
+            r.ok("Geschatte duur", est.format() + " (" + est.rounds() + " rondes)");
             return r;
         }
     }

@@ -134,7 +134,20 @@ public class AdminCommands {
         @Override
         public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
             if (args.length == 0) {
-                sender.sendMessage(ChatColor.YELLOW + "/kmcready force | status");
+                if (sender instanceof org.bukkit.entity.Player p) {
+                    var lm = plugin.getLanguageManager();
+                    if (!plugin.getReadyUpManager().isActive()) {
+                        p.sendMessage(lm.tr(p, "director.ready.none"));
+                    } else if (!plugin.getReadyUpManager().markReady(p)) {
+                        p.sendMessage(lm.tr(p, "director.ready.no-team"));
+                    }
+                } else {
+                    sender.sendMessage(ChatColor.YELLOW + "/kmcready force | status");
+                }
+                return true;
+            }
+            if (!sender.hasPermission("kmc.admin")) {
+                sender.sendMessage(ChatColor.RED + "Alleen voor admins: /kmcready force | status");
                 return true;
             }
             switch (args[0].toLowerCase()) {

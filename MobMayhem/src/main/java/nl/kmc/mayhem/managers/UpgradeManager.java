@@ -265,7 +265,10 @@ public final class UpgradeManager implements Listener {
                 p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, 20 * 120, 1, true, false, true));
             }
             case REVIVE -> {
-                if (reviver != null && ts != null) reviver.accept(ts);
+                if (reviver != null && ts != null) {
+                    reviver.accept(ts);
+                    nl.kmc.core.api.KMCApiProvider.get().games().recordHighlight(p.getUniqueId(), "teammate", 3, "mob_mayhem");
+                }
             }
         }
     }

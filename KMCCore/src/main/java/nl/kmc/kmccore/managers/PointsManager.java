@@ -52,8 +52,17 @@ public class PointsManager {
     // Multiplier
     // ----------------------------------------------------------------
 
+    /**
+     * Multiplier for a round. A round beyond the configured ladder keeps the highest configured step, so a
+     * longer tournament (set up via /kmcauto) never falls back to x1 by accident.
+     */
     public double getMultiplierForRound(int round) {
-        return plugin.getConfig().getDouble("tournament.multipliers." + round, 1.0);
+        var sec = plugin.getConfig().getConfigurationSection("tournament.multipliers");
+        if (sec == null) return 1.0;
+        for (int r = Math.max(1, round); r >= 1; r--) {
+            if (sec.isSet(String.valueOf(r))) return sec.getDouble(String.valueOf(r), 1.0);
+        }
+        return 1.0;
     }
 
     public double getCurrentMultiplier() {
@@ -88,7 +97,43 @@ public class PointsManager {
      * @return actual amount awarded (0 if player not found)
      */
     public int awardPlayerPoints(UUID uuid, int amount) {
+        return credit(uuid, amount, null);
+    }
+
+    // ----------------------------------------------------------------
+    // THE booking point: every award ends up in credit()/creditTeam()
+    // ----------------------------------------------------------------
+
+    /** Why a booking happens — filled in by the typed entry points, "OTHER" when unknown. */
+    private record Ctx(String reason, String gameId, int base, double multiplier) {}
+
+    /**
+     * Awards {@code baseAmount} to a player for {@code reason}: applies the round multiplier (kills and
+     * assists stay flat unless configured otherwise), the comeback bonus, credits player + team and books
+     * the award in the {@link nl.kmc.kmccore.scoring.PointsLedger}.
+     *
+     * @return the points actually credited
+     */
+    public int award(UUID uuid, int baseAmount, nl.kmc.core.domain.PointAward.Reason reason, String gameId) {
+        if (baseAmount <= 0) return 0;
+        boolean killLike = reason == nl.kmc.core.domain.PointAward.Reason.KILL
+                || reason == nl.kmc.core.domain.PointAward.Reason.ASSIST;
+        double mul = (!killLike || killsUseMultiplier()) ? getCurrentMultiplier() : 1.0;
+        int scaled = (int) Math.round(baseAmount * mul);
+        return credit(uuid, scaled, new Ctx(reason.name(), gameId, baseAmount, mul));
+    }
+
+    /** Team-only award (no individual credit), with the round multiplier. @return points credited. */
+    public int awardTeam(String teamId, int baseAmount, nl.kmc.core.domain.PointAward.Reason reason, String gameId) {
+        if (baseAmount <= 0) return 0;
+        double mul = getCurrentMultiplier();
+        int scaled = (int) Math.round(baseAmount * mul);
+        return creditTeam(teamId, scaled, new Ctx(reason.name(), gameId, baseAmount, mul));
+    }
+
+    private int credit(UUID uuid, int amount, Ctx ctx) {
         if (amount <= 0) return 0;
+        if (nl.kmc.core.DryRun.active()) { nl.kmc.core.DryRun.suppressed(); return 0; }   // dry-run: no points
 
         PlayerData pd = plugin.getPlayerDataManager().get(uuid);
         if (pd == null) return 0;
@@ -96,6 +141,7 @@ public class PointsManager {
         // Comeback bonus: boost BEFORE crediting, so player and team totals
         // stay in sync (the same boosted amount goes to both).
         KMCTeam team = plugin.getTeamManager().getTeamByPlayer(uuid);
+        int before = amount;
         amount = applyComebackBonus(amount, team);
 
         // Player gets the points
@@ -108,7 +154,40 @@ public class PointsManager {
             plugin.getDatabaseManager().saveTeam(team);
         }
 
+        book(ctx, before, amount, uuid, pd.getName(), team != null ? team.getId() : null, false);
         return amount;
+    }
+
+    private int creditTeam(String teamId, int amount, Ctx ctx) {
+        if (amount <= 0) return 0;
+        if (nl.kmc.core.DryRun.active()) { nl.kmc.core.DryRun.suppressed(); return 0; }
+        KMCTeam t = plugin.getTeamManager().getTeam(teamId);
+        if (t == null) return 0;
+        int before = amount;
+        amount = applyComebackBonus(amount, t);
+        t.addPoints(amount);
+        plugin.getDatabaseManager().saveTeam(t);
+        book(ctx, before, amount, null, null, teamId, true);
+        return amount;
+    }
+
+    /** Writes one line in the ledger for the award that was just credited. */
+    private void book(Ctx ctx, int beforeComeback, int credited, UUID player, String name, String teamId, boolean teamOnly) {
+        var ledger = plugin.getPointsLedger();
+        if (ledger == null) return;
+        String reason = ctx != null ? ctx.reason() : "OTHER";
+        int base = ctx != null ? ctx.base() : beforeComeback;
+        double mul = ctx != null ? ctx.multiplier() : 1.0;
+        String gameId = ctx != null ? ctx.gameId() : null;
+        int seq = 0;
+        var gm = plugin.getGameManager();
+        if (gm != null && gm.isGameActive()) {
+            seq = ledger.lastGameSeq();
+            if (gameId == null) gameId = gm.getActiveGame().getId();
+        }
+        int round = plugin.getTournamentManager() != null ? plugin.getTournamentManager().getCurrentRound() : 0;
+        ledger.record(new nl.kmc.kmccore.scoring.PointsLedger.Entry(System.currentTimeMillis(), round, seq,
+                gameId, reason, player, name, teamId, base, mul, credited - beforeComeback, credited, teamOnly));
     }
 
     // ----------------------------------------------------------------
@@ -135,14 +214,15 @@ public class PointsManager {
         double mul = killsUseMultiplier() ? getCurrentMultiplier() : 1.0;
         int award  = (int) Math.round(base * mul);
 
+        if (nl.kmc.core.DryRun.active()) { nl.kmc.core.DryRun.suppressed(); return 0; }   // dry-run: no kill stat
         PlayerData pd = plugin.getPlayerDataManager().get(killerUuid);
         if (pd != null) {
             pd.addKill();
             plugin.getDatabaseManager().savePlayer(pd);
         }
 
-        // Route through central method — team auto-credited
-        return awardPlayerPoints(killerUuid, award);
+        // Route through the booking point — team auto-credited
+        return credit(killerUuid, award, new Ctx("KILL", null, base, mul));
     }
 
     // ----------------------------------------------------------------
@@ -171,7 +251,7 @@ public class PointsManager {
         int base   = getBasePointsForPlacement(position);
         double mul = placementUsesMultiplier() ? getCurrentMultiplier() : 1.0;
         int award  = (int) Math.round(base * mul);
-        return awardPlayerPoints(uuid, award);
+        return credit(uuid, award, new Ctx("PLACEMENT", null, base, mul));
     }
 
     // ----------------------------------------------------------------
@@ -209,6 +289,7 @@ public class PointsManager {
     public int awardTeamPlacement(String teamId, int position) {
         KMCTeam team = plugin.getTeamManager().getTeam(teamId);
         if (team == null) return 0;
+        if (nl.kmc.core.DryRun.active()) { nl.kmc.core.DryRun.suppressed(); return 0; }   // dry-run: no team bonus
         String path = switch (position) {
             case 1 -> "team-placement.first-place";
             case 2 -> "team-placement.second-place";
@@ -221,10 +302,7 @@ public class PointsManager {
         double mul = pointsCfg.getBoolean("team-placement.apply-multiplier", true)
                 ? getCurrentMultiplier() : 1.0;
         int award = (int) Math.round(base * mul);
-        award = applyComebackBonus(award, team);
-        team.addPoints(award);
-        plugin.getDatabaseManager().saveTeam(team);
-        return award;
+        return creditTeam(teamId, award, new Ctx("TEAM_PLACEMENT", null, base, mul));
     }
 
     // ----------------------------------------------------------------
@@ -253,6 +331,7 @@ public class PointsManager {
         if (t == null) return;
         t.addPoints(amount);
         plugin.getDatabaseManager().saveTeam(t);
+        book(new Ctx("MANUAL", null, amount, 1.0), amount, amount, null, null, teamId, true);
     }
     public void removeTeamPoints(String teamId, int amount) {
         KMCTeam t = plugin.getTeamManager().getTeam(teamId);
@@ -269,7 +348,7 @@ public class PointsManager {
     }
     /** Admin add — ALSO credits the team, staying consistent with in-game awards. */
     public void addPlayerPoints(UUID uuid, int amount) {
-        awardPlayerPoints(uuid, amount);
+        credit(uuid, amount, new Ctx("MANUAL", null, amount, 1.0));
     }
     public void removePlayerPoints(UUID uuid, int amount) {
         PlayerData pd = plugin.getPlayerDataManager().get(uuid);

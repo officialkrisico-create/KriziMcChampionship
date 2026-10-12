@@ -174,6 +174,16 @@ public final class HoleInTheWallGameManagerV2 extends BaseGameManager {
         if (startedAlive == 0) { end(); return; }
         updateBossBar();
 
+        // Which colour is which side — so "Wall from RoodBlauw" means something at a glance.
+        if (round == 1) {
+            String west  = nl.kmc.hitw.wall.WallSideNames.colored(cfg.sideNames.get(4));
+            String south = nl.kmc.hitw.wall.WallSideNames.colored(cfg.sideNames.get(2));
+            String east  = nl.kmc.hitw.wall.WallSideNames.colored(cfg.sideNames.get(0));
+            String north = nl.kmc.hitw.wall.WallSideNames.colored(cfg.sideNames.get(6));
+            for (Player lp : Bukkit.getOnlinePlayers())
+                lp.sendMessage(api.tr(lp.getUniqueId(), "hitw.legend", west, south, east, north));
+        }
+
         int cd = cfg.roundCountdownSeconds;
         for (int i = 0; i <= cd; i++) {
             int num = cd - i;
@@ -366,8 +376,9 @@ public final class HoleInTheWallGameManagerV2 extends BaseGameManager {
             if (!ps.isAlive()) continue;
             Player p = Bukkit.getPlayer(ps.getUuid());
             if (p == null) continue;
-            String text = api.tr(ps.getUuid(), "hitw.wall-warn", w.shape.displayName(),
-                    api.tr(ps.getUuid(), compass(w.spec.angleRad())));
+            String side = nl.kmc.hitw.wall.WallSideNames.colored(
+                    nl.kmc.hitw.wall.WallSideNames.name(w.spec.angleRad(), cfg.sideNames));
+            String text = api.tr(ps.getUuid(), "hitw.wall-warn", w.shape.displayName(), side);
             p.sendActionBar(net.kyori.adventure.text.Component.text(text));
         }
     }

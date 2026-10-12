@@ -96,6 +96,7 @@ public final class AchievementService implements AchievementApi, Listener {
 
     @Override
     public void grant(UUID uuid, String achievementId) {
+        if (nl.kmc.core.DryRun.active()) return;   // dry-run: nothing is earned
         AchievementDefinition def = catalog.get(achievementId);
         if (def == null) {
             LOG.warning("[KMC/Achievements] grant() called for unknown id: " + achievementId);

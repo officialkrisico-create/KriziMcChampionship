@@ -182,6 +182,14 @@ public class ScoreboardManager {
         String nextName    = currentName.equals("kmc_a") ? "kmc_b" : "kmc_a";
 
         // Wipe + rebuild the hidden buffer
+        // Per-player HUD density (/kmchud): compact and minimal drop blank lines and cap the length.
+        try {
+            lines = nl.kmc.kmccore.platform.HudScale.apply(plugin, player, lines);
+            // Fit every line to the readable width so nothing runs off the screen or into other HUD parts.
+            lines = nl.kmc.kmccore.platform.HudScale.fitAll(plugin, player, lines);
+            title = nl.kmc.kmccore.platform.HudScale.fit(title, nl.kmc.kmccore.platform.HudScale.maxPx(plugin, player), 32);
+        } catch (Throwable ignored) { }
+
         Objective next = board.getObjective(nextName);
         if (next != null) {
             try { next.unregister(); } catch (Exception ignored) {}

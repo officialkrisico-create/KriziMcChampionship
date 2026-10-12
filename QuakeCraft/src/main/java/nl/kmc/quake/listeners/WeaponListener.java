@@ -177,7 +177,7 @@ public class WeaponListener implements Listener {
         int bonus = plugin.getConfig().getInt(
                 "powerups." + type.getConfigKey() + ".bonus-coins", 0);
         if (bonus > 0) {
-            plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), bonus);
+            plugin.getKmcCore().getApi().givePoints(p.getUniqueId(), bonus, nl.kmc.core.domain.PointAward.Reason.BONUS, "quake_craft");
         }
 
         if (type == PowerupType.SPEED) {

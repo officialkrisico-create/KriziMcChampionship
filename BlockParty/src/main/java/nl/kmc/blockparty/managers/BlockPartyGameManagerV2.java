@@ -376,6 +376,7 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
             Player p = Bukkit.getPlayer(bp.getUuid());
             if (p == null) continue;
             if (bp.isClutchThisRound()) {
+                api.games().recordHighlight(bp.getUuid(), "clutch", 1, registration.getId());
                 p.sendTitle(api.tr(p.getUniqueId(), "bp.clutch.title"), api.tr(p.getUniqueId(), "bp.clutch.sub"), 3, 30, 8);
                 p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.8f);
                 grant(p, "blockparty_clutch_king");

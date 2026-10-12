@@ -17,6 +17,8 @@ public final class Circuit {
     private final List<Location> spawns = new ArrayList<>();
     private Gate line;
     private final List<Gate> checkpoints = new ArrayList<>();
+    private final List<Gate> boostPads = new ArrayList<>();
+    private final List<Location> itemBoxes = new ArrayList<>();
     private Location reset;
 
     public Circuit(String id, String displayName) {
@@ -35,6 +37,10 @@ public final class Circuit {
     public Gate   getLine()              { return line; }
     public void   setLine(Gate g)        { this.line = g; }
     public List<Gate> getCheckpoints()   { return checkpoints; }
+    /** Areas that give a speed boost to a boat driving over them. */
+    public List<Gate> getBoostPads()     { return boostPads; }
+    /** Spots where a power-up item box floats. */
+    public List<Location> getItemBoxes() { return itemBoxes; }
     public Location getReset()           { return reset != null ? reset.clone() : null; }
     public void   setReset(Location l)   { this.reset = l != null ? l.clone() : null; }
 

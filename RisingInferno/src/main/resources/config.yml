@@ -1,0 +1,55 @@
+# ================================================================
+# Rising Inferno — climb the tower before the lava gets you
+# ================================================================
+# Setup (stand where you need to be, see /inferno):
+#   /inferno lava pos1 | pos2   → the two corners of the area the lava fills (floor level of the tower)
+#   /inferno lava base          → the lava starts at the block you stand on
+#   /inferno finish pos1 | pos2 → the finish box (anyone who enters it has finished)
+#   /inferno spawn add | clear  → start positions
+#   /inferno orb add | clear    → bonus orbs (put them on the RISKY route!)
+#   /inferno spectator          → where eliminated players watch (optional)
+#   /inferno rise <seconds>     → how long the lava needs to reach the top for THIS arena (0 = config default)
+# ================================================================
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Klim sneller dan de lava stijgt"
+  flyover-radius: 30
+  tutorial-seconds: 6
+  countdown-seconds: 5
+
+game:
+  # Hard limit of the climb (seconds). The lava normally ends it long before that.
+  max-duration-seconds: 420
+  # Seconds the lava waits before it starts rising.
+  lava-delay-seconds: 12
+  # Seconds from the start of the rise until the lava has reached the top (finish floor + overshoot).
+  # Can be overridden per arena with /inferno rise.
+  rise-seconds: 150
+  # Curve of the rise: 1 = constant speed, higher = slow at first and faster later.
+  rise-exponent: 1.4
+  # Blocks above the finish floor where the lava ends (so nobody can sit on top of the tower for ever).
+  overshoot: 3
+  # Players below the lava surface by this many blocks (feet) are eliminated.
+  burn-margin: 0.1
+  # Y below the lava start where falling players are eliminated (void safety).
+  void-depth: 25
+
+points:
+  # Awarded to every player who reaches the finish.
+  finish: 30
+  # Per bonus orb collected (each orb counts once per player).
+  orb: 10
+
+orbs:
+  # Bonus effects an orb can give next to the points: speed, jump boost, slow falling (seconds).
+  effect-seconds: 6
+
+arena:
+  world: ""

@@ -42,6 +42,43 @@ automation:
   # Used for brief intermission / schematic reset time
   repetition-intermission-seconds: 20
 
+  # Total number of regular games this tournament (0 = rounds x games-per-round).
+  # Set from the /kmcauto start menu or with /kmcauto games <n>. The finale comes on top.
+  total-games: 0
+
+  # One long break halfway through the tournament (skippable with /kmcauto skip).
+  mid-break:
+    enabled: true
+    seconds: 300
+    # after-round: 4        # default: half of the rounds
+
+  # Team ready-check: every team gets a clickable "is your team ready?" message.
+  #   off          never
+  #   mid-break    after the long mid-tournament break (default)
+  #   every-break  after every intermission
+  # The finale always asks both finalists when this is not "off".
+  ready-check:
+    mode: mid-break
+    timeout-seconds: 90
+
+  # Finale: after the last regular game the top 2 teams play one decisive game.
+  finale:
+    enabled: true
+    game: dodgebolt
+    intro-seconds: 30
+    # Extra points for the champion team (0 = none; the finale winner is champion regardless).
+    winner-bonus: 0
+
+  # Time Budget System (/kmcauto time, setup menu, director panel) - only used for the estimate.
+  # Per game: games.list.<id>.estimated-minutes
+  time-budget:
+    default-game-minutes: 7
+    game-intro-seconds: 45
+    post-game-seconds: 40
+    round-end-seconds: 15
+    ready-seconds: 25
+    closing-seconds: 75
+
 # -----------------------------------------------------------------------
 # Database
 # -----------------------------------------------------------------------
@@ -276,6 +313,48 @@ games:
       min-players: 1
       repetitions: 1
 
+    rising_inferno:
+      display-name: "Rising Inferno"
+      icon: LAVA_BUCKET
+      min-players: 2
+      repetitions: 1
+
+    rocket_rush:
+      display-name: "Rocket Rush"
+      icon: FIREWORK_ROCKET
+      min-players: 1
+      repetitions: 1
+
+    knockout_kings:
+      display-name: "Knockout Kings"
+      icon: STICK
+      min-players: 2
+      repetitions: 1
+
+    crafting_countdown:
+      display-name: "Crafting Countdown"
+      icon: CRAFTING_TABLE
+      min-players: 1
+      repetitions: 1
+
+    zone_zero:
+      display-name: "Zone Zero"
+      icon: BEACON
+      min-players: 2
+      repetitions: 1
+
+    crown_control:
+      display-name: "Crown Control"
+      icon: GOLDEN_HELMET
+      min-players: 2
+      repetitions: 1
+
+    core_charge:
+      display-name: "Core Charge"
+      icon: ENDER_EYE
+      min-players: 2
+      repetitions: 1
+
 # -----------------------------------------------------------------------
 # Points
 # -----------------------------------------------------------------------
@@ -363,3 +442,111 @@ commentary:
 # Zet op false om terug te vallen op losse teleports per tick.
 cinematic:
   smooth-camera: true
+
+# ── End of tournament (podium → awards → credits → fan favorite → feedback → books → reset) ──
+end-sequence:
+  fan-favorite-seconds: 20
+  feedback-seconds: 15
+
+awards-ceremony:
+  enabled: true
+  seconds-per-award: 7
+
+credits:
+  enabled: true
+  seconds-per-card: 5
+  thanks:
+    - "&6&lBedankt voor het spelen!"
+    - "&7Tot het volgende KMC-event!"
+
+# "This season" in /kmcseason = the last N editions.
+season:
+  editions: 4
+
+# -----------------------------------------------------------------------
+# Presentation (wave 3) — everything defaults to on; these are the knobs
+# -----------------------------------------------------------------------
+# tablist.layout: mcc (team rows with live game points) or classic.
+# tablist.presented-by: line under the title in the MCC header ("" = none).
+# tablist.points-icon: symbol after the points of a team.
+chat-gate:
+  enabled: true            # mute chat (also for OP) during explanations and ceremonies
+
+presentation:
+  leaderboard-animation: true   # teams rise/fall with arrows after a game
+
+cams:
+  kill-cam:
+    enabled: true
+    seconds: 4
+  finish-cam:
+    enabled: true
+    seconds: 4
+
+gg:
+  enabled: true
+  window-seconds: 45
+
+consolation:
+  enabled: true            # last-place ritual (needs 3+ teams)
+  seconds: 12
+
+presenter:
+  enabled: true
+
+team-jingles:
+  enabled: true
+  # Per team: team-jingles.<id>.instrument / notes (0-24 semitones) / speed (ticks between notes)
+
+# -----------------------------------------------------------------------
+# Lobby games (wave 4): /ttt, /darts, /lobbygames — no tournament points
+# -----------------------------------------------------------------------
+lobby-games:
+  enabled: true
+  darts:
+    per-turn: 5
+    any-target-block: true   # every Target block in the lobby is a dartboard
+  fishing:
+    enabled: true
+
+# -----------------------------------------------------------------------
+# Platform (wave 5)
+# -----------------------------------------------------------------------
+# Live data for stream overlays. OFF by default. Binds to localhost; to use it from another machine set
+# bind to 0.0.0.0 AND a token (then open /overlay?token=<token> in OBS as a browser source).
+live-api:
+  enabled: false
+  port: 8765
+  bind: "127.0.0.1"
+  token: ""
+
+# Clip markers: timecodes of notable moments, written to clip-markers.csv (/clip start = stream went live).
+clips:
+  enabled: true
+
+# Nudges teleports that would put a player inside blocks; /kmcaudit shows what was corrected.
+safe-teleport:
+  enabled: true
+  max-lift: 12
+  void-check-depth: 40
+
+# Lobby anti-grief (frames, armor stands, buckets, fire, containers, pearls). kmc.lobby.build is exempt.
+anti-grief:
+  enabled: true
+  block-containers: true
+  block-ender-pearls: true
+
+# Spectators get a teleport compass / follow mode / leader tracker in every game.
+spectator-kit:
+  enabled: true
+
+# Event storyline: round chapters and a recap after each game.
+# Custom chapter per round, e.g.:  story.chapters.2.nl: "..." / story.chapters.2.en: "..."
+story:
+  enabled: true
+  recap-delay-ticks: 240
+  max-lines: 2
+  close-gap: 40
+
+# Team banners: override per team, e.g.  emblems.rood.base: RED / pattern: cross / color: WHITE
+emblems: {}

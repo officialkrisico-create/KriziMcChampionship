@@ -1,0 +1,19 @@
+name: CrownControl
+version: 1.0.0
+main: nl.kmc.crown.CrownControlPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: Crown Control - fight for the crown and spend its energy on team abilities
+
+commands:
+  crown:
+    description: Crown Control control + setup
+    aliases: [crowncontrol, cwn]
+    usage: /crown <start|stop|status|validate|world|spawn|zone|lockdown|pos1|pos2|use>
+    permission: crown.admin
+
+permissions:
+  crown.admin:
+    description: Crown Control admin commands
+    default: op

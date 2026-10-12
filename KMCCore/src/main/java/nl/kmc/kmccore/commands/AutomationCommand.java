@@ -89,18 +89,92 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(MessageUtil.color("&a[KMC] Openingspresentatie overgeslagen."));
                 else if (am.skipMidBreak())
                     sender.sendMessage(MessageUtil.color("&a[KMC] Pauze overgeslagen."));
+                else if (am.skipReadyCheck())
+                    sender.sendMessage(MessageUtil.color("&a[KMC] Ready-check overgeslagen."));
+                else if (nl.kmc.kmccore.tournament.EventEndSequence.skip())
+                    sender.sendMessage(MessageUtil.color("&a[KMC] Onderdeel van de afsluiting overgeslagen."));
                 else
-                    sender.sendMessage(MessageUtil.color("&c[KMC] Er speelt nu geen openingspresentatie."));
+                    sender.sendMessage(MessageUtil.color("&c[KMC] Er valt nu niets over te slaan."));
             }
 
             case "pause" -> {
-                am.pause();
-                sender.sendMessage(MessageUtil.color("&e[KMC] Automatisering gepauzeerd."));
+                boolean now = am.requestPause();
+                sender.sendMessage(MessageUtil.color(now
+                        ? "&e[KMC] Toernooi gepauzeerd. Hervatten: &f/resume"
+                        : "&e[KMC] Pauze staat klaar: het toernooi pauzeert zodra deze game voorbij is."));
             }
 
             case "resume" -> {
                 am.resume();
-                sender.sendMessage(MessageUtil.color("&a[KMC] Automatisering hervat."));
+                sender.sendMessage(MessageUtil.color("&a[KMC] Toernooi hervat."));
+            }
+
+            case "preset" -> handlePreset(sender, am, args);
+
+            case "games" -> {
+                if (am.isRunning()) {
+                    sender.sendMessage(MessageUtil.color("&c[KMC] Pas het aantal games aan vóór de start (of stop eerst)."));
+                    return true;
+                }
+                if (args.length < 2) {
+                    sender.sendMessage(MessageUtil.color("&7Games dit toernooi: &e" + am.getTotalGames()
+                            + " &7| gebruik: &e/kmcauto games <aantal>"));
+                    return true;
+                }
+                int n;
+                try { n = Integer.parseInt(args[1]); }
+                catch (NumberFormatException e) { sender.sendMessage(MessageUtil.get("invalid-number")); return true; }
+                if (n < 1 || n > 40) { sender.sendMessage(MessageUtil.color("&cKies een getal tussen 1 en 40.")); return true; }
+                int rounds = plugin.getDirector().presets().applyGameCount(n);
+                sender.sendMessage(MessageUtil.color("&a[KMC] " + n + " games in " + rounds + " rondes. "
+                        + "&7Geschatte duur: &e" + nl.kmc.kmccore.director.TimeBudget.forCurrent(plugin, n).format()));
+            }
+
+            case "time" -> {
+                int n = args.length >= 2 ? parseIntOr(args[1], am.getTotalGames()) : am.getTotalGames();
+                var est = nl.kmc.kmccore.director.TimeBudget.forCurrent(plugin, n);
+                sender.sendMessage(MessageUtil.color("&6[KMC] Tijdsbegroting voor &e" + n + " &6games: &e" + est.format()
+                        + " &7(" + est.rounds() + " rondes)"));
+                for (var line : est.lines())
+                    sender.sendMessage(MessageUtil.color("  &7" + line.label() + ": &f"
+                            + nl.kmc.kmccore.director.TimeBudget.format(line.seconds())));
+            }
+
+            case "rerun" -> {
+                String err = am.rerunLastGame();
+                sender.sendMessage(MessageUtil.color(err == null
+                        ? "&a[KMC] Laatste game wordt opnieuw gespeeld (punten teruggedraaid)."
+                        : "&c[KMC] " + err));
+            }
+
+            case "dryrun" -> {
+                var dir = plugin.getDirector();
+                if (args.length >= 2 && args[1].equalsIgnoreCase("stop")) {
+                    sender.sendMessage(MessageUtil.color(dir.stopDryRun()
+                            ? "&e[KMC] Dry-run gestopt." : "&7Er draait geen dry-run."));
+                } else if (args.length < 2) {
+                    sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto dryrun <game|stop>"));
+                } else {
+                    String err = dir.startDryRun(args[1].toLowerCase());
+                    if (err != null) sender.sendMessage(MessageUtil.color("&c[KMC] " + err));
+                }
+            }
+
+            case "finale" -> {
+                var cfg = plugin.getConfig();
+                if (args.length >= 2 && (args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("off"))) {
+                    cfg.set("automation.finale.enabled", args[1].equalsIgnoreCase("on"));
+                    plugin.saveConfig();
+                }
+                sender.sendMessage(MessageUtil.color("&6[KMC] Finale: "
+                        + (cfg.getBoolean("automation.finale.enabled", true) ? "&aaan" : "&7uit")
+                        + " &7(game: &e" + cfg.getString("automation.finale.game", "dodgebolt")
+                        + "&7) — &e/kmcauto finale on|off"));
+            }
+
+            case "director", "gui" -> {
+                if (sender instanceof org.bukkit.entity.Player p) new nl.kmc.kmccore.gui.DirectorGui(plugin).open(p);
+                else sender.sendMessage(MessageUtil.color("&cAlleen voor spelers."));
             }
 
             case "status" -> {
@@ -118,6 +192,10 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                     var game = plugin.getGameManager().getActiveGame();
                     sender.sendMessage(MessageUtil.color("&7Actieve game: &e"
                             + (game != null ? game.getDisplayName() : "Geen")));
+                    sender.sendMessage(MessageUtil.color("&7Games: &e" + am.getGamesPlayedTotal()
+                            + "&7/&e" + am.getTotalGames()
+                            + (am.isFinalePhase() ? " &6(FINALE)" : "")
+                            + (am.isPauseQueued() ? " &e(pauze na deze game)" : "")));
                 }
             }
 
@@ -272,19 +350,73 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private static int parseIntOr(String s, int def) {
+        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return def; }
+    }
+
+    /** /kmcauto preset [list | show <naam> | apply <naam> | save <naam>] */
+    private void handlePreset(CommandSender sender, AutomationManager am, String[] args) {
+        var presets = plugin.getDirector().presets();
+        String sub = args.length >= 2 ? args[1].toLowerCase() : "list";
+        switch (sub) {
+            case "list" -> {
+                sender.sendMessage(MessageUtil.color("&6[KMC] Presets: &e" + String.join("&7, &e", presets.names())));
+                sender.sendMessage(MessageUtil.color("&7Gebruik &e/kmcauto preset show|apply|save <naam>"));
+            }
+            case "show" -> {
+                if (args.length < 3 || !presets.exists(args[2])) { sender.sendMessage(MessageUtil.color("&cOnbekende preset.")); return; }
+                presets.describe(args[2]).forEach(line -> sender.sendMessage(MessageUtil.color(line)));
+            }
+            case "apply" -> {
+                if (am.isRunning() || am.isCeremonyActive()) {
+                    sender.sendMessage(MessageUtil.color("&c[KMC] Een preset kan alleen vóór de start worden toegepast."));
+                    return;
+                }
+                if (args.length < 3 || !presets.exists(args[2])) { sender.sendMessage(MessageUtil.color("&cOnbekende preset. &7/kmcauto preset list")); return; }
+                List<String> report = new java.util.ArrayList<>();
+                presets.apply(args[2], report);
+                report.forEach(line -> sender.sendMessage(MessageUtil.color("&6[KMC] " + line)));
+                var est = nl.kmc.kmccore.director.TimeBudget.forCurrent(plugin, am.getTotalGames());
+                sender.sendMessage(MessageUtil.color("&7Geschatte duur: &e" + est.format()));
+            }
+            case "save" -> {
+                if (args.length < 3) { sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto preset save <naam>")); return; }
+                presets.saveCurrent(args[2]);
+                sender.sendMessage(MessageUtil.color("&a[KMC] Huidige instellingen opgeslagen als preset &e" + args[2].toLowerCase()));
+            }
+            default -> sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto preset [list|show|apply|save] <naam>"));
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1)
-            return List.of("start","stop","skip","pause","resume","status","endgame","schedule")
+            return List.of("start","stop","skip","pause","resume","status","endgame","schedule",
+                            "preset","games","time","rerun","dryrun","finale","director")
                     .stream().filter(o -> o.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         if (args.length == 2 && args[0].equalsIgnoreCase("schedule"))
             return List.of("in","cancel","status","20:00").stream()
                     .filter(o -> o.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+        if (args.length == 2 && args[0].equalsIgnoreCase("preset"))
+            return List.of("list","show","apply","save").stream()
+                    .filter(o -> o.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+        if (args.length == 3 && args[0].equalsIgnoreCase("preset"))
+            return plugin.getDirector().presets().names().stream()
+                    .filter(o -> o.startsWith(args[2].toLowerCase())).collect(Collectors.toList());
+        if (args.length == 2 && args[0].equalsIgnoreCase("dryrun")) {
+            List<String> ids = new java.util.ArrayList<>(
+                    plugin.getGameManager().getAllGames().stream().map(g -> g.getId()).toList());
+            ids.add("stop");
+            return ids.stream().filter(o -> o.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("finale"))
+            return List.of("on","off").stream().filter(o -> o.startsWith(args[1].toLowerCase())).collect(Collectors.toList());
         return List.of();
     }
 
     private void usage(CommandSender s) {
-        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|skip|pause|resume|status|endgame|schedule> [winner]"));
+        s.sendMessage(MessageUtil.color("&cGebruik: /kmcauto <start|stop|skip|pause|resume|status|endgame|schedule"
+                + "|preset|games|time|rerun|dryrun|finale|director>"));
     }
 }

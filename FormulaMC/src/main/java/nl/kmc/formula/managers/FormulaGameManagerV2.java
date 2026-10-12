@@ -58,9 +58,19 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     private long fastestLapMs = -1;
     private UUID fastestLapOwner;
 
+    /** GRID = waiting for the lights, QUALI = qualifying lap, RACE = the race itself. */
+    private enum Phase { GRID, QUALI, RACE }
+    private volatile Phase phase = Phase.GRID;
+    private BukkitTask qualiTask, countdownTask;
+    private final RacePowerups powerups;
+    /** Track weather of this race: CLEAR, RAIN, STORM or NIGHT. */
+    private String weather = "CLEAR";
+    private int stormTicks;
+
     public FormulaGameManagerV2(FormulaMCPlugin plugin, GameRegistration reg, StatisticsService stats) {
         super(plugin, reg, stats);
         this.plugin = plugin;
+        this.powerups = new RacePowerups(plugin, (id, key, args) -> api.tr(id, key, args));
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -74,6 +84,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         fastestLapMs = -1;
         fastestLapOwner = null;
         raceLive = false;
+        phase = Phase.GRID;
 
         circuit = plugin.getCircuitManager().pick();
         if (circuit == null) {
@@ -83,6 +94,8 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         }
 
         disableCollisions();
+        weather = chooseWeather();
+        powerups.begin(circuit);
 
         List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
         for (int i = 0; i < players.size(); i++) {
@@ -100,9 +113,11 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             p.getActivePotionEffects().forEach(e -> p.removePotionEffect(e.getType()));
             p.teleport(slot);
             spawnBoatFor(p, r, slot);
+            applyWeather(p);
         }
 
-        bossBar = Bukkit.createBossBar(ChatColor.AQUA + "" + ChatColor.BOLD + "Formula MC — " + circuit.getDisplayName(),
+        bossBar = Bukkit.createBossBar(ChatColor.AQUA + "" + ChatColor.BOLD + "Formula MC — " + circuit.getDisplayName()
+                        + " " + weatherIcon(),
                 BarColor.BLUE, BarStyle.SOLID);
         Bukkit.getOnlinePlayers().forEach(bossBar::addPlayer);
 
@@ -121,7 +136,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
                         return List.of("@fmc.tut.1|" + circuit.getLaps(), "@fmc.tut.2", "@fmc.tut.3", "@fmc.tut.4");
                     }
                     @Override public Location flyoverCenter() { return center; }
-                    @Override public void onFinished() { beginRace(); }
+                    @Override public void onFinished() { beginSession(); }
                 });
         startFlow.prepareAndFreeze();
     }
@@ -130,14 +145,148 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
 
     @Override protected void onGameStart() { if (startFlow != null) startFlow.start(); }
 
+    /** After the intro: qualifying first (when enabled and there is someone to race against), else the race. */
+    private void beginSession() {
+        if (!getState().isRunning()) return;
+        if (plugin.getConfig().getBoolean("qualifying.enabled", true) && racers.size() > 1) beginQualifying();
+        else beginRace();
+    }
+
+    // ── Qualifying ────────────────────────────────────────────────────────────
+
+    private void beginQualifying() {
+        phase = Phase.QUALI;
+        raceLive = true;
+        long now = System.currentTimeMillis();
+        for (Racer r : racers.values()) {
+            r.setLapStartMs(now);
+            r.setSectorStartMs(now);
+            r.setLastMovedMs(now);
+            Player p = Bukkit.getPlayer(r.getUuid());
+            if (p == null) continue;
+            GamePlayerUtil.unfreezePlayer(p);
+            p.sendTitle("§e§lQUALIFYING", api.tr(p.getUniqueId(), "fmc.quali.sub"), 0, 50, 10);
+            p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1f, 1.2f);
+        }
+        if (bossBar != null) {
+            bossBar.setColor(BarColor.YELLOW);
+            bossBar.setTitle(ChatColor.YELLOW + "" + ChatColor.BOLD + "Qualifying — " + circuit.getDisplayName());
+        }
+        startLiveTasks();
+        tellKey("fmc.quali.start");
+        int max = plugin.getConfig().getInt("qualifying.max-seconds", 120);
+        if (max > 0) {
+            qualiTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (getState().isRunning() && phase == Phase.QUALI) finishQualifying();
+            }, max * 20L);
+        }
+    }
+
+    /** One qualifying lap is done: park the boat on its grid slot and wait for the others. */
+    private void finishQualiLap(Racer r, Player p, long lap) {
+        r.markQualiDone(lap);
+        p.sendTitle("§e§l" + fmt(lap), api.tr(p.getUniqueId(), "fmc.quali.lap-done"), 5, 50, 10);
+        p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.2f);
+        Boat b = boatOf(r);
+        Location slot = grid.get(r.getUuid());
+        if (b != null && slot != null) moveBoat(b, slot);
+        if (racers.values().stream().allMatch(Racer::isQualiDone)) finishQualifying();
+    }
+
+    /** Orders the grid by qualifying time, announces pole, then counts down to the real start. */
+    private void finishQualifying() {
+        if (phase != Phase.QUALI) return;
+        if (qualiTask != null) { qualiTask.cancel(); qualiTask = null; }
+        cancelLiveTasks();
+        raceLive = false;
+        phase = Phase.GRID;
+        showEveryone();
+
+        List<Racer> progress = ranking();
+        List<Racer> order = new ArrayList<>(racers.values());
+        order.sort((a, b) -> {
+            boolean qa = a.getQualiMs() >= 0, qb = b.getQualiMs() >= 0;
+            if (qa && qb) return Long.compare(a.getQualiMs(), b.getQualiMs());
+            if (qa != qb) return qa ? -1 : 1;
+            return Integer.compare(progress.indexOf(a), progress.indexOf(b));
+        });
+
+        for (int i = 0; i < order.size(); i++) {
+            Racer r = order.get(i);
+            Location slot = gridSlot(i);
+            grid.put(r.getUuid(), slot);
+            r.resetForRace();
+            r.setLastSafe(slot.clone());
+            Player p = Bukkit.getPlayer(r.getUuid());
+            if (p == null) continue;
+            Boat b = boatOf(r);
+            if (b == null) respawnBoat(r, p, slot);
+            else {
+                moveBoat(b, slot);
+                if (!b.getPassengers().contains(p)) b.addPassenger(p);
+            }
+        }
+
+        int bonus = plugin.getConfig().getInt("points.pole-bonus", 10);
+        Racer pole = order.isEmpty() ? null : order.get(0);
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            UUID vid = v.getUniqueId();
+            v.sendMessage(api.tr(vid, "fmc.quali.results"));
+            for (int i = 0; i < order.size() && i < 10; i++) {
+                Racer r = order.get(i);
+                v.sendMessage("  §7P" + (i + 1) + " §f" + r.getName() + " §8— §e"
+                        + (r.getQualiMs() >= 0 ? fmt(r.getQualiMs()) : "DNQ"));
+            }
+        }
+        if (pole != null && pole.getQualiMs() >= 0 && bonus > 0) {
+            api.points().givePoints(pole.getUuid(), bonus, PointAward.Reason.BONUS, registration.getId());
+            tellKey("fmc.quali.pole", pole.getName(), fmt(pole.getQualiMs()), bonus);
+        }
+
+        int secs = Math.max(0, plugin.getConfig().getInt("qualifying.countdown-seconds", 5));
+        final int[] n = {secs};
+        countdownTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (!getState().isRunning()) { cancelCountdown(); return; }
+            if (n[0] <= 0) { cancelCountdown(); beginRace(); return; }
+            for (Racer r : racers.values()) {
+                Player p = Bukkit.getPlayer(r.getUuid());
+                if (p == null) continue;
+                p.sendTitle("§e§l" + n[0], api.tr(p.getUniqueId(), "fmc.quali.grid", order.indexOf(r) + 1), 0, 25, 5);
+                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.0f);
+            }
+            n[0]--;
+        }, 60L, 20L);
+    }
+
+    private void cancelCountdown() {
+        if (countdownTask != null) { countdownTask.cancel(); countdownTask = null; }
+    }
+
+    private void startLiveTasks() {
+        cancelLiveTasks();
+        pollTask = Bukkit.getScheduler().runTaskTimer(plugin, this::pollRacers, 2L, 2L);
+        stepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::assistSteps, 1L, 1L);
+        if (plugin.getConfig().getBoolean("visibility.enabled", true)) {
+            visTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updateVisibility, 10L, 10L);
+        }
+    }
+
+    private void cancelLiveTasks() {
+        for (BukkitTask t : new BukkitTask[]{pollTask, stepTask, visTask}) if (t != null) t.cancel();
+        pollTask = stepTask = visTask = null;
+    }
+
     private void beginRace() {
         if (!getState().isRunning()) return;
+        phase = Phase.RACE;
         raceLive = true;
         raceStartMs = System.currentTimeMillis();
+        powerups.spawnBoxes();
         if (holdTask != null) { holdTask.cancel(); holdTask = null; }
 
         for (Racer r : racers.values()) {
             r.setLapStartMs(raceStartMs);
+            r.setSectorStartMs(raceStartMs);
             r.setLastMovedMs(raceStartMs);
             Player p = Bukkit.getPlayer(r.getUuid());
             if (p == null) continue;
@@ -145,13 +294,13 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             p.sendTitle("§a§lGO!", api.tr(p.getUniqueId(), "fmc.go-sub", circuit.getLaps()), 0, 30, 10);
             p.playSound(p.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1f, 1.2f);
         }
-        if (bossBar != null) bossBar.setColor(BarColor.GREEN);
-
-        pollTask = Bukkit.getScheduler().runTaskTimer(plugin, this::pollRacers, 2L, 2L);
-        stepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::assistSteps, 1L, 1L);
-        if (plugin.getConfig().getBoolean("visibility.enabled", true)) {
-            visTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updateVisibility, 10L, 10L);
+        if (bossBar != null) {
+            bossBar.setColor(BarColor.GREEN);
+            bossBar.setTitle(ChatColor.AQUA + "" + ChatColor.BOLD + "Formula MC — " + circuit.getDisplayName()
+                    + " " + weatherIcon());
         }
+
+        startLiveTasks();
         int max = plugin.getConfig().getInt("game.max-duration-seconds", 900);
         if (max > 0) {
             timeLimitTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -163,14 +312,21 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     @Override
     protected void onGameEnd() {
         raceLive = false;
-        for (BukkitTask t : new BukkitTask[]{holdTask, pollTask, stepTask, visTask, timeLimitTask, graceTask}) {
+        for (BukkitTask t : new BukkitTask[]{holdTask, pollTask, stepTask, visTask, timeLimitTask, graceTask,
+                qualiTask, countdownTask}) {
             if (t != null) t.cancel();
         }
-        holdTask = pollTask = stepTask = visTask = timeLimitTask = graceTask = null;
+        holdTask = pollTask = stepTask = visTask = timeLimitTask = graceTask = qualiTask = countdownTask = null;
+        phase = Phase.GRID;
+        powerups.clear();
         if (startFlow != null) { startFlow.cancel(); startFlow = null; }
         if (bossBar != null) { bossBar.removeAll(); bossBar = null; }
 
         showEveryone();
+        for (Racer rr : racers.values()) {
+            Player wp = Bukkit.getPlayer(rr.getUuid());
+            if (wp != null) { resetWeather(wp); powerups.forget(rr.getUuid(), wp); }
+        }
         List<Racer> ranked = ranking();
 
         // Placement points: finished players by time, the rest by progress (see ranking()).
@@ -213,6 +369,13 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         }
 
         // Clean up boats and put everybody back.
+        // Track Mastery: where the player stands against the track records.
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            if (!racers.containsKey(v.getUniqueId())) continue;
+            v.sendMessage(net.kyori.adventure.text.Component.text(api.tr(v.getUniqueId(), "fmc.mastery"))
+                    .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/kmctrack")));
+        }
+
         Location lobby = plugin.getKmcCore().getArenaManager().getLobby();
         for (Racer r : racers.values()) {
             removeBoat(r);
@@ -302,6 +465,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     /** Keeps all boats still on their slot before GO. */
     private void holdOnGrid() {
         for (Racer r : racers.values()) {
+            if (phase == Phase.QUALI && !r.isQualiDone()) continue;   // still on their qualifying lap
             Boat b = boatOf(r);
             Location slot = grid.get(r.getUuid());
             Player p = Bukkit.getPlayer(r.getUuid());
@@ -367,6 +531,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
 
         for (Racer r : new ArrayList<>(racers.values())) {
             if (r.isFinished()) continue;
+            if (phase == Phase.QUALI && r.isQualiDone()) continue;     // parked on the grid
             Player p = Bukkit.getPlayer(r.getUuid());
             if (p == null || !p.isOnline()) continue;
             Boat boat = boatOf(r);
@@ -406,6 +571,10 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         if (next < cps.size()) {
             if (cps.get(next).contains(at)) {
                 r.setNextCheckpoint(next + 1);
+                // Sector record: time since the previous checkpoint (or the start of the lap).
+                api.games().recordSector(registration.getId(), circuit.getId(), next + 1,
+                        r.getUuid(), r.getName(), now - r.getSectorStartMs());
+                r.setSectorStartMs(now);
                 Gate g = cps.get(next);
                 r.setLastSafe(g.center(circuit.getWorld()).add(0, 1, 0));
                 p.sendActionBar(net.kyori.adventure.text.Component.text(
@@ -420,7 +589,16 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         long minLap = plugin.getConfig().getInt("game.min-lap-seconds", 4) * 1000L;
         if (now - r.getLapStartMs() < minLap) return true;   // double crossing / shortcut guard
 
+        // Last sector (final checkpoint → line) and the whole lap (sector 0) go to the track records.
+        api.games().recordSector(registration.getId(), circuit.getId(), cps.size() + 1,
+                r.getUuid(), r.getName(), now - r.getSectorStartMs());
+        r.setSectorStartMs(now);
         long lap = r.completeLap(now);
+        api.games().recordSector(registration.getId(), circuit.getId(), 0, r.getUuid(), r.getName(), lap);
+        if (phase == Phase.QUALI) {          // qualifying: one timed lap, then park on the grid
+            finishQualiLap(r, p, lap);
+            return false;
+        }
         if (fastestLapMs < 0 || lap < fastestLapMs) { fastestLapMs = lap; fastestLapOwner = r.getUuid(); }
 
         if (r.getLapsCompleted() >= circuit.getLaps()) {
@@ -439,6 +617,8 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         int place = finishOrder.size() + 1;
         r.markFinished(total, place);
         finishOrder.add(r.getUuid());
+        api.games().recordHighlight(r.getUuid(), "racer", Math.max(1, racers.size() - place + 1), registration.getId());
+        api.games().announceFinish(r.getUuid(), place, racers.size(), registration.getId());
 
         p.sendTitle("§6§l#" + place, "§e" + fmt(total), 10, 60, 20);
         p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
@@ -478,11 +658,19 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     // ── Step assist: ramps of one block never stop a boat ─────────────────────
 
     private void assistSteps() {
-        if (!raceLive || !plugin.getConfig().getBoolean("boat.step-assist", true)) return;
+        if (!raceLive) return;
+        boolean stepAssist = plugin.getConfig().getBoolean("boat.step-assist", true);
+        long nowMs = System.currentTimeMillis();
+        double drag = weatherDrag();
+        stormEffects();
         for (Racer r : racers.values()) {
             if (r.isFinished()) continue;
+            if (phase == Phase.QUALI && r.isQualiDone()) continue;
             Boat b = boatOf(r);
             if (b == null || b.getPassengers().isEmpty()) continue;
+            Player rp = Bukkit.getPlayer(r.getUuid());
+            if (rp != null) powerups.tick(r, b, rp, nowMs, drag, this::ranking);
+            if (!stepAssist) continue;
             Vector v = b.getVelocity();
             double speed = Math.hypot(v.getX(), v.getZ());
             if (speed < 0.08) continue;
@@ -498,6 +686,73 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
                 b.setVelocity(new Vector(v.getX() * 1.04, 0.42, v.getZ() * 1.04));
             }
         }
+    }
+
+    // ── Track weather ─────────────────────────────────────────────────────────
+
+    private static final List<String> WEATHERS = List.of("CLEAR", "RAIN", "STORM", "NIGHT");
+
+    /** forced weather (config {@code weather.forced}) or a weighted random pick from {@code weather.chance}. */
+    private String chooseWeather() {
+        var cfg = plugin.getConfig();
+        String forced = cfg.getString("weather.forced", "auto");
+        if (forced != null && WEATHERS.contains(forced.toUpperCase(Locale.ROOT))) return forced.toUpperCase(Locale.ROOT);
+        if (!cfg.getBoolean("weather.enabled", true)) return "CLEAR";
+        double total = 0;
+        double[] w = new double[WEATHERS.size()];
+        for (int i = 0; i < w.length; i++) {
+            w[i] = Math.max(0, cfg.getDouble("weather.chance." + WEATHERS.get(i), i == 0 ? 50 : 15));
+            total += w[i];
+        }
+        if (total <= 0) return "CLEAR";
+        double x = new Random().nextDouble() * total;
+        for (int i = 0; i < w.length; i++) {
+            x -= w[i];
+            if (x <= 0) return WEATHERS.get(i);
+        }
+        return "CLEAR";
+    }
+
+    private String weatherIcon() {
+        return switch (weather) {
+            case "RAIN" -> "§9☔";
+            case "STORM" -> "§5⚡";
+            case "NIGHT" -> "§1☾";
+            default -> "§e☀";
+        };
+    }
+
+    private void applyWeather(Player p) {
+        switch (weather) {
+            case "RAIN" -> { p.setPlayerWeather(WeatherType.DOWNFALL); p.setPlayerTime(9000, false); }
+            case "STORM" -> { p.setPlayerWeather(WeatherType.DOWNFALL); p.setPlayerTime(14500, false); }
+            case "NIGHT" -> { p.setPlayerWeather(WeatherType.CLEAR); p.setPlayerTime(18000, false); }
+            default -> { p.setPlayerWeather(WeatherType.CLEAR); p.setPlayerTime(6000, false); }
+        }
+    }
+
+    private void resetWeather(Player p) {
+        p.resetPlayerWeather();
+        p.resetPlayerTime();
+    }
+
+    /** Extra drag per tick on a wet track (config {@code weather.drag.<TYPE>}). */
+    private double weatherDrag() {
+        return Math.max(0, plugin.getConfig().getDouble("weather.drag." + weather,
+                switch (weather) { case "RAIN" -> 0.006; case "STORM" -> 0.012; default -> 0.0; }));
+    }
+
+    /** Cosmetic lightning near a random racer during a storm. */
+    private void stormEffects() {
+        if (!"STORM".equals(weather)) return;
+        if (++stormTicks % 120 != 0) return;
+        List<Racer> list = new ArrayList<>(racers.values());
+        if (list.isEmpty()) return;
+        Player p = Bukkit.getPlayer(list.get(new Random().nextInt(list.size())).getUuid());
+        if (p == null) return;
+        Location l = p.getLocation().add((Math.random() - 0.5) * 60, 0, (Math.random() - 0.5) * 60);
+        l.setY(l.getWorld().getHighestBlockYAt(l) + 1);
+        l.getWorld().strikeLightningEffect(l);
     }
 
     // ── Visibility: other racers only within N blocks ─────────────────────────
@@ -591,6 +846,10 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             l.add(api.tr(id, "fmc.sb.best", fmt(me.getBestLapMs())));
             long t = raceLive ? (me.isFinished() ? me.getFinishMs() : System.currentTimeMillis() - raceStartMs) : 0;
             l.add(api.tr(id, "fmc.sb.time", fmt(t)));
+            l.add(api.tr(id, "fmc.sb.weather", api.tr(id, "fmc.weather." + weather.toLowerCase(Locale.ROOT))));
+            if (phase == Phase.QUALI) l.add(api.tr(id, "fmc.sb.quali"));
+            var held = powerups.held(id);
+            if (held != null) l.add(api.tr(id, "fmc.sb.item", api.tr(id, "fmc.pu." + held.name().toLowerCase(Locale.ROOT))));
         } else {
             l.add(api.tr(id, "fmc.sb.time", fmt(raceLive ? System.currentTimeMillis() - raceStartMs : 0)));
         }
@@ -654,6 +913,17 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     }
 
     public boolean hasRacer(UUID uuid) { return racers.containsKey(uuid); }
+
+    /** Right-click with a power-up item (RaceListener). */
+    public void usePowerup(Player p) {
+        Racer r = racers.get(p.getUniqueId());
+        if (r == null || !raceLive || phase != Phase.RACE || r.isFinished()) return;
+        powerups.use(p, r, ranking(), Bukkit::getPlayer, System.currentTimeMillis());
+    }
+
+    public boolean isPowerupItem(org.bukkit.inventory.ItemStack item) { return powerups.isPowerupItem(item); }
+
+    public String getWeather() { return weather; }
 
     public Map<UUID, Racer> getRacers() { return Collections.unmodifiableMap(racers); }
 }

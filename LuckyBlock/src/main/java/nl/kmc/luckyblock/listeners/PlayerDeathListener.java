@@ -59,11 +59,11 @@ public class PlayerDeathListener implements Listener {
                 var split = AssistTracker.split(killPts, assistId,
                         plugin.getConfig().getDouble("points.assist-fraction", 0.2));
 
-                plugin.getKmcCore().getApi().givePoints(killer.getUniqueId(), split.killerAmount());
+                plugin.getKmcCore().getApi().givePoints(killer.getUniqueId(), split.killerAmount(), nl.kmc.core.domain.PointAward.Reason.KILL, "lucky_block");
                 killer.sendMessage(plugin.getKmcCore().getLanguageManager().tr(killer, "lb.kill-pts", split.killerAmount()));
 
                 if (assistId != null && split.assistAmount() > 0) {
-                    plugin.getKmcCore().getApi().givePoints(assistId, split.assistAmount());
+                    plugin.getKmcCore().getApi().givePoints(assistId, split.assistAmount(), nl.kmc.core.domain.PointAward.Reason.ASSIST, "lucky_block");
                     Player assistPlayer = Bukkit.getPlayer(assistId);
                     if (assistPlayer != null)
                         assistPlayer.sendMessage(plugin.getKmcCore().getLanguageManager().tr(assistPlayer,

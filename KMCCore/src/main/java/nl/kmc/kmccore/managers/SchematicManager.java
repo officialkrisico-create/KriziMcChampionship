@@ -124,6 +124,25 @@ public class SchematicManager {
     }
 
     /**
+     * Paste without the stutter: the schematic is read off the main thread and the chunks around the origin
+     * are loaded asynchronously first; only the actual block placement runs on the main thread (one tick).
+     * {@code done} is called on the main thread with the result.
+     */
+    public void pasteSchematicAsync(String schematicName, Location origin, java.util.function.Consumer<Boolean> done) {
+        if (!worldEditAvailable || origin == null || origin.getWorld() == null) { done.accept(false); return; }
+        org.bukkit.Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Clipboard cb = loadClipboard(schematicName);          // cached afterwards
+            org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+                if (cb == null) { done.accept(false); return; }
+                BlockVector3 dim = cb.getDimensions();
+                int radius = Math.max(dim.x(), dim.z()) + 16;
+                nl.kmc.kmccore.util.ChunkPreloader.preload(plugin, origin, radius, 4, 20 * 15,
+                        () -> done.accept(pasteSchematic(schematicName, origin)));
+            });
+        });
+    }
+
+    /**
      * Resets an arena by re-pasting its schematic.
      * This is literally just {@link #pasteSchematic} — the fresh paste
      * overwrites any changes made during the game.

@@ -50,6 +50,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
     private BossBar    bossBar;
     private int        remainingSeconds;
     private long       gameStartMs;
+    private final java.util.Map<UUID, Long> splitStart = new java.util.HashMap<>();
     private StandardStartFlow startFlow;
 
     public ElytraEndriumGameManagerV2(ElytraEndriumPlugin plugin, GameRegistration reg, StatisticsService stats) {
@@ -115,6 +116,7 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
 
     private void beginFlight() {
         gameStartMs      = System.currentTimeMillis();
+        splitStart.clear();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 480);
 
         for (UUID uuid : runners.keySet()) {
@@ -280,6 +282,13 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
 
         api.points().givePoints(p.getUniqueId(), cp.getPoints(), PointAward.Reason.OBJECTIVE, registration.getId());
 
+        // Sector record: time since the previous checkpoint (or the launch).
+        long nowMs = System.currentTimeMillis();
+        long from = splitStart.getOrDefault(p.getUniqueId(), gameStartMs);
+        if (from > 0) api.games().recordSector(registration.getId(), "Elytra Endrium", cp.getIndex(),
+                p.getUniqueId(), p.getName(), nowMs - from);
+        splitStart.put(p.getUniqueId(), nowMs);
+
         Checkpoint finish = plugin.getCourseManager().getFinish();
         if (finish != null && cp.getIndex() == finish.getIndex()) {
             handleFinish(p, rs);
@@ -316,6 +325,9 @@ public final class ElytraEndriumGameManagerV2 extends BaseGameManager {
         finishOrder.add(p.getUniqueId());
 
         long elapsedMs = System.currentTimeMillis() - gameStartMs;
+        api.games().recordSector(registration.getId(), "Elytra Endrium", 0, p.getUniqueId(), p.getName(), elapsedMs);
+        api.games().recordHighlight(p.getUniqueId(), "racer", Math.max(1, runners.size() - placement + 1), registration.getId());
+        api.games().announceFinish(p.getUniqueId(), placement, runners.size(), registration.getId());
         int finishBonus = plugin.getConfig().getInt("points.finish-bonus", 200);
         api.points().givePoints(p.getUniqueId(), finishBonus, PointAward.Reason.OBJECTIVE, registration.getId());
 
