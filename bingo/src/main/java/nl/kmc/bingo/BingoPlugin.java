@@ -31,9 +31,10 @@ public final class BingoPlugin extends AbstractGamePlugin {
     @Override protected String      objective()   { return "Voltooi als eerste een volledige lijn (rij, kolom of diagonaal)."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+25 ptn — Vakje voltooid",
-            "+100 ptn — Lijn voltooid",
-            "+500 ptn — 1e plaats"
+            "+" + getConfig().getInt("points.per-square", 25) + " ptn — Vakje voltooid",
+            "+" + getConfig().getInt("points.per-line", 100) + " ptn — Lijn voltooid",
+            placementLine(),
+            teamPlacementLine()
         );
     }
 

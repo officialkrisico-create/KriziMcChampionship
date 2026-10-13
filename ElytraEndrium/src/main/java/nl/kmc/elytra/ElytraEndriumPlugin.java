@@ -34,7 +34,7 @@ public final class ElytraEndriumPlugin extends AbstractGamePlugin {
                 "+" + getConfig().getInt("points.default-checkpoint-points", 8)
                         + " ptn — Per checkpoint (sommige checkpoints zijn meer waard)",
                 "+" + getConfig().getInt("points.finish-bonus", 100) + " ptn — Finishbonus",
-                "+500 ptn — 1e plaats"
+                placementLine()
         );
     }
 

@@ -229,6 +229,18 @@ public class PointsManager {
     // Placement rewards (individual)
     // ----------------------------------------------------------------
 
+    /** Base team-placement bonus (before the multiplier) for a team that ends in {@code position}. */
+    public int getTeamPlacementBase(int position) {
+        String path = switch (position) {
+            case 1 -> "team-placement.first-place";
+            case 2 -> "team-placement.second-place";
+            case 3 -> "team-placement.third-place";
+            case 4 -> "team-placement.fourth-place";
+            default -> null;
+        };
+        return path != null ? pointsCfg.getInt(path, 0) : 0;
+    }
+
     public int  getPlacementFirst()          { return pointsCfg.getInt("placement.first-place", 500); }
     public int  getPlacementLast()           { return pointsCfg.getInt("placement.last-place", 10); }
     public int  getMaxTrackedPosition()      { return pointsCfg.getInt("placement.max-tracked-position", 32); }

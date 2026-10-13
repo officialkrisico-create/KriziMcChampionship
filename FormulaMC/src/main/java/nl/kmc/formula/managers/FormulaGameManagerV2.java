@@ -329,24 +329,46 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         }
         List<Racer> ranked = ranking();
 
-        // Placement points: finished players by time, the rest by progress (see ranking()).
+        // Points work like Ace Race: every racer earns his own placement points (they count for his team),
+        // a DNF earns the dnf amount, and the team gets a bonus for each member from its average finish.
+        var cfg = plugin.getConfig();
+        int first = cfg.getInt("points.placement.first", 320);
+        int step = cfg.getInt("points.placement.step", 10);
+        int floor = cfg.getInt("points.placement.min", 0);
+        int dnfPts = cfg.getInt("points.placement.dnf", 0);
         for (int i = 0; i < ranked.size(); i++) {
             Racer r = ranked.get(i);
-            api.points().awardPlayerPlacement(r.getUuid(), i + 1, ranked.size(), registration.getId());
+            int pts = r.isFinished() ? Math.max(floor, first - step * i) : dnfPts;
+            if (pts > 0) api.points().givePoints(r.getUuid(), pts, PointAward.Reason.PLACEMENT, registration.getId());
             api.games().recordGameParticipation(r.getUuid(), r.getName(), registration.getId(), i == 0);
-            int perLap = plugin.getConfig().getInt("points.per-lap", 0);
+            int perLap = cfg.getInt("points.per-lap", 0);
             if (perLap > 0 && r.getLapsCompleted() > 0) {
                 api.points().givePoints(r.getUuid(), perLap * r.getLapsCompleted(),
                         PointAward.Reason.OBJECTIVE, registration.getId());
             }
         }
-        // Team placement: the team of the best-placed racer ranks first, and so on.
-        List<String> teamOrder = new ArrayList<>();
-        for (Racer r : ranked) {
-            if (!"none".equals(r.getTeamId()) && !teamOrder.contains(r.getTeamId())) teamOrder.add(r.getTeamId());
+        // Team bonus: the average placement of a team's racers (a DNF counts as last + 1), paid to each member.
+        Map<String, List<Integer>> perTeam = new LinkedHashMap<>();
+        for (int i = 0; i < ranked.size(); i++) {
+            Racer r = ranked.get(i);
+            if ("none".equals(r.getTeamId())) continue;
+            perTeam.computeIfAbsent(r.getTeamId(), k -> new ArrayList<>())
+                    .add(r.isFinished() ? i + 1 : ranked.size() + 1);
         }
-        for (int i = 0; i < teamOrder.size(); i++) {
-            api.points().awardTeamPlacement(teamOrder.get(i), i + 1, registration.getId());
+        List<Map.Entry<String, Double>> avgs = new ArrayList<>();
+        for (var en : perTeam.entrySet())
+            avgs.add(Map.entry(en.getKey(), en.getValue().stream().mapToInt(Integer::intValue).average().orElse(999)));
+        avgs.sort(Map.Entry.comparingByValue());
+        for (int i = 0; i < avgs.size(); i++) {
+            int bonus = cfg.getInt("points.team-avg-placement." + (i + 1), 0);
+            if (bonus <= 0) continue;
+            String teamId = avgs.get(i).getKey();
+            var team = api.teams().getTeam(teamId);
+            if (team.isEmpty()) continue;
+            for (UUID member : team.get().getMembers())
+                api.points().givePoints(member, bonus, PointAward.Reason.TEAM_PLACEMENT, registration.getId());
+            tellKey("fmc.team-avg", team.get().getColor() + team.get().getDisplayName(), i + 1,
+                    String.format(Locale.ROOT, "%.1f", avgs.get(i).getValue()), bonus);
         }
 
         int fastestBonus = plugin.getConfig().getInt("points.fastest-lap-bonus", 25);
@@ -657,8 +679,39 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
 
     // ── Step assist: ramps of one block never stop a boat ─────────────────────
 
+    /**
+     * Boats cannot be made non-solid for each other with team rules (only pushing living entities is covered
+     * by those), so a boat that is close to another one is switched to no-physics for as long as they
+     * overlap: they drive through each other. Gravity is held while ghosting so nothing sinks into the floor.
+     */
+    private void ghostNearbyBoats() {
+        if (!plugin.getConfig().getBoolean("boat.ghost-collisions", true)) return;
+        List<Boat> boats = new ArrayList<>();
+        for (Racer r : racers.values()) {
+            Boat b = boatOf(r);
+            if (b != null) boats.add(b);
+        }
+        double close = plugin.getConfig().getDouble("boat.ghost-distance", 2.8);
+        for (Boat b : boats) {
+            boolean near = false;
+            Location l = b.getLocation();
+            for (Boat o : boats) {
+                if (o == b || o.getWorld() != b.getWorld()) continue;
+                Location ol = o.getLocation();
+                double dx = l.getX() - ol.getX(), dz = l.getZ() - ol.getZ();
+                if (dx * dx + dz * dz < close * close && Math.abs(l.getY() - ol.getY()) < 2.0) { near = true; break; }
+            }
+            if (near != b.hasNoPhysics()) b.setNoPhysics(near);
+            if (near) {
+                Vector v = b.getVelocity();
+                if (v.getY() < 0) { v.setY(0); b.setVelocity(v); }
+            }
+        }
+    }
+
     private void assistSteps() {
         if (!raceLive) return;
+        ghostNearbyBoats();
         boolean stepAssist = plugin.getConfig().getBoolean("boat.step-assist", true);
         long nowMs = System.currentTimeMillis();
         double drag = weatherDrag();
@@ -844,14 +897,19 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             l.add(api.tr(id, "fmc.sb.lap", Math.min(me.getLapsCompleted() + 1, circuit.getLaps()), circuit.getLaps()));
             l.add(api.tr(id, "fmc.sb.last", fmt(me.getLastLapMs())));
             l.add(api.tr(id, "fmc.sb.best", fmt(me.getBestLapMs())));
-            long t = raceLive ? (me.isFinished() ? me.getFinishMs() : System.currentTimeMillis() - raceStartMs) : 0;
+            long t = 0;
+            if (raceLive) {
+                if (me.isFinished()) t = me.getFinishMs();
+                else if (phase == Phase.QUALI) t = me.isQualiDone() ? me.getQualiMs() : System.currentTimeMillis() - me.getLapStartMs();
+                else t = System.currentTimeMillis() - raceStartMs;
+            }
             l.add(api.tr(id, "fmc.sb.time", fmt(t)));
             l.add(api.tr(id, "fmc.sb.weather", api.tr(id, "fmc.weather." + weather.toLowerCase(Locale.ROOT))));
             if (phase == Phase.QUALI) l.add(api.tr(id, "fmc.sb.quali"));
             var held = powerups.held(id);
             if (held != null) l.add(api.tr(id, "fmc.sb.item", api.tr(id, "fmc.pu." + held.name().toLowerCase(Locale.ROOT))));
         } else {
-            l.add(api.tr(id, "fmc.sb.time", fmt(raceLive ? System.currentTimeMillis() - raceStartMs : 0)));
+            l.add(api.tr(id, "fmc.sb.time", fmt(raceLive && phase == Phase.RACE ? System.currentTimeMillis() - raceStartMs : 0)));
         }
         return l;
     }

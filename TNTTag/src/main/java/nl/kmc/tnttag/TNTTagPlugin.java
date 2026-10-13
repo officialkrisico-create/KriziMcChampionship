@@ -31,8 +31,9 @@ public final class TNTTagPlugin extends AbstractGamePlugin {
     @Override protected String      objective()   { return "Overleef alle rondes zonder geëlimineerd te worden."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+20 ptn — Ronde overleven",
-            "+500 ptn — 1e plaats"
+            "+" + getConfig().getInt("points.round-survive", 60) + " ptn — Ronde overleven",
+            "+" + getConfig().getInt("points.per-tag", 10) + " ptn — de bom doorgeven (tag)",
+            placementLine()
         );
     }
 

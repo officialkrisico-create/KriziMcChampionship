@@ -151,6 +151,11 @@ public final class AchievementService implements AchievementApi, Listener {
             Set<String> ids = ConcurrentHashMap.newKeySet();
             list.forEach(a -> ids.add(a.achievementId));
             unlocked.put(uuid, ids);
+            // make the advancement tab visible and mark what this player already earned
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Player online = Bukkit.getPlayer(uuid);
+                if (online != null) toasts.syncPlayer(online, ids);
+            });
         });
         storage.achievements().findAllProgress(uuid).thenAccept(list -> {
             Map<String, Integer> map = new ConcurrentHashMap<>();

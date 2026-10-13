@@ -13,11 +13,18 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
+/**
+ * Crafting Countdown: a Build-Mart-style collecting game (no crafting, no building). Setup:
+ * {@code /craftcountdown station add} (look at the delivery block of a team), {@code pile add <type>} (look
+ * at the block that is the pile) — the types and their items are in config.yml ({@code pile-types}).
+ */
 public final class CraftingCountdownPlugin extends AbstractGamePlugin {
 
     public static final String GAME_ID = "crafting_countdown";
@@ -29,11 +36,19 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
     @Override protected String displayName() { return "Crafting Countdown"; }
     @Override protected Material icon() { return Material.CRAFTING_TABLE; }
     @Override protected int minPlayers() { return 1; }
-    @Override protected String description() { return "Craft het doel-item en lever het in voor de tijd om is."; }
-    @Override protected String objective() { return "Voltooi de meeste opdrachten als team."; }
-    @Override protected List<String> scoringLines() {
-        return List.of("+10 / +25 / +45 ptn — makkelijke / gemiddelde / moeilijke opdracht",
-                "+10 ptn — eerste inlevering", "+30 ptn — alle opdrachten voltooid");
+    @Override protected String description() {
+        return "Verzamel de bestelde items bij de grondstofstapels en lever ze in bij je eigen inleverpunt.";
+    }
+    @Override protected String objective() { return "Voltooi de meeste bestellingen als team."; }
+
+    @Override
+    protected List<String> scoringLines() {
+        var c = getConfig();
+        return List.of(
+                "+" + c.getInt("points.base-per-order", 10) + " ptn + de waarde van de items — per voltooide bestelling",
+                "+" + c.getInt("points.speed-bonus", 25) + " ptn — snelheidsbonus voor een snelle bestelling",
+                "+" + c.getInt("points.streak-per-step", 5) + " ptn per bestelling in een reeks (max +" + c.getInt("points.streak-cap", 25) + ")",
+                "Punten zijn van de spelers die de items hebben ingeleverd");
     }
 
     @Override
@@ -45,6 +60,13 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
 
     @Override
     protected void onGameEnable() {
+        // A config.yml from the old crafting version lacks the pile/order sections: add the new defaults
+        // once, next to whatever arena data is already there.
+        if (!getConfig().contains("pile-types", true) || !getConfig().contains("item-pool", true)) {
+            getConfig().options().copyDefaults(true);
+            saveConfig();
+            getLogger().info("[CraftingCountdown] New default pile types and order pool added to config.yml.");
+        }
         var cmd = new CraftCommand();
         var c = getCommand("craftcountdown");
         if (c != null) { c.setExecutor(cmd); c.setTabCompleter(cmd); }
@@ -53,14 +75,9 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
     @Override protected void onGameDisable() { if (manager != null && manager.isRunning()) manager.end(); }
     @Override protected void onV1GameStart(String gameId) { }
 
-    List<String> problems() {
-        List<String> p = new ArrayList<>();
-        if (arena.world() == null) p.add("geen arena-wereld");
-        int a = arena.locs("areas").size(), d = arena.locs("deliveries").size(), s = arena.locs("supplies").size();
-        if (a == 0) p.add("geen werkgebieden");
-        if (a != d || a != s) p.add("centers/inleverblokken/kisten aantallen kloppen niet");
-        if (Recipe.parse(getConfig().getList("recipes"), new ArrayList<>()).isEmpty()) p.add("geen geldige recepten");
-        return p;
+    private List<String> pileTypeIds() {
+        ConfigurationSection s = getConfig().getConfigurationSection("pile-types");
+        return s == null ? List.of() : new ArrayList<>(s.getKeys(false));
     }
 
     private final class CraftCommand extends ArcadeCommand {
@@ -69,43 +86,106 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
                     () -> (ArcadeGameManager) CraftingCountdownPlugin.this.manager, "craftcountdown.admin", "Crafting Countdown");
         }
 
-        @Override protected List<String> problems() { return CraftingCountdownPlugin.this.problems(); }
-        @Override protected List<String> extraSubs() { return List.of("area", "reload"); }
+        @Override
+        protected List<String> problems() {
+            return manager != null ? manager.getArenaIssues() : List.of("game niet beschikbaar");
+        }
+
+        @Override protected List<String> extraSubs() { return List.of("station", "pile", "reload"); }
 
         @Override
         protected List<String> extraTab(String sub, String[] a) {
-            return sub.equals("area") && a.length == 2 ? List.of("center", "delivery", "supply", "clear", "list") : List.of();
+            if (sub.equals("station") && a.length == 2) return List.of("add", "clear", "list");
+            if (sub.equals("pile") && a.length == 2) return List.of("add", "remove", "clear", "list", "types");
+            if (sub.equals("pile") && a.length == 3 && (a[1].equalsIgnoreCase("add") || a[1].equalsIgnoreCase("clear")))
+                return pileTypeIds();
+            return List.of();
         }
 
         @Override
         protected boolean extra(CommandSender s, String sub, String[] a, String label) {
             if (sub.equals("reload")) { reloadConfig(); ok(s, "Config herladen."); return true; }
-            if (!sub.equals("area")) return false;
-            if (!(s instanceof Player p)) { err(s, "Alleen spelers."); return true; }
-            String act = a.length > 1 ? a[1].toLowerCase() : "list";
+            if (sub.equals("station")) { station(s, a); return true; }
+            if (sub.equals("pile")) { pile(s, a); return true; }
+            return false;
+        }
+
+        private Block looking(Player p) {
+            Block b = p.getTargetBlockExact(6);
+            if (b == null) p.sendMessage("§c[Crafting Countdown] Kijk naar een blok (binnen 6 blokken).");
+            return b;
+        }
+
+        private void station(CommandSender s, String[] a) {
+            String act = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "list";
             switch (act) {
-                case "center" -> ok(s, "Center #" + arena.addLoc("areas", p.getLocation()) + " toegevoegd.");
-                case "delivery", "supply" -> {
-                    Block b = p.getTargetBlockExact(6);
-                    if (b == null) { err(s, "Kijk naar het blok (binnen 6 blokken)."); return true; }
-                    if (act.equals("supply") && !(b.getState() instanceof org.bukkit.block.Container)) {
-                        err(s, "Dat blok is geen kist/vat.");
-                        return true;
+                case "add" -> {
+                    if (!(s instanceof Player p)) { err(s, "Alleen spelers."); return; }
+                    Block b = looking(p);
+                    if (b == null) return;
+                    int n = arena.addLoc("stations", b.getLocation().add(0.5, 0, 0.5));
+                    ok(s, "Inleverpunt #" + n + " gezet op het blok waar je naar kijkt (team " + n
+                            + " in alfabetische volgorde van team-id).");
+                }
+                case "clear" -> { arena.clearLocs("stations"); ok(s, "Inleverpunten gewist."); }
+                default -> {
+                    int i = 1;
+                    for (Location l : arena.locs("stations"))
+                        s.sendMessage("§7#" + (i++) + " §f" + l.getBlockX() + ", " + l.getBlockY() + ", " + l.getBlockZ());
+                    if (i == 1) s.sendMessage("§7Geen inleverpunten.");
+                }
+            }
+        }
+
+        private void pile(CommandSender s, String[] a) {
+            String act = a.length > 1 ? a[1].toLowerCase(Locale.ROOT) : "list";
+            switch (act) {
+                case "types" -> s.sendMessage("§7Stapel-types: §f" + String.join("§7, §f", pileTypeIds()));
+                case "add" -> {
+                    if (!(s instanceof Player p)) { err(s, "Alleen spelers."); return; }
+                    String type = a.length > 2 ? a[2].toLowerCase(Locale.ROOT) : "";
+                    if (!pileTypeIds().contains(type)) {
+                        err(s, "Onbekend type '" + type + "'. Kies uit: " + String.join(", ", pileTypeIds()));
+                        return;
                     }
-                    Location l = b.getLocation().add(0.5, 0, 0.5);
-                    int n = arena.addLoc(act.equals("delivery") ? "deliveries" : "supplies", l);
-                    ok(s, (act.equals("delivery") ? "Inlevermoment #" : "Kist #") + n + " toegevoegd.");
+                    Block b = looking(p);
+                    if (b == null) return;
+                    int n = arena.addLoc("piles." + type, b.getLocation().add(0.5, 0, 0.5));
+                    ok(s, "Stapel '" + type + "' #" + n + " gezet op het blok waar je naar kijkt.");
+                }
+                case "remove" -> {
+                    if (!(s instanceof Player p)) { err(s, "Alleen spelers."); return; }
+                    Block b = looking(p);
+                    if (b == null) return;
+                    boolean removed = false;
+                    for (String type : pileTypeIds()) {
+                        List<Location> all = arena.locs("piles." + type);
+                        List<Location> keep = new ArrayList<>();
+                        for (Location l : all) {
+                            if (l.getBlockX() == b.getX() && l.getBlockY() == b.getY() && l.getBlockZ() == b.getZ()) removed = true;
+                            else keep.add(l);
+                        }
+                        if (keep.size() != all.size()) {
+                            arena.clearLocs("piles." + type);
+                            for (Location l : keep) arena.addLoc("piles." + type, l);
+                        }
+                    }
+                    if (removed) ok(s, "Stapel verwijderd."); else err(s, "Daar staat geen stapel.");
                 }
                 case "clear" -> {
-                    arena.clearLocs("areas");
-                    arena.clearLocs("deliveries");
-                    arena.clearLocs("supplies");
-                    ok(s, "Werkgebieden gewist.");
+                    if (a.length > 2) { arena.clearLocs("piles." + a[2].toLowerCase(Locale.ROOT)); ok(s, "Stapels van '" + a[2] + "' gewist."); }
+                    else { arena.remove("piles"); ok(s, "Alle stapels gewist."); }
                 }
-                default -> s.sendMessage("§7Centers: §f" + arena.locs("areas").size() + " §7| inlevermomenten: §f"
-                        + arena.locs("deliveries").size() + " §7| kisten: §f" + arena.locs("supplies").size());
+                default -> {
+                    int total = 0;
+                    for (String type : pileTypeIds()) {
+                        int n = arena.locs("piles." + type).size();
+                        total += n;
+                        if (n > 0) s.sendMessage("§7" + type + ": §f" + n);
+                    }
+                    s.sendMessage("§7Totaal: §f" + total + " §7stapels.");
+                }
             }
-            return true;
         }
     }
 
@@ -113,31 +193,47 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
 
     @Override protected boolean supportsTestArena() { return true; }
 
-    /** Eight work areas on a ring: crafting table, supply chest and a delivery barrel each. */
+    /**
+     * A round plaza: eight delivery barrels on the rim (one per team) and six kinds of piles, two each, in
+     * an inner ring — each pile is a block of its kind so the arena is readable without holograms.
+     */
     @Override
     protected Location buildTestArena(Player admin, Location origin) {
         World w = origin.getWorld();
         Location a = TestArenaKit.anchor(origin);
         int cx = a.getBlockX(), cz = a.getBlockZ(), y = a.getBlockY();
-        TestArenaKit.fill(w, cx - 30, y - 1, cz - 30, cx + 30, y + 6, cz + 30, Material.AIR);
-        TestArenaKit.platform(w, cx, y, cz, 28, 28, Material.SMOOTH_STONE);
+        TestArenaKit.fill(w, cx - 32, y - 1, cz - 32, cx + 32, y + 8, cz + 32, Material.AIR);
+        TestArenaKit.platform(w, cx, y, cz, 30, 30, Material.SMOOTH_STONE);
 
         arena.setWorld(w);
-        arena.clearLocs("areas");
-        arena.clearLocs("deliveries");
-        arena.clearLocs("supplies");
-        int count = 8;
-        for (int i = 0; i < count; i++) {
-            double ang = Math.PI * 2 * i / count;
-            int ax = cx + (int) Math.round(Math.cos(ang) * 20), az = cz + (int) Math.round(Math.sin(ang) * 20);
-            TestArenaKit.platform(w, ax, y, az, 3, 3, i % 2 == 0 ? Material.WHITE_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
-            w.getBlockAt(ax + 2, y + 1, az).setType(Material.CRAFTING_TABLE, false);
-            w.getBlockAt(ax - 2, y + 1, az).setType(Material.CHEST, false);
-            w.getBlockAt(ax, y + 1, az + 3).setType(Material.BARREL, false);
-            arena.addLoc("areas", TestArenaKit.stand(w, ax, y + 1, az, 0f));
-            arena.addLoc("supplies", new Location(w, ax - 2 + 0.5, y + 1, az + 0.5));
-            arena.addLoc("deliveries", new Location(w, ax + 0.5, y + 1, az + 3 + 0.5));
+        arena.clearLocs("stations");
+        arena.clearLocs("spawns");
+        arena.remove("piles");
+
+        int teams = 8;
+        for (int i = 0; i < teams; i++) {
+            double ang = Math.PI * 2 * i / teams;
+            int sx = cx + (int) Math.round(Math.cos(ang) * 24), sz = cz + (int) Math.round(Math.sin(ang) * 24);
+            TestArenaKit.platform(w, sx, y, sz, 2, 2, i % 2 == 0 ? Material.WHITE_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
+            w.getBlockAt(sx, y + 1, sz).setType(Material.BARREL, false);
+            arena.addLoc("stations", new Location(w, sx + 0.5, y + 1, sz + 0.5));
+            // a spot next to the barrel, facing the middle
+            double yaw = Math.toDegrees(Math.atan2(-(cx - sx), cz - sz));
+            arena.addLoc("spawns", TestArenaKit.stand(w, sx + (cx - sx) / 12.0 + 0.5, y + 1, sz + (cz - sz) / 12.0 + 0.5, (float) yaw));
         }
-        return arena.locs("areas").get(0);
+
+        String[] types = {"wood", "stone", "farm", "mobs", "nether", "rare"};
+        Material[] blocks = {Material.OAK_LOG, Material.COBBLESTONE, Material.HAY_BLOCK, Material.BONE_BLOCK,
+                Material.NETHERRACK, Material.DIAMOND_BLOCK};
+        int piles = types.length * 2;
+        for (int i = 0; i < piles; i++) {
+            double ang = Math.PI * 2 * i / piles + 0.2;
+            int px = cx + (int) Math.round(Math.cos(ang) * 11), pz = cz + (int) Math.round(Math.sin(ang) * 11);
+            int t = i % types.length;
+            TestArenaKit.platform(w, px, y, pz, 1, 1, Material.POLISHED_ANDESITE);
+            w.getBlockAt(px, y + 1, pz).setType(blocks[t], false);
+            arena.addLoc("piles." + types[t], new Location(w, px + 0.5, y + 1, pz + 0.5));
+        }
+        return arena.locs("spawns").get(0);
     }
 }

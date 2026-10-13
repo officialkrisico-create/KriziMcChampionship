@@ -1,9 +1,9 @@
 # ================================================================
-# Crown Control — one crown, eight teams
+# Crown Control — several crowns, carried and stolen
 # ================================================================
 # Setup:
 #   /crown world
-#   /crown pos1 + pos2, then /crown zone        the capture zone around the crown (give it some height)
+#   /crown pos1 + pos2, then /crown zone        the area where the crowns lie (give it some height)
 #   /crown spawn add                            spawns; team N respawns on spawn N (alphabetical team id)
 #   /crown pos1 + pos2, then /crown lockdown add <id>   (optional) areas that Lockdown closes for the others
 #   /crown validate | start [dry] | stop
@@ -24,27 +24,28 @@ start-sequence:
 
 game:
   duration-seconds: 180
-  capture-seconds: 5
-  decay-per-second: 1.0
-  # After a capture the crown cannot be contested for this long.
-  lock-seconds: 20
-  # The crown becomes neutral again this long after the capture (0 = never).
-  neutral-after-seconds: 0
+  # Every carrier is paid this often.
   score-interval-seconds: 10
 
+# Several crowns lie in the zone. Pick one up by walking over it; an enemy takes it by hitting the carrier
+# hits-to-steal times or by knocking him out.
+crowns:
+  count: 3
+  pickup-radius: 1.8
+  hits-to-steal: 3
+  drop-delay-ticks: 30
+
 points:
-  capture: 25
-  hold: 10
-  takeover: 15
-  end-bonus: 50
+  hold: 10            # per carrier, per score interval
+  steal: 15           # for taking a crown from a carrier
+  end-bonus: 50       # split over the carriers of the team that wears the most crowns at the end
   team-placement: true
 
 # Team energy (game data, NOT coins): spent on abilities by the team that holds the crown.
 energy:
   capacity: 100
-  per-capture: 20
   per-hold: 10
-  per-takeover: 10
+  per-steal: 10
 
 abilities:
   double-down: { cost: 20, seconds: 15, multiplier: 2.0, cooldown: 20 }

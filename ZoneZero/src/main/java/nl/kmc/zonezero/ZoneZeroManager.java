@@ -212,9 +212,10 @@ public final class ZoneZeroManager extends ArcadeGameManager {
         var cfg = gamePlugin.getConfig();
         int n = ++z.changes;
         int cap = (int) Math.round(cfg.getInt("points.capture", 20) * z.multiplier);
-        awardTeam("cap:" + z.id + ":" + n, c.owner(), cap, PointAward.Reason.OBJECTIVE, "capture");
+        // the players who stood in the zone get the points themselves (the team gets them through them)
+        awardShared("cap:" + z.id + ":" + n, c.owner(), present, cap, PointAward.Reason.OBJECTIVE, "capture");
         if (c.previous() != null) {
-            awardTeam("take:" + z.id + ":" + n, c.owner(), cfg.getInt("points.takeover", 10),
+            awardShared("take:" + z.id + ":" + n, c.owner(), present, cfg.getInt("points.takeover", 10),
                     PointAward.Reason.BONUS, "takeover");
         }
         // personal contribution: everybody standing in the zone when it flipped
@@ -235,19 +236,31 @@ public final class ZoneZeroManager extends ArcadeGameManager {
             String owner = z.meter.owner();
             if (owner == null || z.meter.status() == CaptureStatus.CONTESTED) continue;
             int pts = (int) Math.round(cfg.getInt("points.hold", 10) * z.multiplier);
-            if (awardTeam("hold:" + z.id + ":" + ticks, owner, pts, PointAward.Reason.OBJECTIVE, "hold")) {
+            List<UUID> inside = new ArrayList<>();
+            for (UUID pid : membersOf(owner)) {
+                Player p = Bukkit.getPlayer(pid);
+                if (p != null && isActive(pid) && z.region.contains(p.getLocation().getX(), p.getLocation().getY(),
+                        p.getLocation().getZ())) inside.add(pid);
+            }
+            if (awardShared("hold:" + z.id + ":" + ticks, owner, inside, pts, PointAward.Reason.OBJECTIVE, "hold")) {
                 held.merge(owner, 1, Integer::sum);
-                for (UUID pid : membersOf(owner)) {
-                    Player p = Bukkit.getPlayer(pid);
-                    if (p != null && isActive(pid) && z.region.contains(p.getLocation().getX(), p.getLocation().getY(),
-                            p.getLocation().getZ())) contribution.merge(pid, 1, Integer::sum);
-                }
+                for (UUID pid : inside) contribution.merge(pid, 1, Integer::sum);
             }
         }
         // all open zones at once (and every one of them paid this interval)
         for (var en : held.entrySet()) {
             if (en.getValue() == openIds.size() && openIds.size() > 0) {
-                awardTeam("all:" + ticks + ":" + en.getKey(), en.getKey(), cfg.getInt("points.all-active", 30),
+                List<UUID> inAny = new ArrayList<>();
+                for (UUID pid : membersOf(en.getKey())) {
+                    Player p = Bukkit.getPlayer(pid);
+                    if (p == null || !isActive(pid)) continue;
+                    for (String zid : openIds) {
+                        Zone oz = zones.get(zid);
+                        if (oz != null && oz.region.contains(p.getLocation().getX(), p.getLocation().getY(),
+                                p.getLocation().getZ())) { inAny.add(pid); break; }
+                    }
+                }
+                awardShared("all:" + ticks + ":" + en.getKey(), en.getKey(), inAny, cfg.getInt("points.all-active", 30),
                         PointAward.Reason.BONUS, "all-active");
                 for (Player p : Bukkit.getOnlinePlayers())
                     if (isParticipant(p.getUniqueId()))
@@ -308,7 +321,7 @@ public final class ZoneZeroManager extends ArcadeGameManager {
             l.add("§f" + z.name + " " + state);
         }
         l.add("");
-        l.add(api.tr(id, "zonezero.sb.team", book.team(team)));
+        l.add(api.tr(id, "zonezero.sb.team", shownTeamPoints(team)));
         l.add(api.tr(id, "zonezero.sb.you", contribution.getOrDefault(id, 0)));
         return l;
     }
@@ -331,7 +344,7 @@ public final class ZoneZeroManager extends ArcadeGameManager {
             v.sendMessage(api.tr(vid, "zonezero.results"));
             int i = 1;
             for (String t : ranked) {
-                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + book.team(t) + " ptn §8(§7capture "
+                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + shownTeamPoints(t) + " ptn §8(§7capture "
                         + book.categoryTotal(t, "capture") + ", hold " + book.categoryTotal(t, "hold") + "§8)");
             }
         }

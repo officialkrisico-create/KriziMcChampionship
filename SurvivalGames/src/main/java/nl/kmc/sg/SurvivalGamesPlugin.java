@@ -33,9 +33,9 @@ public final class SurvivalGamesPlugin extends AbstractGamePlugin {
     @Override protected String  objective()   { return "Elimineer alle andere spelers om te winnen."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "+75 ptn — Kill",
-                "+5 ptn — Overlevingsbonus (per dode)",
-                "+500 ptn — 1e plaats"
+                "+" + getConfig().getInt("points.per-kill", 35) + " ptn — Kill",
+                "+" + getConfig().getInt("points.living-while-someone-dies", 5) + " ptn — voor elke speler die sneuvelt terwijl jij leeft",
+                placementLine()
         );
     }
 

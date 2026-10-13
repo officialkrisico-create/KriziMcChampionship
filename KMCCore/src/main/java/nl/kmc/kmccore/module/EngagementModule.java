@@ -41,6 +41,11 @@ public class EngagementModule implements PluginModule {
         if (!useV2) {
             achievementManager = new AchievementManager(plugin);
             plugin.getLogger().info("[KMCCore] Achievement system: V1 (legacy).");
+            // The advancement tab (L) works for V1 as well; registered a tick later, when the server is ready.
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                try { achievementManager.enableAdvancements(); }
+                catch (Throwable t) { plugin.getLogger().warning("[KMCCore] Advancement tab unavailable: " + t); }
+            });
         } else {
             plugin.getLogger().info("[KMCCore] Achievement system: V2 — V1 AchievementManager skipped.");
         }

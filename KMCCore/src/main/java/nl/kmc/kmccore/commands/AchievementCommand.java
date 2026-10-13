@@ -34,11 +34,12 @@ public final class AchievementCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!sender.hasPermission(PERM)) {
-            sender.sendMessage("§cNo permission.");
+        // Players: the achievements live in the advancement screen now (this command only points there).
+        if (args.length == 0 || !sender.hasPermission(PERM)) {
+            if (sender instanceof Player p) showAdvancementHint(p);
+            if (sender.hasPermission(PERM) && args.length == 0) sendHelp(sender);
             return true;
         }
-        if (args.length == 0) { sendHelp(sender); return true; }
 
         AchievementApi api = api();
         if (api == null) {
@@ -191,6 +192,24 @@ public final class AchievementCommand implements CommandExecutor, TabCompleter {
         if (sender instanceof Player p) return p;
         sender.sendMessage("§cSpecify a player name.");
         return null;
+    }
+
+    /** One short message: where the achievements are now, and how many the player has. */
+    private void showAdvancementHint(Player p) {
+        int done = 0, total = 0;
+        try {
+            var core = nl.kmc.kmccore.KMCCore.getInstance();
+            if (core.getAchievementServiceV2() != null) {
+                done = core.getAchievementServiceV2().getUnlocked(p.getUniqueId()).size();
+                total = core.getAchievementServiceV2().getAll().size();
+            } else if (core.getAchievementManager() != null) {
+                done = core.getAchievementManager().unlockedCount(p.getUniqueId());
+                total = nl.kmc.kmccore.achievements.AchievementRegistry.count();
+            }
+        } catch (Throwable ignored) { }
+        p.sendMessage("§6§l🏆 Jouw achievements");
+        p.sendMessage("§7Open je advancement-scherm met §e§lL§7 en kies het tabblad §6KMC Achievements§7.");
+        if (total > 0) p.sendMessage("§7Behaald: §e" + done + "§7/§e" + total);
     }
 
     private AchievementApi api() {

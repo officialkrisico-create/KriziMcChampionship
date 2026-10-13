@@ -80,9 +80,9 @@ public final class TeamProfileGui extends Gui {
         }
 
         // Other teams strip
-        int s = 28;
+        int s = 27;                                   // the whole row: up to 9 teams (8 used to lose one)
         for (KMCTeam other : ranking) {
-            if (s > 34) break;
+            if (s > 35) break;
             ItemStack icon = plugin.getTeamEmblems().banner(other);
             ItemMeta im = icon.getItemMeta();
             im.setLore(List.of("§7" + other.getPoints() + " " + lm.tr(viewer, "teaminfo.pts"),

@@ -35,9 +35,10 @@ public final class SkyWarsPlugin extends AbstractGamePlugin {
     @Override protected String  objective()   { return "Elimineer alle andere teams van hun eilanden."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+50 ptn — Kill",
-            "+500 ptn — 1e plaats",
-            "+5 ptn — Overlevingsbonus (per vijand dood)"
+            "+" + getConfig().getInt("points.per-kill", 25) + " ptn — Kill",
+            "+" + getConfig().getInt("points.living-while-someone-dies", 5) + " ptn — voor elke speler die sneuvelt terwijl jij leeft",
+            placementLine(),
+            teamPlacementLine()
         );
     }
 

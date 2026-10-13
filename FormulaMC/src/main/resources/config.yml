@@ -83,6 +83,18 @@ powerups:
   hit-seconds: 3.0
 
 points:
+  # Placement points per finishing position (like Ace Race): first, minus step per place, never below min.
+  # Racers that did not finish get dnf. Each racer's points count for his team.
+  placement:
+    first: 320
+    step: 10
+    min: 0
+    dnf: 0
+  # Extra for every member of a team, from the average finishing position of its racers.
+  team-avg-placement:
+    1: 20
+    2: 15
+    3: 10
   # Awarded to whoever sets the fastest lap of the race.
   fastest-lap-bonus: 25
   # Pole position (fastest qualifying lap).

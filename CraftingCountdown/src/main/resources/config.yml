@@ -1,11 +1,17 @@
 # ================================================================
-# Crafting Countdown — craft it and deliver it
+# Crafting Countdown — collect the ordered items and deliver them
 # ================================================================
-# One work area per team. Per area, in the same order for all three lists:
-#   /craftcountdown area center      where the team stands (a crafting table next to it)
-#   /craftcountdown area delivery    the block you LOOK at: right-click it to deliver items
-#   /craftcountdown area supply      the chest you LOOK at: it is filled with the raw materials each round
-# Then:  /craftcountdown world | validate | start [dry] | stop | reload
+# Build Mart style, but without any building or crafting: every team gets orders (items + quantities),
+# collects the items from resource piles all over the arena and hands them in at its own delivery station.
+#
+# Setup (look at the block with your crosshair):
+#   /craftcountdown world
+#   /craftcountdown station add          the delivery block of a team (one per team, in team-id order)
+#   /craftcountdown pile add <type>      a resource pile: right-click it to pick items (types: pile-types below)
+#   /craftcountdown spawn add            optional start positions (default: next to the delivery stations)
+#   /craftcountdown validate | start [dry] | stop | status | reload
+#   /craftcountdown pile list | pile remove | pile clear [type] | pile types | station list | station clear
+# Quick test arena:  /kmctest crafting_countdown
 # ================================================================
 
 start-flow:
@@ -15,48 +21,105 @@ start-flow:
   countdown: true
 start-sequence:
   intro-seconds: 3
-  intro-subtitle: "Craft het doel-item en lever het in"
+  intro-subtitle: "Verzamel de bestelde items en lever ze in"
   flyover-radius: 30
-  tutorial-seconds: 6
+  tutorial-seconds: 7
   countdown-seconds: 5
 
 game:
-  rounds: 5
-  round-seconds: 45
-  rest-seconds: 10
-  # Difficulty per round (cycles when there are more rounds).
-  difficulty-order: [EASY, EASY, MEDIUM, MEDIUM, HARD]
-  # When the recipe pool of a difficulty is used up: allow repeats instead of mixing in other difficulties.
-  allow-repeat: false
-  # Per round: NONE or DOUBLE_RECIPE (two recipes, in order). Cycles.
-  modifiers: [NONE, NONE, NONE, DOUBLE_RECIPE, NONE]
+  duration-seconds: 240
+  # The last N seconds are announced and counted down.
+  final-countdown-seconds: 30
+
+# What a pile gives and how it refills (a pile type can override per-take, stock and restock-amount).
+piles:
+  per-take: 8              # items per pick
+  cooldown-seconds: 2.0    # per player and pile, between two picks (0 = none)
+  stock: 64                # stock per item in a pile
+  restock-seconds: 15      # every N seconds ...
+  restock-amount: 16       # ... every item in every pile gets this much back (up to the stock)
+  max-carry: 128           # most items a player may carry in total
+
+# The kinds of piles. Which items they hold is up to you; an item can only be ordered when at least one
+# placed pile holds it, so an order is never impossible.
+pile-types:
+  wood:
+    name: "Houthakkers"
+    icon: OAK_LOG
+    items: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG]
+  stone:
+    name: "Steengroeve"
+    icon: COBBLESTONE
+    items: [COBBLESTONE, STONE, ANDESITE]
+  farm:
+    name: "Boerderij"
+    icon: WHEAT
+    items: [WHEAT, CARROT, POTATO, BEETROOT]
+  mobs:
+    name: "Mob-buit"
+    icon: BONE
+    items: [BONE, STRING, FEATHER, LEATHER]
+  nether:
+    name: "Nether"
+    icon: BLAZE_ROD
+    items: [QUARTZ, BLAZE_ROD, NETHER_WART]
+    per-take: 4
+    stock: 32
+  rare:
+    name: "Schatkamer"
+    icon: DIAMOND
+    items: [DIAMOND, EMERALD, GOLD_INGOT, LAPIS_LAZULI]
+    per-take: 2
+    stock: 16
+    restock-amount: 4
+
+orders:
+  # Open orders per team at the same time. More than 1 lets a team work on several at once.
+  active-per-team: 1
+  # Never more than this of one item in one order.
+  max-quantity-per-line: 48
+  # Orders get harder with the number of orders the team has delivered:
+  # lines = different items per order, max-tier = the rarest tier that may appear, scale = quantity factor.
+  difficulty:
+    - { from-order: 0, lines: 2, max-tier: 1, scale: 1.0 }
+    - { from-order: 3, lines: 3, max-tier: 2, scale: 1.0 }
+    - { from-order: 6, lines: 3, max-tier: 3, scale: 1.25 }
+    - { from-order: 9, lines: 4, max-tier: 3, scale: 1.5 }
+
+# Everything that can be ordered. tier: 1 common, 2 uncommon, 3 rare; min/max = quantity before the scale;
+# value = points per item (for the part of the reward that depends on the items).
+item-pool:
+  - { item: OAK_LOG,      tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: BIRCH_LOG,    tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: SPRUCE_LOG,   tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: COBBLESTONE,  tier: 1, min: 12, max: 24, value: 0.5 }
+  - { item: STONE,        tier: 1, min: 8,  max: 16, value: 0.6 }
+  - { item: ANDESITE,     tier: 1, min: 8,  max: 16, value: 0.6 }
+  - { item: WHEAT,        tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: CARROT,       tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: POTATO,       tier: 1, min: 8,  max: 16, value: 0.8 }
+  - { item: BEETROOT,     tier: 1, min: 6,  max: 12, value: 1.0 }
+  - { item: BONE,         tier: 2, min: 6,  max: 12, value: 1.2 }
+  - { item: STRING,       tier: 2, min: 6,  max: 12, value: 1.2 }
+  - { item: FEATHER,      tier: 2, min: 6,  max: 12, value: 1.2 }
+  - { item: LEATHER,      tier: 2, min: 4,  max: 8,  value: 1.5 }
+  - { item: QUARTZ,       tier: 2, min: 4,  max: 8,  value: 1.8 }
+  - { item: NETHER_WART,  tier: 2, min: 4,  max: 8,  value: 1.8 }
+  - { item: BLAZE_ROD,    tier: 3, min: 2,  max: 4,  value: 4.0 }
+  - { item: DIAMOND,      tier: 3, min: 2,  max: 4,  value: 6.0 }
+  - { item: EMERALD,      tier: 3, min: 2,  max: 4,  value: 5.0 }
+  - { item: GOLD_INGOT,   tier: 3, min: 3,  max: 6,  value: 3.0 }
+  - { item: LAPIS_LAZULI, tier: 3, min: 4,  max: 8,  value: 2.5 }
 
 points:
-  easy: 10
-  medium: 25
-  hard: 45
-  first-delivery: 10
-  all-complete: 30
-  team-placement: true
-
-# Recipes. resources = what the supply chest gets (raw materials), item/amount = what has to be delivered.
-recipes:
-  - { id: torches, item: TORCH, amount: 8, difficulty: EASY, resources: { COAL: 2, OAK_PLANKS: 1 } }
-  - { id: bread, item: BREAD, amount: 4, difficulty: EASY, resources: { WHEAT: 12 } }
-  - { id: sticks, item: STICK, amount: 16, difficulty: EASY, resources: { OAK_PLANKS: 8 } }
-  - { id: crafting_table, item: CRAFTING_TABLE, amount: 1, difficulty: EASY, resources: { OAK_PLANKS: 4 } }
-  - { id: chest, item: CHEST, amount: 1, difficulty: EASY, resources: { OAK_PLANKS: 8 } }
-  - { id: bucket, item: BUCKET, amount: 1, difficulty: EASY, resources: { IRON_INGOT: 3 } }
-  - { id: shield, item: SHIELD, amount: 1, difficulty: MEDIUM, resources: { OAK_PLANKS: 6, IRON_INGOT: 1 } }
-  - { id: dispenser, item: DISPENSER, amount: 1, difficulty: MEDIUM, resources: { COBBLESTONE: 7, STICK: 3, STRING: 3, REDSTONE: 1 } }
-  - { id: hopper, item: HOPPER, amount: 1, difficulty: MEDIUM, resources: { IRON_INGOT: 5, OAK_PLANKS: 8 } }
-  - { id: piston, item: PISTON, amount: 1, difficulty: MEDIUM, resources: { OAK_PLANKS: 3, COBBLESTONE: 4, IRON_INGOT: 1, REDSTONE: 1 } }
-  - { id: observer, item: OBSERVER, amount: 1, difficulty: HARD, resources: { COBBLESTONE: 6, REDSTONE: 2, QUARTZ: 1 } }
-  - { id: golden_apple, item: GOLDEN_APPLE, amount: 1, difficulty: HARD, resources: { GOLD_INGOT: 8, APPLE: 1 } }
-  - { id: fireworks, item: FIREWORK_ROCKET, amount: 3, difficulty: HARD, resources: { PAPER: 1, GUNPOWDER: 1 } }
-  - { id: enchanting_table, item: ENCHANTING_TABLE, amount: 1, difficulty: HARD, resources: { PAPER: 3, LEATHER: 1, DIAMOND: 2, OBSIDIAN: 4 } }
-  - { id: comparator, item: COMPARATOR, amount: 1, difficulty: HARD, resources: { REDSTONE: 3, STICK: 3, QUARTZ: 1, STONE: 3 } }
-  - { id: brewing_stand, item: BREWING_STAND, amount: 1, difficulty: HARD, resources: { BLAZE_ROD: 1, COBBLESTONE: 3 } }
+  base-per-order: 10         # for every completed order
+  per-value: 1.0             # multiplies quantity x item value
+  speed-bonus: 25            # at most, for an order done within the par time (fades to 0 at twice par)
+  par-seconds-per-item: 3.0  # par time = items in the order x this
+  streak-per-step: 5         # for each order in a row after the first ...
+  streak-cap: 25             # ... up to this
+  streak-window-seconds: 90  # an order must follow the previous one within this to continue the streak
+  team-placement: true       # the usual KMC team placement bonus at the end
 
 arena:
   world: ""

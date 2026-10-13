@@ -45,6 +45,10 @@ public class PlayerJoinQuitListener implements Listener {
         // Pre-load V2 achievement progress asynchronously
         if (plugin.getAchievementServiceV2() != null)
             plugin.getAchievementServiceV2().loadPlayer(player.getUniqueId());
+        // V1: show the advancement tab and what this player has earned
+        if (plugin.getAchievementManager() != null)
+            plugin.getServer().getScheduler().runTaskLater(plugin,
+                    () -> plugin.getAchievementManager().syncAdvancements(player), 40L);
 
         // First join: ask for a language (the game messages follow it). Never during a running game.
         if (plugin.getConfig().getBoolean("language.ask-on-first-join", true)

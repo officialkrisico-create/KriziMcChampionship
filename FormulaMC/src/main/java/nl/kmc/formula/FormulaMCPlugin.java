@@ -36,9 +36,13 @@ public final class FormulaMCPlugin extends AbstractGamePlugin {
     @Override protected String   objective()   { return "Voltooi als eerste alle rondes."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-                "Punten per finish-plaats — eerste over de streep krijgt het meest",
+                "+" + getConfig().getInt("points.placement.first", 320) + " ptn voor de winnaar, daarna -"
+                        + getConfig().getInt("points.placement.step", 10) + " per plaats (jouw punten tellen voor je team)",
                 "+" + getConfig().getInt("points.fastest-lap-bonus", 25) + " ptn — snelste ronde van de race",
-                "Teams scoren op basis van hun beste coureur");
+                "+" + getConfig().getInt("points.team-avg-placement.1", 20) + " / +"
+                        + getConfig().getInt("points.team-avg-placement.2", 15) + " / +"
+                        + getConfig().getInt("points.team-avg-placement.3", 10)
+                        + " ptn voor elk lid — beste gemiddelde eindplaats van je team");
     }
 
     @Override

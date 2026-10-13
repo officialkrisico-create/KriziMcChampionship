@@ -65,7 +65,13 @@ public class GameManager {
      * The entry is also written to config.yml so admins can edit/disable it like any other game.
      */
     public void ensureRegistered(String id, String displayName, Material icon, int minPlayers) {
-        if (games.containsKey(id)) return;
+        KMCGame known = games.get(id);
+        if (known != null) {
+            // The plugin knows best which icon belongs to its game; a config written long ago may show the
+            // same icon for two games (in memory only: the config file is not touched).
+            if (icon != null && known.getIcon() != icon) known.setIcon(icon);
+            return;
+        }
         games.put(id, new KMCGame(id, displayName, icon != null ? icon : Material.PAPER, Math.max(1, minPlayers)));
         String base = "games.list." + id + ".";
         var cfg = plugin.getConfig();
@@ -254,22 +260,37 @@ public class GameManager {
     // ----------------------------------------------------------------
 
     private final Set<String> revealedSurprises = new HashSet<>();
+    /** Games drawn at random for this tournament ({@code games.surprise-count}); redrawn on every start. */
+    private final Set<String> rolledSurprises = new HashSet<>();
 
-    /** True when the game is configured as a surprise and has not been revealed yet. */
+    /** True when the game is a surprise (flagged in the config or drawn at random) and not revealed yet. */
     public boolean isSurpriseHidden(String gameId) {
-        return gameId != null
-                && plugin.getConfig().getBoolean("games.list." + gameId + ".surprise", false)
-                && !revealedSurprises.contains(gameId);
+        return gameId != null && isSurprise(gameId) && !revealedSurprises.contains(gameId);
     }
 
     public boolean isSurprise(String gameId) {
-        return plugin.getConfig().getBoolean("games.list." + gameId + ".surprise", false);
+        return gameId != null && rolledSurprises.contains(gameId);
+    }
+
+    /** Draws {@code games.surprise-count} games at random from the rotation to be this tournament's surprises. */
+    public void rollSurprises() {
+        rolledSurprises.clear();
+        // Old per-game flags (the right-click toggle) are gone: a surprise has to be a surprise.
+        var list = plugin.getConfig().getConfigurationSection("games.list");
+        if (list != null) for (String id : list.getKeys(false))
+            if (plugin.getConfig().getBoolean("games.list." + id + ".surprise", false))
+                plugin.getConfig().set("games.list." + id + ".surprise", null);
+        int n = Math.max(0, plugin.getConfig().getInt("games.surprise-count", 0));
+        if (n == 0) return;
+        List<String> pool = new ArrayList<>();
+        for (KMCGame g : getEnabledGames()) pool.add(g.getId());
+        Collections.shuffle(pool);
+        for (int i = 0; i < Math.min(n, pool.size()); i++) rolledSurprises.add(pool.get(i));
     }
 
     public void setSurprise(String gameId, boolean on) {
-        plugin.getConfig().set("games.list." + gameId + ".surprise", on);
-        plugin.saveConfig();
-        if (!on) revealedSurprises.remove(gameId);
+        if (on) rolledSurprises.add(gameId);
+        else { rolledSurprises.remove(gameId); revealedSurprises.remove(gameId); }
     }
 
     /** Marks the surprise as revealed (it is being played now). */
@@ -383,6 +404,7 @@ public class GameManager {
     public void resetPlayedGames() {
         playedGamesThisTournament.clear();
         revealedSurprises.clear();
+        rollSurprises();
         save();
     }
 

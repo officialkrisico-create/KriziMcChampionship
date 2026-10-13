@@ -39,6 +39,20 @@ public class SkyWarsListener implements Listener {
 
     private SkyWarsGameManagerV2 gm() { return plugin.getSkyWarsGameManagerV2(); }
 
+    /** Containers stay closed until the game really starts (the loot is not up for grabs during the intro). */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onContainerBeforeStart(org.bukkit.event.player.PlayerInteractEvent event) {
+        SkyWarsGameManagerV2 gm = gm();
+        if (gm == null || !gm.getState().isRunning() || gm.isCombatLive()) return;
+        if (event.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        if (!gm.getStatsMap().containsKey(event.getPlayer().getUniqueId())) return;
+        Material t = event.getClickedBlock().getType();
+        if (t == Material.CHEST || t == Material.TRAPPED_CHEST || t == Material.BARREL || t == Material.ENDER_CHEST
+                || t.name().endsWith("SHULKER_BOX")) {
+            event.setCancelled(true);
+        }
+    }
+
     /**
      * Block ALL damage to participants during GRACE phase (chest-opening,
      * no PvP allowed). Also block environmental damage to spectators.

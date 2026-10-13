@@ -33,9 +33,10 @@ public final class SpleefPlugin extends AbstractGamePlugin {
     @Override protected String   objective()   { return "Blijf als laatste speler op de sneeuwvloer staan."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+2 ptn — Blok gebroken",
-            "+35 ptn — Eliminatie",
-            "+5 ptn — Overlevingsbonus (per eliminatie)"
+            "+" + getConfig().getInt("points.per-block", 2) + " ptn — Blok gebroken",
+            "+" + getConfig().getInt("points.per-elimination", 35) + " ptn — Eliminatie",
+            "+" + getConfig().getInt("points.living-while-someone-dies", 5) + " ptn — voor elke speler die valt terwijl jij leeft",
+            placementLine()
         );
     }
 

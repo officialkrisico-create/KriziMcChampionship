@@ -32,6 +32,28 @@ public class AchievementManager {
 
     private final KMCCore plugin;
 
+    /** The advancement tab ("KMC Achievements" in the L screen); may be null when it could not be set up. */
+    private nl.kmc.stats.achievement.AdvancementToasts toasts;
+
+    /** Registers every V1 achievement in the advancement screen and shows unlocks as advancement toasts. */
+    public void enableAdvancements() {
+        toasts = new nl.kmc.stats.achievement.AdvancementToasts();
+        List<nl.kmc.stats.achievement.AdvancementToasts.Entry> entries = new ArrayList<>();
+        for (Achievement a : AchievementRegistry.getAll()) {
+            String frame = switch (a.getRarity()) { case COMMON -> "task"; case RARE -> "goal"; default -> "challenge"; };
+            String color = switch (a.getRarity()) { case COMMON -> "gray"; case RARE -> "aqua"; default -> "gold"; };
+            entries.add(new nl.kmc.stats.achievement.AdvancementToasts.Entry(a.getId(), a.getName(), a.getDescription(),
+                    frame, color, a.getIcon(), false, a.getRarity().name()));
+        }
+        toasts.registerEntries(entries);
+        nl.kmc.stats.achievement.AdvancementToasts.silenceVanilla();
+    }
+
+    /** Makes the tab visible for a joining player and marks what he already earned. */
+    public void syncAdvancements(Player p) {
+        if (toasts != null && p != null) toasts.syncPlayer(p, getUnlocked(p.getUniqueId()));
+    }
+
     /** Per-player set of unlocked achievement IDs. */
     private final Map<UUID, Set<String>>  unlocked = new HashMap<>();
 
@@ -211,8 +233,9 @@ public class AchievementManager {
             }
         }
 
-        // Private title for the earner
-        if (p != null) {
+        // The earner sees it as an advancement toast; a title is the fallback (and extra for legendaries).
+        boolean toast = p != null && toasts != null && toasts.showEntry(p, a.getId());
+        if (p != null && (!toast || a.getRarity() == Achievement.Rarity.LEGENDARY)) {
             p.sendTitle(
                     a.getRarity().getChatColor() + "" + ChatColor.BOLD + "🏆 " + a.getName(),
                     ChatColor.GRAY + a.getDescription(),

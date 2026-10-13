@@ -300,6 +300,12 @@ public class LobbyNPCManager implements Listener {
     }
 
     private void openHoFGUI(Player p) {
+        try {
+            new nl.kmc.kmccore.gui.HoFOverviewGui(plugin, p).open(p);
+            return;
+        } catch (Throwable t) {
+            plugin.getLogger().warning("HoF overview failed, using the plain list: " + t);
+        }
         Inventory inv = Bukkit.createInventory(new DisplayGuiHolder(), 54,
                 ChatColor.GOLD + "" + ChatColor.BOLD + "🏆 Hall of Fame");
 

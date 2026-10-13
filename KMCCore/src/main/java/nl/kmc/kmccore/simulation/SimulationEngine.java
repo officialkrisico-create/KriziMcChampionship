@@ -253,7 +253,17 @@ public class SimulationEngine {
     private void attachFakePlayersToTeams(SimState st) {
         for (Map.Entry<UUID, String> e : st.fakePlayerTeams.entrySet()) {
             try {
-                plugin.getTeamManager().addPlayerToTeam(e.getKey(), e.getValue());
+                var res = plugin.getTeamManager().addPlayerToTeam(e.getKey(), e.getValue());
+                if (res != nl.kmc.kmccore.managers.TeamManager.AddResult.OK) {
+                    // The team is full (real players or /kmcbot bots): the simulation may exceed the team size,
+                    // otherwise the bots would score for nobody and the team standings would stay at 0.
+                    KMCTeam team = plugin.getTeamManager().getTeam(e.getValue());
+                    if (team != null) {
+                        team.addMember(e.getKey());
+                        PlayerData pd = plugin.getPlayerDataManager().getOrCreate(e.getKey(), null);
+                        pd.setTeamId(e.getValue());
+                    }
+                }
             } catch (Throwable t) {
                 plugin.getLogger().warning("Sim: failed to attach " + e.getKey()
                         + " to team " + e.getValue() + " — " + t.getMessage());

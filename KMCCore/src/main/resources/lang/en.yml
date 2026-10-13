@@ -257,6 +257,7 @@ fmc:
   time-up: "&b[Formula MC] &eTime is up!"
   time-up-race: "&b[Formula MC] &eTime's up — race over!"
   fastest: "&b[Formula MC] &6⏱ Fastest lap: &e{0} &7({1}, +{2})"
+  team-avg: "&b[Formula MC] &6✦ {0} &7team average &e#{1} &8({2}) &e+{3} each"
   results: "&b&l═══ Formula MC — results ═══"
   best-lap: "&8(best lap {0})"
   checkpoint: "&b✔ Checkpoint {0}/{1}"
@@ -882,9 +883,9 @@ score:
   reason:
     KILL: "kills"
     ASSIST: "assists"
-    PLACEMENT: "placement"
-    TEAM_PLACEMENT: "team placement"
-    OBJECTIVE: "objectives"
+    PLACEMENT: "ranking"
+    TEAM_PLACEMENT: "team bonus"
+    OBJECTIVE: "game goals"
     BONUS: "bonus"
     SURVIVAL_BONUS: "survival"
     LUCKY_BLOCK: "lucky block"
@@ -1202,7 +1203,8 @@ story:
   champion: "Event #{1} is over — {0} takes the trophy home!"
 
 spectator:
-  hint: "&7Right-click the compass to teleport. Sneak + right-click to follow."
+  hint: "&7Click here or type &e/kmcspec&7 for the teleport menu, &e/kmcspec follow&7 to follow someone."
+  not-spectating: "&7You are not spectating right now."
   compass:
     name: "&b&lSpectator Compass"
     lore1: "&7Right-click: teleport menu"
@@ -1283,31 +1285,42 @@ knockout:
     points: "&7Points &a{0}"
 
 crafting:
-  intro-sub: "&6Craft the target item and deliver it"
+  intro-sub: "&6Collect the ordered items and deliver them"
   tut:
-    "1": "&6&l» &fThe target item is on the board at your delivery block."
-    "2": "&6&l» &fTake raw materials from your chest and craft at the crafting table."
-    "3": "&6&l» &fRight-click the delivery block to hand it in — piece by piece is fine."
-    "4": "&6&l» &fThe first delivery gives a bonus!"
-  round:
-    title: "&6&lROUND {0}/{1}"
-    over: "&6[Crafting Countdown] &7Round {0} is over."
-  first: "&6[Crafting] &e{0} &7is first to deliver: &f{1}&7!"
-  done: "&6[Crafting] &e{0} &7completed &f{2} &8(by {1})"
-  next-task: "&eNext task: {0}x {1}"
-  not-running: "&7There is no round running."
-  already-done: "&aYour task is already complete."
-  wrong-item: "&cYou are not carrying {1} (needed: {0})"
-  progress: "&e{0}/{1} {2} delivered"
+    "1": "&6&l» &fYour team gets orders: items with quantities. See the board at your delivery point and the sidebar."
+    "2": "&6&l» &fRight-click a pile in the arena and choose which item to take. Piles have a cooldown, a stock and refill themselves."
+    "3": "&6&l» &fCarry the items to your own delivery point and right-click it. Progress is shared by the whole team."
+    "4": "&6&l» &fDone = points for whoever delivered, a new order and bonuses for speed and streaks."
+  go:
+    title: "&6&lCOLLECT!"
+    sub: "&7Right-click the piles"
+  order:
+    first: "&6[Order #{0}] &7Your task: {1}"
+    new: "&6[Order #{0}] &7New order: {1}"
+    done: "&a&l✔ Order #{0} done! &7base &f{1} &8+ &7items &f{2} &8+ &7speed &f{3} &8+ &7streak &f{4} &8= &e&l{5} points"
+    other: "&6[Crafting] &e{0} &7finished order #{1} &8(+{2})"
+  pile:
+    took: "&a+{0} {1} &8(carrying {2}/{3})"
+    cooldown: "&7Wait a moment: &e{0}s &7left at this pile."
+    full: "&cYou are carrying the maximum ({0}). Deliver first!"
+    empty: "&c{0} is out — the pile refills shortly."
+  submit:
+    ok: "&a{0} items delivered"
+    nothing: "&7You carry nothing your order needs."
+    foreign: "&cThis is the delivery point of {0}&c."
+  final:
+    title: "&c&lFINAL STRETCH"
+    sub: "&7{0} seconds left — deliver everything!"
   results: "&6&l═══ Crafting Countdown — results ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} pts &8| &7{3} orders, {4} items, speed +{5}, streak +{6}"
   sb:
-    round: "&7Round &e{0}&7/&e{1}"
     time: "&7Time &f{0}"
-    goal: "&7Goal &f{0}x {1}"
-    done: "&a✔ Done"
-    progress: "&7Progress &e{0}&7/&e{1}"
+    line: "&f{0}/{1} &e{2}"
+    line-done: "&a✔ {1} {2}"
     team: "&7Team &a{0}"
-    you: "&7Your tasks &f{0}"
+    orders: "&7Orders &f{0} &8(streak {1})"
+    carry: "&7Carrying &f{0}&7/&f{1}"
+    you: "&7You delivered &f{0}"
 
 zonezero:
   intro-sub: "&5Control the open zones"
@@ -1332,10 +1345,10 @@ zonezero:
 crown:
   intro-sub: "&6Grab the crown and hold it"
   tut:
-    "1": "&6&l» &fBe the only team in the crown zone for 5 seconds: the crown is yours."
-    "2": "&6&l» &fThe holder scores and earns energy."
-    "3": "&6&l» &fUse the nether star for abilities — only while your team holds the crown."
-    "4": "&6&l» &fWhoever holds the crown at the end gets a big bonus."
+    "1": "&6&l» &fSeveral crowns lie in the arena: walk to one to put it on."
+    "2": "&6&l» &fWhile you wear a crown you score points and your team earns energy."
+    "3": "&6&l» &fHit a crown carrier a few times or knock him out: then the crown is yours."
+    "4": "&6&l» &fUse the nether star for abilities — only while your team wears a crown."
   menu-item: "&6&lCrown abilities"
   menu:
     cost: "Cost: {0} energy"
@@ -1359,7 +1372,7 @@ crown:
   err:
     not-running: "&cThe game is not running."
     not-active: "&cYou are not playing right now."
-    no-crown: "&cOnly the crown holder can use this."
+    no-crown: "&cOnly while your team wears a crown."
     cooldown: "&cStill on cooldown."
     energy: "&cNot enough energy."
     already-active: "&cThis effect is already active."
@@ -1370,12 +1383,20 @@ crown:
   captured: "&6[Crown] &e{0} &7grabs the crown!"
   takeover: "&6[Crown] &e{0} &7takes the crown from {1}&7!"
   neutral: "&6[Crown] &7The crown is neutral again."
+  item: "&6&l♛ CROWN"
+  picked: "&6[Crown] &e{0} &7puts on a crown!"
+  stolen: "&6[Crown] &e{0} &7takes the crown from &e{1}&7!"
+  dropped: "&6[Crown] &e{0} &7loses the crown — it lies on the floor!"
+  hit: "&6Crown hit &e{0}&7/&e{1}"
+  hit-victim: "&cYour crown is under attack &e{0}&7/&e{1}"
   lockdown-over: "&6[Crown] &7Lockdown is over."
   locked-out: "&cThis area is closed (Lockdown)."
   results: "&6&l═══ Crown Control — results ═══"
   sb:
     time: "&7Time &f{0}"
     holder: "&7Crown: {0}"
+    crowns: "&7Crowns &6{0} &8(of {2}, {1} worn)"
+    wearing: "&6♛ You wear a crown &8(hits {0}/{1})"
     locked: "&7Protected &e{0}s"
     capturing: "&7Capture &e{0}%"
     team: "&7Team &a{0}"

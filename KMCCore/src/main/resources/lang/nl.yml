@@ -257,6 +257,7 @@ fmc:
   time-up: "&b[Formula MC] &eTijd is om!"
   time-up-race: "&b[Formula MC] &eTijd om — einde race!"
   fastest: "&b[Formula MC] &6⏱ Snelste ronde: &e{0} &7({1}, +{2})"
+  team-avg: "&b[Formula MC] &6✦ {0} &7team-gemiddelde &e#{1} &8({2}) &e+{3} elk"
   results: "&b&l═══ Formula MC — uitslag ═══"
   best-lap: "&8(beste ronde {0})"
   checkpoint: "&b✔ Checkpoint {0}/{1}"
@@ -882,9 +883,9 @@ score:
   reason:
     KILL: "kills"
     ASSIST: "assists"
-    PLACEMENT: "plaats"
-    TEAM_PLACEMENT: "teamplaats"
-    OBJECTIVE: "doelen"
+    PLACEMENT: "klassering"
+    TEAM_PLACEMENT: "teambonus"
+    OBJECTIVE: "game-doelen"
     BONUS: "bonus"
     SURVIVAL_BONUS: "overleven"
     LUCKY_BLOCK: "lucky block"
@@ -1202,11 +1203,12 @@ story:
   champion: "Event #{1} is voorbij — {0} gaat met de beker naar huis!"
 
 spectator:
-  hint: "&7Rechtsklik op het kompas om te teleporteren. Sneak + rechtsklik om te volgen."
+  hint: "&7Klik hier of typ &e/kmcspec&7 voor het teleportmenu, &e/kmcspec follow&7 om iemand te volgen."
+  not-spectating: "&7Je kijkt nu niet mee als toeschouwer."
   compass:
     name: "&b&lSpectator-kompas"
-    lore1: "&7Rechtsklik: teleportmenu"
-    lore2: "&7Sneak + rechtsklik: volgmodus"
+    lore1: "&7/kmcspec: teleportmenu"
+    lore2: "&7/kmcspec follow: volgmodus"
     lore3: "&7Droppen: volgmodus stoppen"
   leader:
     name: "&6&lLeider-tracker"
@@ -1283,31 +1285,42 @@ knockout:
     points: "&7Punten &a{0}"
 
 crafting:
-  intro-sub: "&6Craft het doel-item en lever het in"
+  intro-sub: "&6Verzamel de bestelde items en lever ze in"
   tut:
-    "1": "&6&l» &fHet doel-item staat op het bord bij je inleverpunt."
-    "2": "&6&l» &fHaal grondstoffen uit je kist en craft met de crafting table."
-    "3": "&6&l» &fRechtsklik op het inleverblok om het item in te leveren — ook stukje voor stukje."
-    "4": "&6&l» &fDe eerste inlevering geeft een bonus!"
-  round:
-    title: "&6&lRONDE {0}/{1}"
-    over: "&6[Crafting Countdown] &7Ronde {0} voorbij."
-  first: "&6[Crafting] &e{0} &7levert als eerste in: &f{1}&7!"
-  done: "&6[Crafting] &e{0} &7heeft &f{2} &7voltooid &8(door {1})"
-  next-task: "&eVolgende opdracht: {0}x {1}"
-  not-running: "&7Er loopt nu geen ronde."
-  already-done: "&aJullie opdracht is al voltooid."
-  wrong-item: "&cJe hebt geen {1} bij je (nodig: {0})"
-  progress: "&e{0}/{1} {2} ingeleverd"
+    "1": "&6&l» &fJe team krijgt bestellingen: items met aantallen. Zie het bord bij jullie inleverpunt en de sidebar."
+    "2": "&6&l» &fRechtsklik op een stapel in de arena en kies welk item je pakt. Stapels hebben een cooldown, een voorraad en vullen zichzelf bij."
+    "3": "&6&l» &fBreng de items naar jullie eigen inleverpunt en rechtsklik erop. De voortgang is van het hele team."
+    "4": "&6&l» &fKlaar = punten voor wie heeft ingeleverd, een nieuwe bestelling en bonussen voor snelheid en reeksen."
+  go:
+    title: "&6&lVERZAMEL!"
+    sub: "&7Rechtsklik op de stapels"
+  order:
+    first: "&6[Bestelling #{0}] &7Jullie opdracht: {1}"
+    new: "&6[Bestelling #{0}] &7Nieuwe bestelling: {1}"
+    done: "&a&l✔ Bestelling #{0} klaar! &7basis &f{1} &8+ &7items &f{2} &8+ &7snelheid &f{3} &8+ &7reeks &f{4} &8= &e&l{5} punten"
+    other: "&6[Crafting] &e{0} &7heeft bestelling #{1} afgerond &8(+{2})"
+  pile:
+    took: "&a+{0} {1} &8(je draagt {2}/{3})"
+    cooldown: "&7Even wachten: nog &e{0}s &7bij deze stapel."
+    full: "&cJe draagt al het maximum ({0}). Lever eerst in!"
+    empty: "&c{0} is op — de stapel vult zich zo weer aan."
+  submit:
+    ok: "&a{0} items ingeleverd"
+    nothing: "&7Je hebt niets bij je wat jullie bestelling nodig heeft."
+    foreign: "&cDit is het inleverpunt van {0}&c."
+  final:
+    title: "&c&lLAATSTE FASE"
+    sub: "&7Nog {0} seconden — lever alles in!"
   results: "&6&l═══ Crafting Countdown — uitslag ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} ptn &8| &7{3} bestellingen, {4} items, snelheid +{5}, reeks +{6}"
   sb:
-    round: "&7Ronde &e{0}&7/&e{1}"
     time: "&7Tijd &f{0}"
-    goal: "&7Doel &f{0}x {1}"
-    done: "&a✔ Voltooid"
-    progress: "&7Voortgang &e{0}&7/&e{1}"
+    line: "&f{0}/{1} &e{2}"
+    line-done: "&a✔ {1} {2}"
     team: "&7Team &a{0}"
-    you: "&7Jouw opdrachten &f{0}"
+    orders: "&7Bestellingen &f{0} &8(reeks {1})"
+    carry: "&7Je draagt &f{0}&7/&f{1}"
+    you: "&7Jij leverde &f{0}"
 
 zonezero:
   intro-sub: "&5Controleer de open zones"
@@ -1332,10 +1345,10 @@ zonezero:
 crown:
   intro-sub: "&6Pak de kroon en houd hem vast"
   tut:
-    "1": "&6&l» &fStaan als enig team 5 seconden in de kroon-zone: de kroon is van jou."
-    "2": "&6&l» &fDe kroonhouder scoort en verdient energie."
-    "3": "&6&l» &fGebruik de nether star voor vaardigheden — alleen als jouw team de kroon heeft."
-    "4": "&6&l» &fWie de kroon bezit als de tijd om is, krijgt een grote bonus."
+    "1": "&6&l» &fEr liggen meerdere kronen in de arena: loop erheen om er een op te zetten."
+    "2": "&6&l» &fZolang je een kroon draagt scoor je punten en verdient je team energie."
+    "3": "&6&l» &fSla een kroondrager een paar keer of schakel hem uit: dan pak jij de kroon."
+    "4": "&6&l» &fGebruik de nether star voor vaardigheden — alleen als jouw team een kroon draagt."
   menu-item: "&6&lKroon-vaardigheden"
   menu:
     cost: "Kosten: {0} energie"
@@ -1359,7 +1372,7 @@ crown:
   err:
     not-running: "&cDe game loopt niet."
     not-active: "&cJe doet nu niet mee."
-    no-crown: "&cAlleen de kroonhouder kan dit gebruiken."
+    no-crown: "&cAlleen als jouw team een kroon draagt."
     cooldown: "&cNog op cooldown."
     energy: "&cNiet genoeg energie."
     already-active: "&cDit effect is al actief."
@@ -1370,12 +1383,20 @@ crown:
   captured: "&6[Crown] &e{0} &7pakt de kroon!"
   takeover: "&6[Crown] &e{0} &7neemt de kroon over van {1}&7!"
   neutral: "&6[Crown] &7De kroon is weer neutraal."
+  item: "&6&l♛ KROON"
+  picked: "&6[Crown] &e{0} &7zet een kroon op!"
+  stolen: "&6[Crown] &e{0} &7pakt de kroon van &e{1}&7!"
+  dropped: "&6[Crown] &e{0} &7verliest de kroon — hij ligt op de grond!"
+  hit: "&6Kroon-hit &e{0}&7/&e{1}"
+  hit-victim: "&cJe kroon wordt aangevallen &e{0}&7/&e{1}"
   lockdown-over: "&6[Crown] &7Lockdown voorbij."
   locked-out: "&cDit gebied is gesloten (Lockdown)."
   results: "&6&l═══ Crown Control — uitslag ═══"
   sb:
     time: "&7Tijd &f{0}"
     holder: "&7Kroon: {0}"
+    crowns: "&7Kronen &6{0} &8(van {2}, {1} gedragen)"
+    wearing: "&6♛ Jij draagt een kroon &8(hits {0}/{1})"
     locked: "&7Beschermd &e{0}s"
     capturing: "&7Capture &e{0}%"
     team: "&7Team &a{0}"

@@ -78,7 +78,26 @@ public class SpectatorManager implements Listener {
         if (ctx.getLeader() != null) {
             p.getInventory().setItem(8, buildLeaderTracker(p));
         }
-        p.sendMessage(tr(p, "spectator.hint"));
+        // Right-clicking items does not reach the server in real spectator mode, so the hint is a clickable
+        // command (/kmcspec) that opens the same menu.
+        p.sendMessage(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                .deserialize(tr(p, "spectator.hint"))
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/kmcspec")));
+    }
+
+    /** Opens the teleport menu for a spectator (the command form of right-clicking the compass). */
+    public void openMenu(Player p) {
+        if (isSpectating(p)) openTeleportMenu(p);
+    }
+
+    /** Switches follow mode to the next player (the command form of sneak + right-click). */
+    public void cycleFollow(Player p) {
+        if (isSpectating(p)) cycleFollowTarget(p);
+    }
+
+    /** Leaves follow mode. */
+    public void stopFollow(Player p) {
+        if (followTarget.remove(p.getUniqueId()) != null) p.sendMessage(tr(p, "spectator.follow-off"));
     }
 
     /** Disables spectator mode — clears items, drops follow target. */

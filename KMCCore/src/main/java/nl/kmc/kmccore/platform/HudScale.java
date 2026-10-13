@@ -63,6 +63,7 @@ public final class HudScale {
      */
     public static String fit(String s, int maxPx, int maxChars) {
         if (s == null) return "";
+        s = org.bukkit.ChatColor.translateAlternateColorCodes('&', s);   // lines mix & and § codes
         if (s.length() <= maxChars && nl.kmc.kmccore.presentation.ChatLayout.px(s) <= maxPx) return s;
         final String ellipsis = "…";
         int ellPx = nl.kmc.kmccore.presentation.ChatLayout.px(ellipsis);

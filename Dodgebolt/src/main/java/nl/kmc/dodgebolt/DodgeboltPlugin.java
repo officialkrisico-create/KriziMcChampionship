@@ -30,7 +30,7 @@ public final class DodgeboltPlugin extends AbstractGamePlugin {
 
     @Override protected String   gameId()      { return GAME_ID; }
     @Override protected String   displayName() { return "Dodgebolt"; }
-    @Override protected Material icon()        { return Material.BOW; }
+    @Override protected Material icon()        { return Material.SPECTRAL_ARROW; }
     @Override protected int      minPlayers()  { return 2; }
     @Override protected String   description() { return "Twee teams, twee platforms, één pijl-duel — een treffer en je ligt eruit."; }
     @Override protected String   objective()   { return "Win de meeste rondes door het andere team uit te schakelen."; }

@@ -113,6 +113,10 @@ commands:
     usage: /kmcapi <status|start|stop>
     permission: kmc.api.admin
 
+  kmcspec:
+    description: "Spectator: teleport menu, follow a player"
+    usage: /kmcspec [menu|follow|stop]
+
   kmchud:
     description: "Sidebar density: normal, compact or minimal"
     usage: /kmchud [normal|compact|minimal]
@@ -200,9 +204,8 @@ commands:
     permission: kmc.event.admin
 
   kmcachievements:
-    description: Manage V2 achievements (grant, revoke, view progress, reload)
-    usage: /kmcachievements <list|progress|grant|revoke|reset|reload|info> [player] [id]
-    permission: kmc.admin
+    description: Shows where your achievements are (advancement screen); admins can manage them
+    usage: /kmcachievements [list|progress|grant|revoke|reset|reload|info] [player] [id]
 
   kmcceremonies:
     description: Edit ceremony messages, titles and durations in-game

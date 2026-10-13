@@ -24,6 +24,7 @@ public final class AutomationSetupGui extends Gui {
     private static final int SLOT_MIDBREAK      = 42;
     private static final int SLOT_READY         = 43;
     private static final int SLOT_PRESETS       = 44;
+    private static final int SLOT_SURPRISE      = 39;
 
     private final KMCCore plugin;
     /** Which game sits in which grid slot (for the right-click "surprise" toggle). */
@@ -85,6 +86,21 @@ public final class AutomationSetupGui extends Gui {
                 "",
                 "&aLinks&7: +1   &cRechts&7: -1"));
 
+        // Surprise games: how many of the games in the rotation are drawn at random and kept secret.
+        int surprises = Math.max(0, cfg.getInt("games.surprise-count", 0));
+        button(SLOT_SURPRISE, item(surprises > 0 ? Material.ENDER_CHEST : Material.GRAY_DYE,
+                        "&d&lVerrassingsgames: " + (surprises > 0 ? "&e" + surprises : "&7uit"),
+                        "&7Bij de start van het toernooi worden er zoveel",
+                        "&7games willekeurig uit de rotatie gekozen",
+                        "&7en geheim gehouden tot ze aan de beurt zijn.",
+                        "&eKlik om te wisselen (0 - 3)"),
+                p -> {
+                    cfg.set("games.surprise-count", (surprises + 1) % 4);
+                    plugin.saveConfig();
+                    render();
+                    p.updateInventory();
+                });
+
         boolean finale = cfg.getBoolean("automation.finale.enabled", true);
         button(SLOT_FINALE, item(finale ? Material.LIME_DYE : Material.GRAY_DYE,
                         "&6&lFinale: " + (finale ? "&aaan" : "&7uit"),
@@ -144,15 +160,13 @@ public final class AutomationSetupGui extends Gui {
 
     private void renderGameToggle(int slot, KMCGame game) {
         boolean on = isEnabled(game.getId());
-        boolean surprise = plugin.getGameManager().isSurprise(game.getId());
         slotGames.put(slot, game.getId());
         Material icon = on ? (game.getIcon() != null ? game.getIcon() : Material.PAPER) : Material.GRAY_DYE;
         button(slot, item(icon,
                         (on ? "&a&l✓ " : "&7&m") + game.getDisplayName(),
                         on ? "&7Zit in de rotatie dit toernooi." : "&7Overgeslagen dit toernooi.",
-                        surprise ? "&d✦ Verrassingsgame — verborgen tot hij gekozen wordt" : "&8Geen verrassing",
                         "",
-                        "&eLinks: &7aan/uit  &dRechts: &7verrassing aan/uit"),
+                        "&eKlik: &7aan/uit"),
                 p -> {
                     plugin.getConfig().set("games.list." + game.getId() + ".enabled", !on);
                     plugin.saveConfig();
@@ -272,13 +286,7 @@ public final class AutomationSetupGui extends Gui {
 
     @Override
     public void handleClick(Player p, int slot, boolean rightClick) {
-        if (rightClick && slotGames.containsKey(slot)) {
-            String id = slotGames.get(slot);
-            plugin.getGameManager().setSurprise(id, !plugin.getGameManager().isSurprise(id));
-            render();
-            p.updateInventory();
-            return;
-        }
+        // (surprise games are drawn at random now, see SLOT_SURPRISE)
         if (slot == SLOT_INTERMISSION) { adjustIntermission(rightClick ? -5 : 5); render(); p.updateInventory(); return; }
         if (slot == SLOT_VOTE_DURATION) { adjustVoteDuration(rightClick ? -5 : 5); render(); p.updateInventory(); return; }
         if (slot == SLOT_GAMES) {

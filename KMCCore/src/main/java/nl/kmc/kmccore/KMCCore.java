@@ -256,7 +256,7 @@ public final class KMCCore extends JavaPlugin {
         var lobbyGamesCmd = new nl.kmc.kmccore.lobbygames.LobbyGamesCommand(this, lobbyGames, lobbyGamesListener);
         setCmd("lobbyspleef",    lobbyGamesCmd);
         var platformCmd = new nl.kmc.kmccore.platform.PlatformCommands(this);
-        for (String c : new String[] {"clip", "kmcaudit", "kmcapi", "kmchud", "kmcemblem", "teamprofile"})
+        for (String c : new String[] {"clip", "kmcaudit", "kmcapi", "kmchud", "kmcemblem", "teamprofile", "kmcspec"})
             setCmd(c, platformCmd);
         setCmd("ttt",            lobbyGamesCmd);
         setCmd("darts",          lobbyGamesCmd);

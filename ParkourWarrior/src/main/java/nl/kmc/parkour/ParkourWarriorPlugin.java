@@ -29,9 +29,9 @@ public final class ParkourWarriorPlugin extends AbstractGamePlugin {
     @Override protected String      objective()   { return "Bereik de meeste checkpoints voordat de tijd om is."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+25 ptn — Checkpoint bereikt",
-            "+200 ptn — Parcours voltooid",
-            "+500 ptn — 1e plaats"
+            "+" + getConfig().getInt("points.default-checkpoint-points", 10) + " ptn — Checkpoint bereikt",
+            "+" + getConfig().getInt("points.finish-bonus", 200) + " ptn — Parcours voltooid",
+            placementLine()
         );
     }
 

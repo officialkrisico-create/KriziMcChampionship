@@ -1494,13 +1494,14 @@ Common to all of them:
 |---|---|---|---|
 | Rocket Rush | `rocket_rush` | `/rocket` | `checkpoint add` (in order), `ring add`, `pickup add`, `finish`, `floor` |
 | Knockout Kings | `knockout_kings` | `/knockout` | `pos1`+`pos2` then `platform`, `respawn add`, `killy` |
-| Crafting Countdown | `crafting_countdown` | `/craftcountdown` | per area `area center`, `area delivery`, `area supply` (look at the block); recipes in config |
+| Crafting Countdown | `crafting_countdown` | `/craftcountdown` | `station add` (the delivery block you look at, one per team), `pile add <type>` (the block you look at); pile types, item pool, orders and points in config |
 | Zone Zero | `zone_zero` | `/zonezero` | `pos1`+`pos2` then `zone add <id>` (6+ zones for 2 open at a time) |
 | Crown Control | `crown_control` | `/crown` | `pos1`+`pos2` then `zone`; optional `lockdown add <id>`; menu: nether star or `/crown use` |
 | Core Charge | `core_charge` | `/corecharge` | `core add` (per team), `orb add`, `station add`; menu: nether star or `/corecharge use` |
 
 Tuning (times, points, modifiers, kit) is in each game's `config.yml`; points tables follow the spec defaults.
-Not built (optional in the spec): Crafting Countdown modifiers other than `DOUBLE_RECIPE`.
+Crafting Countdown is a Build Mart style collecting game (no crafting or building): teams get orders, take the items
+from resource piles and hand them in at their delivery station. Test arena: `/kmctest crafting_countdown`.
 
 ## Player commands
 

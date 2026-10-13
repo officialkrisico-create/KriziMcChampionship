@@ -4,13 +4,13 @@ main: nl.kmc.crafting.CraftingCountdownPlugin
 api-version: '1.21'
 authors: [KMC]
 depend: [KMCCore, kmc-game-api]
-description: Crafting Countdown - craft the target item and deliver it before the time runs out
+description: Crafting Countdown - collect the ordered items from resource piles and deliver them (Build Mart style)
 
 commands:
   craftcountdown:
     description: Crafting Countdown control + setup
     aliases: [craftingcountdown, cc]
-    usage: /craftcountdown <start|stop|status|validate|world|area|reload>
+    usage: /craftcountdown <start|stop|status|validate|world|station|pile|spawn|reload>
     permission: craftcountdown.admin
 
 permissions:

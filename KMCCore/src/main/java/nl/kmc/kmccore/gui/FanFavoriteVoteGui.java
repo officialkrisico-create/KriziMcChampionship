@@ -17,7 +17,7 @@ import java.util.List;
 public final class FanFavoriteVoteGui extends Gui {
 
     public FanFavoriteVoteGui(KMCCore plugin, FanFavoriteManager manager, Player viewer) {
-        super("&1&l🌟 Fan Favorite — stem!", 4);
+        super("&1&l🌟 Fan Favorite — stem!", 6);
 
         // You cannot vote for yourself or for your own team.
         var myTeam = plugin.getTeamManager().getTeamByPlayer(viewer.getUniqueId());
@@ -36,7 +36,7 @@ public final class FanFavoriteVoteGui extends Gui {
 
         int slot = 9;
         for (Player candidate : candidates) {
-            if (slot >= 36) break;
+            if (slot >= 54) break;       // 45 candidates fit (8 teams of 4 = 28 without your own team)
             OfflinePlayer off = candidate;
             button(slot, head(off, "&e&l" + candidate.getName(),
                             "&7Klik om op deze speler te stemmen"),

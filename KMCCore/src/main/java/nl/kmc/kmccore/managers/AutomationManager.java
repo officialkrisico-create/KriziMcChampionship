@@ -250,6 +250,10 @@ public class AutomationManager {
                     if (blocks.size() > 1) blocks.get(blocks.size() - 1).add("");
                     continue;
                 }
+                // The "not all games" note must say what is actually true for this tournament.
+                if (phase.equals("game-lineup")
+                        && ChatColor.stripColor(MessageUtil.color(message)).toLowerCase().contains("niet alle games"))
+                    message = "<c>" + lineupNote();
                 blocks.add(new ArrayList<>(ChatLayout.body(message)));
             }
             switch (phase) {
@@ -263,9 +267,7 @@ public class AutomationManager {
                     // Always warn, even if an older ceremonies.yml on disk lacks the disclaimer line.
                     boolean has = cm.getMessages(phase, ph).stream()
                             .anyMatch(m -> ChatColor.stripColor(MessageUtil.color(m)).toLowerCase().contains("niet alle games"));
-                    if (!has) blocks.add(new ArrayList<>(ChatLayout.body(
-                            "<c>&e⚠ &7Niet alle games worden gespeeld: per ronde stemmen jullie op &f"
-                                    + ph.getOrDefault("games_per_round", "?") + "&7.")));
+                    if (!has) blocks.add(new ArrayList<>(ChatLayout.body("<c>" + lineupNote())));
                 }
                 default -> { }
             }
@@ -290,6 +292,18 @@ public class AutomationManager {
             startStageBar(gen, idx, phase, total);
             ceremonyLater(gen, total, next);
         });
+    }
+
+    /** One sentence for the game line-up: how many of the enabled games are really going to be played. */
+    private String lineupNote() {
+        int total = getTotalGames();
+        int count = Math.max(1, plugin.getGameManager().getEnabledGames().size());
+        int perRound = gamesPerRound();
+        int rounds = Math.max(1, plugin.getTournamentManager().getTotalRounds());
+        if (total >= count)
+            return "&a✔ &7Alle &f" + count + " &7games komen aan bod: &f" + perRound + " &7per ronde, &f" + rounds + " &7rondes.";
+        return "&e⚠ &7Er worden &f" + total + " &7van de &f" + count + " &7games gespeeld (&f" + perRound
+                + " &7per ronde): jullie stemmen steeds mee.";
     }
 
     /** True for the old "&8§m      " divider lines in ceremonies.yml — the stage frame draws its own. */
@@ -456,11 +470,14 @@ public class AutomationManager {
             for (Player p : Bukkit.getOnlinePlayers()) {
                 p.sendTitle("§e§l🌍 " + cmd, "§fKies je taal §8• §fChoose your language", 5, 110, 15);
                 p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.2f);
+                String rule = "§6§m" + " ".repeat(73);
                 p.sendMessage("");
-                p.sendMessage(MessageUtil.color("&6&l══════ 🌍 TAAL • LANGUAGE ══════"));
-                p.sendMessage(languageLine("&f&lNL &8» &7Typ &e&l" + cmd + " &7of klik hier om je taal te kiezen."));
-                p.sendMessage(languageLine("&f&lEN &8» &7Type &e&l" + cmd + " &7or click here to choose your language."));
-                p.sendMessage(MessageUtil.color("&6&l═════════════════════════════════════"));
+                p.sendMessage(rule);
+                p.sendMessage(nl.kmc.kmccore.presentation.ChatLayout.center("§e§l🌍 TAAL §8• §e§lLANGUAGE"));
+                p.sendMessage(nl.kmc.kmccore.presentation.ChatLayout.center("§7Kies je taal §8• §7Choose your language"));
+                p.sendMessage(languageLine("  &f&lNL &8» &7Klik hier of typ &e&l" + cmd));
+                p.sendMessage(languageLine("  &f&lEN &8» &7Click here or type &e&l" + cmd));
+                p.sendMessage(rule);
                 p.sendMessage("");
             }
         });
@@ -471,12 +488,6 @@ public class AutomationManager {
                 if (lm.hasChosen(p.getUniqueId())) continue;
                 try { new nl.kmc.kmccore.gui.LanguageGui(plugin, p).open(p); } catch (Throwable ignored) { }
             }
-        });
-        // A last nudge before the presentation carries on.
-        ceremonyLater(gen, startTick + 110L, () -> {
-            for (Player p : Bukkit.getOnlinePlayers())
-                p.sendActionBar(net.kyori.adventure.text.Component.text(
-                        MessageUtil.color("&e🌍 /kmclanguage &7— NL • EN")));
         });
         return startTick + 150L;
     }
@@ -668,26 +679,31 @@ public class AutomationManager {
                     && total > 1 && completedRound == breakAfter;
         }
 
-        if (roundComplete) ceremony("round-end");
-
         plugin.getArenaManager().teleportAllToLobby();
-        postGameLeaderboardChain();
-        createBossBar();
-        if (pauseAfterGame) {
-            // /pause was used during the game: hold still here until /resume.
-            pauseAfterGame = false;
-            state = State.INTERMISSION;
-            pause();
-            return;
-        }
-        if (midBreakNow) {
-            int secs = plugin.getConfig().getInt("automation.mid-break.seconds", 300);
-            broadcast("&6&l[KMC] &eHalverwege het toernooi! &7Pauze van &f" + formatDuration(secs)
-                    + "&7 — een admin kan hem overslaan met &e/kmcauto skip&7.");
-            enterIntermission(secs, true);
-        } else {
-            enterIntermission();
-        }
+        // The round-end words, the half-way notice and the intermission (with its timer) all wait until the
+        // score report and the leaderboard animation have been shown, so they do not talk over them.
+        final boolean roundDoneNow = roundComplete, midBreak = midBreakNow;
+        postGameLeaderboardChain(() -> {
+            if (state == State.PAUSED) { stateBeforePause = State.INTERMISSION; return; }
+            if (state != State.GAME_ACTIVE) return;          // stopped or skipped in the meantime
+            if (roundDoneNow) ceremony("round-end");
+            createBossBar();
+            if (pauseAfterGame) {
+                // /pause was used during the game: hold still here until /resume.
+                pauseAfterGame = false;
+                state = State.INTERMISSION;
+                pause();
+                return;
+            }
+            if (midBreak) {
+                int secs = plugin.getConfig().getInt("automation.mid-break.seconds", 300);
+                broadcast("&6&l[KMC] &eHalverwege het toernooi! &7Pauze van &f" + formatDuration(secs)
+                        + "&7 — een admin kan hem overslaan met &e/kmcauto skip&7.");
+                enterIntermission(secs, true);
+            } else {
+                enterIntermission();
+            }
+        });
     }
 
     // ----------------------------------------------------------------
@@ -1262,7 +1278,9 @@ public class AutomationManager {
     // Post-game leaderboard chain (unchanged)
     // ----------------------------------------------------------------
 
-    private void postGameLeaderboardChain() {
+    private void postGameLeaderboardChain() { postGameLeaderboardChain(() -> { }); }
+
+    private void postGameLeaderboardChain(Runnable afterAll) {
         String gameName = "Laatste Game";
         KMCGame game = plugin.getGameManager().getActiveGame();
         if (game == null) {
@@ -1301,9 +1319,12 @@ public class AutomationManager {
         }, 300L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (plugin.getConfig().getBoolean("presentation.leaderboard-animation", true)) {
-                nl.kmc.kmccore.presentation.LeaderboardAnimation.run(plugin, ranksBefore, pointsBefore, null);
+                // a short breather after the last line, then on with the intermission
+                nl.kmc.kmccore.presentation.LeaderboardAnimation.run(plugin, ranksBefore, pointsBefore,
+                        () -> Bukkit.getScheduler().runTaskLater(plugin, afterAll, 40L));
             } else {
                 broadcastOverallTeamLeaderboard();
+                Bukkit.getScheduler().runTaskLater(plugin, afterAll, 60L);
             }
         }, 400L);
     }

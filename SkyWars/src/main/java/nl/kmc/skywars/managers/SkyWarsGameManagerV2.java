@@ -51,6 +51,10 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     private ShrinkingRingRenderer ringRenderer;
     private boolean deathmatchActive = false;
     private StandardStartFlow startFlow;
+    /** False until the start flow (intro, tutorial, countdown) is over: chests stay closed until then. */
+    private volatile boolean combatLive;
+
+    public boolean isCombatLive() { return combatLive; }
     private Difficulty previousDifficulty;
     private nl.kmc.game.api.ShrinkingBorderRing borderRing;
     private BukkitTask borderRingTask;
@@ -89,6 +93,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
             swWorld.setDifficulty(Difficulty.NORMAL);
         }
 
+        combatLive = false;
         teleportAndFreezePlayers();
 
         bossBar = Bukkit.createBossBar(
@@ -125,6 +130,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
     }
 
     private void beginCombat() {
+        combatLive = true;
         gameStartMs    = System.currentTimeMillis();
         remainingSeconds = plugin.getConfig().getInt("game.max-duration-seconds", 600);
 
@@ -163,6 +169,7 @@ public final class SkyWarsGameManagerV2 extends BaseGameManager {
 
     @Override
     protected void onGameEnd() {
+        combatLive = false;
         cancelTasks();
 
         var world = plugin.getArenaManager().getWorld();

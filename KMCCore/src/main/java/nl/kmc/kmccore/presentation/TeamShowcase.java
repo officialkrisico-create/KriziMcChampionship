@@ -152,23 +152,34 @@ public final class TeamShowcase {
         return null;
     }
 
-    /** Lines the team up along the X axis, facing +Z (towards the camera). */
+    /**
+     * Lines the team up side by side, every player facing the way the stage faces (the camera is placed in
+     * front of the stage, so they look straight into it). More players than podium spots: the extra ones
+     * stand next to a spot instead of inside whoever is already there.
+     */
     private void lineUp(List<Player> members, Location stage) {
         int n = members.size();
+        float yaw = stage.getYaw();
+        double r = Math.toRadians(yaw);
+        double rx = Math.cos(r), rz = Math.sin(r);
         List<Location> spots = podium();
-        if (!spots.isEmpty()) {
-            for (int i = 0; i < n; i++) {
-                Player p = members.get(i);
-                originalLocations.putIfAbsent(p.getUniqueId(), p.getLocation());
-                p.teleport(spots.get(i % spots.size()));
-            }
-            return;
-        }
         for (int i = 0; i < n; i++) {
             Player p = members.get(i);
             originalLocations.putIfAbsent(p.getUniqueId(), p.getLocation());
-            Location l = stage.clone().add((i - (n - 1) / 2.0) * 1.6, 0, 0);
-            l.setYaw(0f);
+            Location l;
+            if (!spots.isEmpty()) {
+                Location s = spots.get(i % spots.size());
+                int lap = i / spots.size();
+                l = s.clone();
+                if (lap > 0) {
+                    double off = 1.6 * ((lap + 1) / 2) * (lap % 2 == 1 ? 1 : -1);
+                    l.add(rx * off, 0, rz * off);
+                }
+            } else {
+                double off = (i - (n - 1) / 2.0) * 1.6;
+                l = stage.clone().add(rx * off, 0, rz * off);
+            }
+            l.setYaw(yaw);
             l.setPitch(0f);
             p.teleport(l);
         }
@@ -183,14 +194,26 @@ public final class TeamShowcase {
                 .collect(Collectors.toList());
         if (viewers.isEmpty()) return;
 
-        // Camera sits in front of the line and drifts sideways while looking at the team.
-        double y = stage.getY() + 2.2;
+        // Aim at where the team really stands (podium spots can be far apart) and keep far enough back to
+        // get everybody in the picture.
+        double cx = 0, cy = 0, cz = 0;
+        for (Player m : members) { cx += m.getLocation().getX(); cy += m.getLocation().getY(); cz += m.getLocation().getZ(); }
+        int cnt = Math.max(1, members.size());
+        Location centre = new Location(stage.getWorld(), cx / cnt, cy / cnt, cz / cnt, stage.getYaw(), 0f);
+        double spread = 0;
+        for (Player m : members) {
+            double dx = m.getLocation().getX() - centre.getX(), dz = m.getLocation().getZ() - centre.getZ();
+            spread = Math.max(spread, Math.hypot(dx, dz));
+        }
+        double back = Math.max(7.0, spread * 1.7 + 5.0);
+        double side = back * 0.4;
+        double y = centre.getY() + 2.2;
         int half = Math.max(10, duration / 2);
         float yaw = stage.getYaw();
         CameraRoute route = new CameraRoute("team-showcase-" + team.getId(), "team stop");
-        route.addWaypoint(wp(stage, yaw, -3.5, y, 8.5, 180f + 16f, 12f, 10));
-        route.addWaypoint(wp(stage, yaw, 0.0, y - 0.3, 6.0, 180f, 8f, half));
-        route.addWaypoint(wp(stage, yaw, 3.5, y, 8.5, 180f - 16f, 12f, half));
+        route.addWaypoint(wp(centre, yaw, -side, y, back + 2.0, 180f + 16f, 12f, 10));
+        route.addWaypoint(wp(centre, yaw, 0.0, y - 0.3, back, 180f, 8f, half));
+        route.addWaypoint(wp(centre, yaw, side, y, back + 2.0, 180f - 16f, 12f, half));
         cm.playRouteInstance("team-showcase-" + team.getId(), route, viewers, false, null);
     }
 

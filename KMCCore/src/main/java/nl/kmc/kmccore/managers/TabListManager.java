@@ -160,9 +160,9 @@ public class TabListManager {
             int pts = inGame ? gamePts.getOrDefault(t.getId(), 0) : t.getPoints();
             String c = t.getColor().toString();
             boolean me = mine != null && mine.getId().equals(t.getId());
-            String left = "§f" + rank + ". " + c + "◆ " + c + (me ? "§l" : "") + t.getDisplayName();
-            String right = "§e" + pts + " §6" + icon;
-            rows.add(leftRight(left, right));
+            // team name centred and bold; the client centres the line itself
+            rows.add((me ? "§e➤ " : "") + "§f" + rank + ". " + c + "◆ §l" + t.getDisplayName()
+                    + " §8— §e" + pts + " §6" + icon);
             List<String> names = new ArrayList<>();
             for (UUID u : t.getMembers()) {
                 Player online = Bukkit.getPlayer(u);

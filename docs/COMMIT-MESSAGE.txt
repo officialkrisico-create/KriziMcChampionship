@@ -1,18 +1,47 @@
-Tablist en HUD opgeruimd, echte /kmchud test, één testbestand
+Testronde-fixes: arcade-games herbouwd, advancement-tab, podium, Formula-punten, ceremonie-timing
 
-Tablist (MCC-layout)
-- Eigen naam en andere vanilla-spelersregels verborgen onder de tabel (unlistPlayer; uit te zetten met tablist.hide-players: false)
-- Rij van het eigen team (vet) schoof naar links: de opvulling erachter erfde de vetgedrukte stijl, nu eerst een reset
-- Titel, tussenstand en footer stonden rechts van het midden: de client centreert zelf, dus geen eenzijdige opvulling meer
-- Spelersnamen per team gecentreerd met een punt ertussen, gewrapt op tabelbreedte, max. 2 regels met "+N"; teams zonder spelers geen lege regel
-- TabLayoutTest voor de opmaak
+Arcade-games (kmc-game-api + zes modules)
+- Alle arcade-games melden zich als PvP-afhandelaar: PvP werkt nu in Knockout Kings, Zone Zero, Crown Control en Core Charge
+- Spawns: per team een spawnpunt, elk lid op een eigen plek eromheen (ook bij minder spawns dan spelers), ook bij respawn
+- awardShared: teampunten gaan naar de spelers die ze verdienen (capture/hold/orbs/stations) in plaats van naar het team
+- Sidebar en resultaten tonen de echt toegekende punten (inclusief multiplier), gelijk aan tablist en score-uitsplitsing
+- Crown Control: meerdere kronen die je opzet, steelt door te slaan of uit te schakelen; houder-punten per drager
+- Core Charge: gekleurde pilaar + balk met percentage boven elke kern, punten per speler
+- Crafting Countdown: eigen opdracht per speler, direct een volgende opdracht, hologram toont voortgang van het team
+- /kmctest meldt direct of de arena klaar is; SkyWars/kisten blijven dicht tot het spel echt begint
 
-HUD
-- /kmchud test toont nu alles tegelijk gedurende 15 s: sidebar met korte tot te lange regels, bossbar, actionbar en drie titels met breedte in px en bijbehorende GUI-schaal
-- Rode scorecijfers rechts in de sidebar verborgen (Objective.numberFormat blank), die kostten breedte en betekenden niets
+Formula MC
+- Racetijd in qualifying telt vanaf de eigen rondestart (was epoch-tijd)
+- Spook-botsingen: boten gaan door elkaar zodra ze overlappen (boat.ghost-collisions)
+- Punten zoals Ace Race: individuele plaatspunten tellen voor het team, gemiddelde-plaats bonus per lid, geen aparte teamplaats
+- /kmcspec voor kijkers: menu, volgen, stoppen (rechtsklikken werkt niet in spectator-mode)
 
-Fixes
-- Dodgebolt javadoc @param killerId, expliciet SchematicManager-type in AbstractGamePlugin (geen var), WorldEdit x()/z() in SchematicManager
+Toernooi-regie en presentatie
+- Rondebericht, halverwege-pauze en tussenpauze (met timer) pas na score-uitsplitsing en leaderboard-animatie
+- Taalbericht opnieuw opgemaakt; teamshowcase: spelers naast elkaar, naar de camera gericht, camera volgt de echte posities
+- Game-lineup noemt hoeveel games er echt gespeeld worden
+- Verrassingsgames: aantal in het setup-menu, willekeurig gekozen bij de start (geen handmatige selectie meer)
+- Chat-podium bij de uitslag (3e, 2e, 1e), Fan Favorite-GUI voor 32+ spelers, /teamprofile toont 8 teams
+- Score-rapport: echte aantallen spelers/teams in "je werd #x/y", duidelijkere labels
+- /event simulate: bots voegen zich ook bij volle teams, dus teams krijgen punten
+
+Tablist en HUD
+- Teamnamen gecentreerd en vet; sidebar vertaalt &-kleurcodes voor het afkappen (geen "&..." meer)
+
+Achievements
+- AdvancementToasts: tab met hubs per groep, controle op bruikbare iconen, elke fout gelogd met reden, werkt ook voor V1
+- /kmcachievements wijst spelers naar het advancement-scherm (L)
+
+Intro-kaarten
+- Puntenregels van SkyWars, Survival Games, Spleef, TNT Tag, The Bridge, Bingo, Parkour, Elytra, Mob Mayhem en Formula MC lezen de echte config en points.yml
 
 Documentatie
-- docs/TESTEN.md is het enige testbestand (blok A t/m L, per regel handeling -> verwachting); oude lijsten staan in docs/archief/
+- docs/TESTEN.md bijgewerkt: afgevinkt weggehaald, blok N met de nieuwe fixes
+
+Crafting Countdown herontworpen naar Build Mart (verzamelen en inleveren)
+- Geen craften of bouwen meer: bestellingen met items en aantallen, grondstofstapels, eigen inleverpunt per team
+- Stapels zijn blokken met menu, voorraad, cooldown per speler, herstock en draaglimiet (alles in config.yml)
+- Orders komen uit een configureerbare item-pool, alleen items die op een geplaatste stapel te krijgen zijn; moeilijker naarmate een team er meer afrondt
+- Punten: basis + itemwaarde + snelheidsbonus + reeksbonus, verdeeld over de spelers die inleverden; transparante opsplitsing
+- Admin: /craftcountdown station add, pile add|remove|clear|list|types; /kmctest bouwt een testarena
+- OrderLogic (puur, 14 tests) vervangt Recipe/TaskProgress

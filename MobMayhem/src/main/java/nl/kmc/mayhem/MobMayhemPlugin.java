@@ -41,7 +41,8 @@ public final class MobMayhemPlugin extends AbstractGamePlugin {
         return List.of(
                 "+1 tot +8 ptn — Per mob-kill (zombie +1, creeper +3, heks +4; bosses +20 tot +50)",
                 "+" + getConfig().getInt("points.per-wave", 100) + " ptn — Golf verslagen (per levende speler)",
-                "+500 ptn — 1e plaats (meeste golven)",
+                placementLine(),
+                teamPlacementLine(),
                 "Powerups — snelheid, kracht, genezing en meer, verspreid door de arena"
         );
     }

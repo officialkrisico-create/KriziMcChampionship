@@ -11,6 +11,7 @@ import nl.kmc.game.api.arcade.ArenaConfig;
 import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.*;
 import org.bukkit.boss.BarColor;
+import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
@@ -45,6 +46,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
         Location where;
         ItemDisplay icon;
         TextDisplay label;
+        BlockDisplay pillar;
         int orbs, stations;
         TeamCore(double capacity) { energy = new TeamEnergy(capacity); }
     }
@@ -233,7 +235,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
         orbReadyAt[index] = ticks + cfg.getInt("game.orb-respawn-seconds", 20) * 20L;
         if (orbDisplays[index] != null && orbDisplays[index].isValid()) orbDisplays[index].remove();
         orbDisplays[index] = null;
-        gain(team, tc, cfg.getDouble("game.orb-energy", 10));
+        gain(team, tc, cfg.getDouble("game.orb-energy", 10), List.of(collector));
         tc.orbs++;
         contribution.merge(collector, 1, Integer::sum);
         Player p = Bukkit.getPlayer(collector);
@@ -248,8 +250,8 @@ public final class CoreChargeManager extends ArcadeGameManager {
         TeamCore tc = cores.get(team);
         if (tc == null) return;
         int n = ++stationCaptures;
-        gain(team, tc, cfg.getDouble("game.station-energy", 20));
-        awardTeam("obj:" + index + ":" + n, team, multiplied(team, tc, cfg.getInt("points.objective", 15)),
+        gain(team, tc, cfg.getDouble("game.station-energy", 20), who);
+        awardShared("obj:" + index + ":" + n, team, who, multiplied(team, tc, cfg.getInt("points.objective", 15)),
                 PointAward.Reason.OBJECTIVE, "objective");
         tc.stations++;
         for (UUID id : who) contribution.merge(id, 3, Integer::sum);
@@ -260,7 +262,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
     }
 
     /** Adds energy, handles overflow, the per-10 points and the full-charge bonus. */
-    private void gain(String team, TeamCore tc, double amount) {
+    private void gain(String team, TeamCore tc, double amount, Collection<UUID> by) {
         var cfg = gamePlugin.getConfig();
         double accepted = tc.energy.add(amount);
         double overflow = amount - accepted;
@@ -268,16 +270,16 @@ public final class CoreChargeManager extends ArcadeGameManager {
         int per = Math.max(1, 10);
         while (tc.collected >= (tc.paid10 + 1) * per) {
             tc.paid10++;
-            awardTeam("e10:" + team + ":" + tc.paid10, team,
+            awardShared("e10:" + team + ":" + tc.paid10, team, by,
                     multiplied(team, tc, cfg.getInt("points.per-10-energy", 5)), PointAward.Reason.OBJECTIVE, "energy");
         }
         if (overflow > 0 && "CONVERT".equalsIgnoreCase(cfg.getString("game.overflow", "LOST"))) {
             int pts = (int) (overflow / 5);
-            if (pts > 0) awardTeam("over:" + team + ":" + ticks, team, pts, PointAward.Reason.BONUS, "overflow");
+            if (pts > 0) awardShared("over:" + team + ":" + ticks, team, by, pts, PointAward.Reason.BONUS, "overflow");
         }
         if (tc.energy.isFull() && !tc.fullPaid) {
             tc.fullPaid = true;
-            awardTeam("full:" + team, team, cfg.getInt("points.full-charge", 30), PointAward.Reason.BONUS, "full-charge");
+            awardShared("full:" + team, team, by, cfg.getInt("points.full-charge", 30), PointAward.Reason.BONUS, "full-charge");
             for (Player p : Bukkit.getOnlinePlayers())
                 if (isParticipant(p.getUniqueId()))
                     p.sendMessage(api.tr(p.getUniqueId(), "core.full", teamName(team)));
@@ -325,7 +327,8 @@ public final class CoreChargeManager extends ArcadeGameManager {
             case FINAL_OVERLOAD -> {
                 tc.overloadUsed = true;
                 tc.overloadUntil = ticks + dur;
-                awardTeam("overload:" + team, team, cfg.getInt("points.final-charge", 25), PointAward.Reason.BONUS, "final-charge");
+                awardShared("overload:" + team, team, List.of(id), cfg.getInt("points.final-charge", 25),
+                        PointAward.Reason.BONUS, "final-charge");
             }
         }
         contribution.merge(id, 1, Integer::sum);
@@ -411,10 +414,20 @@ public final class CoreChargeManager extends ArcadeGameManager {
             d.setTransformation(new org.bukkit.util.Transformation(new org.joml.Vector3f(),
                     new org.joml.Quaternionf(), new org.joml.Vector3f(1.6f, 1.6f, 1.6f), new org.joml.Quaternionf()));
         });
-        tc.label = w.spawn(tc.where.clone().add(0, 2.8, 0), TextDisplay.class, d -> {
+        tc.label = w.spawn(tc.where.clone().add(0, 3.4, 0), TextDisplay.class, d -> {
             d.setBillboard(Display.Billboard.CENTER);
             d.setPersistent(false);
             d.setBackgroundColor(Color.fromARGB(150, 0, 0, 0));
+        });
+        // a pillar in the team colour that grows with the energy of the core: visible from far away
+        tc.pillar = w.spawn(tc.where.clone().add(-0.45, 0.1, -0.45), BlockDisplay.class, d -> {
+            d.setBlock(glassFor(teamColor(team)).createBlockData());
+            d.setPersistent(false);
+            d.setGlowing(true);
+            d.setGlowColorOverride(colorOf(teamColor(team)));
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(20);
+            d.setTransformation(pillarScale(0));
         });
         refreshCore(team, tc);
         if (!gamePlugin.getConfig().getBoolean("game.show-enemy-energy", true)) {
@@ -428,11 +441,43 @@ public final class CoreChargeManager extends ArcadeGameManager {
 
     private void refreshCore(String team, TeamCore tc) {
         if (tc.label == null || !tc.label.isValid()) return;
-        int filled = (int) Math.round(tc.energy.value() / tc.energy.capacity() * 10);
-        String bar = "§b" + "▮".repeat(Math.max(0, filled)) + "§8" + "▮".repeat(Math.max(0, 10 - filled));
-        tc.label.text(Component.text(teamName(team) + "\n" + bar + " §f" + (int) tc.energy.value() + "§7/"
-                + (int) tc.energy.capacity()
+        double fraction = Math.max(0, Math.min(1, tc.energy.value() / Math.max(1, tc.energy.capacity())));
+        int filled = (int) Math.round(fraction * 20);
+        String bar = "§b" + "█".repeat(Math.max(0, filled)) + "§8" + "█".repeat(Math.max(0, 20 - filled));
+        tc.label.text(Component.text(teamName(team) + "\n" + bar + " §f" + Math.round(fraction * 100) + "%"
+                + "\n§7" + (int) tc.energy.value() + "§8/§7" + (int) tc.energy.capacity()
                 + (tc.overloadUntil > ticks ? "\n§c§lOVERLOAD" : tc.surgeUntil > ticks ? "\n§e§lSURGE" : "")));
+        if (tc.pillar != null && tc.pillar.isValid()) {
+            tc.pillar.setInterpolationDelay(0);
+            tc.pillar.setInterpolationDuration(20);
+            tc.pillar.setTransformation(pillarScale(fraction));
+        }
+    }
+
+    private static org.bukkit.util.Transformation pillarScale(double fraction) {
+        float h = (float) (0.2 + 3.6 * fraction);
+        return new org.bukkit.util.Transformation(new org.joml.Vector3f(), new org.joml.Quaternionf(),
+                new org.joml.Vector3f(0.9f, h, 0.9f), new org.joml.Quaternionf());
+    }
+
+    private static Material glassFor(ChatColor c) {
+        if (c == null) return Material.WHITE_STAINED_GLASS;
+        return switch (c) {
+            case RED, DARK_RED -> Material.RED_STAINED_GLASS;
+            case GOLD -> Material.ORANGE_STAINED_GLASS;
+            case YELLOW -> Material.YELLOW_STAINED_GLASS;
+            case GREEN -> Material.LIME_STAINED_GLASS;
+            case DARK_GREEN -> Material.GREEN_STAINED_GLASS;
+            case AQUA -> Material.LIGHT_BLUE_STAINED_GLASS;
+            case DARK_AQUA -> Material.CYAN_STAINED_GLASS;
+            case BLUE, DARK_BLUE -> Material.BLUE_STAINED_GLASS;
+            case LIGHT_PURPLE -> Material.PINK_STAINED_GLASS;
+            case DARK_PURPLE -> Material.PURPLE_STAINED_GLASS;
+            case GRAY -> Material.LIGHT_GRAY_STAINED_GLASS;
+            case DARK_GRAY -> Material.GRAY_STAINED_GLASS;
+            case BLACK -> Material.BLACK_STAINED_GLASS;
+            default -> Material.WHITE_STAINED_GLASS;
+        };
     }
 
     private void drawStations() {
@@ -466,7 +511,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
             if (tc.overloadUntil > ticks) l.add(api.tr(id, "core.sb.overload", (tc.overloadUntil - ticks) / 20));
         }
         l.add("");
-        l.add(api.tr(id, "core.sb.team", book.team(team)));
+        l.add(api.tr(id, "core.sb.team", shownTeamPoints(team)));
         l.add(api.tr(id, "core.sb.you", contribution.getOrDefault(id, 0)));
         return l;
     }
@@ -479,8 +524,8 @@ public final class CoreChargeManager extends ArcadeGameManager {
         for (var en : cores.entrySet()) {
             int left = (int) (en.getValue().energy.value() / 5);
             if (left > 0)
-                awardTeam("left:" + en.getKey(), en.getKey(), left * cfg.getInt("points.per-5-left", 1),
-                        PointAward.Reason.BONUS, "energy-left");
+                awardShared("left:" + en.getKey(), en.getKey(), membersOf(en.getKey()),
+                        left * cfg.getInt("points.per-5-left", 1), PointAward.Reason.BONUS, "energy-left");
         }
         List<String> ranked = book.rankTeams(cores.keySet());
         awardTeamPlacements(ranked);
@@ -496,7 +541,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
             int i = 1;
             for (String t : ranked) {
                 TeamCore tc = cores.get(t);
-                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + book.team(t) + " ptn §8| §7orbs "
+                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + shownTeamPoints(t) + " ptn §8| §7orbs "
                         + tc.orbs + ", stations " + tc.stations + ", energie " + (int) tc.energy.value());
             }
         }
@@ -517,6 +562,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
         for (TeamCore tc : cores.values()) {
             if (tc.icon != null && tc.icon.isValid()) tc.icon.remove();
             if (tc.label != null && tc.label.isValid()) tc.label.remove();
+            if (tc.pillar != null && tc.pillar.isValid()) tc.pillar.remove();
         }
         for (UUID id : players) {
             Player p = Bukkit.getPlayer(id);

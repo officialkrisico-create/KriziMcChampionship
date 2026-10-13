@@ -71,6 +71,8 @@ public abstract class ArcadeGameManager extends BaseGameManager {
     private final Map<UUID, Long> protectedUntil = new HashMap<>();
     private final Map<UUID, UUID> lastAttacker = new HashMap<>();
     private final Map<UUID, Long> lastAttackTick = new HashMap<>();
+    /** Place of a player within his team (0, 1, 2 ...): decides where he stands around the team's spawn. */
+    private final Map<UUID, Integer> slotOf = new HashMap<>();
 
     protected ArcadeGameManager(JavaPlugin plugin, GameRegistration reg, StatisticsService stats, ArenaConfig arena) {
         super(plugin, reg, stats);
@@ -104,9 +106,8 @@ public abstract class ArcadeGameManager extends BaseGameManager {
     protected int protectionSeconds() { return gamePlugin.getConfig().getInt("combat.spawn-protection-seconds", 3); }
     protected boolean friendlyFire() { return gamePlugin.getConfig().getBoolean("combat.friendly-fire", false); }
     protected Location respawnLocation(Player p) {
-        List<Location> sp = spawnPoints();
-        if (sp.isEmpty()) return p.getLocation();
-        return sp.get(Math.floorMod(teamIndex(teamId(p.getUniqueId())), sp.size()));
+        Location l = spawnLocationFor(p.getUniqueId());
+        return l != null ? l : p.getLocation();
     }
     protected void onRespawn(Player p) { }
     /** A player went down (lethal damage while team PvP is on). {@code killer} may be null. */
@@ -131,6 +132,7 @@ public abstract class ArcadeGameManager extends BaseGameManager {
         protectedUntil.clear();
         lastAttacker.clear();
         lastAttackTick.clear();
+        slotOf.clear();
         live = false;
         ticks = 0;
 
@@ -150,12 +152,14 @@ public abstract class ArcadeGameManager extends BaseGameManager {
         }
         // Players of the same team start next to each other: order by team, then by name.
         players.sort(Comparator.comparing((UUID id) -> teamOf.get(id)).thenComparing(UUID::compareTo));
+        Map<String, Integer> perTeam = new HashMap<>();
+        for (UUID id : players) slotOf.put(id, perTeam.merge(teamOf.get(id), 1, Integer::sum) - 1);
         for (int i = 0; i < players.size(); i++) {
             Player p = Bukkit.getPlayer(players.get(i));
             if (p == null) continue;
             GamePlayerUtil.resetPlayer(p);
             p.setGameMode(GameMode.ADVENTURE);
-            Location s = spawns.isEmpty() ? p.getLocation() : spawnFor(i, spawns);
+            Location s = spawns.isEmpty() ? p.getLocation() : spawnLocationFor(players.get(i));
             GamePlayerUtil.safeTeleport(p, s);
         }
 
@@ -178,9 +182,36 @@ public abstract class ArcadeGameManager extends BaseGameManager {
         startFlow.prepareAndFreeze();
     }
 
-    private Location spawnFor(int index, List<Location> spawns) {
-        return spawns.get(index % spawns.size());
+    /** The team's spawn point (teams are spread over the spawns) with each member on his own spot around it. */
+    protected final Location spawnLocationFor(UUID id) {
+        List<Location> sp = spawnPoints();
+        if (sp.isEmpty()) return null;
+        int team = teamIndex(teamId(id));
+        Location base = sp.get(team % sp.size());
+        int slot = slotOf.getOrDefault(id, 0) + (team / sp.size()) * 4;
+        return spreadAround(base, slot);
     }
+
+    /**
+     * A standing place around {@code base}: slot 0 is the point itself, the next ones form rings of six at
+     * 1.5 blocks apart, so nobody spawns inside somebody else. Spots inside blocks are skipped.
+     */
+    protected static Location spreadAround(Location base, int slot) {
+        if (slot <= 0 || base == null || base.getWorld() == null) return base == null ? null : base.clone();
+        int ring = 1 + (slot - 1) / 6;
+        for (int pass = 0; pass < 2; pass++) {
+            for (double r = 1.5 * ring; r >= 0.9; r -= 0.5) {
+                double a = Math.toRadians(60.0 * ((slot - 1) % 6) + 20.0 * ring);
+                Location l = base.clone().add(Math.cos(a) * r, 0, Math.sin(a) * r);
+                boolean room = l.getBlock().isPassable() && l.clone().add(0, 1, 0).getBlock().isPassable();
+                boolean floor = !l.clone().add(0, -1, 0).getBlock().isPassable();
+                if (room && (floor || pass == 1)) return l;
+            }
+        }
+        return base.clone();
+    }
+
+    @Override protected boolean handlesPlayerPvp() { return true; }   // every arcade game decides damage itself
 
     @Override protected void onCountdownStart() { /* the start flow runs from onGameStart */ }
 
@@ -362,6 +393,45 @@ public abstract class ArcadeGameManager extends BaseGameManager {
         return true;
     }
 
+    /**
+     * What a team has really been credited in this game (round multiplier and comeback bonus included): the
+     * same number the tab list and the score report show. In a dry run nothing is booked, so the raw score
+     * book is used.
+     */
+    protected final int shownTeamPoints(String team) {
+        if (!nl.kmc.core.DryRun.active()) {
+            try {
+                var ledger = nl.kmc.kmccore.KMCCore.getInstance().getPointsLedger();
+                if (ledger != null) {
+                    return nl.kmc.kmccore.scoring.PointsLedger.byTeam(ledger.forGame(ledger.lastGameSeq()))
+                            .getOrDefault(team, 0);
+                }
+            } catch (Throwable ignored) { }
+        }
+        return book.team(team);
+    }
+
+    /**
+     * Team points that were earned by specific players: the points are split over them (a player gets
+     * his share as his own points, which also counts for the team), so the one who did the work is seen.
+     * Falls back to a plain team award when nobody is named.
+     */
+    protected final boolean awardShared(String key, String team, Collection<UUID> contributors, int points,
+                                        PointAward.Reason reason, String category) {
+        List<UUID> who = new ArrayList<>();
+        if (contributors != null) for (UUID id : contributors) if (isParticipant(id) && !who.contains(id)) who.add(id);
+        if (who.isEmpty()) return awardTeam(key, team, points, reason, category);
+        if (points <= 0) return false;
+        int base = points / who.size(), rest = points % who.size();
+        boolean any = false;
+        for (int i = 0; i < who.size(); i++) {
+            int share = base + (i < rest ? 1 : 0);
+            if (share <= 0) continue;
+            any |= award(key == null ? null : key + "#" + who.get(i), who.get(i), share, reason, category);
+        }
+        return any;
+    }
+
     /** Standard end-of-game team placement points (skipped for solo players). */
     protected final void awardTeamPlacements(List<String> rankedTeams) {
         if (!gamePlugin.getConfig().getBoolean("points.team-placement", true)) return;
@@ -418,6 +488,13 @@ public abstract class ArcadeGameManager extends BaseGameManager {
             p.getInventory().setChestplate(dyed(Material.LEATHER_CHESTPLATE, c));
             p.getInventory().setHelmet(dyed(Material.LEATHER_HELMET, c));
         }
+    }
+
+    /** Puts the team-coloured helmet (or nothing, without team armour) back on a player. */
+    protected final void giveTeamHelmet(Player p) {
+        if (gamePlugin.getConfig().getBoolean("kit.team-armor", true))
+            p.getInventory().setHelmet(dyed(Material.LEATHER_HELMET, colorOf(teamColor(teamId(p.getUniqueId())))));
+        else p.getInventory().setHelmet(null);
     }
 
     private static ItemStack dyed(Material m, Color c) {

@@ -45,6 +45,17 @@ public final class PlatformCommands implements CommandExecutor, TabCompleter {
                 p.sendMessage(lm.tr(p, "platform.hud.set", mode));
                 try { plugin.getScoreboardManager().forceRefreshPlayer(p); } catch (Throwable ignored) { }
             }
+            case "kmcspec" -> {
+                if (!(s instanceof Player p)) { s.sendMessage("§cAlleen spelers."); return true; }
+                var sm = plugin.getSpectatorManager();
+                if (sm == null || !sm.isSpectating(p)) { p.sendMessage(lm.tr(p, "spectator.not-spectating")); return true; }
+                String sub = a.length > 0 ? a[0].toLowerCase(Locale.ROOT) : "";
+                switch (sub) {
+                    case "follow" -> sm.cycleFollow(p);
+                    case "stop" -> sm.stopFollow(p);
+                    default -> sm.openMenu(p);
+                }
+            }
             case "kmcemblem" -> emblem(s, a);
             case "teamprofile" -> {
                 if (!(s instanceof Player p)) { s.sendMessage("§cAlleen spelers."); return true; }
@@ -171,6 +182,7 @@ public final class PlatformCommands implements CommandExecutor, TabCompleter {
         if (a.length != 1) return List.of();
         return switch (n) {
             case "kmchud" -> HudScale.MODES;
+            case "kmcspec" -> List.of("menu", "follow", "stop");
             case "kmcapi" -> List.of("status", "start", "stop");
             case "kmcaudit" -> List.of("clear");
             case "clip" -> List.of("list", "start");

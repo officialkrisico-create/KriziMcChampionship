@@ -1,68 +1,200 @@
 package nl.kmc.crafting;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import nl.kmc.core.domain.GameRegistration;
 import nl.kmc.core.domain.PointAward;
+import nl.kmc.crafting.OrderLogic.Difficulty;
+import nl.kmc.crafting.OrderLogic.Line;
+import nl.kmc.crafting.OrderLogic.PileStock;
+import nl.kmc.crafting.OrderLogic.PoolItem;
 import nl.kmc.game.api.GamePlayerUtil;
 import nl.kmc.game.api.arcade.ArcadeGameManager;
+import nl.kmc.game.api.arcade.ArcadeLogic.Cooldowns;
 import nl.kmc.game.api.arcade.ArenaConfig;
 import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.*;
-import org.bukkit.block.Block;
-import org.bukkit.block.Container;
 import org.bukkit.boss.BarColor;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
 
 /**
- * Crafting Countdown: every team has a work area with a supply chest and a delivery block. Each round all
- * teams get the same target; raw materials are put in the supply chest, the team crafts the item with the
- * normal crafting table and right-clicks the delivery block. Items can be handed in piece by piece; the
- * reward is paid once per task (to whoever handed in the last piece), the first team to finish gets a bonus.
+ * Crafting Countdown (Build Mart style): every team gets orders — items and quantities — and collects the
+ * items from resource piles spread over the arena. A pile is a block you right-click: a menu shows what it
+ * holds, each pick gives a configurable amount, piles have a stock, a per-player cooldown and restock by
+ * themselves. Everything is carried to the team's own delivery station; progress is shared by the team.
+ * A completed order pays points (items, speed, streak) to the players who delivered it, and the next order
+ * is generated straight away, a little harder every few orders. No crafting, no building.
  */
 public final class CraftingCountdownManager extends ArcadeGameManager {
 
-    private enum Phase { RUN, REST }
+    // ── Data ──────────────────────────────────────────────────────────────────
 
-    private static final class TeamState {
-        int area;
-        final List<Recipe> tasks = new ArrayList<>();      // this round (1, or 2 with DOUBLE_RECIPE)
-        int taskIndex;
-        TaskProgress progress;
-        boolean roundDone;
-        int completedTasks;
-        int roundsCompleted;
-        TextDisplay hologram;
+    private record PileType(String id, String name, Material icon, List<Material> items, int perTake, int stock, int restock) {}
+
+    private static final class Pile {
+        final String id;
+        final PileType type;
+        final Location at;
+        final Map<Material, PileStock> stock = new LinkedHashMap<>();
+        TextDisplay label;
+        boolean dirty = true;
+        Pile(String id, PileType type, Location at) { this.id = id; this.type = type; this.at = at; }
     }
 
+    private static final class Order {
+        final int seq;
+        final List<Line> lines;
+        final int[] delivered;
+        long issued;
+        final int itemPts;
+        final Map<UUID, Integer> contrib = new LinkedHashMap<>();
+        Order(int seq, List<Line> lines, long issued, int itemPts) {
+            this.seq = seq; this.lines = lines; this.delivered = new int[lines.size()];
+            this.issued = issued; this.itemPts = itemPts;
+        }
+        boolean complete() {
+            for (int i = 0; i < lines.size(); i++) if (delivered[i] < lines.get(i).required()) return false;
+            return true;
+        }
+        int totalRequired() { int n = 0; for (Line l : lines) n += l.required(); return n; }
+    }
+
+    private static final class TeamState {
+        int station;
+        int sharedIndex;                       // >0 when another team uses the same station block
+        final List<Order> orders = new ArrayList<>();
+        int issued;                            // orders generated so far (also the order number)
+        int completed;
+        int streak;
+        long lastCompleteTick = Long.MIN_VALUE / 2;
+        int items;                             // items delivered in total
+        int speedPts, streakPts;
+        TextDisplay board;
+        boolean dirty = true;
+    }
+
+    /** Holder of a pile menu, so clicks in it are recognised without looking at titles. */
+    private static final class PileHolder implements InventoryHolder {
+        final Pile pile;
+        final Map<Integer, Material> slots = new HashMap<>();
+        Inventory inv;
+        PileHolder(Pile pile) { this.pile = pile; }
+        @Override public Inventory getInventory() { return inv; }
+    }
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
     private final CraftingCountdownPlugin plugin;
+    private final Map<String, PileType> types = new LinkedHashMap<>();
+    private final List<Pile> piles = new ArrayList<>();
+    private final Map<Long, Pile> pileAt = new HashMap<>();
+    private final Map<Long, Integer> stationAt = new HashMap<>();
+    private List<Location> stations = new ArrayList<>();
     private final Map<String, TeamState> teams = new HashMap<>();
-    private final Map<UUID, Integer> contribution = new HashMap<>();
-    private final Set<String> usedRecipes = new HashSet<>();
-    private final Set<String> firstBonusRounds = new HashSet<>();
-    private List<Recipe> pool = new ArrayList<>();
-    private List<Location> areas = new ArrayList<>();
-    private List<Location> deliveries = new ArrayList<>();
-    private List<Location> supplies = new ArrayList<>();
+    private final Map<UUID, Integer> delivered = new HashMap<>();
+    private final Cooldowns cooldowns = new Cooldowns();
     private final Random rnd = new Random();
 
-    private Phase phase = Phase.REST;
-    private int round;
-    private int totalRounds;
-    private long phaseStart, phaseEnd;
-    private String modifier = "NONE";
+    private List<PoolItem> pool = new ArrayList<>();
+    private final Map<String, PoolItem> poolById = new HashMap<>();
+    private List<Difficulty> difficulty = new ArrayList<>();
+    private final Set<String> obtainable = new HashSet<>();
+
+    private long durationTicks;
+    private long nextRestock;
+    private boolean finalAnnounced;
+    private int lastBeep = -1;
 
     public CraftingCountdownManager(CraftingCountdownPlugin plugin, GameRegistration reg, StatisticsService stats,
                                     ArenaConfig arena) {
         super(plugin, reg, stats, arena);
         this.plugin = plugin;
+    }
+
+    // ── Config ────────────────────────────────────────────────────────────────
+
+    private int cfgInt(String path, int def) { return gamePlugin.getConfig().getInt(path, def); }
+    private double cfgDouble(String path, double def) { return gamePlugin.getConfig().getDouble(path, def); }
+
+    /** Pile types from {@code pile-types}; invalid items are reported in {@code problems}. */
+    private Map<String, PileType> loadTypes(List<String> problems) {
+        Map<String, PileType> out = new LinkedHashMap<>();
+        ConfigurationSection s = gamePlugin.getConfig().getConfigurationSection("pile-types");
+        if (s == null) return out;
+        for (String id : s.getKeys(false)) {
+            ConfigurationSection t = s.getConfigurationSection(id);
+            if (t == null) continue;
+            List<Material> items = new ArrayList<>();
+            for (String name : t.getStringList("items")) {
+                Material m = Material.matchMaterial(name);
+                if (m == null || m.isAir() || !m.isItem()) {
+                    if (problems != null) problems.add("pile-types." + id + ": onbekend item " + name);
+                    continue;
+                }
+                if (!items.contains(m)) items.add(m);
+            }
+            if (items.isEmpty()) { if (problems != null) problems.add("pile-types." + id + ": geen geldige items"); continue; }
+            Material icon = Material.matchMaterial(t.getString("icon", items.get(0).name()));
+            if (icon == null) icon = items.get(0);
+            out.put(id, new PileType(id, t.getString("name", OrderLogic.pretty(id)), icon, items,
+                    Math.max(1, t.getInt("per-take", cfgInt("piles.per-take", 8))),
+                    Math.max(1, t.getInt("stock", cfgInt("piles.stock", 64))),
+                    Math.max(0, t.getInt("restock-amount", cfgInt("piles.restock-amount", 16)))));
+        }
+        return out;
+    }
+
+    private List<PoolItem> loadPool(List<String> problems) {
+        List<PoolItem> out = new ArrayList<>();
+        for (Object o : gamePlugin.getConfig().getList("item-pool", List.of())) {
+            if (!(o instanceof Map<?, ?> m)) continue;
+            String item = String.valueOf(m.get("item")).toUpperCase(Locale.ROOT);
+            Material mat = Material.matchMaterial(item);
+            if (mat == null || !mat.isItem()) { if (problems != null) problems.add("item-pool: onbekend item " + item); continue; }
+            int tier = m.get("tier") instanceof Number n ? n.intValue() : 1;
+            int min = m.get("min") instanceof Number n ? n.intValue() : 4;
+            int max = m.get("max") instanceof Number n ? n.intValue() : min;
+            double value = m.get("value") instanceof Number n ? n.doubleValue() : 1.0;
+            out.add(new PoolItem(mat.name(), Math.max(1, tier), Math.max(1, min), Math.max(1, max), value));
+        }
+        return out;
+    }
+
+    private List<Difficulty> loadDifficulty() {
+        List<Difficulty> out = new ArrayList<>();
+        for (Object o : gamePlugin.getConfig().getList("orders.difficulty", List.of())) {
+            if (!(o instanceof Map<?, ?> m)) continue;
+            out.add(new Difficulty(m.get("from-order") instanceof Number n ? n.intValue() : 0,
+                    Math.max(1, m.get("lines") instanceof Number n ? n.intValue() : 2),
+                    Math.max(1, m.get("max-tier") instanceof Number n ? n.intValue() : 1),
+                    m.get("scale") instanceof Number n ? n.doubleValue() : 1.0));
+        }
+        return out;
+    }
+
+    /** Where the piles stand, per type, from {@code arena.piles.<type>}. */
+    private Map<String, List<Location>> loadPileLocations() {
+        Map<String, List<Location>> out = new LinkedHashMap<>();
+        ConfigurationSection s = gamePlugin.getConfig().getConfigurationSection("arena.piles");
+        if (s == null) return out;
+        for (String type : s.getKeys(false)) out.put(type, arena.locs("piles." + type));
+        return out;
     }
 
     // ── Hooks ─────────────────────────────────────────────────────────────────
@@ -77,250 +209,284 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
     protected List<String> arenaProblems() {
         List<String> p = new ArrayList<>();
         if (arena.world() == null) p.add("geen arena-wereld (/craftcountdown world)");
-        int a = arena.locs("areas").size(), d = arena.locs("deliveries").size(), s = arena.locs("supplies").size();
-        if (a == 0) p.add("geen werkgebieden (/craftcountdown area center|delivery|supply)");
-        if (a != d || a != s) p.add("aantal centers (" + a + "), inlevermomenten (" + d + ") en kisten (" + s + ") klopt niet");
-        List<String> rp = new ArrayList<>();
-        List<Recipe> parsed = Recipe.parse(gamePlugin.getConfig().getList("recipes"), rp);
-        if (parsed.isEmpty()) p.add("geen geldige recepten in config.yml");
-        p.addAll(rp.stream().map(x -> "recept: " + x).toList());
+        if (arena.locs("stations").isEmpty()) p.add("geen inleverpunten (/craftcountdown station add)");
+        Map<String, PileType> t = loadTypes(p);
+        Set<String> items = new HashSet<>();
+        int placed = 0;
+        for (var en : loadPileLocations().entrySet()) {
+            PileType type = t.get(en.getKey());
+            if (type == null) { if (!en.getValue().isEmpty()) p.add("stapels van onbekend type '" + en.getKey() + "'"); continue; }
+            placed += en.getValue().size();
+            if (!en.getValue().isEmpty()) for (Material m : type.items()) items.add(m.name());
+        }
+        if (placed == 0) p.add("geen stapels (/craftcountdown pile add <type>)");
+        List<PoolItem> pl = loadPool(p);
+        if (pl.isEmpty()) p.add("lege item-pool in config.yml");
+        else if (placed > 0 && OrderLogic.candidates(pl, items, 1).isEmpty())
+            p.add("geen enkel item uit de item-pool (tier 1) is te krijgen bij de geplaatste stapels");
+        if (loadDifficulty().isEmpty()) p.add("orders.difficulty is leeg");
         return p;
     }
 
-    @Override protected List<Location> spawnPoints() { return arena.locs("areas"); }
+    @Override
+    protected List<Location> spawnPoints() {
+        List<Location> s = arena.locs("spawns");
+        return s.isEmpty() ? arena.locs("stations") : s;
+    }
 
     @Override
     protected Location flyoverCenter() {
-        List<Location> a = arena.locs("areas");
-        if (a.isEmpty()) return null;
+        List<Location> all = new ArrayList<>(arena.locs("stations"));
+        for (var l : loadPileLocations().values()) all.addAll(l);
+        if (all.isEmpty()) return null;
         double x = 0, y = 0, z = 0;
-        for (Location l : a) { x += l.getX(); y += l.getY(); z += l.getZ(); }
-        return new Location(a.get(0).getWorld(), x / a.size(), y / a.size() + 2, z / a.size());
+        for (Location l : all) { x += l.getX(); y += l.getY(); z += l.getZ(); }
+        return new Location(all.get(0).getWorld(), x / all.size(), y / all.size() + 6, z / all.size());
     }
 
-    @Override
-    protected Location respawnLocation(Player p) {
-        TeamState ts = teams.get(teamId(p.getUniqueId()));
-        return ts != null && ts.area < areas.size() ? areas.get(ts.area) : p.getLocation();
-    }
+    // ── Preparation ───────────────────────────────────────────────────────────
 
     @Override
     protected void prepareGame() {
-        areas = arena.locs("areas");
-        deliveries = arena.locs("deliveries");
-        supplies = arena.locs("supplies");
-        pool = Recipe.parse(gamePlugin.getConfig().getList("recipes"), new ArrayList<>());
         teams.clear();
-        contribution.clear();
-        usedRecipes.clear();
-        firstBonusRounds.clear();
-        totalRounds = Math.max(1, gamePlugin.getConfig().getInt("game.rounds", 5));
-        round = 0;
+        delivered.clear();
+        cooldowns.clear();
+        piles.clear();
+        pileAt.clear();
+        stationAt.clear();
+        obtainable.clear();
+        types.clear();
+        types.putAll(loadTypes(null));
+        pool = loadPool(null);
+        poolById.clear();
+        for (PoolItem p : pool) poolById.put(p.item(), p);
+        difficulty = loadDifficulty();
+        stations = arena.locs("stations");
+        durationTicks = cfgInt("game.duration-seconds", 240) * 20L;
+        finalAnnounced = false;
+        lastBeep = -1;
+
+        // piles (a pile is a block: right-click it)
+        int n = 0;
+        for (var en : loadPileLocations().entrySet()) {
+            PileType type = types.get(en.getKey());
+            if (type == null) continue;
+            for (Location at : en.getValue()) {
+                Pile pile = new Pile(type.id() + "#" + (++n), type, at);
+                for (Material m : type.items()) pile.stock.put(m, new PileStock(type.stock()));
+                piles.add(pile);
+                pileAt.put(key(at.getBlockX(), at.getBlockY(), at.getBlockZ()), pile);
+                for (Material m : type.items()) obtainable.add(m.name());
+                spawnLabel(pile);
+            }
+        }
+        for (int i = 0; i < stations.size(); i++) {
+            Location s = stations.get(i);
+            stationAt.put(key(s.getBlockX(), s.getBlockY(), s.getBlockZ()), i);
+        }
+
+        // teams: one station each (stations are shared, with a warning, when there are fewer than teams)
         List<String> ids = activeTeams();
+        Map<Integer, Integer> perStation = new HashMap<>();
         for (int i = 0; i < ids.size(); i++) {
             TeamState ts = new TeamState();
-            ts.area = i % areas.size();
+            ts.station = i % stations.size();
+            ts.sharedIndex = perStation.merge(ts.station, 1, Integer::sum) - 1;
             teams.put(ids.get(i), ts);
         }
-        if (ids.size() > areas.size())
-            log.warning("[CraftingCountdown] " + ids.size() + " teams but only " + areas.size()
-                    + " work areas — teams share areas.");
+        if (ids.size() > stations.size())
+            log.warning("[CraftingCountdown] " + ids.size() + " teams but only " + stations.size()
+                    + " delivery stations — teams share stations.");
+        for (var en : teams.entrySet()) {
+            TeamState ts = en.getValue();
+            int parallel = Math.max(1, cfgInt("orders.active-per-team", 1));
+            for (int i = 0; i < parallel; i++) issueOrder(en.getKey(), ts);
+            spawnBoard(en.getKey(), ts);
+        }
+        // everybody stands around their own station
         for (UUID id : players) {
             Player p = Bukkit.getPlayer(id);
             TeamState ts = teams.get(teamId(id));
-            if (p != null && ts != null) GamePlayerUtil.safeTeleport(p, areas.get(ts.area));
+            if (p == null || ts == null) continue;
+            int slot = Math.max(0, membersOf(teamId(id)).indexOf(id)) + ts.sharedIndex * 4;
+            GamePlayerUtil.safeTeleport(p, spreadAround(stations.get(ts.station), slot));
         }
     }
 
     @Override
     protected void beginPlay() {
-        startRound(1);
-    }
-
-    // ── Rounds ────────────────────────────────────────────────────────────────
-
-    private void startRound(int n) {
-        round = n;
-        phase = Phase.RUN;
-        var cfg = gamePlugin.getConfig();
-        phaseStart = ticks;
-        phaseEnd = ticks + cfg.getInt("game.round-seconds", 45) * 20L;
-        List<String> mods = cfg.getStringList("game.modifiers");
-        modifier = mods.isEmpty() ? "NONE" : mods.get((n - 1) % mods.size()).toUpperCase(Locale.ROOT);
-        List<String> order = cfg.getStringList("game.difficulty-order");
-        Recipe.Difficulty want = Recipe.Difficulty.EASY;
-        if (!order.isEmpty()) {
-            try { want = Recipe.Difficulty.valueOf(order.get((n - 1) % order.size()).toUpperCase(Locale.ROOT)); }
-            catch (IllegalArgumentException ignored) { }
-        }
-        boolean repeat = cfg.getBoolean("game.allow-repeat", false);
-        int count = "DOUBLE_RECIPE".equals(modifier) ? 2 : 1;
-        List<Recipe> tasks = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            Recipe r = Recipe.pick(pool, want, usedRecipes, repeat, rnd);
-            if (r == null) break;
-            usedRecipes.add(r.id());
-            tasks.add(r);
-        }
-        if (tasks.isEmpty()) { log.severe("No recipe available — ending."); end(); return; }
-
-        Map<Material, Integer> resources = new LinkedHashMap<>();
-        for (Recipe r : tasks) r.resources().forEach((m, a) -> resources.merge(m, a, Integer::sum));
-
+        nextRestock = ticks + restockTicks();
         for (var en : teams.entrySet()) {
             TeamState ts = en.getValue();
-            ts.tasks.clear();
-            ts.tasks.addAll(tasks);
-            ts.taskIndex = 0;
-            ts.progress = new TaskProgress(tasks.get(0).amount());
-            ts.roundDone = false;
-            fillSupply(ts.area, resources);
-            ensureHologram(ts);
-        }
-        for (UUID id : players) {
-            Player p = Bukkit.getPlayer(id);
-            if (p == null || !isParticipant(id)) continue;
-            p.getInventory().clear();
-            Recipe first = tasks.get(0);
-            p.sendTitle(api.tr(id, "crafting.round.title", n, totalRounds),
-                    "§e" + first.amount() + "x " + Recipe.pretty(first.item())
-                            + (tasks.size() > 1 ? " §7+ " + Recipe.pretty(tasks.get(1).item()) : ""), 5, 60, 10);
-            p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, 1.5f);
-        }
-    }
-
-    private void fillSupply(int area, Map<Material, Integer> resources) {
-        if (area >= supplies.size()) return;
-        Block b = supplies.get(area).getBlock();
-        if (!(b.getState() instanceof Container c)) {
-            log.warning("[CraftingCountdown] supply #" + (area + 1) + " is not a container: " + b.getType());
-            return;
-        }
-        var inv = c.getInventory();
-        inv.clear();
-        for (var en : resources.entrySet()) {
-            int left = en.getValue();
-            int max = en.getKey().getMaxStackSize();
-            while (left > 0) {
-                int n = Math.min(left, max);
-                inv.addItem(new ItemStack(en.getKey(), n));
-                left -= n;
+            // the clock of an order starts now, not when it was drawn during the preparation
+            for (Order o : ts.orders) o.issued = ticks;
+            ts.dirty = true;
+            for (UUID m : membersOf(en.getKey())) {
+                Player p = Bukkit.getPlayer(m);
+                if (p == null) continue;
+                p.sendTitle(api.tr(m, "crafting.go.title"), api.tr(m, "crafting.go.sub"), 5, 50, 10);
+                for (Order o : ts.orders) announceOrder(m, o, false);
             }
         }
     }
 
-    private void emptySupplies() {
-        for (Location l : supplies) {
-            if (l.getBlock().getState() instanceof Container c) c.getInventory().clear();
+    private long restockTicks() { return Math.max(1, cfgInt("piles.restock-seconds", 15)) * 20L; }
+
+    // ── Orders ────────────────────────────────────────────────────────────────
+
+    private Order issueOrder(String team, TeamState ts) {
+        Difficulty d = OrderLogic.difficultyFor(difficulty, ts.completed);
+        int maxQty = Math.max(1, cfgInt("orders.max-quantity-per-line", 48));
+        List<Line> lines = OrderLogic.generate(pool, obtainable, d, maxQty, rnd);
+        if (lines.isEmpty()) {            // cannot happen after validation; never leave a team without an order
+            PoolItem any = pool.isEmpty() ? null : pool.get(0);
+            lines = List.of(new Line(any != null ? any.item() : Material.COBBLESTONE.name(), 8));
+        }
+        int itemPts = OrderLogic.itemPoints(lines, poolById, cfgDouble("points.per-value", 1.0));
+        Order o = new Order(++ts.issued, lines, ticks, itemPts);
+        ts.orders.add(o);
+        ts.dirty = true;
+        return o;
+    }
+
+    private void announceOrder(UUID viewer, Order o, boolean fresh) {
+        Player p = Bukkit.getPlayer(viewer);
+        if (p == null) return;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < o.lines.size(); i++) {
+            if (i > 0) sb.append("§7, ");
+            sb.append("§f").append(o.lines.get(i).required()).append("x §e")
+                    .append(OrderLogic.pretty(o.lines.get(i).item()));
+        }
+        p.sendMessage(api.tr(viewer, fresh ? "crafting.order.new" : "crafting.order.first", o.seq, sb.toString()));
+    }
+
+    // ── Piles ─────────────────────────────────────────────────────────────────
+
+    private void spawnLabel(Pile pile) {
+        World w = pile.at.getWorld();
+        if (w == null) return;
+        pile.label = w.spawn(pile.at.clone().add(0.5, 1.9, 0.5), TextDisplay.class, d -> {
+            d.setBillboard(Display.Billboard.CENTER);
+            d.setPersistent(false);
+            d.setBackgroundColor(Color.fromARGB(150, 0, 0, 0));
+        });
+        updateLabel(pile);
+    }
+
+    private void updateLabel(Pile pile) {
+        pile.dirty = false;
+        if (pile.label == null || !pile.label.isValid()) return;
+        Component c = Component.text(pile.type.name(), NamedTextColor.GOLD, TextDecoration.BOLD);
+        for (var en : pile.stock.entrySet()) {
+            PileStock st = en.getValue();
+            boolean has = st.amount() > 0;
+            c = c.append(Component.newline())
+                    .append(Component.translatable(en.getKey().translationKey(), has ? NamedTextColor.GRAY : NamedTextColor.DARK_RED))
+                    .append(Component.text(" " + st.amount() + "/" + st.max(), has ? NamedTextColor.WHITE : NamedTextColor.RED));
+        }
+        c = c.append(Component.newline()).append(Component.text("▸ rechtsklik", NamedTextColor.YELLOW));
+        pile.label.text(c);
+    }
+
+    private void restock() {
+        for (Pile pile : piles) {
+            if (pile.type.restock() <= 0) continue;
+            for (PileStock st : pile.stock.values()) {
+                if (st.amount() < st.max()) { st.add(pile.type.restock()); pile.dirty = true; }
+            }
         }
     }
 
-    private void endRound() {
-        phase = Phase.REST;
-        emptySupplies();
-        for (var en : teams.entrySet()) {
-            TeamState ts = en.getValue();
-            if (ts.roundDone) ts.roundsCompleted++;
-        }
-        for (UUID id : players) {
-            Player p = Bukkit.getPlayer(id);
-            if (p != null) p.getInventory().clear();
-        }
-        for (Player v : Bukkit.getOnlinePlayers()) {
-            UUID vid = v.getUniqueId();
-            v.sendMessage(api.tr(vid, "crafting.round.over", round));
-            List<String> ranked = book.rankTeams(teams.keySet());
-            for (String t : ranked)
-                v.sendMessage("  " + teamName(t) + " §8— §e" + book.team(t) + " ptn"
-                        + (teams.get(t).roundDone ? " §a✔" : " §c✘"));
-        }
-        if (round >= totalRounds) { end(); return; }
-        phaseStart = ticks;
-        phaseEnd = ticks + gamePlugin.getConfig().getInt("game.rest-seconds", 10) * 20L;
+    private int carried(Player p) {
+        int n = 0;
+        for (ItemStack it : p.getInventory().getStorageContents()) if (it != null) n += it.getAmount();
+        return n;
     }
 
-    // ── Loop ──────────────────────────────────────────────────────────────────
+    private void openPile(Player p, Pile pile) {
+        PileHolder h = new PileHolder(pile);
+        int rows = Math.max(1, (pile.stock.size() + 8) / 9);
+        h.inv = Bukkit.createInventory(h, rows * 9, "§6" + pile.type.name());
+        render(h, p);
+        p.openInventory(h.inv);
+        p.playSound(p.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.5f, 1.4f);
+    }
 
-    @Override
-    protected void playTick() {
-        if (phase == Phase.REST) {
-            long left = Math.max(0, phaseEnd - ticks) / 20;
-            bar("§6§lCRAFTING COUNTDOWN §8| §7Ronde " + (round + 1) + " over §e" + left + "s", 1, BarColor.YELLOW);
-            if (ticks >= phaseEnd) startRound(round + 1);
+    private void render(PileHolder h, Player p) {
+        h.inv.clear();
+        h.slots.clear();
+        int slot = 0;
+        int carry = carried(p), max = cfgInt("piles.max-carry", 128);
+        for (var en : h.pile.stock.entrySet()) {
+            Material m = en.getKey();
+            PileStock st = en.getValue();
+            ItemStack it = new ItemStack(m, Math.max(1, Math.min(st.amount(), 64)));
+            ItemMeta meta = it.getItemMeta();
+            meta.setDisplayName("§e§l" + OrderLogic.pretty(m.name()));
+            meta.setLore(List.of(
+                    "§7Voorraad: §f" + st.amount() + "§8/§7" + st.max(),
+                    "§7Per klik: §f" + Math.min(h.pile.type.perTake(), Math.max(0, st.amount())),
+                    "§7Je draagt: §f" + carry + "§8/§7" + max,
+                    st.amount() > 0 ? "§aKlik om te pakken" : "§cLeeg — komt terug"));
+            it.setItemMeta(meta);
+            h.inv.setItem(slot, it);
+            h.slots.put(slot, m);
+            slot++;
+        }
+    }
+
+    /** One pick from a pile: validated entirely on the server (stock, cooldown, carry limit). */
+    private void take(Player p, Pile pile, Material m) {
+        UUID id = p.getUniqueId();
+        if (!live || !getState().isRunning() || !isActive(id)) return;
+        PileStock st = pile.stock.get(m);
+        if (st == null) return;
+
+        String ck = id + ":" + pile.id;
+        if (!cooldowns.ready(ck, ticks)) {
+            actionBar(p, api.tr(id, "crafting.pile.cooldown", Math.max(1, (int) Math.ceil(cooldowns.remaining(ck, ticks) / 20.0))));
             return;
         }
-        long left = Math.max(0, phaseEnd - ticks);
-        if (ticks % 20 == 0) for (TeamState ts : teams.values()) updateHologram(ts);
-        bar("§6§lCRAFTING COUNTDOWN §8| §7Ronde §f" + round + "/" + totalRounds + " §8| §e" + mmss(left / 20),
-                (double) left / Math.max(1, phaseEnd - phaseStart), left <= 10 * 20 ? BarColor.RED : BarColor.GREEN);
-        boolean allDone = true;
-        for (TeamState ts : teams.values()) if (!ts.roundDone) { allDone = false; break; }
-        if (ticks >= phaseEnd || allDone) endRound();
+        int max = cfgInt("piles.max-carry", 128);
+        int room = OrderLogic.carryRoom(carried(p), max);
+        if (room <= 0) {
+            actionBar(p, api.tr(id, "crafting.pile.full", max));
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
+            return;
+        }
+        if (st.amount() <= 0) {
+            actionBar(p, api.tr(id, "crafting.pile.empty", OrderLogic.pretty(m.name())));
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
+            return;
+        }
+        int got = st.take(Math.min(pile.type.perTake(), room));
+        var left = p.getInventory().addItem(new ItemStack(m, got));
+        int back = 0;
+        for (ItemStack rest : left.values()) back += rest.getAmount();
+        if (back > 0) { st.add(back); got -= back; }
+        if (got <= 0) return;
+        long cd = Math.round(Math.max(0.0, cfgDouble("piles.cooldown-seconds", 2.0)) * 20);
+        if (cd > 0) cooldowns.start(ck, ticks, cd);
+        pile.dirty = true;
+        p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.1f);
+        actionBar(p, api.tr(id, "crafting.pile.took", got, OrderLogic.pretty(m.name()), carried(p), max));
     }
 
     // ── Delivery ──────────────────────────────────────────────────────────────
 
-    @EventHandler(ignoreCancelled = false)
-    public void onDeliver(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
-        if (!live || !getState().isRunning() || e.getClickedBlock() == null) return;
-        Player p = e.getPlayer();
-        if (!isParticipant(p.getUniqueId())) return;
-        Location at = e.getClickedBlock().getLocation();
-        boolean isDelivery = false;
-        for (Location d : deliveries) if (sameBlock(d, at)) { isDelivery = true; break; }
-        if (!isDelivery) return;
-        e.setCancelled(true);
-        deliver(p);
+    private int count(Player p, Material m) {
+        int n = 0;
+        for (ItemStack it : p.getInventory().getStorageContents()) if (it != null && it.getType() == m) n += it.getAmount();
+        return n;
     }
 
-    private static boolean sameBlock(Location a, Location b) {
-        return a.getWorld() == b.getWorld() && a.getBlockX() == b.getBlockX()
-                && a.getBlockY() == b.getBlockY() && a.getBlockZ() == b.getBlockZ();
-    }
-
-    private void deliver(Player p) {
-        UUID id = p.getUniqueId();
-        if (phase != Phase.RUN) { actionBar(p, api.tr(id, "crafting.not-running")); return; }
-        TeamState ts = teams.get(teamId(id));
-        if (ts == null || ts.roundDone || ts.progress == null) { actionBar(p, api.tr(id, "crafting.already-done")); return; }
-
-        Recipe task = ts.tasks.get(ts.taskIndex);
-        int have = 0;
-        for (ItemStack it : p.getInventory().getContents()) {
-            if (isDeliverable(it, task.item())) have += it.getAmount();
-        }
-        if (have == 0) {
-            actionBar(p, api.tr(id, "crafting.wrong-item", task.amount(), Recipe.pretty(task.item())));
-            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
-            return;
-        }
-        int take = ts.progress.offer(have);
-        removeItems(p, task.item(), take);
-        p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 1f, 1.2f);
-        if (!ts.progress.isDone()) {
-            actionBar(p, api.tr(id, "crafting.progress", ts.progress.delivered(), ts.progress.required(),
-                    Recipe.pretty(task.item())));
-            updateHologram(ts);
-            return;
-        }
-        completeTask(p, ts, task);
-    }
-
-    /** Plain items only: renamed or enchanted items are not accepted as a delivery. */
-    private static boolean isDeliverable(ItemStack it, Material want) {
-        if (it == null || it.getType() != want) return false;
-        if (!it.hasItemMeta()) return true;
-        var m = it.getItemMeta();
-        return !m.hasDisplayName() && !m.hasEnchants();
-    }
-
-    private void removeItems(Player p, Material m, int amount) {
+    private void remove(Player p, Material m, int amount) {
         int left = amount;
-        ItemStack[] contents = p.getInventory().getContents();
-        for (int i = 0; i < contents.length && left > 0; i++) {
-            ItemStack it = contents[i];
-            if (!isDeliverable(it, m)) continue;
+        ItemStack[] c = p.getInventory().getStorageContents();
+        for (int i = 0; i < c.length && left > 0; i++) {
+            ItemStack it = c[i];
+            if (it == null || it.getType() != m) continue;
             int n = Math.min(left, it.getAmount());
             if (n == it.getAmount()) p.getInventory().setItem(i, null);
             else it.setAmount(it.getAmount() - n);
@@ -328,76 +494,212 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         }
     }
 
-    private void completeTask(Player p, TeamState ts, Recipe task) {
+    /** Hands in everything the team's open orders still need; completes orders and starts the next ones. */
+    private void submit(Player p, String team, TeamState ts) {
         UUID id = p.getUniqueId();
-        String team = teamId(id);
-        var cfg = gamePlugin.getConfig();
-        int pts = switch (task.difficulty()) {
-            case EASY -> cfg.getInt("points.easy", 10);
-            case MEDIUM -> cfg.getInt("points.medium", 25);
-            case HARD -> cfg.getInt("points.hard", 45);
-        };
-        String key = "task:" + round + ":" + team + ":" + ts.taskIndex;
-        award(key, id, pts, PointAward.Reason.OBJECTIVE, "task-" + task.difficulty().name().toLowerCase(Locale.ROOT));
-        contribution.merge(id, 1, Integer::sum);
-        ts.completedTasks++;
-
-        boolean last = ts.taskIndex + 1 >= ts.tasks.size();
-        // the first team to finish the round's (last) task gets the bonus, once per round
-        if (last && firstBonusRounds.add("r" + round)) {
-            award("first:" + round, id, cfg.getInt("points.first-delivery", 10), PointAward.Reason.BONUS, "first-delivery");
-            tellKey("crafting.first", teamName(team), Recipe.pretty(task.item()));
-        } else {
-            tellKey("crafting.done", teamName(team), p.getName(), Recipe.pretty(task.item()));
-        }
-        p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-        for (UUID m : membersOf(team)) {
-            Player mp = Bukkit.getPlayer(m);
-            if (mp != null) mp.sendTitle("§a§l✔", "§7" + Recipe.pretty(task.item()), 0, 30, 10);
-        }
-
-        if (last) {
-            ts.roundDone = true;
-            ts.progress = null;
-        } else {
-            ts.taskIndex++;
-            ts.progress = new TaskProgress(ts.tasks.get(ts.taskIndex).amount());
-            Recipe next = ts.tasks.get(ts.taskIndex);
-            for (UUID m : membersOf(team)) {
-                Player mp = Bukkit.getPlayer(m);
-                if (mp != null) actionBar(mp, api.tr(m, "crafting.next-task", next.amount(), Recipe.pretty(next.item())));
+        int total = 0;
+        List<Order> done = new ArrayList<>();
+        for (Order o : ts.orders) {
+            for (int i = 0; i < o.lines.size(); i++) {
+                Line l = o.lines.get(i);
+                int need = l.required() - o.delivered[i];
+                if (need <= 0) continue;
+                Material m = Material.matchMaterial(l.item());
+                if (m == null) continue;
+                int give = Math.min(need, count(p, m));
+                if (give <= 0) continue;
+                remove(p, m, give);
+                o.delivered[i] += give;
+                o.contrib.merge(id, give, Integer::sum);
+                ts.items += give;
+                total += give;
+                delivered.merge(id, give, Integer::sum);
             }
+            if (o.complete()) done.add(o);
         }
-        updateHologram(ts);
-    }
-
-    // ── Holograms ─────────────────────────────────────────────────────────────
-
-    private void ensureHologram(TeamState ts) {
-        if (ts.area >= deliveries.size()) return;
-        if (ts.hologram != null && ts.hologram.isValid()) return;
-        Location at = deliveries.get(ts.area).clone().add(0.5, 2.0, 0.5);
-        if (at.getWorld() == null) return;
-        ts.hologram = at.getWorld().spawn(at, TextDisplay.class, d -> {
-            d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
-            d.setPersistent(false);
-            d.setSeeThrough(false);
-            d.setBackgroundColor(Color.fromARGB(160, 0, 0, 0));
-        });
-    }
-
-    private void updateHologram(TeamState ts) {
-        ensureHologram(ts);
-        if (ts.hologram == null || !ts.hologram.isValid()) return;
-        if (ts.roundDone || ts.progress == null || ts.tasks.isEmpty()) {
-            ts.hologram.text(Component.text("✔", net.kyori.adventure.text.format.NamedTextColor.GREEN));
+        if (total == 0) {
+            actionBar(p, api.tr(id, "crafting.submit.nothing"));
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
             return;
         }
-        Recipe t = ts.tasks.get(ts.taskIndex);
-        ts.hologram.text(Component.text("§e" + ts.progress.required() + "x ")
-                .append(Component.translatable(t.item().translationKey()))
-                .append(Component.text("\n§7" + ts.progress.delivered() + "/" + ts.progress.required()
-                        + (ts.tasks.size() > 1 ? " §8(" + (ts.taskIndex + 1) + "/" + ts.tasks.size() + ")" : ""))));
+        ts.dirty = true;
+        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.6f);
+        actionBar(p, api.tr(id, "crafting.submit.ok", total));
+        for (Order o : done) completeOrder(team, ts, o);
+    }
+
+    private void completeOrder(String team, TeamState ts, Order o) {
+        int base = Math.max(0, cfgInt("points.base-per-order", 10));
+        long parTicks = Math.round(o.totalRequired() * Math.max(0.1, cfgDouble("points.par-seconds-per-item", 3.0)) * 20);
+        long elapsed = Math.max(0, ticks - o.issued);
+        int speed = OrderLogic.speedBonus(elapsed, parTicks, Math.max(0, cfgInt("points.speed-bonus", 25)));
+        long window = Math.max(1, cfgInt("points.streak-window-seconds", 90)) * 20L;
+        ts.streak = ticks - ts.lastCompleteTick <= window ? ts.streak + 1 : 1;
+        ts.lastCompleteTick = ticks;
+        int streakPts = OrderLogic.streakBonus(ts.streak, Math.max(0, cfgInt("points.streak-per-step", 5)),
+                Math.max(0, cfgInt("points.streak-cap", 25)));
+
+        int core = base + o.itemPts;
+        pay(team, o, "core", core, PointAward.Reason.OBJECTIVE, "order");
+        pay(team, o, "speed", speed, PointAward.Reason.BONUS, "speed");
+        pay(team, o, "streak", streakPts, PointAward.Reason.BONUS, "streak");
+        ts.speedPts += speed;
+        ts.streakPts += streakPts;
+        ts.completed++;
+
+        int total = core + speed + streakPts;
+        for (Player v : Bukkit.getOnlinePlayers()) {
+            UUID vid = v.getUniqueId();
+            if (!isParticipant(vid)) continue;
+            if (team.equals(teamId(vid))) {
+                v.sendMessage(api.tr(vid, "crafting.order.done", o.seq, base, o.itemPts, speed, streakPts, total));
+                v.sendTitle("§a§l✔ #" + o.seq, "§e+" + total, 0, 40, 10);
+                v.playSound(v.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
+            } else {
+                v.sendMessage(api.tr(vid, "crafting.order.other", teamName(team), o.seq, total));
+            }
+        }
+        ts.orders.remove(o);
+        Order next = issueOrder(team, ts);
+        for (UUID m : membersOf(team)) announceOrder(m, next, true);
+    }
+
+    /** Pays one part of an order to the players who delivered for it, in proportion to their items. */
+    private void pay(String team, Order o, String part, int points, PointAward.Reason reason, String category) {
+        if (points <= 0) return;
+        Map<UUID, Integer> shares = OrderLogic.split(points, o.contrib);
+        if (shares.isEmpty()) { awardTeam("o:" + team + ":" + o.seq + ":" + part, team, points, reason, category); return; }
+        for (var en : shares.entrySet())
+            award("o:" + team + ":" + o.seq + ":" + part + ":" + en.getKey(), en.getKey(), en.getValue(), reason, category);
+    }
+
+    // ── Events ────────────────────────────────────────────────────────────────
+
+    private static long key(int x, int y, int z) {
+        return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (y & 0xFFFL);
+    }
+
+    @EventHandler
+    public void onUse(PlayerInteractEvent e) {
+        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
+        if (!live || !getState().isRunning() || e.getClickedBlock() == null) return;
+        Player p = e.getPlayer();
+        UUID id = p.getUniqueId();
+        if (!isParticipant(id)) return;
+        var b = e.getClickedBlock();
+        long k = key(b.getX(), b.getY(), b.getZ());
+
+        Pile pile = pileAt.get(k);
+        if (pile != null) {
+            e.setCancelled(true);
+            if (isActive(id)) openPile(p, pile);
+            return;
+        }
+        Integer st = stationAt.get(k);
+        if (st == null) return;
+        e.setCancelled(true);
+        String team = teamId(id);
+        TeamState ts = teams.get(team);
+        if (ts == null || ts.station != st) {
+            // somebody else's delivery station: say whose it is
+            String owner = null;
+            for (var en : teams.entrySet()) if (en.getValue().station == st) { owner = en.getKey(); break; }
+            actionBar(p, api.tr(id, "crafting.submit.foreign", owner != null ? teamName(owner) : "?"));
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
+            return;
+        }
+        if (isActive(id)) submit(p, team, ts);
+    }
+
+    @EventHandler
+    public void onPileClick(InventoryClickEvent e) {
+        if (!(e.getView().getTopInventory().getHolder() instanceof PileHolder h)) return;
+        e.setCancelled(true);                       // nothing can be moved in or out of the menu
+        if (!(e.getWhoClicked() instanceof Player p)) return;
+        if (e.getClickedInventory() != e.getView().getTopInventory()) return;
+        Material m = h.slots.get(e.getRawSlot());
+        if (m == null) return;
+        take(p, h.pile, m);
+        render(h, p);
+        if (h.pile.dirty) updateLabel(h.pile);
+    }
+
+    @EventHandler
+    public void onPileDrag(InventoryDragEvent e) {
+        if (e.getView().getTopInventory().getHolder() instanceof PileHolder) e.setCancelled(true);
+    }
+
+    // ── Loop ──────────────────────────────────────────────────────────────────
+
+    @Override
+    protected void playTick() {
+        if (ticks >= nextRestock) {
+            restock();
+            nextRestock = ticks + restockTicks();
+        }
+        if (ticks % 10 == 0) {
+            for (Pile pile : piles) if (pile.dirty) updateLabel(pile);
+            for (var en : teams.entrySet()) if (en.getValue().dirty) updateBoard(en.getKey(), en.getValue());
+        }
+
+        long left = Math.max(0, durationTicks - ticks);
+        int seconds = (int) Math.ceil(left / 20.0);
+        int finalSec = Math.max(5, cfgInt("game.final-countdown-seconds", 30));
+        if (!finalAnnounced && left <= finalSec * 20L) {
+            finalAnnounced = true;
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (!isParticipant(p.getUniqueId())) continue;
+                p.sendTitle(api.tr(p.getUniqueId(), "crafting.final.title"),
+                        api.tr(p.getUniqueId(), "crafting.final.sub", finalSec), 5, 50, 10);
+                p.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.5f, 1.6f);
+            }
+        }
+        if (finalAnnounced && seconds <= 10 && seconds != lastBeep && seconds > 0) {
+            lastBeep = seconds;
+            for (Player p : Bukkit.getOnlinePlayers())
+                if (isParticipant(p.getUniqueId()))
+                    p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_HAT, 1f, 0.8f + (10 - seconds) * 0.08f);
+        }
+        bar("§6§lCRAFTING COUNTDOWN §8| §e" + mmss(seconds) + (finalAnnounced ? " §8| §c§lFINALE" : ""),
+                (double) left / Math.max(1, durationTicks), finalAnnounced ? BarColor.RED : BarColor.GREEN);
+        if (ticks >= durationTicks) end();
+    }
+
+    // ── Board (hologram at the delivery station) ──────────────────────────────
+
+    private void spawnBoard(String team, TeamState ts) {
+        Location st = stations.get(ts.station);
+        World w = st.getWorld();
+        if (w == null) return;
+        ts.board = w.spawn(st.clone().add(0.0, 2.4 + ts.sharedIndex * 1.6, 0.0), TextDisplay.class, d -> {
+            d.setBillboard(Display.Billboard.CENTER);
+            d.setPersistent(false);
+            d.setBackgroundColor(Color.fromARGB(170, 0, 0, 0));
+        });
+        updateBoard(team, ts);
+    }
+
+    private void updateBoard(String team, TeamState ts) {
+        ts.dirty = false;
+        if (ts.board == null || !ts.board.isValid()) return;
+        Component c = Component.text("INLEVERPUNT ", NamedTextColor.GOLD, TextDecoration.BOLD)
+                .append(Component.text(ChatColor.stripColor(teamName(team)), NamedTextColor.WHITE));
+        for (Order o : ts.orders) {
+            c = c.append(Component.newline()).append(Component.text("Bestelling #" + o.seq, NamedTextColor.YELLOW));
+            for (int i = 0; i < o.lines.size(); i++) {
+                Line l = o.lines.get(i);
+                int got = Math.min(o.delivered[i], l.required());
+                boolean full = got >= l.required();
+                Material m = Material.matchMaterial(l.item());
+                Component name = m != null ? Component.translatable(m.translationKey()) : Component.text(l.item());
+                c = c.append(Component.newline())
+                        .append(Component.text(full ? "✔ " : "• ", full ? NamedTextColor.GREEN : NamedTextColor.GRAY))
+                        .append(name.color(full ? NamedTextColor.GREEN : NamedTextColor.WHITE))
+                        .append(Component.text(" " + got + "/" + l.required(), full ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
+            }
+        }
+        c = c.append(Component.newline()).append(Component.text("Rechtsklik om in te leveren", NamedTextColor.GRAY));
+        ts.board.text(c);
     }
 
     // ── HUD ───────────────────────────────────────────────────────────────────
@@ -408,17 +710,23 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         String team = teamId(id);
         TeamState ts = teams.get(team);
         List<String> l = new ArrayList<>();
-        l.add(api.tr(id, "crafting.sb.round", Math.max(1, round), totalRounds));
-        l.add(api.tr(id, "crafting.sb.time", mmss(Math.max(0, phaseEnd - ticks) / 20)));
-        if (ts != null && phase == Phase.RUN && !ts.tasks.isEmpty()) {
-            Recipe t = ts.tasks.get(ts.taskIndex);
-            l.add(api.tr(id, "crafting.sb.goal", t.amount(), Recipe.pretty(t.item())));
-            l.add(ts.roundDone ? api.tr(id, "crafting.sb.done")
-                    : api.tr(id, "crafting.sb.progress", ts.progress.delivered(), ts.progress.required()));
+        l.add(api.tr(id, "crafting.sb.time", mmss(Math.max(0, durationTicks - ticks) / 20)));
+        if (ts != null) {
+            int shown = 0;
+            for (Order o : ts.orders) {
+                for (int i = 0; i < o.lines.size() && shown < 4; i++, shown++) {
+                    Line li = o.lines.get(i);
+                    int got = Math.min(o.delivered[i], li.required());
+                    l.add(api.tr(id, got >= li.required() ? "crafting.sb.line-done" : "crafting.sb.line",
+                            got, li.required(), OrderLogic.pretty(li.item())));
+                }
+            }
+            l.add("");
+            l.add(api.tr(id, "crafting.sb.team", shownTeamPoints(team)));
+            l.add(api.tr(id, "crafting.sb.orders", ts.completed, ts.streak));
         }
-        l.add("");
-        l.add(api.tr(id, "crafting.sb.team", book.team(team)));
-        l.add(api.tr(id, "crafting.sb.you", contribution.getOrDefault(id, 0)));
+        l.add(api.tr(id, "crafting.sb.carry", carried(viewer), cfgInt("piles.max-carry", 128)));
+        l.add(api.tr(id, "crafting.sb.you", delivered.getOrDefault(id, 0)));
         return l;
     }
 
@@ -426,47 +734,47 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
 
     @Override
     protected Result finishGame() {
-        int bonus = gamePlugin.getConfig().getInt("points.all-complete", 30);
-        for (var en : teams.entrySet()) {
-            if (en.getValue().roundsCompleted >= totalRounds && !en.getKey().startsWith("solo_"))
-                awardTeam("all:" + en.getKey(), en.getKey(), bonus, PointAward.Reason.BONUS, "all-complete");
-            else if (en.getValue().roundsCompleted >= totalRounds)
-                award("all:" + en.getKey(), membersOf(en.getKey()).get(0), bonus, PointAward.Reason.BONUS, "all-complete");
-        }
         List<String> ranked = book.rankTeams(teams.keySet());
         awardTeamPlacements(ranked);
 
         List<UUID> order = new ArrayList<>();
         for (String t : ranked) {
             List<UUID> m = membersOf(t);
-            m.sort((a, b) -> Integer.compare(contribution.getOrDefault(b, 0), contribution.getOrDefault(a, 0)));
+            m.sort((a, b) -> Integer.compare(delivered.getOrDefault(b, 0), delivered.getOrDefault(a, 0)));
             order.addAll(m);
         }
         for (Player v : Bukkit.getOnlinePlayers()) {
             UUID vid = v.getUniqueId();
             v.sendMessage(api.tr(vid, "crafting.results"));
+            int i = 1;
             for (String t : ranked) {
                 TeamState ts = teams.get(t);
-                v.sendMessage("  " + teamName(t) + " §8— §e" + book.team(t) + " ptn §8| §7"
-                        + ts.completedTasks + " opdrachten, " + ts.roundsCompleted + "/" + totalRounds + " rondes");
+                if (ts == null) continue;
+                v.sendMessage(api.tr(vid, "crafting.result-line", i++, teamName(t), shownTeamPoints(t),
+                        ts.completed, ts.items, ts.speedPts, ts.streakPts));
             }
         }
         UUID mvp = null;
         int best = -1;
         for (UUID id : players) {
-            int c = contribution.getOrDefault(id, 0);
+            int c = delivered.getOrDefault(id, 0);
             if (c > best) { best = c; mvp = id; }
         }
         String winner = ranked.isEmpty() ? "-" : teamName(ranked.get(0));
-        return new Result(winner, mvp, mvp != null ? nameOf(mvp) : null, order);
+        return new Result(winner, mvp, mvp != null && best > 0 ? nameOf(mvp) : null, order);
     }
 
     @Override
     protected void cleanupGame() {
-        emptySupplies();
-        for (TeamState ts : teams.values()) {
-            if (ts.hologram != null && ts.hologram.isValid()) ts.hologram.remove();
+        for (Pile pile : piles) if (pile.label != null && pile.label.isValid()) pile.label.remove();
+        for (TeamState ts : teams.values()) if (ts.board != null && ts.board.isValid()) ts.board.remove();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (p.getOpenInventory().getTopInventory().getHolder() instanceof PileHolder) p.closeInventory();
         }
+        piles.clear();
+        pileAt.clear();
+        stationAt.clear();
         teams.clear();
+        delivered.clear();
     }
 }

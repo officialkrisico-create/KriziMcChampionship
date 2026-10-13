@@ -96,6 +96,28 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
      */
     protected abstract List<String> scoringLines();
 
+    /** Intro line for the individual end placement, read from the real KMC points table (points.yml). */
+    protected final String placementLine() {
+        try {
+            var pm = kmcCore.getPointsManager();
+            return "+" + pm.getBasePointsForPlacement(1) + " / +" + pm.getBasePointsForPlacement(2) + " / +"
+                    + pm.getBasePointsForPlacement(3) + " ptn — 1e / 2e / 3e eindplaats";
+        } catch (Throwable t) {
+            return "Punten voor je eindplaats";
+        }
+    }
+
+    /** Intro line for the team placement bonus (only for games that award it). */
+    protected final String teamPlacementLine() {
+        try {
+            var pm = kmcCore.getPointsManager();
+            return "+" + pm.getTeamPlacementBase(1) + " / +" + pm.getTeamPlacementBase(2) + " / +"
+                    + pm.getTeamPlacementBase(3) + " ptn — team-bonus voor de 1e / 2e / 3e plek";
+        } catch (Throwable t) {
+            return "Team-bonus voor de beste teams";
+        }
+    }
+
     /**
      * Factory: create the V2 game manager for this plugin.
      * Called after {@code GameRegistration} is built and registered.
@@ -193,7 +215,19 @@ public abstract class AbstractGamePlugin extends JavaPlugin {
 
             // Let /kmctest generate a throw-away arena for this game, if it knows how.
             if (supportsTestArena())
-                TestArenaRegistry.register(gameId(), displayName(), this::buildTestArena);
+                TestArenaRegistry.register(gameId(), displayName(), (admin, origin) -> {
+                    org.bukkit.Location view = buildTestArena(admin, origin);
+                    // Tell right away whether the game accepts the arena, instead of failing at the first start.
+                    try {
+                        java.util.List<String> issues = gameManagerV2.getArenaIssues();
+                        if (issues.isEmpty()) admin.sendMessage("§a✔ §7" + displayName() + " is klaar om te starten.");
+                        else {
+                            admin.sendMessage("§e⚠ §7" + displayName() + " is nog niet klaar:");
+                            issues.forEach(i -> admin.sendMessage("§7  - §f" + i));
+                        }
+                    } catch (Throwable ignored) { }
+                    return view;
+                });
 
             // Listen for tournament engine start signal
             String id         = gameId();

@@ -3,8 +3,6 @@ package nl.kmc.crown;
 import nl.kmc.core.domain.GameRegistration;
 import nl.kmc.core.domain.PointAward;
 import nl.kmc.game.api.arcade.ArcadeGameManager;
-import nl.kmc.game.api.arcade.ArcadeLogic.CaptureMeter;
-import nl.kmc.game.api.arcade.ArcadeLogic.CaptureStatus;
 import nl.kmc.game.api.arcade.ArcadeLogic.Cooldowns;
 import nl.kmc.game.api.arcade.ArcadeLogic.Region;
 import nl.kmc.game.api.arcade.ArcadeLogic.TeamEnergy;
@@ -17,6 +15,9 @@ import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -27,20 +28,28 @@ import org.bukkit.potion.PotionEffectType;
 import java.util.*;
 
 /**
- * Crown Control: one capture zone, one crown. The holder team earns points and energy; energy buys short
- * team abilities that only the holder can use. Spending is atomic ({@link TeamEnergy#trySpend}): a refused
- * activation never costs anything.
+ * Crown Control: several crowns lie in the arena. Whoever picks one up wears it and earns points for as long
+ * as he keeps it; an enemy takes it by hitting the carrier a few times or by knocking him out. The team that
+ * wears crowns earns energy, and energy buys short team abilities that only a crown-wearing team can use.
+ * Spending is atomic ({@link TeamEnergy#trySpend}): a refused activation never costs anything.
  */
 public final class CrownControlManager extends ArcadeGameManager {
 
+    /** One crown: lying somewhere, or worn by a player. */
+    private static final class Crown {
+        ItemDisplay display;
+        Location at;
+        UUID carrier;
+        int hits;
+        long freeFrom;
+        long lastStealTick = -100000;
+    }
+
     private final CrownControlPlugin plugin;
-    private CaptureMeter meter;
     private Region crownZone;
-    private ItemDisplay crown;
     private long durationTicks;
-    private long lockUntil;
-    private long neutralAt;
-    private int changes;
+    private final List<Crown> crowns = new ArrayList<>();
+    private final Map<UUID, Crown> carrying = new HashMap<>();
 
     private final Map<String, TeamEnergy> energy = new HashMap<>();
     private final Cooldowns cooldowns = new Cooldowns();
@@ -52,7 +61,6 @@ public final class CrownControlManager extends ArcadeGameManager {
     private String bountyBy, bountyTarget;
     private long bountyUntil;
     private final Map<UUID, Integer> contribution = new HashMap<>();
-    private final Random rnd = new Random();
 
     public CrownControlManager(CrownControlPlugin plugin, GameRegistration reg, StatisticsService stats, ArenaConfig arena) {
         super(plugin, reg, stats, arena);
@@ -90,7 +98,6 @@ public final class CrownControlManager extends ArcadeGameManager {
     protected void prepareGame() {
         var cfg = gamePlugin.getConfig();
         crownZone = arena.region("zone");
-        meter = new CaptureMeter(cfg.getDouble("game.capture-seconds", 5), cfg.getDouble("game.decay-per-second", 1));
         durationTicks = cfg.getInt("game.duration-seconds", 180) * 20L;
         energy.clear();
         cooldowns.clear();
@@ -98,15 +105,13 @@ public final class CrownControlManager extends ArcadeGameManager {
         overdriveUntil.clear();
         fortifyUntil.clear();
         contribution.clear();
+        carrying.clear();
         lockdownBy = null;
         lockdownUntil = 0;
         bountyBy = bountyTarget = null;
         bountyUntil = 0;
-        lockUntil = 0;
-        neutralAt = 0;
-        changes = 0;
         for (String t : activeTeams()) energy.put(t, new TeamEnergy(cfg.getDouble("energy.capacity", 100)));
-        ensureCrown();
+        placeCrowns();
     }
 
     @Override
@@ -129,40 +134,232 @@ public final class CrownControlManager extends ArcadeGameManager {
         p.getInventory().setItem(8, star);
     }
 
+    // ── Crowns ────────────────────────────────────────────────────────────────
+
+    private void placeCrowns() {
+        removeCrownDisplays();
+        crowns.clear();
+        World w = arena.world();
+        if (w == null || crownZone == null) return;
+        int n = Math.max(1, gamePlugin.getConfig().getInt("crowns.count", 3));
+        double rad = Math.max(0, Math.min(crownZone.sizeX(), crownZone.sizeZ()) / 2.0 - 2.0);
+        for (int i = 0; i < n; i++) {
+            double a = 2 * Math.PI * i / n;
+            double r = n == 1 ? 0 : rad;
+            Crown c = new Crown();
+            c.at = new Location(w, crownZone.centerX() + Math.cos(a) * r, crownZone.minY(), crownZone.centerZ() + Math.sin(a) * r);
+            crowns.add(c);
+            spawnDisplay(c);
+        }
+    }
+
+    private void spawnDisplay(Crown c) {
+        if (c.display != null && c.display.isValid()) c.display.remove();
+        World w = c.at.getWorld();
+        if (w == null) return;
+        c.display = w.spawn(c.at.clone().add(0, 1.4, 0), ItemDisplay.class, d -> {
+            d.setItemStack(new ItemStack(Material.GOLDEN_HELMET));
+            d.setBillboard(Display.Billboard.CENTER);
+            d.setGlowing(true);
+            d.setPersistent(false);
+            d.setTransformation(new org.bukkit.util.Transformation(new org.joml.Vector3f(),
+                    new org.joml.Quaternionf(), new org.joml.Vector3f(1.8f, 1.8f, 1.8f), new org.joml.Quaternionf()));
+        });
+    }
+
+    private void removeCrownDisplays() {
+        for (Crown c : crowns) if (c.display != null && c.display.isValid()) c.display.remove();
+    }
+
+    private ItemStack crownItem(UUID id) {
+        ItemStack it = new ItemStack(Material.GOLDEN_HELMET);
+        ItemMeta m = it.getItemMeta();
+        m.setDisplayName(api.tr(id, "crown.item"));
+        m.setUnbreakable(true);
+        it.setItemMeta(m);
+        return it;
+    }
+
+    private Location clampToZone(Location l) {
+        double x = Math.max(crownZone.minX() + 0.5, Math.min(crownZone.maxX() - 0.5, l.getX()));
+        double z = Math.max(crownZone.minZ() + 0.5, Math.min(crownZone.maxZ() - 0.5, l.getZ()));
+        double y = Math.max(crownZone.minY(), l.getY());
+        return new Location(arena.world(), x, y, z);
+    }
+
+    private void giveTo(Crown c, Player p) {
+        UUID id = p.getUniqueId();
+        c.carrier = id;
+        c.hits = 0;
+        carrying.put(id, c);
+        if (c.display != null && c.display.isValid()) c.display.remove();
+        c.display = null;
+        p.getInventory().setHelmet(crownItem(id));
+        p.setGlowing(true);
+        p.playSound(p.getLocation(), Sound.ITEM_ARMOR_EQUIP_GOLD, 1f, 1.2f);
+        contribution.merge(id, 1, Integer::sum);
+    }
+
+    /** Takes the crown off its carrier and lays it down at {@code where}. */
+    private void drop(Crown c, Location where) {
+        UUID old = c.carrier;
+        c.carrier = null;
+        c.hits = 0;
+        if (old != null) {
+            carrying.remove(old);
+            Player p = Bukkit.getPlayer(old);
+            if (p != null) {
+                p.setGlowing(false);
+                giveTeamHelmet(p);
+            }
+        }
+        c.at = clampToZone(where != null ? where : new Location(arena.world(), crownZone.centerX(), crownZone.minY(), crownZone.centerZ()));
+        c.freeFrom = ticks + gamePlugin.getConfig().getInt("crowns.drop-delay-ticks", 30);
+        spawnDisplay(c);
+    }
+
+    private boolean enemies(UUID a, UUID b) { return !teamId(a).equals(teamId(b)); }
+
+    /** An enemy takes the crown from its carrier (hits or knock-out). */
+    private void steal(Crown c, Player victim, Player thief) {
+        var cfg = gamePlugin.getConfig();
+        Location at = victim.getLocation();
+        drop(c, at);
+        if (thief != null && !carrying.containsKey(thief.getUniqueId()) && isActive(thief.getUniqueId())) {
+            giveTo(c, thief);
+            c.freeFrom = ticks;
+            if (ticks - c.lastStealTick >= 100) {       // no points for passing a crown back and forth
+                award("steal:" + c.hashCode() + ":" + ticks + ":" + thief.getUniqueId(), thief.getUniqueId(),
+                        scaled(teamId(thief.getUniqueId()), cfg.getInt("points.steal", 15)),
+                        PointAward.Reason.BONUS, "steal");
+                gainEnergy(teamId(thief.getUniqueId()), cfg.getDouble("energy.per-steal", 10));
+            }
+            c.lastStealTick = ticks;
+            for (Player v : Bukkit.getOnlinePlayers()) {
+                if (isParticipant(v.getUniqueId()))
+                    v.sendMessage(api.tr(v.getUniqueId(), "crown.stolen", thief.getName(), victim.getName()));
+            }
+        } else {
+            for (Player v : Bukkit.getOnlinePlayers()) {
+                if (isParticipant(v.getUniqueId()))
+                    v.sendMessage(api.tr(v.getUniqueId(), "crown.dropped", victim.getName()));
+            }
+        }
+    }
+
+    @Override
+    protected boolean onPlayerHit(Player attacker, Player victim, EntityDamageByEntityEvent e) {
+        Crown c = carrying.get(victim.getUniqueId());
+        if (c == null || !enemies(attacker.getUniqueId(), victim.getUniqueId())) return false;
+        if (isProtected(victim.getUniqueId()) || !isActive(attacker.getUniqueId())) return false;
+        int need = Math.max(1, gamePlugin.getConfig().getInt("crowns.hits-to-steal", 3));
+        c.hits++;
+        if (c.hits >= need) {
+            steal(c, victim, attacker);
+        } else {
+            actionBar(attacker, api.tr(attacker.getUniqueId(), "crown.hit", c.hits, need));
+            actionBar(victim, api.tr(victim.getUniqueId(), "crown.hit-victim", c.hits, need));
+        }
+        return false;       // the hit itself still does its normal damage
+    }
+
+    @Override
+    protected void onPlayerDown(Player victim, UUID killer) {
+        Crown c = carrying.get(victim.getUniqueId());
+        if (c != null) {
+            Player k = killer != null ? Bukkit.getPlayer(killer) : null;
+            if (k != null && enemies(killer, victim.getUniqueId())) steal(c, victim, k);
+            else steal(c, victim, null);
+        }
+        if (bountyBy == null || ticks >= bountyUntil || killer == null) return;
+        if (teamId(victim.getUniqueId()).equals(bountyTarget) && teamId(killer).equals(bountyBy)) {
+            int bonus = gamePlugin.getConfig().getInt("abilities.bounty.bonus", 15);
+            if (award("bounty:" + victim.getUniqueId() + ":" + ticks, killer, bonus, PointAward.Reason.BONUS, "bounty")) {
+                contribution.merge(killer, 2, Integer::sum);
+                Player kp = Bukkit.getPlayer(killer);
+                if (kp != null) actionBar(kp, api.tr(killer, "crown.bounty-paid", bonus));
+            }
+        }
+    }
+
+    @Override
+    protected void onPlayerLeft(UUID id) {
+        Crown c = carrying.get(id);
+        if (c == null) return;
+        Player p = Bukkit.getPlayer(id);
+        drop(c, p != null ? p.getLocation() : null);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onArmorClick(InventoryClickEvent e) {
+        if (!(e.getWhoClicked() instanceof Player p) || !getState().isRunning()) return;
+        if (!isParticipant(p.getUniqueId())) return;
+        if (e.getSlotType() == InventoryType.SlotType.ARMOR) e.setCancelled(true);
+    }
+
+    /** The team that wears the most crowns right now, or null. */
+    private String holderTeam() {
+        Map<String, Integer> n = new HashMap<>();
+        for (Crown c : crowns) if (c.carrier != null) n.merge(teamId(c.carrier), 1, Integer::sum);
+        String best = null;
+        int top = 0;
+        boolean tie = false;
+        for (var en : n.entrySet()) {
+            if (en.getValue() > top) { best = en.getKey(); top = en.getValue(); tie = false; }
+            else if (en.getValue() == top) tie = true;
+        }
+        return tie ? null : best;
+    }
+
+    private int crownsOf(String team) {
+        int n = 0;
+        for (Crown c : crowns) if (c.carrier != null && teamId(c.carrier).equals(team)) n++;
+        return n;
+    }
+
+    private int freeCrowns() {
+        int n = 0;
+        for (Crown c : crowns) if (c.carrier == null) n++;
+        return n;
+    }
+
     // ── Loop ──────────────────────────────────────────────────────────────────
 
     @Override
     protected void playTick() {
         var cfg = gamePlugin.getConfig();
-        double dt = STEP / 20.0;
-        if (ticks % 20 == 0) ensureCrown();
 
-        // who stands in the zone
-        Map<String, List<UUID>> present = new HashMap<>();
-        for (UUID id : players) {
-            if (!isActive(id)) continue;
-            Location l = Bukkit.getPlayer(id).getLocation();
-            if (crownZone.contains(l.getX(), l.getY(), l.getZ()))
-                present.computeIfAbsent(teamId(id), k -> new ArrayList<>()).add(id);
-        }
-        if (ticks >= lockUntil) {
-            CaptureMeter.Change c = meter.update(present.keySet(), dt);
-            if (c != null) onCaptured(c, present.getOrDefault(c.owner(), List.of()));
-        }
-        if (meter.owner() != null && neutralAt > 0 && ticks >= neutralAt) {
-            meter.reset();
-            neutralAt = 0;
-            tellKey("crown.neutral");
+        // pick-up of crowns that lie on the floor
+        double r = cfg.getDouble("crowns.pickup-radius", 1.8);
+        for (Crown c : crowns) {
+            if (c.carrier != null || ticks < c.freeFrom) continue;
+            if (c.display == null || !c.display.isValid()) spawnDisplay(c);
+            for (UUID id : players) {
+                if (!isActive(id) || carrying.containsKey(id)) continue;
+                Location l = Bukkit.getPlayer(id).getLocation();
+                if (l.getWorld() != c.at.getWorld()) continue;
+                double dx = l.getX() - c.at.getX(), dz = l.getZ() - c.at.getZ();
+                if (dx * dx + dz * dz > r * r || Math.abs(l.getY() - c.at.getY()) > 3) continue;
+                giveTo(c, Bukkit.getPlayer(id));
+                for (Player v : Bukkit.getOnlinePlayers()) {
+                    if (isParticipant(v.getUniqueId()))
+                        v.sendMessage(api.tr(v.getUniqueId(), "crown.picked", nameOf(id)));
+                }
+                break;
+            }
         }
 
-        // hold points + energy
+        // hold points + energy: every carrier is paid for himself
         long interval = cfg.getInt("game.score-interval-seconds", 10) * 20L;
-        if (interval > 0 && ticks > 0 && ticks % interval == 0 && meter.owner() != null) {
-            String h = meter.owner();
-            if (awardTeam("hold:" + ticks, h, scaled(h, cfg.getInt("points.hold", 10)),
-                    PointAward.Reason.OBJECTIVE, "hold")) {
-                gainEnergy(h, cfg.getDouble("energy.per-hold", 10));
-                for (UUID m : membersOf(h)) if (isActive(m)) contribution.merge(m, 1, Integer::sum);
+        if (interval > 0 && ticks > 0 && ticks % interval == 0) {
+            for (Crown c : crowns) {
+                if (c.carrier == null || !isActive(c.carrier)) continue;
+                String team = teamId(c.carrier);
+                if (award("hold:" + ticks + ":" + c.carrier, c.carrier, scaled(team, cfg.getInt("points.hold", 10)),
+                        PointAward.Reason.OBJECTIVE, "hold")) {
+                    gainEnergy(team, cfg.getDouble("energy.per-hold", 10));
+                    contribution.merge(c.carrier, 1, Integer::sum);
+                }
             }
         }
 
@@ -171,34 +368,13 @@ public final class CrownControlManager extends ArcadeGameManager {
         else if (lockdownBy != null && ticks >= lockdownUntil) { lockdownBy = null; tellKey("crown.lockdown-over"); }
         if (bountyBy != null && ticks >= bountyUntil) { bountyBy = bountyTarget = null; }
 
-        if (ticks % 10 == 0) { drawZone(); }
+        if (ticks % 10 == 0) drawCrowns();
         long left = Math.max(0, durationTicks - ticks) / 20;
-        String holder = meter.owner() != null ? teamName(meter.owner()) : "§7niemand";
-        bar("§6§lCROWN CONTROL §8| §e" + mmss(left) + " §8| §7kroon: " + holder,
+        String holder = holderTeam() != null ? teamName(holderTeam()) : "§7-";
+        bar("§6§lCROWN CONTROL §8| §e" + mmss(left) + " §8| §7kronen: §6" + (crowns.size() - freeCrowns()) + "§7/" + crowns.size()
+                        + " §8| " + holder,
                 1.0 - (double) ticks / Math.max(1, durationTicks), left <= 20 ? BarColor.RED : BarColor.YELLOW);
         if (ticks >= durationTicks) end();
-    }
-
-    private void onCaptured(CaptureMeter.Change c, List<UUID> present) {
-        var cfg = gamePlugin.getConfig();
-        int n = ++changes;
-        String team = c.owner();
-        awardTeam("cap:" + n, team, scaled(team, cfg.getInt("points.capture", 25)), PointAward.Reason.OBJECTIVE, "capture");
-        gainEnergy(team, cfg.getDouble("energy.per-capture", 20));
-        if (c.previous() != null) {
-            awardTeam("take:" + n, team, scaled(team, cfg.getInt("points.takeover", 15)), PointAward.Reason.BONUS, "takeover");
-            gainEnergy(team, cfg.getDouble("energy.per-takeover", 10));
-        }
-        for (UUID id : present) contribution.merge(id, 3, Integer::sum);
-        lockUntil = ticks + cfg.getInt("game.lock-seconds", 20) * 20L;
-        int neutral = cfg.getInt("game.neutral-after-seconds", 0);
-        neutralAt = neutral > 0 ? ticks + neutral * 20L : 0;
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (!isParticipant(p.getUniqueId())) continue;
-            p.sendMessage(api.tr(p.getUniqueId(), c.previous() != null ? "crown.takeover" : "crown.captured",
-                    teamName(team), c.previous() != null ? teamName(c.previous()) : ""));
-            p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 0.9f);
-        }
     }
 
     /** Double Down multiplies the holder's objective rewards (never the activation itself). */
@@ -225,7 +401,7 @@ public final class CrownControlManager extends ArcadeGameManager {
         String team = teamId(id);
         var cfg = gamePlugin.getConfig();
         String base = "abilities." + a.key + ".";
-        if (!team.equals(meter.owner())) return "crown.err.no-crown";
+        if (crownsOf(team) == 0) return "crown.err.no-crown";
         if (!cooldowns.ready(team + ":" + a.key, ticks)) return "crown.err.cooldown";
         TeamEnergy e = energy.get(team);
         double cost = cfg.getDouble(base + "cost", 20);
@@ -311,19 +487,6 @@ public final class CrownControlManager extends ArcadeGameManager {
         }
     }
 
-    @Override
-    protected void onPlayerDown(Player victim, UUID killer) {
-        if (bountyBy == null || ticks >= bountyUntil || killer == null) return;
-        if (teamId(victim.getUniqueId()).equals(bountyTarget) && teamId(killer).equals(bountyBy)) {
-            int bonus = gamePlugin.getConfig().getInt("abilities.bounty.bonus", 15);
-            if (award("bounty:" + victim.getUniqueId() + ":" + ticks, killer, bonus, PointAward.Reason.BONUS, "bounty")) {
-                contribution.merge(killer, 2, Integer::sum);
-                Player k = Bukkit.getPlayer(killer);
-                if (k != null) actionBar(k, api.tr(killer, "crown.bounty-paid", bonus));
-            }
-        }
-    }
-
     // ── Menu ──────────────────────────────────────────────────────────────────
 
     @EventHandler
@@ -346,7 +509,7 @@ public final class CrownControlManager extends ArcadeGameManager {
     String abilityState(Player p, Ability a) {
         String team = teamId(p.getUniqueId());
         var cfg = gamePlugin.getConfig();
-        if (!team.equals(meter.owner())) return "crown.err.no-crown";
+        if (crownsOf(team) == 0) return "crown.err.no-crown";
         if (!cooldowns.ready(team + ":" + a.key, ticks)) return "crown.err.cooldown";
         TeamEnergy e = energy.get(team);
         if (e == null || e.value() + 1e-9 < cfg.getDouble("abilities." + a.key + ".cost", 20)) return "crown.err.energy";
@@ -366,39 +529,26 @@ public final class CrownControlManager extends ArcadeGameManager {
 
     // ── Visuals / HUD ─────────────────────────────────────────────────────────
 
-    private void ensureCrown() {
-        if (crownZone == null || arena.world() == null) return;
-        if (crown != null && crown.isValid()) {
-            String owner = meter != null ? meter.owner() : null;
-            if (owner != null) crown.setGlowColorOverride(colorOf(teamColor(owner)));
-            return;
-        }
-        Location at = new Location(arena.world(), crownZone.centerX(), crownZone.minY() + 2.2, crownZone.centerZ());
-        crown = arena.world().spawn(at, ItemDisplay.class, d -> {
-            d.setItemStack(new ItemStack(Material.GOLDEN_HELMET));
-            d.setBillboard(Display.Billboard.CENTER);
-            d.setGlowing(true);
-            d.setPersistent(false);
-            d.setTransformation(new org.bukkit.util.Transformation(new org.joml.Vector3f(),
-                    new org.joml.Quaternionf(), new org.joml.Vector3f(1.8f, 1.8f, 1.8f), new org.joml.Quaternionf()));
-        });
-    }
-
-    private void drawZone() {
+    private void drawCrowns() {
         World w = arena.world();
         if (w == null) return;
-        Region r = crownZone;
-        String owner = meter.owner() != null ? meter.owner() : meter.capturer();
-        Color c = owner != null ? colorOf(teamColor(owner)) : Color.YELLOW;
-        if (meter.status() == CaptureStatus.CONTESTED) c = Color.WHITE;
-        Particle.DustOptions dust = new Particle.DustOptions(c, 1.5f);
-        double cx = r.centerX(), cz = r.centerZ(), radius = Math.max(r.sizeX(), r.sizeZ()) / 2;
-        double y = r.minY() + 0.4;
-        for (int i = 0; i < 32; i++) {
-            double a = 2 * Math.PI * i / 32;
-            w.spawnParticle(Particle.DUST, cx + Math.cos(a) * radius, y, cz + Math.sin(a) * radius, 1, 0, 0, 0, 0, dust);
+        for (Crown c : crowns) {
+            if (c.carrier == null) {
+                Particle.DustOptions dust = new Particle.DustOptions(Color.YELLOW, 1.6f);
+                for (int i = 0; i < 12; i++) {
+                    double a = 2 * Math.PI * i / 12;
+                    w.spawnParticle(Particle.DUST, c.at.getX() + Math.cos(a) * 1.2, c.at.getY() + 0.3,
+                            c.at.getZ() + Math.sin(a) * 1.2, 1, 0, 0, 0, 0, dust);
+                }
+                w.spawnParticle(Particle.END_ROD, c.at.getX(), c.at.getY() + 2.2, c.at.getZ(), 2, 0.1, 0.4, 0.1, 0.01);
+            } else {
+                Player p = Bukkit.getPlayer(c.carrier);
+                if (p == null) continue;
+                Color col = colorOf(teamColor(teamId(c.carrier)));
+                w.spawnParticle(Particle.DUST, p.getLocation().add(0, 2.5, 0), 4, 0.25, 0.1, 0.25, 0,
+                        new Particle.DustOptions(col, 1.4f));
+            }
         }
-        if (ticks < lockUntil) w.spawnParticle(Particle.END_ROD, cx, r.minY() + 3.2, cz, 3, 0.3, 0.3, 0.3, 0.01);
     }
 
     @Override
@@ -407,11 +557,13 @@ public final class CrownControlManager extends ArcadeGameManager {
         String team = teamId(id);
         List<String> l = new ArrayList<>();
         l.add(api.tr(id, "crown.sb.time", mmss(Math.max(0, durationTicks - ticks) / 20)));
-        l.add(api.tr(id, "crown.sb.holder", meter.owner() != null ? teamName(meter.owner()) : "§7-"));
-        if (ticks < lockUntil) l.add(api.tr(id, "crown.sb.locked", Math.max(0, (lockUntil - ticks) / 20)));
-        else if (meter.capturer() != null) l.add(api.tr(id, "crown.sb.capturing", (int) Math.round(meter.fraction() * 100)));
+        l.add(api.tr(id, "crown.sb.crowns", crownsOf(team), crowns.size() - freeCrowns(), crowns.size()));
+        Crown mine = carrying.get(id);
+        if (mine != null) {
+            l.add(api.tr(id, "crown.sb.wearing", mine.hits, Math.max(1, gamePlugin.getConfig().getInt("crowns.hits-to-steal", 3))));
+        }
         l.add("");
-        l.add(api.tr(id, "crown.sb.team", book.team(team)));
+        l.add(api.tr(id, "crown.sb.team", shownTeamPoints(team)));
         l.add(api.tr(id, "crown.sb.energy", (int) energyOf(viewer), (int) capacity()));
         if (doubleUntil.getOrDefault(team, 0L) > ticks) l.add(api.tr(id, "crown.sb.double", (doubleUntil.get(team) - ticks) / 20));
         if (bountyBy != null && ticks < bountyUntil) l.add(api.tr(id, "crown.sb.bounty", teamName(bountyTarget)));
@@ -423,9 +575,11 @@ public final class CrownControlManager extends ArcadeGameManager {
 
     @Override
     protected Result finishGame() {
-        String holder = meter.owner();
+        String holder = holderTeam();
         if (holder != null) {
-            awardTeam("end:" + holder, holder, gamePlugin.getConfig().getInt("points.end-bonus", 50),
+            List<UUID> wearers = new ArrayList<>();
+            for (Crown c : crowns) if (c.carrier != null && teamId(c.carrier).equals(holder)) wearers.add(c.carrier);
+            awardShared("end:" + holder, holder, wearers, gamePlugin.getConfig().getInt("points.end-bonus", 50),
                     PointAward.Reason.BONUS, "end-bonus");
         }
         List<String> ranked = book.rankTeams(activeTeams());
@@ -441,7 +595,7 @@ public final class CrownControlManager extends ArcadeGameManager {
             v.sendMessage(api.tr(vid, "crown.results"));
             int i = 1;
             for (String t : ranked)
-                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + book.team(t) + " ptn"
+                v.sendMessage("  §7#" + (i++) + " " + teamName(t) + " §8— §e" + shownTeamPoints(t) + " ptn"
                         + (t.equals(holder) ? " §6♛" : ""));
         }
         UUID mvp = null;
@@ -456,8 +610,13 @@ public final class CrownControlManager extends ArcadeGameManager {
 
     @Override
     protected void cleanupGame() {
-        if (crown != null && crown.isValid()) crown.remove();
-        crown = null;
+        removeCrownDisplays();
+        for (UUID id : new ArrayList<>(carrying.keySet())) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) p.setGlowing(false);
+        }
+        carrying.clear();
+        crowns.clear();
         for (UUID id : players) {
             Player p = Bukkit.getPlayer(id);
             if (p == null) continue;

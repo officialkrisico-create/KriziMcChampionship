@@ -46,9 +46,11 @@ public final class TheBridgePlugin extends AbstractGamePlugin {
     @Override protected String   objective()   { return "Scoor doelpunten door in het doelgat van de tegenstander te gaan."; }
     @Override protected List<String> scoringLines() {
         return List.of(
-            "+150 ptn — Doelpunt",
-            "+50 ptn — Kill",
-            "+500 ptn — 1e plaats"
+            "+" + getConfig().getInt("points.per-goal", 150) + " ptn — Doelpunt",
+            "+" + getConfig().getInt("points.per-kill", 50) + " ptn — Kill",
+            "+" + getConfig().getInt("points.per-assist", 20) + " ptn — Assist",
+            placementLine(),
+            teamPlacementLine()
         );
     }
 

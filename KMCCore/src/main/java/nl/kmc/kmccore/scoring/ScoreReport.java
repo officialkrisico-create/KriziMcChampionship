@@ -120,8 +120,11 @@ public final class ScoreReport {
             int myRank = playerOrder.indexOf(id) + 1;
             KMCTeam team = plugin.getTeamManager().getTeamByPlayer(id);
             int teamRank = team != null ? teamOrder.indexOf(team.getId()) + 1 : 0;
-            p.sendMessage(lm.tr(p, "score.you.rank", myRank, playerOrder.size(),
-                    teamRank > 0 ? teamRank : "-", teamOrder.size()));
+            // The totals are everybody who took part, not just the ones who scored in this game.
+            int playersTotal = Math.max(playerOrder.size(), playingCount(plugin));
+            int teamsTotal = Math.max(teamOrder.size(), teamsInPlay(plugin));
+            p.sendMessage(lm.tr(p, "score.you.rank", myRank, playersTotal,
+                    teamRank > 0 ? teamRank : "-", teamsTotal));
             int comeback = 0;
             for (Entry e : mine) comeback += e.comeback();
             if (comeback > 0) p.sendMessage(lm.tr(p, "score.you.comeback", comeback));
@@ -130,6 +133,24 @@ public final class ScoreReport {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** Online players that belong to a team (the field of a tournament game). */
+    private static int playingCount(KMCCore plugin) {
+        int n = 0;
+        for (Player p : Bukkit.getOnlinePlayers())
+            if (plugin.getTeamManager().getTeamByPlayer(p.getUniqueId()) != null) n++;
+        return n;
+    }
+
+    /** Teams that have at least one player online. */
+    private static int teamsInPlay(KMCCore plugin) {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            KMCTeam t = plugin.getTeamManager().getTeamByPlayer(p.getUniqueId());
+            if (t != null) ids.add(t.getId());
+        }
+        return ids.size();
+    }
 
     /** Entries that count for a team: its members' awards plus team-only awards. */
     private static List<Entry> forTeam(List<Entry> all, String teamId) {
