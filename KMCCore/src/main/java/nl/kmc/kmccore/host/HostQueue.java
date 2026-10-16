@@ -44,13 +44,19 @@ public final class HostQueue {
         public boolean staged;
         /** Called once when the speech has ended — finished, skipped or stopped. */
         public Runnable onDone;
+        /** Called with the index of a line at the moment that line appears (a ceremony reveals things in step). */
+        public java.util.function.IntConsumer onLine;
+        /** Players the staged camera leaves alone (the teams standing on the podium keep their own view). */
+        public Set<UUID> noCamera = Set.of();
 
-        /** Copies the camera/staging settings (and the end callback) from another speech. */
+        /** Copies the camera/staging settings (and the callbacks) from another speech. */
         public Speech withMetaOf(Speech o) {
             this.cutscene = o.cutscene;
             this.focus = o.focus;
             this.staged = o.staged;
             this.onDone = o.onDone;
+            this.onLine = o.onLine;
+            this.noCamera = o.noCamera;
             return this;
         }
 
@@ -131,6 +137,12 @@ public final class HostQueue {
     }
 
     public int size() { return pending.size(); }
+
+    /** Drops the waiting speech with this key (it never plays); false when none was waiting. */
+    public boolean removeKey(String key) {
+        if (key == null || key.isEmpty()) return false;
+        return pending.removeIf(p -> p.key.equals(key));
+    }
 
     /** Drops everything that is waiting (cooldowns and once-keys stay). */
     public void clearPending() { pending.clear(); }

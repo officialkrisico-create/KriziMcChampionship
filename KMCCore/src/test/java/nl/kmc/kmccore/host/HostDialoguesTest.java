@@ -33,7 +33,10 @@ class HostDialoguesTest {
         assertTrue(parsed.warnings().isEmpty(), parsed.warnings().toString());
         for (String id : new String[]{"opening", "how-it-works", "team-intro", "games-lineup", "results-game",
                 "standings-normal", "standings-close", "standings-new-leader", "finale-announce", "finale-third",
-                "finale-second", "finale-champion", "finale-awards", "live-goal", "live-puzzle", "live-order",
+                "finale-second", "finale-champion", "finale-awards", "win-intro", "win-third-build", "win-second-build",
+                "champion-build", "champion-reveal", "mvp-build", "mvp-reveal", "records-script", "win-outro",
+                "awards-intro", "awards-build-1", "awards-build-2", "awards-build-3", "awards-reveal-1",
+                "awards-reveal-2", "awards-reveal-3", "awards-mvp-build", "awards-mvp-reveal", "awards-outro", "live-goal", "live-puzzle", "live-order",
                 "live-room", "live-boss", "info-about", "info-how", "test-bubble", "idle-touch"}) {
             assertNotNull(parsed.dialogues().get(id), "missing dialogue " + id);
         }
@@ -42,7 +45,7 @@ class HostDialoguesTest {
     @Test
     void cameraWorkIsOptInAndNeverOnLiveAnnouncements() throws Exception {
         var parsed = parseShipped();
-        assertTrue(parsed.dialogues().get("finale-champion").focus());
+        assertTrue(parsed.dialogues().get("finale-champion").staged());
         assertEquals("host-champion", parsed.dialogues().get("finale-champion").cutscene());
         parsed.dialogues().forEach((id, d) -> {
             if (id.startsWith("live-") || id.startsWith("info-")) {

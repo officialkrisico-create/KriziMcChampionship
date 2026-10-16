@@ -1,42 +1,29 @@
-Factory Frenzy als Overcooked-keuken, Blockball in Rocket League-stijl, Laser Logic met kleuren, Crafting Countdown met bergen en testronde-fixes
+Awards- en winnaarsceremonie als host-cutscene, geënsceneerde opening en resultaten, testcommando's die de echte flow draaien
 
-Factory Frenzy herbouwd naar een Overcooked-keuken
-- Elk team runt een keuken: kratten (tomaat, ui, sla, gehakt, broodjes), snijplanken, potten en een pan, aanrechten, bordenrek,
-  wasbak, serveerluik en prullenbak; je draagt maar een ding tegelijk (zichtbaar in je eerste hotbar-slot)
-- Snijden met herhaald klikken, koken in een pot of pan (klaar eten verbrandt als je het laat staan), soep haal je met een bord
-  uit de pot, salade en burger stel je samen op een bord op een aanrecht
-- Bestellingen met een tijdslimiet op een bord; tip voor snel serveren, combo voor gerechten achter elkaar, verlopen bestellingen
-  breken de combo; het bord komt vies terug en moet worden afgewassen
-- Kitchen (puur, 9 tests) regelt elke klik; nieuwe config (items, chopping, cooking, dishes, layout) met validatie dat elk
-  gerecht te maken is (ShippedKitchenTest); nieuwe teksten nl/en; FactoryModel en de oude tests zijn vervangen
+Ceremonies als één host-show
+- HostManager.playScript speelt meerdere dialogen (Part) als één geënsceneerde speech met doorlopende camera; de actie van
+  elk onderdeel (plek op het podium, titel, chatkaart, vuurwerk) start precies op de eerste regel van dat onderdeel
+  (Speech.onLine), dus de onthulling valt samen met het moment dat de host de naam noemt
+- AwardsCeremony: intro, per prijs een opbouw (drie varianten met elk andere camera) en een onthulling, MVP met aftelling
+  en donder, afsluiter; de award-naam wordt zonder kleur/symbool uitgesproken
+- WinnerCeremony: intro, opbouw + onthulling derde en tweede plek, kampioen, MVP, records, afsluiter; de teams op het
+  podium houden hun eigen beeld (Speech.noCamera), de rest volgt de camera van de host
+- Zonder host of podium vallen beide terug op de oude timer-ceremonie (en bij een vastgelopen host sluit een vangnet af)
+- Overslaan stopt ook het host-script (cancelScript)
 
-Blockball in Rocket League-stijl
-- Eerst tot 3 doelpunten (match.first-to), daarna na de tijd meeste goals of golden goal
-- Grote, levendige bal die op de grond en tegen muren stuitert en doorrolt (physics.*); loft volgt waar je kijkt; doelpunt-explosie
-- Keepers worden per team gekozen in een menu (stemmen, automatisch bij geen of gelijke stemmen)
+Opening, resultaten en finale geënsceneerd (host.yml)
+- Openen, spelregels, rondes en punten, game-lineup en finale-aankondiging hebben shots, lopen, gebaren, effecten en spanning
+- Resultaten en tussenstanden: alleen de host beweegt (shot "none" houdt de camera uit, zodat scoreverslag en GG-knop zichtbaar blijven)
+- Nieuwe dialogen: win-*, champion-*, mvp-*, records-script, awards-*; nieuwe placeholders voor awards, MVP en records
 
-Laser Logic
-- Elke draaibare spiegel krijgt per puzzel een eigen kleur; hint 2 noemt "de rode spiegel op (x, y)"
-- Moeilijker: puzzels een niveau hoger (game.difficulty-shift), meer bochten, extra muren en absorbers, minstens de helft verkeerd
-
-Crafting Countdown
-- Geen draagbare crafting table en geen menu meer: de stapels zijn bergen van echte blokken die je mijnt; elk blok geeft het
-  item waar het voor staat en komt niet terug; een crafting table naast elk inleverpunt; alles wordt na het spel hersteld
-
-Dungeon Draft
-- De wereld wordt tijdelijk van peaceful naar normal gezet zodat mobs spawnen (en daarna hersteld)
-
-Formula MC
-- Kwalificatie: alle andere boten en bestuurders zijn verborgen (je reed door geparkeerde bot-boten heen)
-- Een stap van een blok omhoog lukt ook op ijs (de boot wordt op de stap gezet); ghost-afstand 5 blokken
-
-Bots en host
-- FakePlayerSpawner roept de echte markClientLoaded() aan (zonder argumenten, zoals de server hem heeft) en na elke dood opnieuw
-- /kmchost lore|opening|rules|overview|teams|lineup|results|standings|finale|third|second|champion|awards|podium: elk onderdeel
-  van de presentatie testen met testdata waar echte data ontbreekt; live-opmerkingen gaan ook naar de chat
-- Rank-NPC draagt de skin van de speler op die plek (online profiel, of opzoeken op naam)
+Testcommando's draaien de echte flow
+- /kmchost opening|rules|overview|teams|lineup: één stap van de openingspresentatie via AutomationManager.demoStage
+  (camera-route, titel, bossbar, chatblokken, vuurwerk, teamshowcase, host), zonder sessie
+- /kmchost podium|third|second|champion|mvp: de echte WinnerCeremony vanaf die plek; /kmchost awards: de echte
+  AwardsCeremony met de online spelers als winnaars (niets wordt opgeslagen)
+- Weigert als er een echte sessie of eindceremonie loopt; /kmcauto start stopt een testrun; /kmchost skip stopt alles
+- Host in testmodus (demoActive): de hooks gedragen zich als in een sessie, met demo-waarden
 
 Overig
-- Arcade-sidebars in dezelfde stijl als de andere games ("Jouw Team"-blok, geen streep)
-- ConfigDoctor: arena, course en director zijn geen "onbekende sleutel" meer (door commando's geschreven)
-- docs/TESTEN.md volledig herschreven voor een hoofdevent: alle systemen en alle 27 games, met de openstaande X-punten
+- HostQueue.removeKey, SceneMath-shot "none", docs/TESTEN.md sectie 2.2 en 2.5 bijgewerkt
+- HostDialoguesTest bijgewerkt voor de nieuwe dialogen; volledige build groen (nog niet op een server getest)

@@ -28,30 +28,149 @@ public final class WinnerCeremony {
     private final List<BukkitTask> tasks = new ArrayList<>();
     private boolean finished;
 
-    private WinnerCeremony(KMCCore plugin, Runnable onDone) {
+    private final boolean demo;
+    /** Where a test run starts: 3 = the whole ceremony, 2 = from second place, 1 = the champions, 0 = the MVP. */
+    private final int from;
+    private boolean scripted;
+
+    private static final String SCRIPT_KEY = "winner";
+
+    private WinnerCeremony(KMCCore plugin, Runnable onDone, boolean demo, int from) {
         this.plugin = plugin;
         this.onDone = onDone;
+        this.demo = demo;
+        this.from = from;
     }
 
     /** Starts the ceremony. Replaces any running one. */
     public static void run(KMCCore plugin, Runnable onDone) {
+        start(plugin, onDone, false, 3);
+    }
+
+    /**
+     * A test run of the real ceremony ({@code /kmchost third|second|champion|mvp|podium}): the same host show,
+     * podium and reveals, from the given place on, with the teams as they stand now.
+     *
+     * @return false when there are no teams
+     */
+    public static boolean demo(KMCCore plugin, int from, Runnable onDone) {
+        if (plugin.getTournamentManager().getFinalStandings().isEmpty()) return false;
+        start(plugin, onDone, true, from);
+        return active != null;
+    }
+
+    private static void start(KMCCore plugin, Runnable onDone, boolean demo, int from) {
         if (active != null) active.cancelTasks();
-        active = new WinnerCeremony(plugin, onDone);
+        active = new WinnerCeremony(plugin, onDone, demo, from);
         active.start();
     }
+
+    /** True while a test run is playing. */
+    public static boolean isDemo() { return active != null && active.demo; }
 
     /** Skips straight to the end of the active ceremony (admin). */
     public static void skip() {
         if (active != null) active.finishNow();
     }
 
+    // ── The host show ─────────────────────────────────────────────────────────
+
+    private record MvpInfo(String name, String teamLabel, int count) { }
+
+    private MvpInfo mvpInfo() {
+        List<UUID> top = plugin.getTournamentDataStore().topMvp(false, 1);
+        if (!top.isEmpty()) {
+            UUID id = top.get(0);
+            var store = plugin.getTournamentDataStore();
+            var team = plugin.getTeamManager().getTeamByPlayer(id);
+            return new MvpInfo(store.getMvpName(id), team != null ? team.getColor() + team.getDisplayName() : "",
+                    store.getTournamentMvp(id));
+        }
+        if (demo) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                var team = plugin.getTeamManager().getTeamByPlayer(p.getUniqueId());
+                return new MvpInfo(p.getName(), team != null ? team.getColor() + team.getDisplayName() : "", 7);
+            }
+        }
+        return null;
+    }
+
+    private String topRecord(List<PlayerData> all, Comparator<PlayerData> cmp, java.util.function.ToIntFunction<PlayerData> val) {
+        return all.stream().sorted(cmp).findFirst().filter(pd -> val.applyAsInt(pd) > 0)
+                .map(pd -> pd.getName() + " (" + val.applyAsInt(pd) + ")").orElse(null);
+    }
+
+    private static Map<String, String> placeValues(KMCTeam t, int place) {
+        Map<String, String> v = new HashMap<>();
+        v.put("place", String.valueOf(place));
+        v.put("place_team", t.getColor() + t.getDisplayName() + "§f");
+        v.put("place_points", String.valueOf(t.getPoints()));
+        v.put("winner", t.getColor() + t.getDisplayName() + "§f");
+        return v;
+    }
+
+    /** The host presents the whole ceremony as one show (see {@code win-*} in host.yml); true when it does. */
+    private boolean startScript(List<KMCTeam> standings) {
+        var host = plugin.getHost();
+        if (host == null) return false;
+        List<nl.kmc.kmccore.host.HostManager.Part> parts = new ArrayList<>();
+        if (from >= 3) {
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("win-intro", new HashMap<>(), () ->
+                    titleAll("§6§l★ TOURNOOI VOLTOOID ★", "§7De uitslag...", Sound.BLOCK_NOTE_BLOCK_BELL)));
+        }
+        if (standings.size() >= 3 && from >= 3) {
+            KMCTeam t = standings.get(2);
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("win-third-build", new HashMap<>(), null));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("finale-third", placeValues(t, 3), () -> revealPlace(t, 3)));
+        }
+        if (standings.size() >= 2 && from >= 2) {
+            KMCTeam t = standings.get(1);
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("win-second-build", new HashMap<>(), null));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("finale-second", placeValues(t, 2), () -> revealPlace(t, 2)));
+        }
+        if (from >= 1) {
+            KMCTeam champ = standings.get(0);
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("champion-build", placeValues(champ, 1), null));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("champion-reveal", placeValues(champ, 1), () -> revealChampions(champ)));
+        }
+        MvpInfo mvp = mvpInfo();
+        if (mvp != null) {
+            Map<String, String> v = new HashMap<>();
+            v.put("mvp_name", mvp.name());
+            v.put("mvp_team", mvp.teamLabel());
+            v.put("mvp_count", String.valueOf(mvp.count()));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("mvp-build", v, null));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part("mvp-reveal", v, () -> revealMvp(mvp)));
+        }
+        List<PlayerData> all = plugin.getPlayerDataManager().getLeaderboard();
+        Map<String, String> rv = new HashMap<>();
+        String kills = topRecord(all, Comparator.comparingInt(PlayerData::getKills).reversed(), PlayerData::getKills);
+        String wins = topRecord(all, Comparator.comparingInt(PlayerData::getWins).reversed(), PlayerData::getWins);
+        String streak = topRecord(all, Comparator.comparingInt(PlayerData::getBestWinStreak).reversed(), PlayerData::getBestWinStreak);
+        if (kills != null) rv.put("record_kills", kills);
+        if (wins != null) rv.put("record_wins", wins);
+        if (streak != null) rv.put("record_streak", streak);
+        if (!rv.isEmpty()) parts.add(new nl.kmc.kmccore.host.HostManager.Part("records-script", rv, this::revealRecords));
+        parts.add(new nl.kmc.kmccore.host.HostManager.Part("win-outro", new HashMap<>(), null));
+
+        // the teams on the podium keep their own view; everybody else follows the host's camera
+        Set<UUID> onPodium = new HashSet<>();
+        for (int i = 0; i < Math.min(3, standings.size()); i++) onPodium.addAll(standings.get(i).getMembers());
+        int ticks = host.playScript(SCRIPT_KEY, parts, onPodium, demo, this::finishNow);
+        if (ticks < 0) return false;
+        scripted = true;
+        tasks.add(Bukkit.getScheduler().runTaskLater(plugin, this::finishNow, ticks + 20L * 90));   // safety net
+        return true;
+    }
+
     // ── Flow ──────────────────────────────────────────────────────────────────
 
     private void start() {
-        if (!plugin.getConfig().getBoolean("winner-ceremony.enabled", true)) { finishNow(); return; }
+        if (!demo && !plugin.getConfig().getBoolean("winner-ceremony.enabled", true)) { finishNow(); return; }
 
         List<KMCTeam> standings = plugin.getTournamentManager().getFinalStandings();
         if (standings.isEmpty()) { finishNow(); return; }
+        if (startScript(standings)) return;
 
         int pause = plugin.getConfig().getInt("winner-ceremony.reveal-pause-seconds", 4);
         int hold  = plugin.getConfig().getInt("winner-ceremony.champion-hold-seconds", 7);
@@ -82,7 +201,7 @@ public final class WinnerCeremony {
         t += hold;
 
         long mvpAt = t;
-        schedule(mvpAt, this::revealMvp);
+        schedule(mvpAt, () -> { MvpInfo m = mvpInfo(); if (m != null) revealMvp(m); });
         t += plugin.getConfig().getInt("winner-ceremony.mvp-hold-seconds", 5);
 
         schedule(t, this::revealRecords);
@@ -93,7 +212,7 @@ public final class WinnerCeremony {
 
     private void revealPlace(KMCTeam team, int place) {
         try { plugin.getPodium().place(team, place); } catch (Throwable t) { plugin.getLogger().warning("[KMC] Podium: " + t); }
-        try { if (plugin.getHost() != null) plugin.getHost().onPlaceReveal(team, place); }
+        try { if (!scripted && plugin.getHost() != null) plugin.getHost().onPlaceReveal(team, place); }
         catch (Throwable ignored) { }
         String label = place == 3 ? "§c§l🥉 DERDE PLAATS" : "§7§l🥈 TWEEDE PLAATS";
         broadcastBlock(label, team.getColor() + team.getDisplayName() + " §8— §e" + team.getPoints() + " punten");
@@ -105,7 +224,7 @@ public final class WinnerCeremony {
 
     private void revealChampions(KMCTeam champ) {
         try { plugin.getPodium().place(champ, 1); } catch (Throwable t) { plugin.getLogger().warning("[KMC] Podium: " + t); }
-        try { if (plugin.getHost() != null) plugin.getHost().onChampions(champ); }
+        try { if (!scripted && plugin.getHost() != null) plugin.getHost().onChampions(champ); }
         catch (Throwable ignored) { }
         broadcastBlock("§6§l🏆 KAMPIOENEN 🏆", champ.getColor() + champ.getDisplayName()
                 + " §8— §e" + champ.getPoints() + " punten");
@@ -127,16 +246,13 @@ public final class WinnerCeremony {
         catch (Throwable ignored) { }
     }
 
-    private void revealMvp() {
-        List<UUID> top = plugin.getTournamentDataStore().topMvp(false, 1);
-        if (top.isEmpty()) return;
-        UUID id = top.get(0);
-        var store = plugin.getTournamentDataStore();
-        var team = plugin.getTeamManager().getTeamByPlayer(id);
-        String teamPart = team != null ? " §7(" + team.getColor() + team.getDisplayName() + "§7)" : "";
+    private void revealMvp(MvpInfo mvp) {
+        UUID id = null;
+        for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().equals(mvp.name())) { id = p.getUniqueId(); break; }
         broadcastBlock("§b§l★ TOURNAMENT MVP ★",
-                "§e" + store.getMvpName(id) + teamPart + " §8— §e" + store.getTournamentMvp(id) + " game-MVP's");
-        Player mp = Bukkit.getPlayer(id);
+                "§e" + mvp.name() + (mvp.teamLabel().isEmpty() ? "" : " §7(" + mvp.teamLabel() + "§7)")
+                        + " §8— §e" + mvp.count() + " game-MVP's");
+        Player mp = id == null ? null : Bukkit.getPlayer(id);
         if (mp != null) mp.sendTitle("§b§l★ TOURNAMENT MVP ★", "§eJij was de beste van het toernooi!", 10, 70, 15);
         for (Player p : Bukkit.getOnlinePlayers())
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.3f);
@@ -207,6 +323,7 @@ public final class WinnerCeremony {
     private void finishNow() {
         if (finished) return;
         finished = true;
+        if (scripted) { try { plugin.getHost().cancelScript(SCRIPT_KEY); } catch (Throwable ignored) { } }
         cancelTasks();
         try { plugin.getPodium().finish(); } catch (Throwable ignored) { }
         if (active == this) active = null;

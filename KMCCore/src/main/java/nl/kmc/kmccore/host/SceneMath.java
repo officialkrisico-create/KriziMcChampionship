@@ -23,7 +23,7 @@ public final class SceneMath {
     private SceneMath() { }
 
     public static final List<String> SHOTS = List.of("wide", "push", "closeup", "orbit", "crane", "fly", "top",
-            "low", "hold");
+            "low", "hold", "none");
     public static final Set<String> ACTS = Set.of("jump", "hop", "swing", "wave", "crouch", "stand", "turn",
             "spin", "nod");
     public static final Set<String> FX = Set.of("thunder", "burst", "rise", "stomp");

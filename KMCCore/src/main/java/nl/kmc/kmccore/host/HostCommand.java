@@ -88,7 +88,14 @@ public final class HostCommand implements CommandExecutor, TabCompleter {
                 else if (!plugin.getPresenter().isPlaced()) msg(sender, "&eDe host is nog niet geplaatst: &7/kmchost setspawn. De regels staan nu alleen in je action bar.");
                 else msg(sender, "&a[KMC] Testtekst boven het hoofd van de host (alleen voor jou). Er wordt niets aan scores of games veranderd.");
             }
-            case "skip" -> msg(sender, host.skip() ? "&a[KMC] Huidige speech overgeslagen." : "&7De host zegt op dit moment niets.");
+            case "skip" -> {
+                boolean any = host.skip();
+                var auto = plugin.getAutomationManager();
+                if (auto != null && auto.skipDemoStage()) any = true;
+                if (nl.kmc.kmccore.tournament.WinnerCeremony.isDemo()) { nl.kmc.kmccore.tournament.WinnerCeremony.skip(); any = true; }
+                if (nl.kmc.kmccore.tournament.AwardsCeremony.isDemo()) { nl.kmc.kmccore.tournament.AwardsCeremony.skip(); any = true; }
+                msg(sender, any ? "&a[KMC] Overgeslagen." : "&7De host zegt op dit moment niets.");
+            }
             case "enable" -> {
                 host.setEnabled(true);
                 msg(sender, "&a[KMC] Host ingeschakeld (tot de volgende herstart; zet host.enabled in config.yml voor altijd).");

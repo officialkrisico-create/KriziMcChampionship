@@ -144,6 +144,7 @@ public class AutomationManager {
     }
 
     public void start() {
+        if (demoStageRun) skipDemoStage();            // a test stage never blocks the real start
         if (state != State.IDLE || ceremonyActive) return;
         disableLocatorBar();
         gamesThisRound = 0;
@@ -216,9 +217,61 @@ public class AutomationManager {
     /** True while the opening presentation is still playing. */
     public boolean isCeremonyActive() { return ceremonyActive; }
 
+    // ── Test run of one opening stage ({@code /kmchost opening|rules|overview|teams|lineup}) ──
+
+    private boolean demoStageRun;
+
+    /**
+     * Runs ONE stage of the opening presentation exactly as {@code /kmcauto start} does (camera route, title,
+     * chat blocks, fireworks, team showcase, host speech), without a session. Only when nothing real is going on.
+     */
+    public boolean demoStage(String phase) {
+        int idx = OPENING_STAGES.indexOf(phase);
+        var hostMgr = host();
+        if (idx < 0 || state != State.IDLE || ceremonyActive || hostMgr.isEmpty()) return false;
+        demoStageRun = true;
+        ceremonyActive = true;
+        final int gen = ++ceremonyGeneration;
+        hostMgr.get().demoBegin();
+        createBossBar();
+        runCeremonyStage(gen, idx, () -> endDemoStage(gen));
+        return true;
+    }
+
+    private void endDemoStage(int gen) {
+        if (gen != ceremonyGeneration || !demoStageRun) return;
+        cancelStageBar();
+        // like the real flow: the stage is over when the host has said everything
+        var hostMgr = host();
+        if (hostMgr.isPresent()) hostMgr.get().whenQuiet(120, () -> finishDemoStage(gen));
+        else finishDemoStage(gen);
+    }
+
+    private void finishDemoStage(int gen) {
+        if (gen != ceremonyGeneration || !demoStageRun) return;
+        cancelStageBar();
+        hideBossBar();
+        demoStageRun = false;
+        ceremonyActive = false;
+        host().ifPresent(h -> h.demoEnd());
+    }
+
+    /** True while a test stage ({@link #demoStage}) is playing. */
+    public boolean isDemoStage() { return demoStageRun; }
+
+    /** Stops a test stage; the real flow is not touched. @return false when none was running. */
+    public boolean skipDemoStage() {
+        if (!demoStageRun) return false;
+        cancelCeremony();                       // also ends the demo state of the host
+        host().ifPresent(h -> h.skipAll());
+        for (Player p : Bukkit.getOnlinePlayers()) p.clearTitle();
+        return true;
+    }
+
     /** Skips the rest of the opening presentation and goes straight to the first intermission. */
     public boolean skipCeremony() {
         if (!ceremonyActive) return false;
+        if (demoStageRun) return skipDemoStage();
         cancelCeremony();
         host().ifPresent(h -> h.skipAll());      // the lore and the stage speeches go with it
         for (Player p : Bukkit.getOnlinePlayers()) p.clearTitle();
@@ -230,6 +283,7 @@ public class AutomationManager {
     private nl.kmc.kmccore.presentation.TeamShowcase teamShowcase;
 
     private void cancelCeremony() {
+        if (demoStageRun) { demoStageRun = false; hideBossBar(); host().ifPresent(h -> h.demoEnd()); }
         if (teamShowcase != null) { teamShowcase.cancel(); teamShowcase = null; }
         host().ifPresent(h -> h.onShowcaseEnd());
         try { plugin.getCeremonyFireworks().cancelAll(); } catch (Throwable ignored) { }
@@ -268,7 +322,7 @@ public class AutomationManager {
 
         String phase = OPENING_STAGES.get(idx);
         ceremonyTasks.clear();
-        Runnable next = () -> runCeremonyStage(gen, idx + 1, done);
+        Runnable next = demoStageRun ? done : () -> runCeremonyStage(gen, idx + 1, done);
 
         playCinematic(phase, () -> {
             if (gen != ceremonyGeneration) return;

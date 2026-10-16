@@ -26,7 +26,9 @@ public final class HostDialogues {
             "game_winner", "finalist_a", "finalist_b", "place", "place_team", "place_points", "host",
             "team_slogan", "team_members", "editions", "last_champion", "last_edition", "titles_leader", "titles_count",
             "award_mvp", "award_killer", "award_winner", "award_teammate", "award_comeback", "award_team_wins",
-            "seats", "seats_word", "seats_cap");
+            "seats", "seats_word", "seats_cap",
+            "award_name", "award_desc", "award_who", "award_value", "award_index", "award_total", "award_team",
+            "mvp_name", "mvp_team", "mvp_count", "record_kills", "record_wins", "record_streak");
 
     public enum Audience {
         ALL, TEAM, SPECTATORS, PLAYER, ADMINS;

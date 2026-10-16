@@ -139,7 +139,11 @@ public final class HostManager implements Listener {
         return changed;
     }
 
+    /** A test run of one presentation part ({@code /kmchost <part>}): the hooks behave as in a session, with demo data. */
+    private boolean demoActive;
+
     private boolean mayAuto() {
+        if (demoActive) return sm.isEnabled() && flag("dialogue.enabled", true);
         if (!sm.isEnabled() || !flag("dialogue.enabled", true)) return false;
         if (sm.canSpeakAutomatically()) return true;
         return !flag("activation.require-kmcauto", true);
@@ -263,15 +267,16 @@ public final class HostManager implements Listener {
             default -> null;
         };
         if (id == null) return;
-        speak(id, HostValues.tournament(plugin, content), "stage:" + id, true, null, null, null);
+        speak(id, demoActive ? demoValues(null) : HostValues.tournament(plugin, content),
+                demoActive ? null : "stage:" + id, !demoActive, null, null, null);
     }
 
     /** The team showcase has reached {@code team}. */
     public void onTeamIntro(KMCTeam team) {
         if (!mayAuto() || !flag("team-intros.enabled", true) || team == null) return;
-        Map<String, String> v = HostValues.tournament(plugin, content);
+        Map<String, String> v = demoActive ? demoValues(null) : HostValues.tournament(plugin, content);
         HostValues.team(plugin, v, team);
-        speak("team-intro", v, "team:" + team.getId(), true, null, team.getId(), null);
+        speak("team-intro", v, demoActive ? null : "team:" + team.getId(), !demoActive, null, team.getId(), null);
     }
 
     /** A game is about to start (pre-start countdown). */
@@ -369,6 +374,90 @@ public final class HostManager implements Listener {
     public void onAwards() {
         if (!mayAuto() || !flag("finale.enabled", true)) return;
         speak("finale-awards", HostValues.tournament(plugin, content), "finale:awards", true, null, null, null);
+    }
+
+    // ── Ceremony scripts ──────────────────────────────────────────────────────
+
+    /**
+     * One part of a scripted ceremony: a dialogue of host.yml with its own placeholder values, and what the
+     * ceremony does at the moment its first line appears (reveal a place, fire the fireworks, …).
+     */
+    public record Part(String dialogue, Map<String, String> values, Runnable onStart) { }
+
+    /**
+     * Presents a whole ceremony as ONE staged speech: the parts are played after each other with the host's
+     * camera work running through all of it, and every part's {@code onStart} fires exactly when its first line
+     * appears, so the ceremony and the host stay in step.
+     *
+     * @param key      identifies the script ({@link #cancelScript})
+     * @param noCamera players the camera leaves alone (those standing on the podium)
+     * @param manual   an admin test: plays outside a session, like the real thing
+     * @param done     runs once when the script has ended (finished, skipped or stopped), after unplayed
+     *                 {@code onStart}s of parts without lines
+     * @return the length in ticks, or -1 when the host cannot present it (switched off, not placed, not
+     *         allowed now, nothing to say): then nothing is queued and {@code done} is NOT called
+     */
+    public int playScript(String key, List<Part> parts, Set<UUID> noCamera, boolean manual, Runnable done) {
+        if (!sm.isEnabled() || parts == null || parts.isEmpty()) return -1;
+        if (!manual && (!mayAuto() || !flag("finale.enabled", true))) return -1;
+        var presenter = plugin.getPresenter();
+        if (presenter == null || !presenter.isPlaced()) return -1;
+
+        List<SpeechLine> all = new ArrayList<>();
+        Map<Integer, List<Runnable>> starts = new HashMap<>();
+        List<Runnable> carry = new ArrayList<>();
+        for (Part part : parts) {
+            Dialogue d = content.dialogue(part.dialogue());
+            if (d == null) plugin.getLogger().warning("[KMC] Host: no dialogue '" + part.dialogue() + "' in host.yml");
+            Speech built = d == null ? null : build(d, withTournament(part.values()), null, null, null, Audience.ALL, HostDialogues.CRITICAL, false);
+            if (part.onStart() != null) carry.add(part.onStart());
+            if (built == null) continue;                          // nothing to say: its action joins the next part
+            starts.computeIfAbsent(all.size(), k -> new ArrayList<>()).addAll(carry);
+            carry.clear();
+            all.addAll(built.lines);
+        }
+        if (all.isEmpty()) return -1;
+        final List<Runnable> tail = new ArrayList<>(carry);
+
+        Speech script = new Speech(key, manual ? "manual-script" : "script:" + key, all,
+                HostDialogues.CRITICAL, Audience.ALL, null, null, true, 0, 600_000L, false);
+        script.staged = true;
+        script.noCamera = noCamera == null ? Set.of() : Set.copyOf(noCamera);
+        script.onLine = idx -> {
+            List<Runnable> rs = starts.remove(idx);
+            if (rs == null) return;
+            for (Runnable r : rs) {
+                try { r.run(); }
+                catch (Throwable t) { plugin.getLogger().warning("[KMC] Host: ceremony step failed: " + t); }
+            }
+        };
+        script.onDone = () -> {
+            // an ended speech may leave parts that never started (skipped): only the empty-part actions of the
+            // tail belong to the ceremony's end
+            for (Runnable r : tail) {
+                try { r.run(); } catch (Throwable ignored) { }
+            }
+            if (done != null) done.run();
+        };
+        if (!offer(script)) return -1;
+        return (int) Math.min(Integer.MAX_VALUE, SceneMath.totalTicks(all));
+    }
+
+    /** The part's own values on top of the tournament's (name, team count, …). */
+    private Map<String, String> withTournament(Map<String, String> own) {
+        Map<String, String> v = HostValues.tournament(plugin, content);
+        if (own != null) v.putAll(own);
+        return v;
+    }
+
+    /** Stops the ceremony script {@code key} — playing or still waiting — without calling its callbacks twice. */
+    public void cancelScript(String key) {
+        if (key == null) return;
+        queue.removeKey(key);
+        if (current != null && key.equals(current.key)) {
+            stopCurrent();
+            Bukkit.getScheduler().runTask(plugin, this::pump);
+        }
     }
 
     /** Short free text from older call sites ({@code presenter.*} language keys). */
@@ -663,11 +752,16 @@ public final class HostManager implements Listener {
         final int smGen = sm.generation();
         final Speech speech = current;
         final SpeechLine line = current.lines.get(lineIdx);
+        final int idx = lineIdx;
         playTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (gen != playGen || speech != current) return;
             if (smGen != sm.generation() && !manual(speech)) { stopCurrent(); return; }
             try { present(speech, line); }
             catch (Throwable t) { plugin.getLogger().warning("[KMC] Host could not show a line: " + t); }
+            if (speech.onLine != null) {
+                try { speech.onLine.accept(idx); }
+                catch (Throwable t) { plugin.getLogger().warning("[KMC] Host: line callback failed: " + t); }
+            }
             playTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (gen != playGen || speech != current) return;
                 plugin.getPresenter().clearBubble();
@@ -891,59 +985,80 @@ public final class HostManager implements Listener {
 
     /** What {@code /kmchost <what>} can play: the parts of a tournament the host presents, for testing. */
     public static final List<String> DEMOS = List.of("lore", "opening", "rules", "overview", "teams", "lineup",
-            "results", "standings", "finale", "third", "second", "champion", "awards", "podium");
+            "results", "standings", "finale", "third", "second", "champion", "mvp", "podium", "awards");
 
     /**
-     * Plays one part of the tournament presentation for an admin, outside a session, with real data where it
-     * exists and stand-in names where it does not (so every line gets said). The host steps onto the podium
-     * for the parts that happen there and goes back afterwards.
+     * The host is about to present a test part: it steps onto the podium, where it stands during a real session
+     * too. {@link #demoEnd()} puts it back.
+     */
+    public void demoBegin() { demoActive = true; takePodium(); }
+
+    public void demoEnd() { demoActive = false; leavePodium(); }
+
+    /**
+     * Runs one part of the tournament presentation for an admin, outside a session, THE SAME WAY the real
+     * session does it: the opening stages through the automation's own stage code, the end through the real
+     * podium and awards ceremonies. Real data is used where it exists and stand-in names where it does not.
      *
-     * @return false for an unknown part, or when the host is off
+     * @return false for an unknown part, when the host is off, or when something real is running
      */
     public boolean demo(String what, Player admin) {
         if (!sm.isEnabled() || what == null) return false;
-        String id;
-        boolean podium = false;
-        switch (what.toLowerCase()) {
-            case "lore" -> id = flag("lore-intro.enabled", true) ? str("lore-intro.dialogue", "kmc-lore") : "kmc-lore";
-            case "opening" -> id = "opening";
-            case "rules" -> id = "how-it-works";
-            case "overview" -> id = "tournament-overview";
-            case "teams" -> id = "teams-start";
-            case "lineup" -> id = "games-lineup";
-            case "results" -> id = "results-game";
-            case "standings" -> id = "standings-normal";
-            case "finale" -> { id = "finale-announce"; podium = true; }
-            case "third" -> { id = "finale-third"; podium = true; }
-            case "second" -> { id = "finale-second"; podium = true; }
-            case "champion" -> { id = "finale-champion"; podium = true; }
-            case "awards" -> { id = "finale-awards"; podium = true; }
-            case "podium" -> { id = "test-bubble"; podium = true; }
-            default -> { return false; }
+        String w = what.toLowerCase(java.util.Locale.ROOT);
+        var a = auto();
+        if (a != null && a.getState() != AutomationManager.State.IDLE) {
+            if (admin != null) admin.sendMessage("§c[KMC] Er loopt een echte sessie (/kmcauto); test de host zonder sessie.");
+            return false;
         }
+        if (nl.kmc.kmccore.tournament.EventEndSequence.isRunning()) {
+            if (admin != null) admin.sendMessage("§c[KMC] De eindceremonie loopt al; wacht tot die klaar is of sla hem over.");
+            return false;
+        }
+        switch (w) {
+            case "opening", "rules", "overview", "teams", "lineup" -> {
+                String phase = switch (w) {
+                    case "opening" -> "opening";
+                    case "rules" -> "how-it-works";
+                    case "overview" -> "tournament-overview";
+                    case "teams" -> "team-showcase";
+                    default -> "game-lineup";
+                };
+                return a != null && a.demoStage(phase);
+            }
+            case "third", "second", "champion", "mvp", "podium" -> {
+                int from = switch (w) { case "second" -> 2; case "champion" -> 1; case "mvp" -> 0; default -> 3; };
+                demoBegin();
+                boolean ok = nl.kmc.kmccore.tournament.WinnerCeremony.demo(plugin, from, this::demoEnd);
+                if (!ok) demoEnd();
+                return ok;
+            }
+            case "awards" -> {
+                demoBegin();
+                boolean ok = nl.kmc.kmccore.tournament.AwardsCeremony.demo(plugin, this::demoEnd);
+                if (!ok) demoEnd();
+                return ok;
+            }
+            default -> { }
+        }
+        String id = switch (w) {
+            case "lore" -> flag("lore-intro.enabled", true) ? str("lore-intro.dialogue", "kmc-lore") : "kmc-lore";
+            case "results" -> "results-game";
+            case "standings" -> "standings-normal";
+            case "finale" -> "finale-announce";
+            default -> null;
+        };
+        if (id == null) return false;
         Dialogue d = content.dialogue(id);
         if (d == null) return false;
-        Map<String, String> v = demoValues(admin);
-        Speech s = build(d, v, null, null, null, null, HostDialogues.HIGH, false);
+        Speech s = build(d, demoValues(admin), null, null, null, null, HostDialogues.HIGH, false);
         if (s == null) return false;
-        if (podium) {
-            takePodium();
-            s.onDone = this::leavePodium;
-        }
+        takePodium();
+        s.onDone = this::leavePodium;
         boolean ok = offerManual(s);
-        if (!ok && podium) leavePodium();
-        if (ok && what.equalsIgnoreCase("teams")) {
-            var teams = plugin.getTeamManager().getTeamsSortedByPoints();
-            if (!teams.isEmpty()) {
-                Map<String, String> tv = new HashMap<>(v);
-                HostValues.team(plugin, tv, teams.get(0));
-                Dialogue ti = content.dialogue("team-intro");
-                Speech ts = ti == null ? null : build(ti, tv, null, null, teams.get(0).getId(), null, HostDialogues.HIGH, false);
-                if (ts != null) offerManual(ts);
-            }
-        }
+        if (!ok) leavePodium();
         return ok;
     }
+
 
     /** Real tournament values, with stand-ins for everything that does not exist yet (a test run has no history). */
     private Map<String, String> demoValues(Player admin) {

@@ -174,35 +174,74 @@ dialogues:
   # ── Opening: speelt bij /kmcauto start ──────────────────────────────────────
   opening:
     only-on-start: true
+    staged: true
     priority: HIGH
     max-wait-seconds: 90
     lines:
       - text: "Welkom bij de {tournament_name}!"
         duration: 4
         sound: ENTITY_PLAYER_LEVELUP
+        shot: crane
+        act: wave
+        fx: burst
+        tension: 3
       - text: "{team_count} teams gaan de strijd met elkaar aan."
         requires: [team_count]
-      - "Verdien punten, help je team en probeer bovenaan het leaderboard te eindigen."
-      - "Luister goed naar de uitleg van iedere game, want iedere overwinning kan het verschil maken."
+        shot: orbit
+        tension: 3
+      - text: "Verdien punten, help je team en probeer bovenaan het leaderboard te eindigen."
+        shot: push
+        act: nod
+        tension: 4
+      - text: "Luister goed naar de uitleg van iedere game, want iedere overwinning kan het verschil maken."
+        shot: closeup
+        tension: 5
       - text: "Zijn jullie klaar? Dan gaan we beginnen!"
         sound: ENTITY_FIREWORK_ROCKET_LAUNCH
+        shot: fly
+        act: hop
+        fx: burst
+        tension: 7
 
   how-it-works:
+    staged: true
     priority: HIGH
     max-wait-seconds: 40
     lines:
       - text: "Zo werkt het toernooi: we spelen {rounds} rondes."
         requires: [rounds]
-      - "Elke game levert punten op voor jou en voor je team."
-      - "Hoe later de ronde, hoe zwaarder je punten meetellen: de multiplier stijgt."
-      - "Aan het eind is er één team dat de {seats_word} stoelen in het reddingsvliegtuig krijgt."
+        shot: push
+        act: nod
+        tension: 2
+      - text: "Elke game levert punten op voor jou en voor je team."
+        shot: orbit
+        tension: 3
+      - text: "Hoe later de ronde, hoe zwaarder je punten meetellen: de multiplier stijgt."
+        shot: low
+        act: crouch
+        fx: rise
+        tension: 5
+      - text: "Aan het eind is er één team dat de {seats_word} stoelen in het reddingsvliegtuig krijgt."
+        shot: crane
+        act: stand
+        fx: stomp
+        tension: 7
 
   tournament-overview:
+    staged: true
     priority: HIGH
     max-wait-seconds: 40
     lines:
-      - "Elke game heeft zijn eigen puntentelling: ik leg die per game uit."
-      - "Samenwerken loont, want je team scoort mee met elk punt dat jij verdient."
+      - text: "Elke game heeft zijn eigen puntentelling: ik leg die per game uit."
+        shot: wide
+        walk: right:2
+        act: nod
+        tension: 2
+      - text: "Samenwerken loont, want je team scoort mee met elk punt dat jij verdient."
+        shot: push
+        walk: left:3
+        act: wave
+        tension: 4
 
   teams-start:
     priority: HIGH
@@ -228,11 +267,19 @@ dialogues:
         duration: 3
 
   games-lineup:
+    staged: true
     priority: HIGH
     max-wait-seconds: 40
     lines:
-      - "Dan de games. Ik loop ze nu langs."
-      - "Per game hoor je het doel en hoe je punten verdient. Kijk goed mee!"
+      - text: "Dan de games. Ik loop ze nu langs."
+        shot: crane
+        act: swing
+        tension: 3
+      - text: "Per game hoor je het doel en hoe je punten verdient. Kijk goed mee!"
+        shot: fly
+        act: nod
+        fx: burst
+        tension: 5
 
   # ── Pauze en voortgang ──────────────────────────────────────────────────────
   next-game:
@@ -244,52 +291,92 @@ dialogues:
 
   # ── Resultaten ───────────────────────────────────────────────────────────────
   results-game:
+    staged: true                  # alleen de host beweegt: de camera blijft uit (scoreverslag, GG-knop)
     priority: HIGH
     max-wait-seconds: 40
     lines:
-      - "Wat een ronde!"
+      - text: "Wat een ronde!"
+        shot: none
+        act: hop
+        fx: burst
+        tension: 3
       - text: "De overwinning van {game} gaat naar {game_winner}!"
         requires: [game, game_winner]
+        act: jump
+        tension: 5
       - text: "Beste speler van deze game: {top_player} met {top_player_points} punten."
         requires: [top_player, top_player_points]
-      - "De resultaten zijn verwerkt. Laten we kijken wat dit betekent voor het kampioenschap!"
+        act: wave
+        tension: 4
+      - text: "De resultaten zijn verwerkt. Laten we kijken wat dit betekent voor het kampioenschap!"
+        act: nod
+        tension: 3
 
   standings-normal:
+    staged: true
     priority: NORMAL
     max-wait-seconds: 45
     lines:
-      - "De tussenstand is bekend!"
+      - text: "De tussenstand is bekend!"
+        shot: none
+        act: nod
+        tension: 2
       - text: "{leaderboard_leader} staat bovenaan met {leader_points} punten."
         requires: [leaderboard_leader, leader_points]
+        act: hop
+        tension: 4
       - text: "Daarna volgt {second}."
         requires: [second]
+        tension: 3
 
   standings-close:
+    staged: true
     priority: NORMAL
     max-wait-seconds: 45
     lines:
-      - "De strijd aan de top wordt steeds spannender!"
+      - text: "De strijd aan de top wordt steeds spannender!"
+        shot: none
+        act: crouch
+        tension: 4
       - text: "{leaderboard_leader} staat bovenaan, maar {second} zit er maar {gap} punten achter."
         requires: [leaderboard_leader, second, gap]
-      - "Er kan nog van alles gebeuren!"
+        tension: 6
+      - text: "Er kan nog van alles gebeuren!"
+        act: stand
+        fx: stomp
+        tension: 8
 
   standings-new-leader:
+    staged: true
     priority: HIGH
     max-wait-seconds: 45
     lines:
       - text: "Wissel aan de top! {leaderboard_leader} neemt de leiding over."
         requires: [leaderboard_leader]
         sound: ENTITY_PLAYER_LEVELUP
+        shot: none
+        act: jump
+        fx: burst
+        tension: 7
       - text: "Met {leader_points} punten staan ze nu bovenaan."
         requires: [leader_points]
+        act: wave
+        tension: 4
 
   standings-runaway:
+    staged: true
     priority: NORMAL
     max-wait-seconds: 45
     lines:
       - text: "{leaderboard_leader} loopt flink uit: {gap} punten voorsprong op {second}."
         requires: [leaderboard_leader, gap, second]
-      - "Kunnen de anderen dat nog dichten?"
+        shot: none
+        act: nod
+        tension: 4
+      - text: "Kunnen de anderen dat nog dichten?"
+        act: turn
+        fx: rise
+        tension: 6
 
   # ── Live aankondigingen tijdens een game (variants: één willekeurige) ───────
   live-goal:
@@ -348,50 +435,393 @@ dialogues:
       - "Ongelofelijk, {player}! Dat noemen we koelbloedig."
 
   # ── Finale en prijsuitreiking ───────────────────────────────────────────────
+  # De ceremonies (podium en awards) spelen als één script: elk stuk hieronder is een onderdeel, en de ceremonie
+  # onthult precies op de eerste regel van een onderdeel (plek op het podium, titel, vuurwerk). Een regel kan
+  # shot / act / fx / walk / tension hebben; shot "none" = de camera blijft uit.
   finale-announce:
+    staged: true
     priority: CRITICAL
     max-wait-seconds: 60
     once: true
-    focus: true
     lines:
       - text: "Het is zover!"
         sound: ENTITY_ENDER_DRAGON_GROWL
+        shot: low
+        act: crouch
+        fx: thunder
+        tension: 6
       - text: "De finale: {finalist_a} tegen {finalist_b}!"
         requires: [finalist_a, finalist_b]
-      - "Slechts één team kan kampioen worden."
+        shot: orbit
+        act: jump
+        fx: burst
+        tension: 8
+      - text: "Slechts één team kan kampioen worden."
+        shot: crane
+        act: stand
+        tension: 9
+
+  # ── Podium: derde en tweede plaats (opbouw + onthulling) ──
+  win-intro:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Het toernooi is voorbij. Tijd voor de uitslag!"
+        sound: ENTITY_ENDER_DRAGON_GROWL
+        shot: crane
+        act: wave
+        fx: rise
+        tension: 4
+      - text: "We beginnen onderaan het podium."
+        shot: push
+        act: nod
+        tension: 5
+  win-third-build:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Een stevige prestatie, en een plek op het podium..."
+        shot: orbit
+        tension: 6
+        sound: BLOCK_NOTE_BLOCK_BELL
+  win-second-build:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Op één na de beste van het hele toernooi..."
+        shot: low
+        act: crouch
+        tension: 7
+        sound: BLOCK_NOTE_BLOCK_BELL
   finale-third:
+    staged: true
     priority: CRITICAL
     max-wait-seconds: 30
     lines:
       - text: "Op de derde plaats: {place_team} met {place_points} punten!"
         requires: [place_team, place_points]
         duration: 3
+        shot: wide
+        act: hop
+        fx: burst
+        tension: 7
+      - text: "Een groot applaus voor hen!"
+        shot: push
+        act: wave
+        tension: 3
   finale-second:
+    staged: true
     priority: CRITICAL
     max-wait-seconds: 30
     lines:
       - text: "Op de tweede plaats: {place_team} met {place_points} punten!"
         requires: [place_team, place_points]
         duration: 3
-  finale-champion:
+        shot: wide
+        act: hop
+        fx: burst
+        tension: 8
+      - text: "Zo dichtbij... maar de top is voor een ander."
+        shot: closeup
+        act: nod
+        tension: 5
+
+  # ── De kampioenen ──
+  champion-build:
+    staged: true
     priority: CRITICAL
-    max-wait-seconds: 60
-    focus: true
-    cutscene: host-champion      # optioneel: neem een route met deze naam op met /kmccamera
     lines:
       - text: "Dit was een kampioenschap vol spanning, teamwork en spectaculaire momenten."
         duration: 4
+        shot: crane
+        act: stand
+        tension: 5
       - text: "Maar er kan er maar één bovenaan eindigen."
         duration: 3
+        shot: low
+        act: crouch
+        tension: 7
       - text: "De winnaars van de {tournament_name} zijn..."
         duration: 3
         sound: BLOCK_NOTE_BLOCK_BELL
+        shot: push
+        fx: thunder
+        tension: 10
+  champion-reveal:
+    staged: true
+    priority: CRITICAL
+    lines:
       - text: "{place_team}§f!"
         requires: [place_team]
         duration: 5
         sound: UI_TOAST_CHALLENGE_COMPLETE
+        shot: orbit
+        act: spin
+        fx: burst
+        tension: 10
       - text: "Jullie vliegen naar huis. De rest blijft achter op het eiland."
         duration: 5
+        shot: fly
+        act: wave
+        tension: 4
+  # De losse versie (zonder script): alles in één.
+  finale-champion:
+    staged: true
+    priority: CRITICAL
+    max-wait-seconds: 60
+    cutscene: host-champion      # optioneel: neem een route met deze naam op met /kmccamera
+    lines:
+      - text: "Dit was een kampioenschap vol spanning, teamwork en spectaculaire momenten."
+        duration: 4
+        shot: crane
+        tension: 5
+      - text: "Maar er kan er maar één bovenaan eindigen."
+        duration: 3
+        shot: low
+        act: crouch
+        tension: 7
+      - text: "De winnaars van de {tournament_name} zijn..."
+        duration: 3
+        sound: BLOCK_NOTE_BLOCK_BELL
+        shot: push
+        fx: thunder
+        tension: 10
+      - text: "{place_team}§f!"
+        requires: [place_team]
+        duration: 5
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        shot: orbit
+        act: spin
+        fx: burst
+        tension: 10
+      - text: "Jullie vliegen naar huis. De rest blijft achter op het eiland."
+        duration: 5
+        shot: fly
+        act: wave
+        tension: 4
+
+  # ── MVP en records ──
+  mvp-build:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "En dan... de speler die het hele toernooi boven iedereen uitstak."
+        shot: closeup
+        act: nod
+        tension: 7
+        sound: BLOCK_NOTE_BLOCK_BELL
+  mvp-reveal:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "De MVP van het toernooi: {mvp_name}!"
+        requires: [mvp_name]
+        shot: orbit
+        act: jump
+        fx: burst
+        tension: 10
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+      - text: "{mvp_count} keer de beste van een game. Wat een prestatie!"
+        requires: [mvp_count]
+        shot: push
+        act: wave
+        tension: 4
+  records-script:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Tot slot de records van dit toernooi. Ze staan ook in de chat!"
+        shot: wide
+        act: swing
+        tension: 4
+      - text: "Meeste kills: {record_kills}."
+        requires: [record_kills]
+        shot: push
+        tension: 3
+      - text: "Meeste overwinningen: {record_wins}."
+        requires: [record_wins]
+        shot: closeup
+        tension: 3
+      - text: "Langste streak: {record_streak}."
+        requires: [record_streak]
+        shot: orbit
+        tension: 3
+  win-outro:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Wat een toernooi! Een groot applaus voor alle teams."
+        shot: crane
+        act: wave
+        fx: burst
+        tension: 4
+        sound: ENTITY_PLAYER_LEVELUP
+
+  # ── Awards ──
+  # Per prijs: opbouw (drie varianten, elk met andere camera) en onthulling. {award_name} is zonder kleur/symbool.
+  awards-intro:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Dames en heren, het moment waar jullie op wachten: de awards!"
+        sound: ENTITY_FIREWORK_ROCKET_LAUNCH
+        shot: crane
+        act: wave
+        fx: burst
+        tension: 3
+      - text: "Elke prijs gaat naar iemand die dit toernooi op zijn eigen manier groot maakte."
+        shot: orbit
+        act: nod
+        tension: 3
+  awards-build-1:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Prijs {award_index} van {award_total}: {award_name}."
+        shot: push
+        act: nod
+        tension: 4
+      - text: "{award_desc}"
+        shot: closeup
+        tension: 6
+      - text: "En de winnaar is..."
+        shot: low
+        act: crouch
+        tension: 8
+        sound: BLOCK_NOTE_BLOCK_BELL
+  awards-build-2:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "De volgende prijs: {award_name}!"
+        shot: orbit
+        act: swing
+        tension: 4
+      - text: "{award_desc}"
+        shot: push
+        tension: 6
+      - text: "Er is maar één naam..."
+        shot: closeup
+        act: turn
+        fx: rise
+        tension: 8
+        sound: BLOCK_NOTE_BLOCK_BELL
+  awards-build-3:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "{award_name}: prijs {award_index} van {award_total}."
+        shot: wide
+        walk: right:2
+        tension: 4
+      - text: "{award_desc}"
+        shot: orbit
+        walk: left:4
+        tension: 6
+      - text: "Wie pakt hem?"
+        shot: push
+        act: stand
+        tension: 8
+        sound: BLOCK_NOTE_BLOCK_BELL
+  awards-reveal-1:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "{award_who}§f!"
+        shot: orbit
+        act: jump
+        fx: burst
+        tension: 10
+        duration: 3
+      - text: "{award_value}. Dik verdiend!"
+        requires: [award_value]
+        shot: wide
+        act: wave
+        tension: 3
+  awards-reveal-2:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "{award_who}§f!!"
+        shot: fly
+        act: hop
+        fx: burst
+        tension: 10
+        duration: 3
+      - text: "Met {award_value}. Een groot applaus!"
+        requires: [award_value]
+        shot: push
+        act: swing
+        tension: 3
+  awards-reveal-3:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Het is {award_who}§f!"
+        shot: crane
+        act: spin
+        fx: burst
+        tension: 10
+        duration: 3
+      - text: "{award_value}. Wat een prestatie!"
+        requires: [award_value]
+        shot: orbit
+        act: wave
+        tension: 3
+  awards-mvp-build:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Dan nu de prijs die iedereen wil winnen."
+        shot: crane
+        act: crouch
+        tension: 5
+      - text: "{award_name}!"
+        shot: push
+        act: stand
+        fx: rise
+        tension: 7
+      - text: "{award_desc}"
+        shot: closeup
+        tension: 8
+      - text: "Drie... twee... één..."
+        shot: low
+        fx: thunder
+        tension: 10
+        sound: BLOCK_NOTE_BLOCK_BELL
+  awards-mvp-reveal:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "{award_who}§f!!!"
+        shot: orbit
+        act: spin
+        fx: burst
+        tension: 10
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+        duration: 4
+      - text: "Met {award_value}. Een absolute topprestatie!"
+        requires: [award_value]
+        shot: fly
+        act: jump
+        fx: burst
+        tension: 4
+  awards-outro:
+    staged: true
+    priority: CRITICAL
+    lines:
+      - text: "Dat waren de awards! Een groot applaus voor alle winnaars!"
+        shot: wide
+        act: wave
+        fx: burst
+        tension: 4
+        sound: ENTITY_PLAYER_LEVELUP
+      - text: "Bedankt voor jullie inzet en tot de volgende KMC!"
+        shot: crane
+        act: nod
+        tension: 2
+
+  # De losse versie (zonder script, bij /kmchost dialogue finale-awards).
   finale-awards:
     priority: HIGH
     max-wait-seconds: 60

@@ -27,10 +27,13 @@ public final class AwardsCeremony {
     private final KMCCore plugin;
     private final List<Award> queue;
     private final Runnable onDone;
+    private final boolean demo;
+    private boolean scripted;
     private final List<BukkitTask> tasks = new ArrayList<>();
     private boolean finished;
 
-    private AwardsCeremony(KMCCore plugin, List<Award> awards, Runnable onDone) {
+    private AwardsCeremony(KMCCore plugin, List<Award> awards, Runnable onDone, boolean demo) {
+        this.demo = demo;
         this.plugin = plugin;
         this.queue = order(awards);
         this.onDone = onDone;
@@ -49,16 +52,34 @@ public final class AwardsCeremony {
     }
 
     public static void run(KMCCore plugin, List<Award> awards, Runnable onDone) {
+        run(plugin, awards, onDone, false);
+    }
+
+    private static void run(KMCCore plugin, List<Award> awards, Runnable onDone, boolean demo) {
         if (active != null) active.finishNow(false);
-        if (awards.isEmpty() || !plugin.getConfig().getBoolean("awards-ceremony.enabled", true)) {
+        if (awards.isEmpty() || (!demo && !plugin.getConfig().getBoolean("awards-ceremony.enabled", true))) {
             if (onDone != null) onDone.run();
             return;
         }
-        try { if (plugin.getHost() != null) plugin.getHost().onAwards(); }
-        catch (Throwable ignored) { }
-        active = new AwardsCeremony(plugin, awards, onDone);
+        active = new AwardsCeremony(plugin, awards, onDone, demo);
         active.start();
     }
+
+    /**
+     * A test run of the real ceremony ({@code /kmchost awards}): the same host show, camera and reveals, with
+     * stand-in awards made from the players who are online. Nothing is stored.
+     *
+     * @return false when nobody is online
+     */
+    public static boolean demo(KMCCore plugin, Runnable onDone) {
+        List<Award> awards = demoAwards(plugin);
+        if (awards.isEmpty()) return false;
+        run(plugin, awards, onDone, true);
+        return active != null;
+    }
+
+    /** True while a test run is playing. */
+    public static boolean isDemo() { return active != null && active.demo; }
 
     public static boolean skip() {
         if (active == null) return false;
@@ -66,9 +87,102 @@ public final class AwardsCeremony {
         return true;
     }
 
+    private static List<Award> demoAwards(KMCCore plugin) {
+        List<Player> ps = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (ps.isEmpty()) return List.of();
+        List<Award> out = new ArrayList<>();
+        String[] ids = {"teammate", "clutch", "killer", "mvp"};
+        double[] vals = {42, 3, 17, 640};
+        for (int i = 0; i < ids.length; i++) {
+            Player w = ps.get(i % ps.size());
+            List<Standing> runners = new ArrayList<>();
+            for (int r = 1; r <= 2 && ps.size() > r; r++) {
+                Player o = ps.get((i + r) % ps.size());
+                runners.add(new Standing(o.getUniqueId(), o.getName(), teamIdOf(plugin, o), Math.max(1, vals[i] - r * 4)));
+            }
+            out.add(new Award(ids[i], false, w.getUniqueId(), w.getName(), teamIdOf(plugin, w), vals[i], runners));
+        }
+        var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+        if (!teams.isEmpty()) {
+            List<Standing> runners = new ArrayList<>();
+            for (int r = 1; r <= 2 && teams.size() > r; r++)
+                runners.add(new Standing(null, teams.get(r).getDisplayName(), teams.get(r).getId(), 5 - r));
+            out.add(new Award("team_wins", true, null, null, teams.get(0).getId(), 5, runners));
+        }
+        return out;
+    }
+
+    private static String teamIdOf(KMCCore plugin, Player p) {
+        KMCTeam t = plugin.getTeamManager().getTeamByPlayer(p.getUniqueId());
+        return t == null ? null : t.getId();
+    }
+
     // ── Flow ──────────────────────────────────────────────────────────────────
 
+    private static final String SCRIPT_KEY = "awards";
+
+    /** The host presents the ceremony as one show (see {@code awards-*} in host.yml); true when it does. */
+    private boolean startScript() {
+        var host = plugin.getHost();
+        if (host == null) return false;
+        List<nl.kmc.kmccore.host.HostManager.Part> parts = new ArrayList<>();
+        parts.add(new nl.kmc.kmccore.host.HostManager.Part("awards-intro", new HashMap<>(), () -> {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                p.sendTitle(plugin.getLanguageManager().tr(p, "awards.intro.title"),
+                        plugin.getLanguageManager().tr(p, "awards.intro.sub"), 10, 50, 10);
+                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 1.1f);
+            }
+        }));
+        int n = queue.size();
+        for (int i = 0; i < n; i++) {
+            final Award a = queue.get(i);
+            Map<String, String> v = scriptValues(a, i + 1, n);
+            boolean mvp = a.id().equals("mvp");
+            int variant = i % 3 + 1;
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part(mvp ? "awards-mvp-build" : "awards-build-" + variant, v, null));
+            parts.add(new nl.kmc.kmccore.host.HostManager.Part(mvp ? "awards-mvp-reveal" : "awards-reveal-" + variant, v,
+                    () -> reveal(a)));
+        }
+        parts.add(new nl.kmc.kmccore.host.HostManager.Part("awards-outro", new HashMap<>(), null));
+        int ticks = host.playScript(SCRIPT_KEY, parts, Set.of(), demo, () -> finishNow(false));
+        if (ticks < 0) return false;
+        scripted = true;
+        // Safety net: whatever happens to the host, the ceremony never hangs.
+        tasks.add(Bukkit.getScheduler().runTaskLater(plugin, () -> finishNow(false), ticks + 20L * 90));
+        return true;
+    }
+
+    private Map<String, String> scriptValues(Award a, int index, int total) {
+        var lm = plugin.getLanguageManager();
+        KMCTeam team = a.teamId() != null ? plugin.getTeamManager().getTeam(a.teamId()) : null;
+        String teamLabel = team != null ? team.getColor() + team.getDisplayName() : "";
+        Map<String, String> v = new HashMap<>();
+        v.put("award_name", spoken(lm.tr("nl", "awards." + a.id() + ".name")));
+        v.put("award_desc", plain(lm.tr("nl", "awards." + a.id() + ".desc")));
+        v.put("award_who", a.teamAward() ? teamLabel : (team != null ? team.getColor() : "§f") + nz(a.name()));
+        v.put("award_value", plain(lm.tr("nl", "awards." + a.id() + ".value", fmt(a.value()))));
+        v.put("award_index", String.valueOf(index));
+        v.put("award_total", String.valueOf(total));
+        v.put("award_team", teamLabel);
+        return v;
+    }
+
+    private static String plain(String s) {
+        return s == null ? "" : org.bukkit.ChatColor.stripColor(nl.kmc.kmccore.util.MessageUtil.color(s)).trim();
+    }
+
+    /** "&6&l★ MVP VAN HET TOERNOOI" → "MVP van het toernooi": no colours or symbols, sentence case. */
+    private static String spoken(String s) {
+        String t = plain(s).replaceFirst("^[^\\p{L}\\p{N}]+", "").replace("(TEAM)", "").trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty()) return t;
+        t = Character.toUpperCase(t.charAt(0)) + t.substring(1);
+        return t.replace("Mvp", "MVP");
+    }
+
     private void start() {
+        if (startScript()) return;
+        try { if (plugin.getHost() != null) plugin.getHost().onAwards(); }
+        catch (Throwable ignored) { }
         int per = Math.max(3, plugin.getConfig().getInt("awards-ceremony.seconds-per-award", 7));
         // The awards happen at the same podium as the rest of the ceremonies, with the host beside it.
         try {
@@ -184,6 +298,7 @@ public final class AwardsCeremony {
     private void finishNow(boolean skipped) {
         if (finished) return;
         finished = true;
+        if (scripted) { try { plugin.getHost().cancelScript(SCRIPT_KEY); } catch (Throwable ignored) { } }
         tasks.forEach(t -> { if (t != null) t.cancel(); });
         tasks.clear();
         if (active == this) active = null;

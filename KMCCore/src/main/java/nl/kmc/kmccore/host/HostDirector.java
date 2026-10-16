@@ -52,6 +52,7 @@ final class HostDirector {
     private long[] display;
     private double[] tension;
     private Predicate<Player> viewers;
+    private java.util.Set<java.util.UUID> noCamera = java.util.Set.of();
     private long nextBeat;
     private long secondBeat;
     private double walkSpeed;
@@ -126,7 +127,9 @@ final class HostDirector {
         }
         events.sort(Comparator.comparingLong(Event::t));
 
-        if (camera) startCamera(lines, moves, total);
+        this.noCamera = s.noCamera == null ? java.util.Set.of() : s.noCamera;
+        boolean noShots = lines.get(0).stage() != null && "none".equals(lines.get(0).stage().shot());   // only the host moves
+        if (camera && !noShots) startCamera(lines, moves, total);
 
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
         return true;
@@ -165,7 +168,8 @@ final class HostDirector {
             prev = k.t();
         }
         List<Player> who = new ArrayList<>();
-        for (Player p : Bukkit.getOnlinePlayers()) if (viewers == null || viewers.test(p)) who.add(p);
+        for (Player p : Bukkit.getOnlinePlayers())
+            if ((viewers == null || viewers.test(p)) && !noCamera.contains(p.getUniqueId())) who.add(p);
         if (who.isEmpty()) return;
         cameraRunning = true;
         cm.playRouteInstance(ROUTE_KEY, route, who, true, () -> cameraRunning = false);

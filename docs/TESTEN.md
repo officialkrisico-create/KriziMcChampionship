@@ -22,67 +22,72 @@ Bij een `[X]` of `[?]` zoek ik uit wat er misgaat; een regel mag een opmerking h
 
 ## 0. Bouwen, deployen, opstarten
 
-- [ ] `mvn test` → alle tests groen.
-- [ ] `.\deploy.ps1 -Plugins "<server>\plugins"` → alleen jars zonder `original-`; `kmc-storage` zit er **niet** bij.
-- [ ] 32 jars: KMCCore, kmc-core (KMC Core V2), kmc-game-api, kmc-stats, kmc-tournament-engine en alle games (LuckyBlock en TheBridge zijn weg).
-- [ ] WorldEdit staat in `plugins/` (nodig voor Mob Mayhem, Speed Build, schematics).
-- [ ] Server herstarten (niet `/reload`) → console zonder rode regels, elke plugin meldt "enabled".
-- [ ] Heb je een eigen `plugins/KMCCore/host.yml`: het oude `kmc-lore`-blok verwijderd (of het bestand) en `/kmchost reload` gedaan.
-- [ ] `plugins/KMCCore/config.yml` bevat `automation.games-per-round: 1` (een oude server houdt zijn oude waarde).
-- [ ] Console toont `[Cinematic]`/`[LiveApi]`-regels zonder fouten.
+- [V] `mvn test` → alle tests groen.
+- [V] `.\deploy.ps1 -Plugins "<server>\plugins"` → alleen jars zonder `original-`; `kmc-storage` zit er **niet** bij.
+- [V] 32 jars: KMCCore, kmc-core (KMC Core V2), kmc-game-api, kmc-stats, kmc-tournament-engine en alle games (LuckyBlock en TheBridge zijn weg).
+- [V] WorldEdit staat in `plugins/` (nodig voor Mob Mayhem, Speed Build, schematics).
+- [V] Server herstarten (niet `/reload`) → console zonder rode regels, elke plugin meldt "enabled".
+- [V] Heb je een eigen `plugins/KMCCore/host.yml`: het oude `kmc-lore`-blok verwijderd (of het bestand) en `/kmchost reload` gedaan.
+- [V] `plugins/KMCCore/config.yml` bevat `automation.games-per-round: 1` (een oude server houdt zijn oude waarde).
+- [V] Console toont `[Cinematic]`/`[LiveApi]`-regels zonder fouten.
 
 ## 1. Beheer
 
 ### 1.1 Validatie en checklist
-- [ ] `/kmcvalidate` toont per game "geconfigureerd" of wat er mist.
-- [ ] `/kmcvalidate config` toont per bestand "OK" of afwijkingen; `arena.*` / `course.*` / `director` zijn **geen** "onbekende sleutel" meer; een bewuste typefout (`prestart-secnds`) → "bedoelde je 'prestart-seconds'?".
-- [ ] `/kmcchecklist` opent het menu met de standaard-voorbereidingen; klik vinkt af en het blijft bewaard na een herstart.
-- [ ] `/kmcchecklist add <tekst>`, `remove <nr>`, `toggle <nr>`, `reset`, `defaults`, `list` werken.
-- [ ] Config-doctor/validatie in het Validation Center (`/kmcauto` → Event-checklist).
+- [V] `/kmcvalidate` toont per game "geconfigureerd" of wat er mist.
+- [V] `/kmcvalidate config` toont per bestand "OK" of afwijkingen; `arena.*` / `course.*` / `director` zijn **geen** "onbekende sleutel" meer; een bewuste typefout (`prestart-secnds`) → "bedoelde je 'prestart-seconds'?".
+- [V] `/kmcchecklist` opent het menu met de standaard-voorbereidingen; klik vinkt af en het blijft bewaard na een herstart.
+- [V] `/kmcchecklist add <tekst>`, `remove <nr>`, `toggle <nr>`, `reset`, `defaults`, `list` werken.
+- [V] Config-doctor/validatie in het Validation Center (`/kmcauto` → Event-checklist).
 
 ### 1.2 Teams en spelers
-- [ ] `/kmcteam` aanmaken, spelers toevoegen/verwijderen, teamgrootte (`teams.max-players-per-team`) wordt gehandhaafd.
-- [ ] `/kmcteam add <naam> <team>` voor iemand die nog nooit online was: Mojang-opzoeking, echte UUID.
-- [ ] `/kmcrandomteams` verdeelt iedereen eerlijk; `/teamprofile` toont alle 8 teams.
-- [ ] Teamkleuren, armor en emblemen (`/kmcemblem`) kloppen overal (tablist, chat, sidebar).
-- [ ] `/kmcbot add 8`, `/kmcbot info`: `invulnerable=false`; staat er `true`, plak de hele regel (hij noemt de "load"-leden van de server). `/kmcbot remove` ruimt op.
+- [V] `/kmcteam` aanmaken, spelers toevoegen/verwijderen, teamgrootte (`teams.max-players-per-team`) wordt gehandhaafd.
+- [V] `/kmcteam add <naam> <team>` voor iemand die nog nooit online was: Mojang-opzoeking, echte UUID.
+- [V] `/kmcrandomteams` verdeelt iedereen eerlijk; `/teamprofile` toont alle 8 teams.
+- [V] Teamkleuren, armor en emblemen (`/kmcemblem`) kloppen overal (tablist, chat, sidebar).
+- [V] `/kmcbot add 8`, `/kmcbot info`: `invulnerable=false`; staat er `true`, plak de hele regel (hij noemt de "load"-leden van de server). `/kmcbot remove` ruimt op.
 
 ### 1.3 Menu's
-- [ ] `/kmcauto` → setup-menu: aantal games, rondes, pauzes, finale, ready-check, verrassingsgames (0-3), per game aan/uit.
-- [ ] Presets: er zijn geen standaard-presets; "Maak een preset" slaat je instellingen op, kiezen past ze toe, `/kmcauto preset delete <naam>` verwijdert.
-- [ ] `/kmcdirector`: pauze, rerun, finale, dry-run, tijdschatting.
-- [ ] Taalmenu bij de eerste join; na een keuze sluit het menu meteen; `/kmclanguage` werkt.
-- [ ] Tablist (MCC-stijl, teamnamen gecentreerd en vet, `➤` voor je team), sidebar "Top Teams", `/kmchud test` (15 s).
+- [V] `/kmcauto` → setup-menu: aantal games, rondes, pauzes, finale, ready-check, verrassingsgames (0-3), per game aan/uit.
+- [V] Presets: er zijn geen standaard-presets; "Maak een preset" slaat je instellingen op, kiezen past ze toe, `/kmcauto preset delete <naam>` verwijdert.
+- [V] `/kmcdirector`: pauze, rerun, finale, dry-run, tijdschatting.
+- [V] Taalmenu bij de eerste join; na een keuze sluit het menu meteen; `/kmclanguage` werkt.
+- [V] Tablist (MCC-stijl, teamnamen gecentreerd en vet, `➤` voor je team), sidebar "Top Teams", `/kmchud test` (15 s).
 
 ## 2. Host, lore, teamshowcase, podium, awards
 
 ### 2.1 De host zelf
-- [ ] `/kmchost setspawn` plaatst hem; hij praat **niet** voor `/kmcauto start`; `/kmchost info` toont `IDLE`.
-- [ ] Rechtsklik vóór de start: menu met alleen "Wat is KMC?", "Hoe werkt het toernooi?" en "Lore"; tekst alleen voor jou.
-- [ ] `/kmchost test` toont een paar regels boven zijn hoofd (alleen voor jou); lange zinnen splitsen aan het einde van een zin, nooit midden in een zin.
-- [ ] Hij is onkwetsbaar: een vuist in creative, `/kill` en vallen doen niets; verdwijnt hij toch, dan staat hij binnen 10 s terug.
-- [ ] Hij loopt niet van het platform of door muren en staat aan het eind weer op zijn plek.
-- [ ] Bubbel: hoogte goed (`host.npc.dialogue-height`), leesbaar op afstand, met 32 spelers geen lag.
-- [ ] Skin: `/kmchost skin <naam>` en de rank-NPC's dragen de skin van de speler op die plek (1e, 5e, ...), ook offline spelers.
+- [V] `/kmchost setspawn` plaatst hem; hij praat **niet** voor `/kmcauto start`; `/kmchost info` toont `IDLE`.
+- [V] Rechtsklik vóór de start: menu met alleen "Wat is KMC?", "Hoe werkt het toernooi?" en "Lore"; tekst alleen voor jou.
+- [V] `/kmchost test` toont een paar regels boven zijn hoofd (alleen voor jou); lange zinnen splitsen aan het einde van een zin, nooit midden in een zin.
+- [V] Hij is onkwetsbaar: een vuist in creative, `/kill` en vallen doen niets; verdwijnt hij toch, dan staat hij binnen 10 s terug.
+- [V] Hij loopt niet van het platform of door muren en staat aan het eind weer op zijn plek.
+- [V] Bubbel: hoogte goed (`host.npc.dialogue-height`), leesbaar op afstand, met 32 spelers geen lag.
+- [V] Skin: `/kmchost skin <naam>` en de rank-NPC's dragen de skin van de speler op die plek (1e, 5e, ...), ook offline spelers.
 
 ### 2.2 Alles met de host testen (zonder toernooi)
-Elk commando speelt dat onderdeel met testdata waar echte data ontbreekt; `/kmchost skip` stopt hem.
-- [ ] `/kmchost lore` (verhaal: neergestort op een eiland, stoelen = teamgrootte, camera + lopende host + hartslag).
-- [ ] `/kmchost opening`, `rules`, `overview`, `teams` (met team-intro), `lineup`.
-- [ ] `/kmchost results`, `standings`.
-- [ ] `/kmchost finale`, `third`, `second`, `champion`, `awards` (de host staat naast het podium als dat er is).
-- [ ] `/kmchost podium` zet hem een moment op het podium en weer terug.
+Deze commando's draaien dezelfde flow als `/kmcauto` en het einde van het toernooi (camera, host, podium, titels, vuurwerk), met
+testdata waar echte data ontbreekt. Ze weigeren als er een echte sessie of eindceremonie loopt. `/kmchost skip` stopt een testrun.
+- [V] `/kmchost lore` (verhaal: neergestort op een eiland, stoelen = teamgrootte, camera + lopende host + hartslag).
+- [ ] `/kmchost opening`, `rules`, `overview`, `lineup`: één stap van de openingspresentatie, met de bossbar, de titel en de chatblokken van de echte stap, en de host als cutscene (shots, gebaren, effecten).
+- [ ] `/kmchost teams`: de echte teamshowcase (flyover, teams op het podium) met de host erachter; de teamintro's per team.
+- [ ] `/kmchost results`, `standings`: de host springt/wuift, de camera blijft uit (je ziet het scoreverslag nog).
+- [ ] `/kmchost finale`: de finale-aankondiging (donder, orbit-shot).
+- [ ] `/kmchost podium`: de hele winnaarsceremonie: intro, derde, tweede, kampioenen, MVP, records, afsluiter, als één host-show met doorlopende camera. Spelers op het podium houden hun eigen beeld.
+- [ ] `/kmchost second` / `champion` / `mvp`: dezelfde ceremonie vanaf die plek (`third` is de hele ceremonie).
+- [ ] `/kmchost awards`: de hele awards-show met de online spelers als winnaars (teamgenoot, clutch, kills, team-prijs, MVP): per prijs opbouw, onthulling met chatkaart/titel/vuurwerk, andere camera per prijs, MVP met aftelling.
+- [ ] `/kmcauto start` tijdens een testrun stopt de testrun en begint de echte sessie.
 - [ ] `/kmchost intro <game>` toont de volledige introductie (lore, regels, besturing, punten, speelduur) van een game.
 - [ ] `/kmchost dialogue <id>`, `announce <tekst>`, `enable`/`disable`, `reload` (meldt waarschuwingen in host.yml).
 
 ### 2.3 Lore en opening (`/kmcauto start`)
-- [ ] De lore speelt eerst: titel NEERGESTORT, fly-over, lopende en springende host, hartslag, bliksem bij "HET TOERNOOI BEGINT!".
-- [ ] Zet de teamgrootte op 3: "drie stoelen"; een regel met `{editions}`/`{last_champion}` valt weg zonder edities.
-- [ ] Daarna direct de teamshowcase, dan opening, spelregels, rondes & punten en de game-lineup (kaarten zonder ondertitel, juiste aantallen).
-- [ ] Taalbericht na de lore: nette kaart, twee klikbare regels, geen actionbar eroverheen.
-- [ ] `/kmcauto skip` slaat lore/opening over en gaat naar de tussenpauze; `/kmcauto stop` ruimt alles op (geen camera die blijft hangen).
-- [ ] Een tweede `/kmcauto start` tijdens de sessie doet niets extra.
-- [ ] De afteltijd naar het stemmen begint pas als de host is uitgesproken.
+- [V] De lore speelt eerst: titel NEERGESTORT, fly-over, lopende en springende host, hartslag, bliksem bij "HET TOERNOOI BEGINT!".
+- [V] Zet de teamgrootte op 3: "drie stoelen"; een regel met `{editions}`/`{last_champion}` valt weg zonder edities.
+- [V] Daarna direct de teamshowcase, dan opening, spelregels, rondes & punten en de game-lineup (kaarten zonder ondertitel, juiste aantallen).
+- [V] Taalbericht na de lore: nette kaart, twee klikbare regels, geen actionbar eroverheen.
+- [V] `/kmcauto skip` slaat lore/opening over en gaat naar de tussenpauze; `/kmcauto stop` ruimt alles op (geen camera die blijft hangen).
+- [V] Een tweede `/kmcauto start` tijdens de sessie doet niets extra.
+- [V] De afteltijd naar het stemmen begint pas als de host is uitgesproken.
 
 ### 2.4 Teamshowcase en podium
 - [ ] `/kmcpodium set` bouwt goud/ijzer/koper; `/kmcpodium test` zet je op plek 1.
@@ -91,16 +96,16 @@ Elk commando speelt dat onderdeel met testdata waar echte data ontbreekt; `/kmch
 - [ ] Na de showcase staat iedereen weer waar hij stond.
 
 ### 2.5 Uitslag en awards
-- [ ] Finale-aankondiging komt ná de leaderboard-animatie; 3e, 2e en kampioen staan echt op het podium; de rest kijkt via een camera.
+- [ ] Finale-aankondiging komt ná de leaderboard-animatie; 3e, 2e en kampioen staan echt op het podium op het moment dat de host ze noemt; de rest kijkt via de camera van de host.
 - [ ] Slotceremonie toont de echte winnaar, MVP en records.
-- [ ] Awards: dezelfde podium-camera, vuurwerk boven het podium, host in beeld, echte data.
-- [ ] Fan Favorite-GUI past voor 32+ spelers; credits, feedback en reset lopen netjes door.
+- [ ] Awards (echt): de host-show met camera per prijs, onthulling precies als de host de naam noemt, vuurwerk boven het podium, echte data. Zonder host of podium valt het terug op de oude timer-ceremonie.
+- [V] Fan Favorite-GUI past voor 32+ spelers; credits, feedback en reset lopen netjes door.
 - [ ] Na het einde staat de host weer op zijn eigen plek (`/kmchost info`).
 
 ## 3. Toernooiverloop
 
-- [ ] Start → (lore) → showcase → opening → eerste tussenpauze → stemmen (`/kmcvote`) → pre-start → game.
-- [ ] Verrassingsgames: aantal in het menu, willekeurig gekozen, `???` bij het stemmen en in de lineup, onthuld bij de beurt; de uitleg verschijnt na de onthulling.
+- [V] Start → (lore) → showcase → opening → eerste tussenpauze → stemmen (`/kmcvote`) → pre-start → game.
+- [V] Verrassingsgames: aantal in het menu, willekeurig gekozen, `???` bij het stemmen en in de lineup, onthuld bij de beurt; de uitleg verschijnt na de onthulling.
 - [ ] Pre-start: host noemt game, doel en sluit af; de uitlegkaart in de chat toont doel, "zo werkt het" en punten (ook Laser Logic en Factory Frenzy).
 - [ ] Na een game: score-uitsplitsing → GG-knop → leaderboard-animatie → pas dan "Halverwege" en "Tussenpauze" met timer.
 - [ ] "Jouw game": `Je werd #X/32 | je team werd #Y/8` met echte aantallen; tab-punten = sidebar-punten = uitsplitsing (inclusief multiplier).
@@ -258,13 +263,13 @@ plek bij uitschakeling `(36)`, `(35)`, … waar je kunt afvallen, `/pause` stopt
 
 ## 5. Lobby, data, platform, stream
 
-- [ ] Lobby: `/ttt`, `/darts` (Target-blok), vissen, parkour, `/lobbyspleef` geven geen toernooipunten; anti-grief (frames, emmers, kisten, ender pearls).
-- [ ] Rank-NPC's (`/kmclobbynpc rank set 1…`, `list`, `rank remove here`, `despawnall`) met de skin en punten van de speler op die plek, live bijgewerkt.
-- [ ] Hall of Fame-NPC (`/kmclobbynpc spawn hof`): top 3, ranks 4-10, team-banners, "Records aller tijden".
-- [ ] Easter eggs ("Easter Egg Hunter" staat als advancement), `/tutorial`.
-- [ ] Spectator: `/kmcspec` (menu, follow, stop); een gestorven speler vliegt en kan niets raken.
-- [ ] Statistieken: `/kmcstats`, `/kmcprofile`, `/kmclb`, `/kmcmvp`, `/kmcmomentum`, `/kmcpowerrank`, `/kmchof`, `/kmcmedals`.
-- [ ] `/kmcapi start` toont de URL en de overlay (`/overlay`, `/api/state`) werkt; ↻ eerder werkte dit niet: noteer de melding (op een server elders: `live-api.bind: 0.0.0.0` + token).
+- [X Remove dit] Lobby: `/ttt`, `/darts` (Target-blok), vissen, parkour, `/lobbyspleef` geven geen toernooipunten; anti-grief (frames, emmers, kisten, ender pearls).
+- [V] Rank-NPC's (`/kmclobbynpc rank set 1…`, `list`, `rank remove here`, `despawnall`) met de skin en punten van de speler op die plek, live bijgewerkt.
+- [V] Hall of Fame-NPC (`/kmclobbynpc spawn hof`): top 3, ranks 4-10, team-banners, "Records aller tijden".
+- [V] Easter eggs ("Easter Egg Hunter" staat als advancement), `/tutorial`.
+- [Nogsteeds niet in creative] Spectator: `/kmcspec` (menu, follow, stop); een gestorven speler vliegt en kan niets raken.
+- [V] Statistieken: `/kmcstats`, `/kmcprofile`, `/kmclb`, `/kmcmvp`, `/kmcmomentum`, `/kmcpowerrank`, `/kmchof`, `/kmcmedals`.
+- [X] `/kmcapi start` toont de URL en de overlay (`/overlay`, `/api/state`) werkt; ↻ eerder werkte dit niet: noteer de melding (op een server elders: `live-api.bind: 0.0.0.0` + token).
 - [ ] `/clip` (clip-markers), `/kmcaudit` (teleports), `/kmccamera` (routes opnemen), `/gg`.
 - [ ] Story/lore-klikverhaaltjes via de host (herkomst, kampioenschap, trofee, teams, rivaliteiten, seizoenen, finales).
 
