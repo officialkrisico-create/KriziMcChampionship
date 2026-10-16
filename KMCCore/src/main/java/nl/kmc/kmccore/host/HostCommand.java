@@ -21,8 +21,9 @@ import java.util.Map;
  */
 public final class HostCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBS = List.of("info", "spawn", "setspawn", "remove", "skin", "intro",
-            "announce", "dialogue", "lore", "test", "skip", "enable", "disable", "reload");
+    private static final List<String> SUBS = new ArrayList<>(List.of("info", "spawn", "setspawn", "remove", "skin", "intro",
+            "announce", "dialogue", "test", "skip", "enable", "disable", "reload"));
+    static { SUBS.addAll(HostManager.DEMOS); }
 
     private final KMCCore plugin;
 
@@ -81,11 +82,6 @@ public final class HostCommand implements CommandExecutor, TabCompleter {
                 boolean ok = host.play(args[1], sender instanceof Player p ? p : null);
                 msg(sender, ok ? "&a[KMC] Dialoog wordt afgespeeld." : "&cOnbekende dialoog '" + args[1] + "' (of niets te zeggen). &7/kmchost info toont er een paar.");
             }
-            case "lore" -> {
-                boolean ok = host.play("kmc-lore", sender instanceof Player p ? p : null);
-                msg(sender, ok ? "&a[KMC] De KMC-lore wordt verteld (camera en host-regie, alleen als de host is geplaatst). &7/kmchost skip stopt hem."
-                        : "&cGeen lore: de dialoog 'kmc-lore' bestaat niet of de host staat uit.");
-            }
             case "test" -> {
                 boolean ok = host.test(sender instanceof Player p ? p : null);
                 if (!ok) msg(sender, "&cDe host staat uit.");
@@ -107,6 +103,12 @@ public final class HostCommand implements CommandExecutor, TabCompleter {
                 msg(sender, "&a[KMC] Host-configuratie en host.yml herladen. &7" + host.dialogueCount() + " dialogen, "
                         + host.contentWarnings().size() + " waarschuwingen.");
                 host.contentWarnings().stream().limit(5).forEach(w -> msg(sender, "&e  ! &7" + w));
+            }
+            case "lore", "opening", "rules", "overview", "teams", "lineup", "results", "standings", "finale", "third",
+                 "second", "champion", "awards", "podium" -> {
+                boolean ok = host.demo(sub, sender instanceof Player p ? p : null);
+                msg(sender, ok ? "&a[KMC] De host speelt &e" + sub + "&a (testdata waar echte data ontbreekt, camera en podium alleen als die er zijn). &7/kmchost skip stopt hem."
+                        : "&cDat lukt niet: onbekend onderdeel, de dialoog ontbreekt in host.yml, of de host staat uit.");
             }
             default -> msg(sender, "&7Gebruik: &e/kmchost <" + String.join("|", SUBS) + ">");
         }

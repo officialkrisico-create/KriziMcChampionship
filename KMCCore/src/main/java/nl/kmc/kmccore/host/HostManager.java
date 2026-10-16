@@ -807,9 +807,13 @@ public final class HostManager implements Listener {
             boolean sees = spot != null && p.getWorld().equals(spot.getWorld())
                     && p.getLocation().distanceSquared(spot) <= range * range;
             if (chat) p.sendMessage(HostText.color(str("npc.name", "&6&lKMC Host")) + " §8» §f" + plain);
-            if (!sees && remote.equals("ACTIONBAR")) p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                    .legacySection().deserialize("§6🎙 §f" + plain));
-            else if (!sees && remote.equals("CHAT") && !chat)
+            // A game keeps writing to the action bar itself, so a remark there is overwritten at once: a live remark
+            // always also goes to the chat of everybody who cannot see the host.
+            if (!sees && remote.equals("ACTIONBAR")) {
+                p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+                        .legacySection().deserialize("§6🎙 §f" + plain));
+                if (!chat) p.sendMessage(HostText.color(str("npc.name", "&6&lKMC Host")) + " §8» §f" + plain);
+            } else if (!sees && remote.equals("CHAT") && !chat)
                 p.sendMessage(HostText.color(str("npc.name", "&6&lKMC Host")) + " §8» §f" + plain);
         }
 
@@ -883,6 +887,102 @@ public final class HostManager implements Listener {
         if (game != null) HostValues.game(v, game, content);
         Speech s = build(d, v, null, null, null, null, HostDialogues.HIGH, false);
         return s != null && offerManual(s);
+    }
+
+    /** What {@code /kmchost <what>} can play: the parts of a tournament the host presents, for testing. */
+    public static final List<String> DEMOS = List.of("lore", "opening", "rules", "overview", "teams", "lineup",
+            "results", "standings", "finale", "third", "second", "champion", "awards", "podium");
+
+    /**
+     * Plays one part of the tournament presentation for an admin, outside a session, with real data where it
+     * exists and stand-in names where it does not (so every line gets said). The host steps onto the podium
+     * for the parts that happen there and goes back afterwards.
+     *
+     * @return false for an unknown part, or when the host is off
+     */
+    public boolean demo(String what, Player admin) {
+        if (!sm.isEnabled() || what == null) return false;
+        String id;
+        boolean podium = false;
+        switch (what.toLowerCase()) {
+            case "lore" -> id = flag("lore-intro.enabled", true) ? str("lore-intro.dialogue", "kmc-lore") : "kmc-lore";
+            case "opening" -> id = "opening";
+            case "rules" -> id = "how-it-works";
+            case "overview" -> id = "tournament-overview";
+            case "teams" -> id = "teams-start";
+            case "lineup" -> id = "games-lineup";
+            case "results" -> id = "results-game";
+            case "standings" -> id = "standings-normal";
+            case "finale" -> { id = "finale-announce"; podium = true; }
+            case "third" -> { id = "finale-third"; podium = true; }
+            case "second" -> { id = "finale-second"; podium = true; }
+            case "champion" -> { id = "finale-champion"; podium = true; }
+            case "awards" -> { id = "finale-awards"; podium = true; }
+            case "podium" -> { id = "test-bubble"; podium = true; }
+            default -> { return false; }
+        }
+        Dialogue d = content.dialogue(id);
+        if (d == null) return false;
+        Map<String, String> v = demoValues(admin);
+        Speech s = build(d, v, null, null, null, null, HostDialogues.HIGH, false);
+        if (s == null) return false;
+        if (podium) {
+            takePodium();
+            s.onDone = this::leavePodium;
+        }
+        boolean ok = offerManual(s);
+        if (!ok && podium) leavePodium();
+        if (ok && what.equalsIgnoreCase("teams")) {
+            var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+            if (!teams.isEmpty()) {
+                Map<String, String> tv = new HashMap<>(v);
+                HostValues.team(plugin, tv, teams.get(0));
+                Dialogue ti = content.dialogue("team-intro");
+                Speech ts = ti == null ? null : build(ti, tv, null, null, teams.get(0).getId(), null, HostDialogues.HIGH, false);
+                if (ts != null) offerManual(ts);
+            }
+        }
+        return ok;
+    }
+
+    /** Real tournament values, with stand-ins for everything that does not exist yet (a test run has no history). */
+    private Map<String, String> demoValues(Player admin) {
+        Map<String, String> v = HostValues.tournament(plugin, content);
+        var teams = plugin.getTeamManager().getTeamsSortedByPoints();
+        String a = teams.size() > 0 ? HostValues.colored(teams.get(0)) : "§cRode Ratten§f";
+        String b = teams.size() > 1 ? HostValues.colored(teams.get(1)) : "§9Blauwe Bavianen§f";
+        String c = teams.size() > 2 ? HostValues.colored(teams.get(2)) : "§eGele Gnoes§f";
+        String who = admin != null ? admin.getName() : "Speler";
+        var game = plugin.getGameManager().getEnabledGames();
+        String gameName = game.isEmpty() ? "Blockball" : game.get(0).getDisplayName();
+        v.putIfAbsent("team_count", String.valueOf(Math.max(2, teams.size())));
+        v.putIfAbsent("rounds", "8");
+        v.putIfAbsent("leaderboard_leader", a);
+        v.putIfAbsent("leader_points", "1200");
+        v.putIfAbsent("second", b);
+        v.putIfAbsent("gap", "150");
+        v.putIfAbsent("top_team_1", a);
+        v.putIfAbsent("top_team_2", b);
+        v.putIfAbsent("top_team_3", c);
+        v.put("game", gameName);
+        v.putIfAbsent("game_winner", a);
+        v.putIfAbsent("top_player", who);
+        v.putIfAbsent("top_player_points", "340");
+        v.put("finalist_a", a);
+        v.put("finalist_b", b);
+        v.put("place", "1");
+        v.put("place_team", a);
+        v.put("place_points", "1200");
+        v.put("winner", a);
+        v.putIfAbsent("award_mvp", who);
+        v.putIfAbsent("award_killer", who);
+        v.putIfAbsent("award_winner", who);
+        v.putIfAbsent("award_teammate", who);
+        v.putIfAbsent("award_comeback", who);
+        v.putIfAbsent("award_team_wins", a);
+        v.putIfAbsent("editions", "3");
+        v.putIfAbsent("last_champion", c);
+        return v;
     }
 
     /** The display test: shows a few lines above the head for the admin only, touching nothing else. */

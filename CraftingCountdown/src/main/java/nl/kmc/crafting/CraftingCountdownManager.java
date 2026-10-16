@@ -55,6 +55,7 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         final Map<Material, PileStock> stock = new LinkedHashMap<>();
         TextDisplay label;
         boolean dirty = true;
+        int left;                              // blocks still in the mound
         Pile(String id, PileType type, Location at) { this.id = id; this.type = type; this.at = at; }
     }
 
@@ -62,8 +63,13 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
     private NamespacedKey workbenchKey;
     /** Marks the mining tools (they are not carried goods). */
     private NamespacedKey toolKey;
-    /** What each player mines at each pile: "<player>:<pile>" to the item. */
+    /** What each player mines at each pile: "<player>:<pile>" to the item. (Old menu system, no longer used.) */
     private final Map<String, Material> mining = new HashMap<>();
+    /** The mounds are built from real blocks and put back after the game. */
+    private final nl.kmc.game.api.arcade.TemporaryBlocks blocks = new nl.kmc.game.api.arcade.TemporaryBlocks();
+    /** Every block of a mound and the item it gives when it is mined. */
+    private final Map<Long, Material> moundAt = new HashMap<>();
+    private final Map<Long, Pile> moundOf = new HashMap<>();
 
     private static final class Order {
         final int seq;
@@ -274,6 +280,8 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         piles.clear();
         pileAt.clear();
         stationAt.clear();
+        moundAt.clear();
+        moundOf.clear();
         obtainable.clear();
         types.clear();
         types.putAll(loadTypes(null));
@@ -300,12 +308,14 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
                 piles.add(pile);
                 pileAt.put(key(at.getBlockX(), at.getBlockY(), at.getBlockZ()), pile);
                 for (Material m : type.items()) obtainable.add(m.name());
+                buildMound(pile);
                 spawnLabel(pile);
             }
         }
         for (int i = 0; i < stations.size(); i++) {
             Location s = stations.get(i);
             stationAt.put(key(s.getBlockX(), s.getBlockY(), s.getBlockZ()), i);
+            ensureCraftingTable(s);
         }
 
         // teams: one station each (stations are shared, with a warning, when there are fewer than teams)
@@ -354,7 +364,6 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         for (Player p : activePlayers()) {
             p.setGameMode(GameMode.SURVIVAL);         // digging needs survival; everything else stays blocked
             giveTools(p);
-            giveWorkbench(p);
         }
     }
 
@@ -471,15 +480,12 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         pile.dirty = false;
         if (pile.label == null || !pile.label.isValid()) return;
         Component c = Component.text(pile.type.name(), NamedTextColor.GOLD, TextDecoration.BOLD);
-        for (var en : pile.stock.entrySet()) {
-            PileStock st = en.getValue();
-            boolean has = st.amount() > 0;
-            c = c.append(Component.newline())
-                    .append(Component.translatable(en.getKey().translationKey(), has ? NamedTextColor.GRAY : NamedTextColor.DARK_RED))
-                    .append(Component.text(" " + st.amount() + "/" + st.max(), has ? NamedTextColor.WHITE : NamedTextColor.RED));
+        for (Material m : pile.type.items()) {
+            c = c.append(Component.newline()).append(Component.translatable(m.translationKey(), NamedTextColor.GRAY));
         }
-        c = c.append(Component.newline()).append(Component.text("▸ rechtsklik", NamedTextColor.YELLOW));
+        c = c.append(Component.newline()).append(Component.text("⛏ " + pile.left + " blokken", NamedTextColor.YELLOW));
         pile.label.text(c);
+
     }
 
     private void restock() {
@@ -690,12 +696,6 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         var b = e.getClickedBlock();
         long k = key(b.getX(), b.getY(), b.getZ());
 
-        Pile pile = pileAt.get(k);
-        if (pile != null) {
-            e.setCancelled(true);
-            if (isActive(id)) openPile(p, pile);
-            return;
-        }
         Integer st = stationAt.get(k);
         if (st == null) return;
         e.setCancelled(true);
@@ -727,29 +727,107 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         actionBar(p, api.tr(p.getUniqueId(), "crafting.pile.mining", OrderLogic.pretty(m.name())));
     }
 
-    /** Mining is real: the pile block is dug with the pickaxe or axe, and every break gives the chosen item. */
+    /**
+     * Mining is real: a mound is a heap of blocks (every kind of the pile is in it), you dig the blocks out
+     * with the pickaxe or axe and each one gives the item it stands for. A block that is gone stays gone.
+     */
     @EventHandler(priority = org.bukkit.event.EventPriority.LOW)
     public void onMine(org.bukkit.event.block.BlockBreakEvent e) {
         Player p = e.getPlayer();
         UUID id = p.getUniqueId();
         if (!live || !getState().isRunning() || !isParticipant(id)) return;
         var b = e.getBlock();
-        Pile pile = pileAt.get(key(b.getX(), b.getY(), b.getZ()));
-        if (pile == null) return;
-        e.setCancelled(true);                        // the block stays: it is a pile, not a block you can remove
+        long k = key(b.getX(), b.getY(), b.getZ());
+        Material item = moundAt.get(k);
+        if (item == null) return;
+        e.setCancelled(true);                        // we remove the block ourselves and give the item
         e.setDropItems(false);
         if (!isActive(id)) return;
-        Material sel = mining.get(id + ":" + pile.id);
-        if (sel == null || !pile.stock.containsKey(sel)) {
-            sel = null;
-            for (var en : pile.stock.entrySet()) if (en.getValue().amount() > 0) { sel = en.getKey(); break; }
-            if (sel == null && !pile.stock.isEmpty()) sel = pile.stock.keySet().iterator().next();
-            if (sel == null) return;
-            mining.put(id + ":" + pile.id, sel);
+        int max = cfgInt("piles.max-carry", 128);
+        if (OrderLogic.carryRoom(carried(p), max) <= 0) {
+            actionBar(p, api.tr(id, "crafting.pile.full", max));
+            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
+            return;
         }
-        take(p, pile, sel);
-        if (pile.dirty) updateLabel(pile);
-        b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, 0, b.getBlockData());
+        Pile pile = moundOf.get(k);
+        int perBlock = Math.max(1, cfgInt("piles.yield-per-block", pile != null ? Math.max(1, pile.type.perTake() / 4) : 2));
+        int give = Math.min(perBlock, OrderLogic.carryRoom(carried(p), max));
+        p.getInventory().addItem(new ItemStack(item, give));
+        moundAt.remove(k);
+        moundOf.remove(k);
+        blocks.set(b, Material.AIR);
+        if (pile != null) { pile.left--; pile.dirty = true; }
+        b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 14, 0.3, 0.3, 0.3, 0,
+                item.isBlock() ? item.createBlockData() : Material.STONE.createBlockData());
+        p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.6f, 1.2f);
+        actionBar(p, api.tr(id, "crafting.pile.took", give, OrderLogic.pretty(item.name()), carried(p), max));
+    }
+
+    // ── Mounds ────────────────────────────────────────────────────────────────
+
+    /** The block that stands for an item inside a mound (items that are no blocks get a look-alike). */
+    private static Material blockFor(Material item) {
+        return switch (item) {
+            case COAL -> Material.COAL_ORE;
+            case IRON_INGOT -> Material.IRON_ORE;
+            case GOLD_INGOT -> Material.GOLD_ORE;
+            case REDSTONE -> Material.REDSTONE_ORE;
+            case DIAMOND -> Material.DIAMOND_ORE;
+            case EMERALD -> Material.EMERALD_ORE;
+            case QUARTZ -> Material.NETHER_QUARTZ_ORE;
+            case NETHER_WART -> Material.NETHER_WART_BLOCK;
+            case WHEAT -> Material.HAY_BLOCK;
+            case APPLE -> Material.RED_MUSHROOM_BLOCK;
+            case CARROT -> Material.ORANGE_TERRACOTTA;
+            case POTATO -> Material.YELLOW_TERRACOTTA;
+            case STRING -> Material.COBWEB;
+            case LEATHER -> Material.BROWN_WOOL;
+            case GUNPOWDER -> Material.GRAY_CONCRETE_POWDER;
+            case BONE -> Material.BONE_BLOCK;
+            case PAPER -> Material.WHITE_WOOL;
+            default -> item.isBlock() ? item : Material.TERRACOTTA;
+        };
+    }
+
+    /** A dome of mixed blocks around the pile location: every item of the type is in it, in random places. */
+    private void buildMound(Pile pile) {
+        World w = pile.at.getWorld();
+        if (w == null || pile.type.items().isEmpty()) return;
+        int r = Math.max(1, cfgInt("piles.mound-radius", 3));
+        int cx = pile.at.getBlockX(), cy = pile.at.getBlockY(), cz = pile.at.getBlockZ();
+        List<Material> items = pile.type.items();
+        int n = 0;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                for (int dy = 0; dy <= r; dy++) {
+                    if (dx * dx + dz * dz + dy * dy > r * r + 1) continue;
+                    var b = w.getBlockAt(cx + dx, cy + dy, cz + dz);
+                    if (!b.getType().isAir() && !(dx == 0 && dz == 0 && dy == 0)) continue;   // never over a wall or a station
+                    Material item = items.get(rnd.nextInt(items.size()));
+                    blocks.set(b, blockFor(item));
+                    long k = key(b.getX(), b.getY(), b.getZ());
+                    moundAt.put(k, item);
+                    moundOf.put(k, pile);
+                    n++;
+                }
+            }
+        }
+        pile.left = n;
+    }
+
+    /** Every delivery station has a crafting table within reach: one is placed next to it when there is none. */
+    private void ensureCraftingTable(Location station) {
+        World w = station.getWorld();
+        if (w == null) return;
+        int sx = station.getBlockX(), sy = station.getBlockY(), sz = station.getBlockZ();
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                if (w.getBlockAt(sx + dx, sy, sz + dz).getType() == Material.CRAFTING_TABLE) return;
+        int[][] around = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {1, 1}, {-1, -1}};
+        for (int[] o : around) {
+            var b = w.getBlockAt(sx + o[0], sy, sz + o[1]);
+            if (b.getType().isAir()) { blocks.set(b, Material.CRAFTING_TABLE); return; }
+        }
     }
 
     @EventHandler
@@ -761,11 +839,8 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
 
     @Override
     protected void playTick() {
-        if (ticks >= nextRestock) {
-            restock();
-            nextRestock = ticks + restockTicks();
-        }
-        if (ticks % 40 == 0) for (Player p : activePlayers()) { giveTools(p); giveWorkbench(p); }   // lost it in the crafting grid?
+        // the mounds do not grow back: what is dug out is gone
+        if (ticks % 40 == 0) for (Player p : activePlayers()) giveTools(p);
         if (ticks % 10 == 0) {
             for (Pile pile : piles) if (pile.dirty) updateLabel(pile);
             for (var en : teams.entrySet()) if (en.getValue().dirty) updateBoard(en.getKey(), en.getValue());
@@ -905,6 +980,9 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p.getOpenInventory().getTopInventory().getHolder() instanceof PileHolder) p.closeInventory();
         }
+        blocks.restoreAll();
+        moundAt.clear();
+        moundOf.clear();
         piles.clear();
         pileAt.clear();
         stationAt.clear();

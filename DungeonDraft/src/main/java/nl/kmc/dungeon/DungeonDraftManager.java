@@ -192,6 +192,9 @@ public final class DungeonDraftManager extends ArcadeGameManager {
         return new Location(l.get(0).getWorld(), x / l.size() + 30, y / l.size() + 14, z / l.size());
     }
 
+    private World diffWorld;
+    private org.bukkit.Difficulty prevDifficulty;
+
     @Override
     protected Location respawnLocation(Player p) {
         Run r = runs.get(teamId(p.getUniqueId()));
@@ -210,6 +213,12 @@ public final class DungeonDraftManager extends ArcadeGameManager {
         durationTicks = cfgInt("dungeon.duration-seconds", 600) * 20L;
 
         List<Location> lanes = arena.locs("lanes");
+        // Hostile mobs vanish at once on peaceful: the dungeon world must be at least easy while the game runs.
+        if (!lanes.isEmpty() && lanes.get(0).getWorld() != null) {
+            diffWorld = lanes.get(0).getWorld();
+            prevDifficulty = diffWorld.getDifficulty();
+            if (prevDifficulty == org.bukkit.Difficulty.PEACEFUL) diffWorld.setDifficulty(org.bukkit.Difficulty.NORMAL);
+        }
         List<String> ids = activeTeams();
         if (ids.size() > lanes.size()) {
             String msg = "§c[Dungeon Draft] " + ids.size() + " teams maar " + lanes.size()
@@ -1071,6 +1080,9 @@ public final class DungeonDraftManager extends ArcadeGameManager {
     @Override
     protected void cleanupGame() {
         if (pauseWatch != null) { pauseWatch.cancel(); pauseWatch = null; }
+        if (diffWorld != null && prevDifficulty != null) { diffWorld.setDifficulty(prevDifficulty); }
+        diffWorld = null;
+        prevDifficulty = null;
         for (Run r : runs.values()) if (r.room != null) cleanupRoom(r, r.room);
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p.getOpenInventory().getTopInventory().getHolder() instanceof DraftHolder) p.closeInventory();

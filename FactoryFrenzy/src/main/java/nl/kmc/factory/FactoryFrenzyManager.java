@@ -1,12 +1,9 @@
 package nl.kmc.factory;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import nl.kmc.core.domain.GameRegistration;
 import nl.kmc.core.domain.PointAward;
-import nl.kmc.factory.FactoryModel.*;
-import nl.kmc.game.api.GamePlayerUtil;
+import nl.kmc.factory.Kitchen.Kind;
 import nl.kmc.game.api.arcade.ArcadeGameManager;
 import nl.kmc.game.api.arcade.ArcadeLogic;
 import nl.kmc.game.api.arcade.ArcadeLogic.Cooldowns;
@@ -21,77 +18,78 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.*;
 
 /**
- * Factory Frenzy: every team runs its own factory. Raw materials come from resource stations, machines turn
- * them into products (a state machine with a queue and an output buffer), and products are delivered at the
- * delivery block against the team's open orders. Machines, stations and the delivery point are real blocks
- * placed for the game and restored afterwards; every transaction is validated on the server.
+ * Factory Frenzy, Overcooked style: every team runs its own kitchen. Ingredients come from crates, are chopped
+ * on boards and cooked in pots and pans (food that is left alone burns), a dish is put together on a plate and
+ * served at the hatch against the open orders, and the dirty plate comes back to the sink where it has to be
+ * washed before it can be used again. A player carries one thing at a time, so the team has to pass work around.
+ * Every click is resolved by {@link Kitchen}; stations are real blocks placed for the game and restored afterwards.
  */
 public final class FactoryFrenzyManager extends ArcadeGameManager {
 
     // ── Config model ──────────────────────────────────────────────────────────
 
     record ItemDef(String id, String name, Material material) {}
-    record StationDef(String id, String item, int[] at, int stock, int restockSeconds, int restockAmount, int take) {}
-    record MachineDef(String id, String type, int[] at, String name) {}
+    record DishDef(String id, String name, int reward, int seconds, int unlockAfter, int weight) {}
+    record StationDef(Kind kind, String id, int[] at, String item, String name) {}
 
     /** Everything read from config.yml, plus the problems found while reading it. */
     static final class Model {
         final Map<String, ItemDef> items = new LinkedHashMap<>();
-        final Map<String, MachineType> types = new LinkedHashMap<>();
-        final Map<String, Material> typeBlock = new HashMap<>();
-        final Map<String, String> typeName = new HashMap<>();
+        final Map<String, DishDef> dishes = new LinkedHashMap<>();
         final List<StationDef> stations = new ArrayList<>();
-        final List<MachineDef> machines = new ArrayList<>();
-        final List<OrderDef> orders = new ArrayList<>();
-        int[] delivery = {3, 0, 3}, board = {0, 0, -5}, spawn = {0, 0, 6};
+        final Map<String, Material> blocks = new HashMap<>();
+        Kitchen.Config kitchen;
+        int[] board = {0, 0, -6}, spawn = {0, 0, 5};
         final List<String> problems = new ArrayList<>();
     }
 
     // ── Runtime ───────────────────────────────────────────────────────────────
 
-    private record Target(String team, char kind, String id) {}
+    private record Target(String team, String station) {}
 
-    private static final class TeamFactory {
-        Location origin;
-        final Map<String, Machine> machines = new LinkedHashMap<>();
-        final Map<String, Station> stations = new LinkedHashMap<>();
-        final Map<String, Long> nextRestock = new HashMap<>();
-        final List<Order> open = new ArrayList<>();
-        int issued, completed, partialItems, itemsDelivered, rawTaken, points;
-        int valueDelivered;
-        TextDisplay board;
-        boolean dirty = true;
+    private static final class Order {
+        final String dish;
+        final long issued;
+        final int limitTicks;
+        Order(String dish, long issued, int limitTicks) { this.dish = dish; this.issued = issued; this.limitTicks = limitTicks; }
     }
 
-    private static final class MachineHolder implements InventoryHolder {
-        final String team, machine;
-        Inventory inv;
-        MachineHolder(String team, String machine) { this.team = team; this.machine = machine; }
-        @Override public Inventory getInventory() { return inv; }
+    private static final class TeamKitchen {
+        Location origin;
+        final Map<String, Kitchen.Station> stations = new LinkedHashMap<>();
+        final Map<String, TextDisplay> labels = new HashMap<>();
+        final Set<String> dirtyLabels = new HashSet<>();
+        Kitchen.Team shared;
+        final List<Order> open = new ArrayList<>();
+        final List<Long> dirtyReturns = new ArrayList<>();
+        final Map<UUID, Integer> contrib = new HashMap<>();
+        int served, expired, streak, issued, points;
+        TextDisplay board;
+        boolean boardDirty = true;
     }
 
     private final FactoryFrenzyPlugin plugin;
     private Model model = new Model();
-    private final Map<String, TeamFactory> factories = new LinkedHashMap<>();
+    private final Map<String, TeamKitchen> kitchens = new LinkedHashMap<>();
     private final Map<Long, Target> targets = new HashMap<>();
     private final TemporaryBlocks blocks = new TemporaryBlocks();
     private final Cooldowns cooldowns = new Cooldowns();
-    private final Map<UUID, Integer> delivered = new HashMap<>();
+    private final Map<UUID, String> hand = new HashMap<>();
+    private final Map<UUID, Integer> actions = new HashMap<>();
+    private final Map<UUID, Integer> served = new HashMap<>();
     private final Random rnd = new Random();
-    private NamespacedKey itemKey, runKey;
     private long durationTicks;
     private boolean finalAnnounced;
 
@@ -103,23 +101,22 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
     // ── Config loading and validation ─────────────────────────────────────────
 
     private int cfgInt(String p, int d) { return gamePlugin.getConfig().getInt(p, d); }
-    private double cfgDouble(String p, double d) { return gamePlugin.getConfig().getDouble(p, d); }
-
-    private static Map<String, Integer> amounts(ConfigurationSection s, String key, List<String> problems, String what) {
-        Map<String, Integer> out = new LinkedHashMap<>();
-        ConfigurationSection c = s == null ? null : s.getConfigurationSection(key);
-        if (c == null) return out;
-        for (String k : c.getKeys(false)) out.put(k.toLowerCase(Locale.ROOT), Math.max(0, c.getInt(k)));
-        return out;
-    }
-
-    private static int[] triple(List<Integer> l, int[] def) {
-        return l != null && l.size() >= 3 ? new int[]{l.get(0), l.get(1), l.get(2)} : def;
-    }
 
     Model loadModel() { return parse(gamePlugin.getConfig()); }
 
-    /** Reads and validates the whole factory definition (no server needed: tests use this too). */
+    private static int[] pos(Object o) {
+        if (o instanceof List<?> l && l.size() >= 3 && l.get(0) instanceof Number a && l.get(1) instanceof Number b && l.get(2) instanceof Number c)
+            return new int[]{a.intValue(), b.intValue(), c.intValue()};
+        return null;
+    }
+
+    private static Map<String, Integer> amounts(Object o) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        if (o instanceof Map<?, ?> m) m.forEach((k, v) -> out.put(String.valueOf(k).toLowerCase(Locale.ROOT), v instanceof Number n ? n.intValue() : 1));
+        return out;
+    }
+
+    /** Reads and validates the whole kitchen definition (no server needed: tests use this too). */
     static Model parse(org.bukkit.configuration.file.FileConfiguration cfg) {
         Model m = new Model();
 
@@ -131,84 +128,98 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
             m.items.put(id.toLowerCase(Locale.ROOT), new ItemDef(id.toLowerCase(Locale.ROOT), s.getString("name", id), mat));
         }
 
-        ConfigurationSection types = cfg.getConfigurationSection("machine-types");
-        if (types != null) for (String id : types.getKeys(false)) {
-            ConfigurationSection t = types.getConfigurationSection(id);
-            if (t == null) continue;
-            List<Recipe> recipes = new ArrayList<>();
-            for (Object o : t.getList("recipes", List.of())) {
-                if (!(o instanceof Map<?, ?> r)) continue;
-                Map<String, Integer> in = new LinkedHashMap<>(), out = new LinkedHashMap<>();
-                if (r.get("in") instanceof Map<?, ?> im) im.forEach((k, v) -> in.put(String.valueOf(k).toLowerCase(Locale.ROOT), v instanceof Number n ? n.intValue() : 0));
-                if (r.get("out") instanceof Map<?, ?> om) om.forEach((k, v) -> out.put(String.valueOf(k).toLowerCase(Locale.ROOT), v instanceof Number n ? n.intValue() : 0));
-                int secs = r.get("seconds") instanceof Number n ? n.intValue() : 5;
-                recipes.add(new Recipe(String.valueOf(r.get("id")), in, out, Math.max(1, secs * 20)));
-            }
-            m.types.put(id, new MachineType(id, t.getInt("queue", 3), t.getInt("output-cap", 12), recipes));
-            Material block = Material.matchMaterial(t.getString("block", "FURNACE"));
-            m.typeBlock.put(id, block != null && !block.name().startsWith("LEGACY_") ? block : Material.FURNACE);
-            m.typeName.put(id, t.getString("name", id));
+        Map<String, String> chop = new LinkedHashMap<>();
+        ConfigurationSection ch = cfg.getConfigurationSection("chopping");
+        if (ch != null) for (String k : ch.getKeys(false)) chop.put(k.toLowerCase(Locale.ROOT), String.valueOf(ch.getString(k)).toLowerCase(Locale.ROOT));
+
+        List<Kitchen.CookRecipe> cook = new ArrayList<>();
+        for (Object o : cfg.getList("cooking", List.of())) {
+            if (!(o instanceof Map<?, ?> r)) continue;
+            int secs = r.get("seconds") instanceof Number n ? n.intValue() : 10;
+            cook.add(new Kitchen.CookRecipe(String.valueOf(r.get("station")).toLowerCase(Locale.ROOT), amounts(r.get("in")),
+                    String.valueOf(r.get("out")).toLowerCase(Locale.ROOT), Math.max(1, secs * 20),
+                    Boolean.TRUE.equals(r.get("on-plate"))));
         }
 
+        List<Kitchen.Assembly> assemblies = new ArrayList<>();
+        ConfigurationSection dishes = cfg.getConfigurationSection("dishes");
+        if (dishes != null) for (String id : dishes.getKeys(false)) {
+            ConfigurationSection s = dishes.getConfigurationSection(id);
+            if (s == null) continue;
+            String did = id.toLowerCase(Locale.ROOT);
+            Material mat = Material.matchMaterial(s.getString("material", "BOWL"));
+            m.items.put("dish_" + did, new ItemDef("dish_" + did, s.getString("name", id), mat != null ? mat : Material.BOWL));
+            m.dishes.put(did, new DishDef(did, s.getString("name", id), s.getInt("reward", 100), s.getInt("seconds", 90),
+                    s.getInt("unlock-after", 0), Math.max(1, s.getInt("weight", 1))));
+            List<String> parts = s.getStringList("parts");
+            if (!parts.isEmpty()) {
+                Map<String, Integer> p = new LinkedHashMap<>();
+                for (String part : parts) p.merge(part.toLowerCase(Locale.ROOT), 1, Integer::sum);
+                assemblies.add(new Kitchen.Assembly(did, p));
+            }
+        }
+
+        ConfigurationSection rules = cfg.getConfigurationSection("rules");
+        int chopClicks = rules != null ? rules.getInt("chop-clicks", 5) : 5;
+        int washClicks = rules != null ? rules.getInt("wash-clicks", 4) : 4;
+        int burn = (rules != null ? rules.getInt("burn-seconds", 10) : 10) * 20;
+        int plates = rules != null ? rules.getInt("start-plates", 4) : 4;
+        int dirtyDelay = (rules != null ? rules.getInt("dirty-delay-seconds", 8) : 8) * 20;
+        m.kitchen = new Kitchen.Config(chop, cook, assemblies, chopClicks, washClicks, burn, plates, dirtyDelay);
+
+        ConfigurationSection bl = cfg.getConfigurationSection("blocks");
+        if (bl != null) for (String k : bl.getKeys(false)) {
+            Material mat = Material.matchMaterial(bl.getString(k, ""));
+            if (mat != null && !mat.name().startsWith("LEGACY_")) m.blocks.put(k.toLowerCase(Locale.ROOT), mat);
+        }
+
+        // the built-in items every kitchen needs
+        m.items.putIfAbsent("plate", new ItemDef("plate", "Bord", Material.BOWL));
+        m.items.putIfAbsent("dirty_plate", new ItemDef("dirty_plate", "Vies bord", Material.BRICK));
+
         ConfigurationSection layout = cfg.getConfigurationSection("layout");
+        Set<String> crates = new HashSet<>();
+        Set<Kind> kinds = new HashSet<>();
+        Set<String> potTypes = new HashSet<>();
         if (layout != null) {
             for (Object o : layout.getList("stations", List.of())) {
                 if (!(o instanceof Map<?, ?> s)) continue;
                 int[] at = pos(s.get("at"));
-                String item = String.valueOf(s.get("item")).toLowerCase(Locale.ROOT);
-                if (at == null) { m.problems.add("layout.stations: positie ontbreekt bij " + s.get("id")); continue; }
-                m.stations.add(new StationDef(String.valueOf(s.get("id")), item, at,
-                        s.get("stock") instanceof Number n ? n.intValue() : 40,
-                        s.get("restock-seconds") instanceof Number n ? n.intValue() : 8,
-                        s.get("restock-amount") instanceof Number n ? n.intValue() : 6,
-                        s.get("take") instanceof Number n ? n.intValue() : 4));
+                String id = String.valueOf(s.get("id"));
+                if (at == null) { m.problems.add("layout.stations: positie ontbreekt bij " + id); continue; }
+                Kind kind;
+                try { kind = Kind.valueOf(String.valueOf(s.get("kind")).toUpperCase(Locale.ROOT)); }
+                catch (IllegalArgumentException e) { m.problems.add("layout.stations " + id + ": onbekende soort " + s.get("kind")); continue; }
+                String item = s.get("item") == null ? "" : String.valueOf(s.get("item")).toLowerCase(Locale.ROOT);
+                if (kind == Kind.POT && item.isEmpty()) item = "pot";
+                if (kind == Kind.CRATE) {
+                    if (!m.items.containsKey(item)) m.problems.add("krat " + id + ": onbekend item " + item);
+                    crates.add(item);
+                }
+                if (kind == Kind.POT) potTypes.add(item);
+                kinds.add(kind);
+                m.stations.add(new StationDef(kind, id, at, item, s.get("name") != null ? String.valueOf(s.get("name")) : id));
             }
-            for (Object o : layout.getList("machines", List.of())) {
-                if (!(o instanceof Map<?, ?> s)) continue;
-                int[] at = pos(s.get("at"));
-                if (at == null) { m.problems.add("layout.machines: positie ontbreekt bij " + s.get("id")); continue; }
-                String type = String.valueOf(s.get("type"));
-                if (!m.types.containsKey(type)) { m.problems.add("layout.machines " + s.get("id") + ": onbekend machine-type " + type); continue; }
-                m.machines.add(new MachineDef(String.valueOf(s.get("id")), type, at, m.typeName.getOrDefault(type, type)));
-            }
-            m.delivery = triple(layout.getIntegerList("delivery"), m.delivery);
-            m.board = triple(layout.getIntegerList("board"), m.board);
-            m.spawn = triple(layout.getIntegerList("spawn"), m.spawn);
+            m.board = layout.getIntegerList("board").size() >= 3 ? new int[]{layout.getIntegerList("board").get(0),
+                    layout.getIntegerList("board").get(1), layout.getIntegerList("board").get(2)} : m.board;
+            m.spawn = layout.getIntegerList("spawn").size() >= 3 ? new int[]{layout.getIntegerList("spawn").get(0),
+                    layout.getIntegerList("spawn").get(1), layout.getIntegerList("spawn").get(2)} : m.spawn;
         }
-
-        for (Object o : cfg.getList("order-pool", List.of())) {
-            if (!(o instanceof Map<?, ?> s)) continue;
-            FactoryModel.Difficulty d;
-            try { d = FactoryModel.Difficulty.valueOf(String.valueOf(s.get("difficulty")).toUpperCase(Locale.ROOT)); }
-            catch (IllegalArgumentException e) { d = FactoryModel.Difficulty.SIMPLE; }
-            Map<String, Integer> need = new LinkedHashMap<>();
-            if (s.get("items") instanceof Map<?, ?> im) im.forEach((k, v) -> need.put(String.valueOf(k).toLowerCase(Locale.ROOT), v instanceof Number n ? n.intValue() : 0));
-            m.orders.add(new OrderDef(String.valueOf(s.get("id")), String.valueOf(s.get("name") != null ? s.get("name") : s.get("id")), d, need,
-                    s.get("reward") instanceof Number n ? n.intValue() : 100,
-                    s.get("deadline-seconds") instanceof Number n ? n.intValue() : 0,
-                    s.get("bonus-percent") instanceof Number n ? n.intValue() : 0));
+        // every item used in a recipe must be known
+        for (var e : chop.entrySet()) {
+            if (!m.items.containsKey(e.getKey())) m.problems.add("chopping: onbekend item " + e.getKey());
+            if (!m.items.containsKey(e.getValue())) m.problems.add("chopping: onbekend item " + e.getValue());
         }
-
-        // validation of the production graph
-        if (m.items.isEmpty()) m.problems.add("geen items in config.yml");
-        if (m.machines.isEmpty()) m.problems.add("geen machines in layout.machines");
-        if (m.stations.isEmpty()) m.problems.add("geen grondstofstations in layout.stations");
-        if (m.orders.isEmpty()) m.problems.add("geen orders in order-pool");
-        Set<String> raw = new HashSet<>();
-        for (StationDef s : m.stations) {
-            if (!m.items.containsKey(s.item())) m.problems.add("station " + s.id() + ": onbekend item " + s.item());
-            raw.add(s.item());
+        for (Kitchen.CookRecipe r : cook) {
+            for (String i : r.in().keySet()) if (!m.items.containsKey(i)) m.problems.add("cooking: onbekend item " + i);
+            if (!m.items.containsKey(r.out())) m.problems.add("cooking: onbekend item " + r.out());
         }
-        Set<String> placed = new HashSet<>();
-        for (MachineDef d : m.machines) placed.add(d.type());
-        m.problems.addAll(FactoryModel.validate(m.items.keySet(), raw, m.types, placed, m.orders));
+        for (Kitchen.Assembly a : assemblies) for (String i : a.parts().keySet())
+            if (!m.items.containsKey(i)) m.problems.add("gerecht " + a.id() + ": onbekend onderdeel " + i);
+        if (m.dishes.isEmpty()) m.problems.add("geen gerechten in config.yml (dishes)");
+        if (m.stations.isEmpty()) m.problems.add("geen stations in layout.stations");
+        m.problems.addAll(Kitchen.validate(m.kitchen, crates, kinds, potTypes, m.dishes.keySet()));
         return m;
-    }
-
-    private static int[] pos(Object o) {
-        if (o instanceof List<?> l && l.size() >= 3 && l.get(0) instanceof Number a && l.get(1) instanceof Number b && l.get(2) instanceof Number c)
-            return new int[]{a.intValue(), b.intValue(), c.intValue()};
-        return null;
     }
 
     // ── Hooks ─────────────────────────────────────────────────────────────────
@@ -223,7 +234,7 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
     protected List<String> arenaProblems() {
         List<String> p = new ArrayList<>();
         if (arena.world() == null) p.add("geen arena-wereld (/factory world)");
-        if (arena.locs("factories").isEmpty()) p.add("geen fabrieken (/factory factory add)");
+        if (arena.locs("factories").isEmpty()) p.add("geen keukens (/factory factory add)");
         p.addAll(loadModel().problems);
         return p;
     }
@@ -249,13 +260,13 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
 
     @Override
     protected void prepareGame() {
-        factories.clear();
+        kitchens.clear();
         targets.clear();
-        delivered.clear();
+        hand.clear();
+        actions.clear();
+        served.clear();
         cooldowns.clear();
         model = loadModel();
-        itemKey = new NamespacedKey(gamePlugin, "ff_item");
-        runKey = new NamespacedKey(gamePlugin, "ff_run");
         durationTicks = cfgInt("game.duration-seconds", 420) * 20L;
         finalAnnounced = false;
 
@@ -263,7 +274,7 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
         List<String> ids = activeTeams();
         if (ids.size() > origins.size()) {
             String msg = "§c[Factory Frenzy] " + ids.size() + " teams maar " + origins.size()
-                    + " fabrieken — elk team heeft een eigen fabriek nodig (/factory factory add).";
+                    + " keukens — elk team heeft een eigen keuken nodig (/factory factory add).";
             for (Player op : Bukkit.getOnlinePlayers()) if (op.isOp() || op.hasPermission("factoryfrenzy.admin")) op.sendMessage(msg);
             log.severe(msg);
             Bukkit.getScheduler().runTask(gamePlugin, this::end);
@@ -271,58 +282,55 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
         }
         for (int i = 0; i < ids.size(); i++) {
             String team = ids.get(i);
-            TeamFactory f = new TeamFactory();
-            f.origin = origins.get(i);
-            build(team, f);
-            factories.put(team, f);
+            TeamKitchen k = new TeamKitchen();
+            k.origin = origins.get(i);
+            k.shared = new Kitchen.Team(model.kitchen.startPlates());
+            build(team, k);
+            kitchens.put(team, k);
         }
     }
 
-    private Location at(TeamFactory f, int[] o) {
-        return f.origin.clone().add(o[0], o[1], o[2]);
+    private Location at(TeamKitchen k, int[] o) { return k.origin.clone().add(o[0], o[1], o[2]); }
+
+    private Material blockOf(StationDef d) {
+        if (d.kind() == Kind.POT) {
+            Material m = model.blocks.get(d.item());
+            if (m != null) return m;
+        }
+        Material m = model.blocks.get(d.kind().name().toLowerCase(Locale.ROOT));
+        if (m != null) return m;
+        return switch (d.kind()) {
+            case CRATE -> Material.BARREL;
+            case BOARD -> Material.OAK_PLANKS;
+            case POT -> "pan".equals(d.item()) ? Material.SMOKER : Material.CAULDRON;
+            case COUNTER -> Material.QUARTZ_BLOCK;
+            case SINK -> Material.WATER_CAULDRON;
+            case RACK -> Material.WHITE_CONCRETE;
+            case SERVE -> Material.GOLD_BLOCK;
+            case TRASH -> Material.COMPOSTER;
+        };
     }
 
-    private void build(String team, TeamFactory f) {
-        for (StationDef s : model.stations) {
-            Location l = at(f, s.at());
-            ItemDef item = model.items.get(s.item());
-            blocks.set(l, item != null && item.material().isBlock() ? item.material() : Material.BARREL);
-            f.stations.put(s.id(), new Station(s.id(), s.item(), s.stock()));
-            f.nextRestock.put(s.id(), 0L);
-            targets.put(key(l), new Target(team, 'S', s.id()));
+    private void build(String team, TeamKitchen k) {
+        for (StationDef d : model.stations) {
+            Location l = at(k, d.at());
+            blocks.set(l, blockOf(d));
+            k.stations.put(d.id(), new Kitchen.Station(d.kind(), d.id(), d.item()));
+            targets.put(key(l), new Target(team, d.id()));
+            TextDisplay label = l.getWorld().spawn(l.clone().add(0.5, 1.45, 0.5), TextDisplay.class, t -> {
+                t.setBillboard(Display.Billboard.CENTER);
+                t.setPersistent(false);
+                t.setBackgroundColor(Color.fromARGB(110, 0, 0, 0));
+            });
+            k.labels.put(d.id(), label);
+            k.dirtyLabels.add(d.id());
         }
-        for (MachineDef d : model.machines) {
-            Location l = at(f, d.at());
-            blocks.set(l, model.typeBlock.getOrDefault(d.type(), Material.FURNACE));
-            f.machines.put(d.id(), new Machine(d.id(), model.types.get(d.type())));
-            targets.put(key(l), new Target(team, 'M', d.id()));
-        }
-        Location dl = at(f, model.delivery);
-        blocks.set(dl, Material.GOLD_BLOCK);
-        targets.put(key(dl), new Target(team, 'D', "delivery"));
-
-        Location bl = at(f, model.board).add(0.5, 2.2, 0.5);
-        f.board = bl.getWorld().spawn(bl, TextDisplay.class, d -> {
+        Location bl = at(k, model.board).add(0.5, 2.4, 0.5);
+        k.board = bl.getWorld().spawn(bl, TextDisplay.class, d -> {
             d.setBillboard(Display.Billboard.CENTER);
             d.setPersistent(false);
             d.setBackgroundColor(Color.fromARGB(170, 0, 0, 0));
         });
-        // labels above stations and machines
-        for (StationDef s : model.stations) label(at(f, s.at()), "§e" + itemName(s.item()));
-        for (MachineDef d : model.machines) label(at(f, d.at()), "§6" + d.name());
-        label(dl, "§a§lLEVERPUNT");
-    }
-
-    private final List<TextDisplay> labels = new ArrayList<>();
-
-    private void label(Location l, String text) {
-        TextDisplay d = l.getWorld().spawn(l.clone().add(0.5, 1.5, 0.5), TextDisplay.class, t -> {
-            t.setBillboard(Display.Billboard.CENTER);
-            t.setPersistent(false);
-            t.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
-            t.text(Component.text(text));
-        });
-        labels.add(d);
     }
 
     private static long key(Location l) { return key(l.getBlockX(), l.getBlockY(), l.getBlockZ()); }
@@ -332,105 +340,92 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
     }
 
     private String itemName(String id) {
+        if (id == null) return "-";
         ItemDef d = model.items.get(id);
         return d != null ? d.name() : id;
     }
 
     @Override
     protected void beginPlay() {
-        int open = Math.max(1, cfgInt("orders.open", 2));
-        for (var en : factories.entrySet()) {
+        int open = Math.max(1, cfgInt("orders.open", 3));
+        for (var en : kitchens.entrySet()) {
             for (int i = 0; i < open; i++) issueOrder(en.getKey(), en.getValue());
             for (UUID m : membersOf(en.getKey())) {
                 Player p = Bukkit.getPlayer(m);
                 if (p == null) continue;
                 p.sendTitle(api.tr(m, "factory.go.title"), api.tr(m, "factory.go.sub"), 5, 50, 10);
-                p.getInventory().clear();
+                setHand(p, null);
             }
         }
     }
 
     // ── Orders ────────────────────────────────────────────────────────────────
 
-    private void issueOrder(String team, TeamFactory f) {
-        Set<String> openIds = new HashSet<>();
-        for (Order o : f.open) openIds.add(o.def.id());
-        OrderDef d = FactoryModel.nextOrder(model.orders, f.completed, cfgInt("orders.medium-after", 2),
-                cfgInt("orders.complex-after", 5), openIds, rnd);
-        if (d == null) return;
-        f.open.add(new Order(d, ticks));
-        f.issued++;
-        f.dirty = true;
+    private void issueOrder(String team, TeamKitchen k) {
+        Set<String> openDishes = new HashSet<>();
+        for (Order o : k.open) openDishes.add(o.dish);
+        List<DishDef> pool = new ArrayList<>();
+        for (DishDef d : model.dishes.values()) {
+            if (k.served < d.unlockAfter()) continue;
+            for (int i = 0; i < d.weight() * (openDishes.contains(d.id()) ? 1 : 3); i++) pool.add(d);
+        }
+        if (pool.isEmpty()) return;
+        DishDef d = pool.get(rnd.nextInt(pool.size()));
+        double scale = Math.max(0.5, cfgDouble("orders.time-scale", 1.0));
+        k.open.add(new Order(d.id(), ticks, (int) (d.seconds() * 20 * scale)));
+        k.issued++;
+        k.boardDirty = true;
         for (UUID m : membersOf(team)) {
             Player p = Bukkit.getPlayer(m);
-            if (p != null) p.sendMessage(api.tr(m, "factory.order.new", d.name(), describe(d.items()), d.reward()));
+            if (p != null) {
+                p.sendMessage(api.tr(m, "factory.order.new", d.name(), d.reward(), d.seconds()));
+                p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 0.6f, 1.4f);
+            }
         }
     }
 
-    private String describe(Map<String, Integer> items) {
-        StringBuilder sb = new StringBuilder();
-        for (var e : items.entrySet()) {
-            if (sb.length() > 0) sb.append("§7, ");
-            sb.append("§f").append(e.getValue()).append("x §e").append(itemName(e.getKey()));
-        }
-        return sb.toString();
-    }
+    private double cfgDouble(String p, double d) { return gamePlugin.getConfig().getDouble(p, d); }
 
-    // ── Items ─────────────────────────────────────────────────────────────────
+    // ── The hand: one thing at a time ─────────────────────────────────────────
 
-    private ItemStack makeItem(String id, int amount) {
+    private ItemStack stack(String id) {
         ItemDef d = model.items.get(id);
-        ItemStack it = new ItemStack(d != null ? d.material() : Material.PAPER, Math.max(1, amount));
+        ItemStack it = new ItemStack(d != null ? d.material() : Material.PAPER);
         ItemMeta meta = it.getItemMeta();
-        meta.setDisplayName("§b" + (d != null ? d.name() : id));
+        meta.setDisplayName("§b§l" + (d != null ? d.name() : id));
         meta.setLore(List.of("§8Factory Frenzy"));
-        meta.getPersistentDataContainer().set(itemKey, PersistentDataType.STRING, id);
-        meta.getPersistentDataContainer().set(runKey, PersistentDataType.STRING, runId);
         it.setItemMeta(meta);
         return it;
     }
 
-    /** The factory item id of a stack, or null when it is not one of this game's items. */
-    private String itemId(ItemStack it) {
-        if (it == null || !it.hasItemMeta()) return null;
-        var pdc = it.getItemMeta().getPersistentDataContainer();
-        if (!runId.equals(pdc.get(runKey, PersistentDataType.STRING))) return null;
-        return pdc.get(itemKey, PersistentDataType.STRING);
+    /** What the player carries (null = empty). The server keeps the truth; the hotbar only shows it. */
+    private void setHand(Player p, String item) {
+        if (item == null) hand.remove(p.getUniqueId()); else hand.put(p.getUniqueId(), item);
+        var inv = p.getInventory();
+        inv.clear();
+        if (item != null) inv.setItem(0, stack(item));
+        inv.setHeldItemSlot(0);
+        p.updateInventory();
     }
 
-    private Map<String, Integer> carriedItems(Player p) {
-        Map<String, Integer> out = new LinkedHashMap<>();
-        for (ItemStack it : p.getInventory().getStorageContents()) {
-            String id = itemId(it);
-            if (id != null) out.merge(id, it.getAmount(), Integer::sum);
-        }
-        return out;
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent e) {
+        if (getState().isRunning() && isParticipant(e.getPlayer().getUniqueId())) e.setCancelled(true);
     }
 
-    private int carriedTotal(Player p) {
-        int n = 0;
-        for (int v : carriedItems(p).values()) n += v;
-        return n;
+    @EventHandler
+    public void onSwap(PlayerSwapHandItemsEvent e) {
+        if (getState().isRunning() && isParticipant(e.getPlayer().getUniqueId())) e.setCancelled(true);
     }
 
-    private void removeItems(Player p, String id, int amount) {
-        int left = amount;
-        ItemStack[] c = p.getInventory().getStorageContents();
-        for (int i = 0; i < c.length && left > 0; i++) {
-            if (!id.equals(itemId(c[i]))) continue;
-            int n = Math.min(left, c[i].getAmount());
-            if (n == c[i].getAmount()) p.getInventory().setItem(i, null);
-            else c[i].setAmount(c[i].getAmount() - n);
-            left -= n;
-        }
+    @EventHandler
+    public void onInventory(InventoryClickEvent e) {
+        if (getState().isRunning() && e.getWhoClicked() instanceof Player p && isParticipant(p.getUniqueId())) e.setCancelled(true);
     }
 
-    /** Puts items in the inventory; what does not fit is returned. */
-    private int give(Player p, String id, int amount) {
-        var left = p.getInventory().addItem(makeItem(id, amount));
-        int back = 0;
-        for (ItemStack r : left.values()) back += r.getAmount();
-        return back;
+    @EventHandler
+    public void onPickup(EntityPickupItemEvent e) {
+        if (getState().isRunning() && e.getEntity() instanceof Player p && isParticipant(p.getUniqueId())) e.setCancelled(true);
     }
 
     // ── Interaction ───────────────────────────────────────────────────────────
@@ -453,251 +448,129 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
             return;
         }
-        TeamFactory f = factories.get(team);
-        if (f == null) return;
-        switch (t.kind()) {
-            case 'S' -> takeFromStation(p, f, t.id());
-            case 'M' -> openMachine(p, team, f, t.id());
-            case 'D' -> deliver(p, team, f);
-            default -> { }
+        TeamKitchen k = kitchens.get(team);
+        Kitchen.Station st = k == null ? null : k.stations.get(t.station());
+        if (st == null) return;
+        if (!cooldowns.ready(id + ":click", ticks)) return;
+        cooldowns.start(id + ":click", ticks, 3);
+
+        String held = hand.get(id);
+        Kitchen.Result r = Kitchen.interact(model.kitchen, k.shared, st, held);
+        if (r.serve() != null) { serve(p, team, k, r.serve()); return; }
+        if (!Objects.equals(r.hand(), held)) setHand(p, r.hand());
+        if (r.msg() != null) actionBar(p, api.tr(id, "factory.msg." + r.msg(), itemName(r.hand() != null ? r.hand() : held)));
+        play(p, r.sound());
+        if (r.changed()) {
+            k.contrib.merge(id, 1, Integer::sum);
+            actions.merge(id, 1, Integer::sum);
+            k.dirtyLabels.add(st.id);
+            if (st.kind == Kind.RACK || st.kind == Kind.SINK || st.kind == Kind.TRASH) {
+                for (var s : k.stations.values()) if (s.kind == Kind.RACK || s.kind == Kind.SINK) k.dirtyLabels.add(s.id);
+            }
         }
     }
 
-    private void takeFromStation(Player p, TeamFactory f, String stationId) {
-        UUID id = p.getUniqueId();
-        Station st = f.stations.get(stationId);
-        StationDef def = null;
-        for (StationDef s : model.stations) if (s.id().equals(stationId)) def = s;
-        if (st == null || def == null) return;
-        String ck = id + ":" + stationId;
-        if (!cooldowns.ready(ck, ticks)) {
-            actionBar(p, api.tr(id, "factory.station.cooldown"));
-            return;
-        }
-        int room = Math.max(0, cfgInt("game.max-carry", 48) - carriedTotal(p));
-        if (room <= 0) { actionBar(p, api.tr(id, "factory.station.full", cfgInt("game.max-carry", 48))); return; }
-        if (st.stock() <= 0) {
-            actionBar(p, api.tr(id, "factory.station.empty", itemName(def.item())));
-            p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
-            return;
-        }
-        int got = st.take(Math.min(def.take(), room));
-        int back = give(p, def.item(), got);
-        if (back > 0) { st.giveBack(back); got -= back; }
-        if (got <= 0) return;
-        f.rawTaken += got;
-        cooldowns.start(ck, ticks, Math.round(cfgDouble("game.station-cooldown-seconds", 1.0) * 20));
-        p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.1f);
-        actionBar(p, api.tr(id, "factory.station.took", got, itemName(def.item()), st.stock(), st.max()));
-    }
-
-    // ── Machine menu ──────────────────────────────────────────────────────────
-
-    private void openMachine(Player p, String team, TeamFactory f, String machineId) {
-        Machine m = f.machines.get(machineId);
-        if (m == null) return;
-        MachineHolder h = new MachineHolder(team, machineId);
-        h.inv = Bukkit.createInventory(h, 27, "§6" + model.typeName.getOrDefault(m.type.id(), m.type.id()));
-        renderMachine(h, p, m);
-        p.openInventory(h.inv);
-        p.playSound(p.getLocation(), Sound.BLOCK_BARREL_OPEN, 0.6f, 1.2f);
-    }
-
-    private Material stateIcon(MachineState s) {
-        return switch (s) {
-            case PROCESSING -> Material.LIME_CONCRETE;
-            case READY -> Material.LIGHT_BLUE_CONCRETE;
-            case BLOCKED -> Material.RED_CONCRETE;
-            case WAITING_FOR_INPUT -> Material.YELLOW_CONCRETE;
-            case DISABLED -> Material.BLACK_CONCRETE;
-            default -> Material.GRAY_CONCRETE;
+    private void play(Player p, String sound) {
+        if (sound == null) return;
+        Sound s = switch (sound) {
+            case "pickup" -> Sound.ENTITY_ITEM_PICKUP;
+            case "place" -> Sound.BLOCK_WOOD_PLACE;
+            case "chop" -> Sound.ENTITY_PLAYER_ATTACK_SWEEP;
+            case "chopped" -> Sound.ENTITY_EXPERIENCE_ORB_PICKUP;
+            case "cook" -> Sound.ITEM_FLINTANDSTEEL_USE;
+            case "ready" -> Sound.BLOCK_NOTE_BLOCK_PLING;
+            case "wash" -> Sound.ENTITY_PLAYER_SPLASH;
+            case "washed" -> Sound.ENTITY_PLAYER_LEVELUP;
+            case "bin" -> Sound.BLOCK_COMPOSTER_FILL;
+            default -> Sound.ENTITY_VILLAGER_NO;
         };
+        float pitch = sound.equals("chop") ? 1.5f : sound.equals("washed") ? 1.6f : 1.1f;
+        p.playSound(p.getLocation(), s, 0.7f, pitch);
     }
 
-    private ItemStack named(Material m, String name, String... lore) {
-        ItemStack it = new ItemStack(m);
-        ItemMeta meta = it.getItemMeta();
-        meta.setDisplayName(name);
-        meta.setLore(Arrays.asList(lore));
-        it.setItemMeta(meta);
-        return it;
-    }
+    // ── Serving and scoring ───────────────────────────────────────────────────
 
-    private void renderMachine(MachineHolder h, Player p, Machine m) {
+    private void serve(Player p, String team, TeamKitchen k, String dish) {
         UUID id = p.getUniqueId();
-        Inventory inv = h.inv;
-        inv.clear();
-        MachineState s = m.state();
-        List<String> status = new ArrayList<>();
-        status.add("§7" + api.tr(id, "factory.state." + s.name().toLowerCase(Locale.ROOT)));
-        if (m.currentRecipe() != null) {
-            int total = m.currentRecipe().ticks();
-            int done = total - m.ticksLeft();
-            int filled = Math.max(0, Math.min(10, done * 10 / Math.max(1, total)));
-            status.add("§a" + "█".repeat(filled) + "§8" + "█".repeat(10 - filled) + " §f" + Math.max(0, m.ticksLeft() / 20) + "s");
-        }
-        status.add("§7" + api.tr(id, "factory.queue", m.queued(), m.type.queueSize()));
-        inv.setItem(4, named(stateIcon(s), "§6§l" + model.typeName.getOrDefault(m.type.id(), m.type.id()), status.toArray(new String[0])));
-
-        int slot = 10;
-        for (Recipe r : m.type.recipes()) {
-            if (slot > 12) break;
-            String out = r.out().keySet().iterator().next();
-            ItemDef od = model.items.get(out);
-            inv.setItem(slot++, named(od != null ? od.material() : Material.PAPER, "§e" + itemName(out),
-                    "§7" + api.tr(id, "factory.recipe.in", describe(r.in())),
-                    "§7" + api.tr(id, "factory.recipe.out", describe(r.out())),
-                    "§7" + api.tr(id, "factory.recipe.time", r.ticks() / 20)));
-        }
-        List<String> buf = new ArrayList<>();
-        for (var e : m.input().entrySet()) buf.add("§f" + e.getValue() + "x §e" + itemName(e.getKey()));
-        if (buf.isEmpty()) buf.add("§8" + api.tr(id, "factory.empty"));
-        inv.setItem(13, named(Material.PAPER, "§b" + api.tr(id, "factory.buffer"), buf.toArray(new String[0])));
-        inv.setItem(14, named(Material.HOPPER, "§a§l" + api.tr(id, "factory.insert.label"), "§7" + api.tr(id, "factory.insert.lore")));
-        List<String> out = new ArrayList<>();
-        for (var e : m.output().entrySet()) out.add("§f" + e.getValue() + "x §e" + itemName(e.getKey()));
-        if (out.isEmpty()) out.add("§8" + api.tr(id, "factory.empty"));
-        inv.setItem(15, named(Material.CHEST, "§a§l" + api.tr(id, "factory.collect"), out.toArray(new String[0])));
-        inv.setItem(16, named(Material.DROPPER, "§c" + api.tr(id, "factory.return.label"), "§7" + api.tr(id, "factory.return.lore")));
-    }
-
-    @EventHandler
-    public void onMenuClick(InventoryClickEvent e) {
-        if (!(e.getView().getTopInventory().getHolder() instanceof MachineHolder h)) return;
-        e.setCancelled(true);
-        if (!(e.getWhoClicked() instanceof Player p) || e.getClickedInventory() != e.getView().getTopInventory()) return;
-        if (!live || !isActive(p.getUniqueId()) || !h.team.equals(teamId(p.getUniqueId()))) return;
-        TeamFactory f = factories.get(h.team);
-        Machine m = f == null ? null : f.machines.get(h.machine);
-        if (m == null) return;
-        UUID id = p.getUniqueId();
-        switch (e.getRawSlot()) {
-            case 14 -> {                                    // put every usable item in
-                int total = 0;
-                for (var en : carriedItems(p).entrySet()) {
-                    if (!m.accepts(en.getKey())) continue;
-                    int in = m.insert(en.getKey(), en.getValue());
-                    if (in > 0) { removeItems(p, en.getKey(), in); total += in; }
-                }
-                actionBar(p, api.tr(id, total > 0 ? "factory.inserted" : "factory.nothing-to-insert", total));
-                if (total > 0) p.playSound(p.getLocation(), Sound.BLOCK_PISTON_EXTEND, 0.5f, 1.6f);
-            }
-            case 15 -> {                                    // take the output
-                Map<String, Integer> out = m.collect();
-                int n = 0;
-                for (var en : out.entrySet()) {
-                    int back = give(p, en.getKey(), en.getValue());
-                    n += en.getValue() - back;
-                    if (back > 0) m.restoreOutput(en.getKey(), back);     // no room: it stays in the machine
-                }
-                if (n > 0) { actionBar(p, api.tr(id, "factory.collected", n)); p.playSound(p.getLocation(), Sound.ENTITY_ITEM_PICKUP, 0.8f, 1.2f); }
-            }
-            case 16 -> {                                    // unprocessed input back
-                int n = 0;
-                for (var en : m.returnInputs().entrySet()) {
-                    int back = give(p, en.getKey(), en.getValue());
-                    n += en.getValue() - back;
-                    if (back > 0) m.insert(en.getKey(), back);
-                }
-                if (n > 0) actionBar(p, api.tr(id, "factory.returned", n));
-            }
-            default -> { }
-        }
-        renderMachine(h, p, m);
-    }
-
-    @EventHandler
-    public void onMenuDrag(InventoryDragEvent e) {
-        if (e.getView().getTopInventory().getHolder() instanceof MachineHolder) e.setCancelled(true);
-    }
-
-    // ── Delivery and scoring ──────────────────────────────────────────────────
-
-    private void deliver(Player p, String team, TeamFactory f) {
-        UUID id = p.getUniqueId();
-        Map<String, Integer> have = carriedItems(p);
-        int total = 0;
-        for (var en : have.entrySet()) {
-            int left = en.getValue();
-            for (Order o : f.open) {
-                if (left <= 0) break;
-                if (o.done() || !o.needs(en.getKey())) continue;
-                int took = o.deliver(en.getKey(), left, id);
-                if (took > 0) {
-                    left -= took;
-                    total += took;
-                    removeItems(p, en.getKey(), took);
-                    f.itemsDelivered += took;
-                    delivered.merge(id, took, Integer::sum);
-                }
-            }
-        }
-        if (total == 0) {
-            actionBar(p, api.tr(id, "factory.deliver.nothing"));
+        Order match = null;
+        for (Order o : k.open) if (o.dish.equals(dish)) { match = o; break; }
+        if (match == null) {
+            actionBar(p, api.tr(id, "factory.serve.nobody", itemName("dish_" + dish)));
             p.playSound(p.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1f);
             return;
         }
-        f.dirty = true;
-        p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
-        actionBar(p, api.tr(id, "factory.deliver.ok", total));
-        List<Order> finished = new ArrayList<>();
-        for (Order o : f.open) if (o.done()) finished.add(o);
-        for (Order o : finished) completeOrder(team, f, o);
-    }
+        DishDef d = model.dishes.get(dish);
+        double left = Math.max(0, 1.0 - (double) (ticks - match.issued) / Math.max(1, match.limitTicks));
+        int tip = (int) Math.round(d.reward() * cfgDouble("orders.tip-percent", 50) / 100.0 * left);
+        k.streak++;
+        int combo = (int) Math.round(d.reward() * Math.min(5, k.streak - 1) * cfgDouble("orders.combo-percent", 10) / 100.0);
+        int total = d.reward() + tip + combo;
 
-    private void completeOrder(String team, TeamFactory f, Order o) {
-        OrderDef d = o.def;
-        int bonus = 0;
-        if (d.deadlineSeconds() > 0 && ticks - o.issuedTick <= d.deadlineSeconds() * 20L) bonus = d.reward() * d.bonusPercent() / 100;
-        String key = "ff:" + team + ":" + d.id() + ":" + f.issued + ":" + o.issuedTick;
-        Map<UUID, Integer> shares = ArcadeLogic.split(d.reward(), o.contributors());
-        for (var en : shares.entrySet())
-            award(key + ":" + en.getKey(), en.getKey(), en.getValue(), PointAward.Reason.OBJECTIVE, "order");
-        if (shares.isEmpty()) awardTeam(key, team, d.reward(), PointAward.Reason.OBJECTIVE, "order");
-        if (bonus > 0) {
-            Map<UUID, Integer> bs = ArcadeLogic.split(bonus, o.contributors());
-            for (var en : bs.entrySet())
-                award(key + ":b:" + en.getKey(), en.getKey(), en.getValue(), PointAward.Reason.BONUS, "deadline");
+        String key = "ff:" + team + ":" + k.issued + ":" + match.issued + ":" + dish + ":" + k.served;
+        Map<UUID, Integer> shares = ArcadeLogic.split(total, new HashMap<>(k.contrib));
+        for (var en : shares.entrySet()) award(key + ":" + en.getKey(), en.getKey(), en.getValue(), PointAward.Reason.OBJECTIVE, "dish");
+        if (shares.isEmpty()) awardTeam(key, team, total, PointAward.Reason.OBJECTIVE, "dish");
+        reportObjective(id, team, nl.kmc.core.event.GameObjectiveEvent.Type.ORDER_COMPLETED);
+        served.merge(id, 1, Integer::sum);
+        k.contrib.clear();
+        k.points += total;
+        k.served++;
+        k.open.remove(match);
+        k.dirtyReturns.add(ticks + model.kitchen.dirtyDelayTicks());      // the plate comes back dirty
+        k.boardDirty = true;
+        setHand(p, null);
+        for (UUID m : membersOf(team)) {
+            Player v = Bukkit.getPlayer(m);
+            if (v == null) continue;
+            v.sendMessage(api.tr(m, "factory.order.done", d.name(), d.reward(), tip, combo, total));
+            v.sendTitle("§a§l✔ " + d.name(), "§e+" + total + (k.streak > 1 ? " §6(x" + k.streak + ")" : ""), 0, 40, 10);
+            v.playSound(v.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
-        reportObjective(o.contributors().isEmpty() ? null : o.contributors().keySet().iterator().next(), team,
-                nl.kmc.core.event.GameObjectiveEvent.Type.ORDER_COMPLETED);
-        f.points += d.reward() + bonus;
-        f.completed++;
-        f.valueDelivered += d.totalItems();
-        f.open.remove(o);
-        for (Player v : Bukkit.getOnlinePlayers()) {
-            UUID vid = v.getUniqueId();
-            if (!isParticipant(vid)) continue;
-            if (team.equals(teamId(vid))) {
-                v.sendMessage(api.tr(vid, "factory.order.done", d.name(), d.reward(), bonus));
-                v.sendTitle("§a§l✔ " + d.name(), "§e+" + (d.reward() + bonus), 0, 40, 10);
-                v.playSound(v.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
-            }
-        }
-        issueOrder(team, f);
+        issueOrder(team, k);
     }
 
     // ── Loop ──────────────────────────────────────────────────────────────────
 
     @Override
     protected void playTick() {
-        double speed = cfgDouble("game.machine-speed", 1.0);
-        for (TeamFactory f : factories.values()) {
-            for (Machine m : f.machines.values()) m.tick(STEP, speed);
-            if (ticks % 20 == 0) {
-                for (var en : f.stations.entrySet()) {
-                    StationDef def = null;
-                    for (StationDef s : model.stations) if (s.id().equals(en.getKey())) def = s;
-                    if (def == null || def.restockAmount() <= 0) continue;
-                    if (ticks >= f.nextRestock.getOrDefault(en.getKey(), 0L)) {
-                        en.getValue().restock(def.restockAmount());
-                        f.nextRestock.put(en.getKey(), ticks + def.restockSeconds() * 20L);
+        for (var en : kitchens.entrySet()) {
+            TeamKitchen k = en.getValue();
+            for (Kitchen.Station s : k.stations.values()) {
+                if (Kitchen.tick(model.kitchen, s)) k.dirtyLabels.add(s.id);
+                if (s.burnt && ticks % 10 == 0) smoke(k, s);
+            }
+            // dirty plates come back to the sink
+            if (!k.dirtyReturns.isEmpty()) {
+                var it = k.dirtyReturns.iterator();
+                while (it.hasNext()) {
+                    if (ticks >= it.next()) {
+                        it.remove();
+                        k.shared.dirty++;
+                        for (var s : k.stations.values()) if (s.kind == Kind.SINK || s.kind == Kind.RACK) k.dirtyLabels.add(s.id);
                     }
                 }
             }
-            if (ticks % 10 == 0 && f.dirty) updateBoard(f);
+            // orders that ran out of time
+            for (Order o : new ArrayList<>(k.open)) {
+                if (ticks - o.issued < o.limitTicks) continue;
+                k.open.remove(o);
+                k.expired++;
+                k.streak = 0;
+                k.boardDirty = true;
+                for (UUID m : membersOf(en.getKey())) {
+                    Player v = Bukkit.getPlayer(m);
+                    if (v == null) continue;
+                    v.sendMessage(api.tr(m, "factory.order.expired", itemName("dish_" + o.dish)));
+                    v.playSound(v.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.8f, 0.7f);
+                }
+                issueOrder(en.getKey(), k);
+            }
+            if (ticks % 10 == 0) {
+                for (String id : new ArrayList<>(k.dirtyLabels)) updateLabel(k, id);
+                k.dirtyLabels.clear();
+                if (!k.open.isEmpty() || k.boardDirty) updateBoard(k);
+            }
         }
-        if (ticks % 10 == 0) refreshMenus();
 
         long left = Math.max(0, durationTicks - ticks);
         int finalSec = Math.max(5, cfgInt("game.final-countdown-seconds", 30));
@@ -715,29 +588,74 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
         if (ticks >= durationTicks) end();
     }
 
-    private void refreshMenus() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (!(p.getOpenInventory().getTopInventory().getHolder() instanceof MachineHolder h)) continue;
-            TeamFactory f = factories.get(h.team);
-            Machine m = f == null ? null : f.machines.get(h.machine);
-            if (m != null) renderMachine(h, p, m);
+    private void smoke(TeamKitchen k, Kitchen.Station s) {
+        for (StationDef d : model.stations) {
+            if (!d.id().equals(s.id)) continue;
+            Location l = at(k, d.at()).add(0.5, 1.0, 0.5);
+            l.getWorld().spawnParticle(Particle.LARGE_SMOKE, l, 6, 0.2, 0.3, 0.2, 0.01);
+            l.getWorld().spawnParticle(Particle.FLAME, l, 3, 0.15, 0.1, 0.15, 0.01);
         }
     }
 
-    private void updateBoard(TeamFactory f) {
-        f.dirty = false;
-        if (f.board == null || !f.board.isValid()) return;
-        Component c = Component.text("BESTELLINGEN", NamedTextColor.GOLD, TextDecoration.BOLD);
-        for (Order o : f.open) {
-            c = c.append(Component.newline()).append(Component.text(o.def.name() + " (+" + o.def.reward() + ")", NamedTextColor.YELLOW));
-            for (var e : o.def.items().entrySet()) {
-                int got = Math.min(o.delivered(e.getKey()), e.getValue());
-                boolean full = got >= e.getValue();
-                c = c.append(Component.newline()).append(Component.text((full ? "✔ " : "• ") + itemName(e.getKey())
-                        + " " + got + "/" + e.getValue(), full ? NamedTextColor.GREEN : NamedTextColor.WHITE));
+    private static String bar(int done, int total) {
+        int filled = Math.max(0, Math.min(10, done * 10 / Math.max(1, total)));
+        return "§a" + "█".repeat(filled) + "§8" + "█".repeat(10 - filled);
+    }
+
+    private void updateLabel(TeamKitchen k, String id) {
+        TextDisplay d = k.labels.get(id);
+        Kitchen.Station s = k.stations.get(id);
+        if (d == null || !d.isValid() || s == null) return;
+        String name = "";
+        for (StationDef sd : model.stations) if (sd.id().equals(id)) name = sd.name();
+        String text = switch (s.kind) {
+            case CRATE -> "§e§l" + itemName(s.item);
+            case BOARD -> "§6" + name + (s.board == null ? "\n§8leeg"
+                    : "\n§f" + itemName(s.board) + (model.kitchen.chop().containsKey(s.board)
+                    ? "\n" + bar(s.chops, model.kitchen.chopClicks()) : "\n§a✔"));
+            case POT -> {
+                String body;
+                if (s.burnt) body = "\n§c§lVERBRAND! §7klik om te legen";
+                else if (s.cooking != null) body = "\n§e" + itemName(s.cooking.out()) + " §7" + Math.max(0, s.cookLeft / 20) + "s";
+                else if (s.ready != null) body = "\n§a§l" + itemName(s.ready) + " klaar!" + (model.kitchen.isPlateable(s.ready) ? " §7(bord)" : "");
+                else if (!s.contents.isEmpty()) {
+                    StringBuilder sb = new StringBuilder("\n§f");
+                    for (String c : s.contents) sb.append(itemName(c)).append(' ');
+                    body = sb.toString().trim();
+                } else body = "\n§8leeg";
+                yield "§6" + name + body;
             }
+            case COUNTER -> {
+                String body;
+                if (s.dish != null) body = "\n§a" + itemName("dish_" + s.dish);
+                else if (s.plate) {
+                    StringBuilder sb = new StringBuilder("\n§fBord");
+                    for (String c : s.parts) sb.append(" + ").append(itemName(c));
+                    body = sb.toString();
+                } else if (s.loose != null) body = "\n§f" + itemName(s.loose);
+                else body = "\n§8leeg";
+                yield "§6" + name + body;
+            }
+            case SINK -> "§b" + name + "\n§7vuil: §f" + k.shared.dirty + (k.shared.dirty > 0 ? " §8(" + k.shared.washProgress + "/" + model.kitchen.washClicks() + ")" : "");
+            case RACK -> "§f" + name + "\n§7borden: §f" + k.shared.plates;
+            case SERVE -> "§a§l" + name;
+            case TRASH -> "§7" + name;
+        };
+        d.text(Component.text(text));
+    }
+
+    private void updateBoard(TeamKitchen k) {
+        k.boardDirty = false;
+        if (k.board == null || !k.board.isValid()) return;
+        StringBuilder sb = new StringBuilder("§6§lBESTELLINGEN");
+        for (Order o : k.open) {
+            DishDef d = model.dishes.get(o.dish);
+            int left = Math.max(0, (int) ((o.limitTicks - (ticks - o.issued)) / 20));
+            String col = left < 15 ? "§c" : left < 30 ? "§e" : "§a";
+            sb.append("\n").append(col).append(d != null ? d.name() : o.dish).append(" §7").append(left).append("s");
         }
-        f.board.text(c);
+        if (k.streak > 1) sb.append("\n§6combo x").append(k.streak);
+        k.board.text(Component.text(sb.toString()));
     }
 
     // ── HUD / result ──────────────────────────────────────────────────────────
@@ -746,38 +664,27 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
     protected List<String> sidebar(Player viewer) {
         UUID id = viewer.getUniqueId();
         String team = teamId(id);
-        TeamFactory f = factories.get(team);
+        TeamKitchen k = kitchens.get(team);
         List<String> l = new ArrayList<>();
         l.add(api.tr(id, "factory.sb.time", mmss(Math.max(0, durationTicks - ticks) / 20)));
-        if (f != null) {
-            int shown = 0;
-            for (Order o : f.open) {
-                if (shown++ >= 2) break;
-                int need = 0, got = 0;
-                for (var e : o.def.items().entrySet()) { need += e.getValue(); got += Math.min(o.delivered(e.getKey()), e.getValue()); }
-                l.add(api.tr(id, "factory.sb.order", o.def.name(), got, need));
-            }
-            l.add("");
-            l.add(api.tr(id, "factory.sb.team", shownTeamPoints(team)));
-            l.add(api.tr(id, "factory.sb.done", f.completed));
+        if (k != null) {
+            l.add(api.tr(id, "factory.sb.served", k.served));
+            l.add(api.tr(id, "factory.sb.open", k.open.size()));
+            l.add(api.tr(id, "factory.sb.plates", k.shared.plates, k.shared.dirty));
+            if (k.streak > 1) l.add(api.tr(id, "factory.sb.combo", k.streak));
         }
-        l.add(api.tr(id, "factory.sb.carry", carriedTotal(viewer), cfgInt("game.max-carry", 48)));
-        l.add(api.tr(id, "factory.sb.you", delivered.getOrDefault(id, 0)));
+        l.add(api.tr(id, "factory.sb.hand", itemName(hand.get(id))));
         return l;
     }
 
     @Override
     protected Result finishGame() {
-        // a partly delivered order is reported, but earns nothing: only finished production scores
-        for (TeamFactory f : factories.values()) {
-            for (Order o : f.open) for (var e : o.def.items().entrySet()) f.partialItems += Math.min(o.delivered(e.getKey()), e.getValue());
-        }
-        List<String> ranked = book.rankTeams(factories.keySet());
+        List<String> ranked = book.rankTeams(kitchens.keySet());
         awardTeamPlacements(ranked);
         List<UUID> order = new ArrayList<>();
         for (String t : ranked) {
             List<UUID> m = membersOf(t);
-            m.sort((a, b) -> Integer.compare(delivered.getOrDefault(b, 0), delivered.getOrDefault(a, 0)));
+            m.sort((a, b) -> Integer.compare(actions.getOrDefault(b, 0), actions.getOrDefault(a, 0)));
             order.addAll(m);
         }
         for (Player v : Bukkit.getOnlinePlayers()) {
@@ -785,17 +692,15 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
             v.sendMessage(api.tr(vid, "factory.results"));
             int i = 1;
             for (String t : ranked) {
-                TeamFactory f = factories.get(t);
-                if (f == null) continue;
-                int eff = f.rawTaken > 0 ? Math.min(100, f.valueDelivered * 100 / f.rawTaken) : 0;
-                v.sendMessage(api.tr(vid, "factory.result-line", i++, teamName(t), shownTeamPoints(t), f.completed,
-                        f.partialItems, f.itemsDelivered, eff));
+                TeamKitchen k = kitchens.get(t);
+                if (k == null) continue;
+                v.sendMessage(api.tr(vid, "factory.result-line", i++, teamName(t), shownTeamPoints(t), k.served, k.expired));
             }
         }
         UUID mvp = null;
         int best = -1;
         for (UUID id : players) {
-            int c = delivered.getOrDefault(id, 0);
+            int c = served.getOrDefault(id, 0) * 3 + actions.getOrDefault(id, 0);
             if (c > best) { best = c; mvp = id; }
         }
         String winner = ranked.isEmpty() ? "-" : teamName(ranked.get(0));
@@ -804,15 +709,16 @@ public final class FactoryFrenzyManager extends ArcadeGameManager {
 
     @Override
     protected void cleanupGame() {
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.getOpenInventory().getTopInventory().getHolder() instanceof MachineHolder) p.closeInventory();
+        for (TeamKitchen k : kitchens.values()) {
+            if (k.board != null && k.board.isValid()) k.board.remove();
+            for (TextDisplay d : k.labels.values()) if (d.isValid()) d.remove();
         }
-        for (TeamFactory f : factories.values()) if (f.board != null && f.board.isValid()) f.board.remove();
-        for (TextDisplay d : labels) if (d.isValid()) d.remove();
-        labels.clear();
+        for (Player p : Bukkit.getOnlinePlayers()) if (hand.containsKey(p.getUniqueId())) p.getInventory().clear();
         blocks.restoreAll();
         targets.clear();
-        factories.clear();
-        delivered.clear();
+        kitchens.clear();
+        hand.clear();
+        actions.clear();
+        served.clear();
     }
 }

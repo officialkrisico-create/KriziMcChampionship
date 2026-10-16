@@ -750,8 +750,11 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
      * yet is passed through in the same way.
      */
     private void hideOverlapping() {
-        double close = plugin.getConfig().getDouble("boat.ghost-distance", 2.8);
+        double close = plugin.getConfig().getDouble("boat.ghost-distance", 5.0);
         double far = close + 1.5;
+        // Qualifying is a lap on your own: every other boat and driver is out of sight for the whole session
+        // (parked boats on the track were driven through, with the boats and drivers still in view).
+        boolean solo = phase == Phase.QUALI;
         List<Racer> list = new ArrayList<>(racers.values());
         for (int i = 0; i < list.size(); i++) {
             Racer ra = list.get(i);
@@ -770,11 +773,11 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
                 boolean sameLevel = Math.abs(la.getY() - lb.getY()) < 2.5;
                 String key = a.getUniqueId() + "|" + b.getUniqueId();
                 boolean hidden = ghostPairs.contains(key);
-                if (!hidden && sameLevel && d2 < close * close) {
+                if (!hidden && (solo || (sameLevel && d2 < close * close))) {
                     a.hideEntity(plugin, bb);
                     a.hideEntity(plugin, b);
                     ghostPairs.add(key);
-                } else if (hidden && (!sameLevel || d2 > far * far)) {
+                } else if (hidden && !solo && (!sameLevel || d2 > far * far)) {
                     if (!hiddenPairs.contains(key)) {          // not hidden for being far away
                         a.showEntity(plugin, bb);
                         a.showEntity(plugin, b);
@@ -800,6 +803,31 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         }
     }
 
+    /**
+     * A step of one block right in front of the bow (on ice too): the boat is lifted onto it at once, with its
+     * driver and its speed. A hop with velocity alone failed on ice, where the boat slides into the step and
+     * stops before it gets any height.
+     */
+    private boolean liftOverStep(Boat b, Vector v, double speed) {
+        double dx = v.getX() / speed, dz = v.getZ() / speed;
+        Location l = b.getLocation();
+        Location front = l.clone().add(dx * 0.8, 0, dz * 0.8);
+        var f0 = front.getBlock();
+        var f1 = front.clone().add(0, 1, 0).getBlock();
+        var f2 = front.clone().add(0, 2, 0).getBlock();
+        if (!f0.getType().isSolid() || f1.getType().isSolid() || f2.getType().isSolid()) return false;
+        // the place on top of the step must be free for the boat's width
+        Location top = l.clone().add(dx * 1.2, 1.0, dz * 1.2);
+        if (top.getBlock().getType().isSolid() || top.clone().add(0, 1, 0).getBlock().getType().isSolid()) return false;
+        top.setYaw(l.getYaw());
+        top.setPitch(l.getPitch());
+        boolean keepNoPhysics = b.hasNoPhysics();
+        b.teleport(top, PlayerTeleportEvent.TeleportCause.PLUGIN);
+        b.setVelocity(new Vector(v.getX(), 0, v.getZ()));
+        if (keepNoPhysics) b.setNoPhysics(true);
+        return true;
+    }
+
     private void assistSteps() {
         if (!raceLive) return;
         ghostNearbyBoats();
@@ -817,8 +845,9 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             if (!stepAssist) continue;
             Vector v = b.getVelocity();
             double speed = Math.hypot(v.getX(), v.getZ());
-            if (speed < 0.08) continue;
+            if (speed < 0.03) continue;
             if (b.getStatus() == Boat.Status.IN_AIR) continue;
+            if (liftOverStep(b, v, speed)) continue;
 
             double look = 0.9 + speed * 1.5;
             Location ahead = b.getLocation().add(v.getX() / speed * look, 0, v.getZ() / speed * look);
@@ -902,7 +931,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     // ── Visibility: other racers only within N blocks ─────────────────────────
 
     private void updateVisibility() {
-        if (!raceLive) return;
+        if (!raceLive || phase == Phase.QUALI) return;     // qualifying: everybody else stays hidden (see hideOverlapping)
         double radius = plugin.getConfig().getDouble("visibility.radius", 10.0);
         double rSq = radius * radius;
         List<Racer> list = new ArrayList<>(racers.values());

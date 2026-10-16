@@ -1,109 +1,42 @@
-Vier nieuwe games, KMC Host met lore en cutscenes, fysiek podium, checklist en de testronde-fixes van 14 en 15 oktober
+Factory Frenzy als Overcooked-keuken, Blockball in Rocket League-stijl, Laser Logic met kleuren, Crafting Countdown met bergen en testronde-fixes
 
-Vier nieuwe games: Laser Logic, Blockball, Factory Frenzy, Dungeon Draft
-- Vier nieuwe modules op het bestaande arcade-raamwerk: start-flow, pauze, idempotente punten (awardShared),
-  teamplaatsen, /kmctest-arena, validate, scoringLines
-- Laser Logic: deterministische straal-simulatie met lus-detectie, puzzelvalidatie, generator, hints in drie niveaus,
-  eerste-oplosser- en geen-hint-bonus, progressie makkelijk naar moeilijk
-- Blockball: eigen bal-fysica (wrijving, stuiter, snelheidslimiet), schop/pass/geladen schot, assist-venster, heats en
-  waves bij minder velden dan wedstrijden, golden goal; een keeper per team per wedstrijd (roteert) die vangt, gooit,
-  rolt en wegslaat, met save-punten; een vastgehouden bal telt nooit als doelpunt
-- Factory Frenzy: grondstofstations, machines met toestanden en wachtrij, GUI, bestellingen met gedeeltelijke levering
-  en deadline-bonus, productieketen gevalideerd (elke bestelling is te maken)
-- Dungeon Draft: route-draft per kamer (stem, leider, timeout-fallback), zes kamertypes, gedeelde teamgezondheid met
-  extra levens, winkel, baas met telegraaf-slagen, modifiers
-- kmc-game-api: TemporaryBlocks (blokken terugzetten), ArcadeLogic.split (verdeling over gewichten)
-- Tests: LaserSim/PuzzleDef/ShippedPuzzles, BallPhysics/MatchLogic/KeeperLogic, FactoryModel/ShippedFactory,
-  DungeonLogic/ShippedDungeon
+Factory Frenzy herbouwd naar een Overcooked-keuken
+- Elk team runt een keuken: kratten (tomaat, ui, sla, gehakt, broodjes), snijplanken, potten en een pan, aanrechten, bordenrek,
+  wasbak, serveerluik en prullenbak; je draagt maar een ding tegelijk (zichtbaar in je eerste hotbar-slot)
+- Snijden met herhaald klikken, koken in een pot of pan (klaar eten verbrandt als je het laat staan), soep haal je met een bord
+  uit de pot, salade en burger stel je samen op een bord op een aanrecht
+- Bestellingen met een tijdslimiet op een bord; tip voor snel serveren, combo voor gerechten achter elkaar, verlopen bestellingen
+  breken de combo; het bord komt vies terug en moet worden afgewassen
+- Kitchen (puur, 9 tests) regelt elke klik; nieuwe config (items, chopping, cooking, dishes, layout) met validatie dat elk
+  gerecht te maken is (ShippedKitchenTest); nieuwe teksten nl/en; FactoryModel en de oude tests zijn vervangen
 
-KMC Host: de presentator-NPC als host met tekst boven zijn hoofd
-- Nieuw pakket nl.kmc.kmccore.host: HostManager (wachtrij + afspelen), HostStateMachine (DISABLED/IDLE/ACTIVE/FINISHING),
-  HostQueue (prioriteit, cooldown, de-duplicatie, verlopen), HostText, HostDialogues/HostContent (host.yml),
-  HostValues (echte KMC-data), HostCommand (/kmchost, /kmc host)
-- De host praat pas na /kmcauto start (idempotent) en stopt bij het einde; alleen de end-sequence wordt nog gepresenteerd
-- Hooks: openingsfases, teamshowcase, pre-start van een game, resultaten, tussenstand, finale/podium/awards en live
-  events (GameObjectiveEvent + ClutchMomentEvent); nieuwe objective-types PUZZLE_SOLVED, ORDER_COMPLETED, ROOM_CLEARED
-- Interactiemenu, lore-verhaaltjes (fictief, zonder verzonnen resultaten; seizoenen uit het echte archief), spelregels
-  per game uit de game-registratie plus host.yml; description/objective van een game ook uit host.yml als fallback
-- Bubbel: pagina's eindigen aan het einde van een zin (een zin die niet past gaat heel naar een nieuwe bubbel,
-  kleurcodes lopen door)
-- De host is onkwetsbaar (ook voor creative-vuisten), herstelt zichzelf binnen 10 s en loopt niet van het platform af
-- Tests: HostStateMachine, HostQueue, HostText, HostDialogues (+ de meegeleverde host.yml), HostValues
+Blockball in Rocket League-stijl
+- Eerst tot 3 doelpunten (match.first-to), daarna na de tijd meeste goals of golden goal
+- Grote, levendige bal die op de grond en tegen muren stuitert en doorrolt (physics.*); loft volgt waar je kijkt; doelpunt-explosie
+- Keepers worden per team gekozen in een menu (stemmen, automatisch bij geen of gelijke stemmen)
 
-KMC-lore en geregisseerde speeches (staged dialogues)
-- /kmcauto start: eerst de lore (dialoog "kmc-lore": neergestort op een eiland, een reddingsvliegtuig met zoveel stoelen
-  als een team spelers heeft), dan teamshowcase en opening; de afteltijd naar het stemmen wacht tot de host is uitgesproken
-- Staged dialogen: per regel shot, walk, act, fx, title/subtitle en tension; placeholders {seats}, {seats_word}, {seats_cap}
-- SceneMath (tijdlijn, wandelplan, camera-keys, spanning) en HostDirector (één doorlopende camera-route met push-ins,
-  orbit, kraan, top, laag en fly-over; hartslag, deeltjes en bliksem die met de spanning oplopen)
-- PresenterManager: de host loopt (snelheid per tick, stopt voor muren en randen), springt, zwaait, bukt, draait; de
-  bubbel loopt mee; terugval op teleport-stappen; altijd terug naar zijn plek aan het einde
-- /kmcauto skip slaat lore en opening over, /kmcauto stop ruimt alles op; /kmchost lore speelt alleen de lore
-- Config: host.lore-intro.*, host.scene.*, host.podium.host-on-podium
-- Tests: SceneMathTest, extra HostTextTest (zinnen en kleurcodes), HostValuesTest
+Laser Logic
+- Elke draaibare spiegel krijgt per puzzel een eigen kleur; hint 2 noemt "de rode spiegel op (x, y)"
+- Moeilijker: puzzels een niveau hoger (game.difficulty-shift), meer bochten, extra muren en absorbers, minstens de helft verkeerd
 
-Fysiek podium, teamshowcase en awards
-- /kmcpodium: goud/ijzer/koper-kolommen die de uitslag echt bouwt; 3e, 2e en kampioen staan erop, de rest kijkt via een camera
-- De host presenteert vanaf het podium zolang KMCAuto loopt (naast het podium); tijdens de teamshowcase staat hij in het
-  midden achter het team
-- Teamshowcase: direct na de lore, met een flyover over het podium; elk team staat samen bovenop de gouden kolom
-  (rijen van max. 3, kijkt naar de camera, camera volgt de echte posities)
-- Awards gebruiken dezelfde podium-camera, met vuurwerk boven het podium
-- Fan Favorite-GUI voor 32+ spelers; chat-podium vervangen door het echte podium
+Crafting Countdown
+- Geen draagbare crafting table en geen menu meer: de stapels zijn bergen van echte blokken die je mijnt; elk blok geeft het
+  item waar het voor staat en komt niet terug; een crafting table naast elk inleverpunt; alles wordt na het spel hersteld
 
-Toernooi-regie
-- /kmcchecklist: checklist voor een toernooi (menu en commando, bewaard in checklist.yml, eigen items toevoegen)
-- Preset-menu zonder standaard-presets: "Maak een preset" slaat je huidige instellingen op onder een naam (+ /kmcauto preset delete)
-- Standaard 1 game per ronde; game-lineup noemt hoeveel games er echt gespeeld worden en toont geen &-codes meer
-- Taalmenu sluit na een keuze; taalkeuze aan het begin van de eerste fase
-- Finale-aankondiging wacht op de leaderboard-animatie; slotceremonie toont de echte winnaar; het KMC-boek van het
-  vorige toernooi verdwijnt bij een nieuwe start
-- /event simulate: ook persoonlijke punten; bots voegen zich ook bij volle teams
-- Offline spelers aan een team toevoegen op naam (Mojang-opzoeking)
-- Rank-NPC's beheren via /kmclobbynpc
-- Config-doctor (/kmcvalidate config): typefouten met suggestie, verkeerd type, onmogelijke waarden, min boven max,
-  ongeldige YAML, games zonder geladen plugin, rondes zonder multiplier; schrijft config-doctor.txt en staat als
-  onderdeel "Configuratie" in het Validation Center
+Dungeon Draft
+- De wereld wordt tijdelijk van peaceful naar normal gezet zodat mobs spawnen (en daarna hersteld)
 
-LuckyBlock en The Bridge verwijderd
-- Modules, config, lang, achievements en docs van beide games zijn weg; 32 jars met de vier nieuwe games
+Formula MC
+- Kwalificatie: alle andere boten en bestuurders zijn verborgen (je reed door geparkeerde bot-boten heen)
+- Een stap van een blok omhoog lukt ook op ijs (de boot wordt op de stap gezet); ghost-afstand 5 blokken
 
-Crafting Countdown herontworpen
-- Verzamelen en vanilla craften: bestellingen met te craften items, grondstofstapels als blokken met menu, voorraad,
-  cooldown per speler, herstock en draaglimiet, eigen inleverpunt per team, Werkbank-item
-- Je mijnt de stapels echt: houweel en bijl in je hotbar, rechtsklik kiest wat je mijnt, het blok kapotslaan geeft de grondstof
-- Orders uit een configureerbare item-pool; punten: basis + itemwaarde + snelheidsbonus + reeksbonus, verdeeld over wie inleverde
-- Admin: /craftcountdown station add, pile add|remove|clear|list|types; OrderLogic (puur) vervangt Recipe/TaskProgress
+Bots en host
+- FakePlayerSpawner roept de echte markClientLoaded() aan (zonder argumenten, zoals de server hem heeft) en na elke dood opnieuw
+- /kmchost lore|opening|rules|overview|teams|lineup|results|standings|finale|third|second|champion|awards|podium: elk onderdeel
+  van de presentatie testen met testdata waar echte data ontbreekt; live-opmerkingen gaan ook naar de chat
+- Rank-NPC draagt de skin van de speler op die plek (online profiel, of opzoeken op naam)
 
-Arcade-games (kmc-game-api + zes modules)
-- ArenaConfig.setLoc schrijft een sectie (oorzaak van "niet geconfigureerd" bij Blockball en Rocket Rush); Block Party in /kmctest
-- Spelers kijken na elke spawn naar het midden; effecten, titel en actiebalk worden bij stop/einde opgeruimd
-- Sidebars met een vast team-blok en dezelfde woorden in elke game; uitleg-kaart voor elke game voor de start
-- Core Charge: hologram met voortgang boven elk station
-- Team-bonuspunten (TGTTOS, Formula MC, Adventure Escape) zijn teampunten, niet persoonlijk
-
-Bots en spectators
-- FakePlayerSpawner zoekt het "client loaded"-veld generiek (veld, methode, pakket) en /kmcbot info toont alle "load"-leden
-- Spectator blijft spectator door de respawn na een dood (vliegt, op zijn sterfplek) en raakt niets (SpectatorAutoHook)
-
-Games
-- Mob Mayhem: eerste waves gelijk voor elk team (geen modifiers, geen baby's), arena wordt voor een wave schoongemaakt
-- TNT Tag: Double Trouble geeft meteen extra bommen; de decoy rent in een 3x3 vierkant
-- Dodgebolt: de boog trekken voor de ronde start kost geen pijlen
-- Rising Inferno: lava als magma-oppervlak (een display kan geen vloeistof tonen)
-- Formula MC: klok met honderdsten, meerdere qualifying-rondes (snelste telt) met resterende tijd, boten gaan nooit meer in
-  "no physics" (geen zakken door de vloer)
-- TGTTOS: spelers boven het aantal startpunten staan naast een startpunt
-- Plek bij uitschakeling "(36)", "(35)", ... in Spleef, SkyWars, Survival Games, TNT Tag en Block Party; Parkour toont #n
-
-Achievements
-- Advancement-tab per categorie met rarity-secties; vanilla-advancements worden niet meer getoond
-  (plugins/KMCCore/vanilla-advancements.yml beschrijft hoe je de vanilla-tabs weghaalt)
-
-Platform
-- /kmcapi toont de URL en de reden als starten mislukt (en dat 127.0.0.1 alleen op de servermachine werkt)
-- Camera: iets meer interpolatie tegen haperen
-
-Documentatie
-- docs/TESTEN.md: afgevinkt weggehaald, X-items blijven open, arcade-games per game, blok N17-N20 met de nieuwe fixes
-- README: host, lore, podium
+Overig
+- Arcade-sidebars in dezelfde stijl als de andere games ("Jouw Team"-blok, geen streep)
+- ConfigDoctor: arena, course en director zijn geen "onbekende sleutel" meer (door commando's geschreven)
+- docs/TESTEN.md volledig herschreven voor een hoofdevent: alle systemen en alle 27 games, met de openstaande X-punten

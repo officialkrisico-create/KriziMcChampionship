@@ -31,7 +31,7 @@ public final class PuzzleGenerator {
             if (!LaserSim.solved(solved, sr)) continue;
             Set<String> onPath = new HashSet<>();
             for (LaserSim.Seg s : sr.segments) onPath.add(s.x() + "," + s.y());
-            int walls = 1 + turns / 2;
+            int walls = 2 + turns;
             for (int i = 0, tries = 0; i < walls && tries < 40; tries++) {
                 int x = rnd.nextInt(width), y = rnd.nextInt(height);
                 if (b.get(x, y) != null || onPath.contains(x + "," + y)) continue;
@@ -40,16 +40,45 @@ public final class PuzzleGenerator {
                 b.set(x, y, w);
                 i++;
             }
-            // scramble: every mirror turned at random; at least one has to be wrong
+            // more decoys: absorbers off the path, which only matter to a team that turns a mirror wrongly
+            for (int i = 0, tries = 0; i < turns / 2 && tries < 40; tries++) {
+                int x = rnd.nextInt(width), y = rnd.nextInt(height);
+                if (b.get(x, y) != null || onPath.contains(x + "," + y)) continue;
+                Comp a = new Comp();
+                a.type = Type.ABSORBER;
+                b.set(x, y, a);
+                i++;
+            }
+            // scramble: every mirror turned at random, and at least half of them wrong (so it takes real turning)
             for (int[] m : mirrors) b.get(m[0], m[1]).slash = rnd.nextBoolean();
+            int need = (mirrors.size() + 1) / 2;
+            for (int guard = 0; guard < 50 && wrong(b, mirrors, solutionSlash) < need; guard++) {
+                int[] m = mirrors.get(rnd.nextInt(mirrors.size()));
+                Comp mc = b.get(m[0], m[1]);
+                if (mc.slash == solutionOf(mirrors, solutionSlash, m)) mc.slash = !mc.slash;
+            }
             if (LaserSim.solved(b, PuzzleDef.MAX_STEPS)) {
                 int[] m = mirrors.get(rnd.nextInt(mirrors.size()));
                 b.get(m[0], m[1]).slash = !b.get(m[0], m[1]).slash;
             }
+
             PuzzleDef def = new PuzzleDef(id, diff, b, points, seconds);
             if (def.validate().isEmpty()) return def;
         }
         return null;
+    }
+
+    private static boolean solutionOf(List<int[]> mirrors, boolean[] solution, int[] m) {
+        for (int i = 0; i < mirrors.size() && i < solution.length; i++)
+            if (mirrors.get(i)[0] == m[0] && mirrors.get(i)[1] == m[1]) return solution[i];
+        return false;
+    }
+
+    private static int wrong(LaserBoard b, List<int[]> mirrors, boolean[] solution) {
+        int n = 0;
+        for (int i = 0; i < mirrors.size() && i < solution.length; i++)
+            if (b.get(mirrors.get(i)[0], mirrors.get(i)[1]).slash != solution[i]) n++;
+        return n;
     }
 
     private static boolean buildPath(LaserBoard b, int turns, Random rnd, List<int[]> mirrors, boolean[] slashOut) {

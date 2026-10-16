@@ -39,6 +39,13 @@ public final class ConfigDoctor {
         return out;
     }
 
+    /** Sections that setup commands and the director write themselves (arenas, courses): never "unknown". */
+    private static boolean writtenByCommands(String path) {
+        for (String root : new String[]{"arena", "course", "director"})
+            if (path.equals(root) || path.startsWith(root + ".")) return true;
+        return false;
+    }
+
     private static void walk(String file, String path, ConfigurationSection def, ConfigurationSection act,
                              Set<String> freeForm, Predicate<String> materialExists, List<Finding> out) {
         boolean free = isFree(path, def, freeForm);
@@ -48,7 +55,7 @@ public final class ConfigDoctor {
             String p = path.isEmpty() ? key : path + "." + key;
             Object a = act.get(key);
             if (!defKeys.contains(key)) {
-                if (!free && def != null) {
+                if (!free && def != null && !writtenByCommands(p)) {
                     String near = suggest(key, defKeys, act.getKeys(false));
                     out.add(new Finding(file, p, Severity.WARN, "onbekende sleutel (wordt genegeerd)",
                             near != null ? "bedoelde je '" + near + "'?" : "verwijderen of controleren op een typefout"));

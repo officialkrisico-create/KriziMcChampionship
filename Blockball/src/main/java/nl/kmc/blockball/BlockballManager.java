@@ -14,6 +14,11 @@ import nl.kmc.stats.service.StatisticsService;
 import org.bukkit.*;
 import org.bukkit.boss.BarColor;
 import org.bukkit.entity.BlockDisplay;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.block.Action;
@@ -68,6 +73,9 @@ public final class BlockballManager extends ArcadeGameManager {
         UUID holder;                                // the keeper who holds the ball right now
         long holdUntil;
         Box zoneA, zoneB;                           // where a keeper may use his hands
+        final Map<UUID, UUID> keeperVotes = new HashMap<>();   // voter -> chosen team mate
+        long keeperDeadline;                        // the vote closes here
+        boolean keepersSet;
 
         Match(int id, FieldDef field, String a, String b, BallPhysics ball, MatchState state) {
             this.id = id; this.field = field; this.teamA = a; this.teamB = b; this.ball = ball; this.state = state;
@@ -246,13 +254,14 @@ public final class BlockballManager extends ArcadeGameManager {
         World w = arena.world();
         if (w == null) return;
         BallPhysics.Config pc = new BallPhysics.Config();
-        pc.maxSpeed = cfgDouble("ball.max-speed", pc.maxSpeed);
-        pc.gravity = cfgDouble("ball.gravity", pc.gravity);
-        pc.groundFriction = cfgDouble("ball.ground-friction", pc.groundFriction);
-        pc.airDrag = cfgDouble("ball.air-drag", pc.airDrag);
-        pc.bounce = cfgDouble("ball.bounce", pc.bounce);
-        pc.wallBounce = cfgDouble("ball.wall-bounce", pc.wallBounce);
-        pc.radius = cfgDouble("ball.radius", pc.radius);
+        // a big, lively ball that rolls on and bounces off the floor and the walls (the physics.* keys)
+        pc.maxSpeed = cfgDouble("physics.max-speed", 30);
+        pc.gravity = cfgDouble("physics.gravity", 18);
+        pc.groundFriction = cfgDouble("physics.ground-friction", 0.4);
+        pc.airDrag = cfgDouble("physics.air-drag", 0.04);
+        pc.bounce = cfgDouble("physics.bounce", 0.78);
+        pc.wallBounce = cfgDouble("physics.wall-bounce", 0.88);
+        pc.radius = cfgDouble("physics.radius", 0.6);
         Box fb = box(f.bounds());
         double by = Math.max(f.ball().getY(), fb.minY() + pc.radius);
         BallPhysics ball = new BallPhysics(fb, f.ball().getX(), by, f.ball().getZ(), pc);
@@ -260,9 +269,11 @@ public final class BlockballManager extends ArcadeGameManager {
         for (Box x : BallPhysics.endZoneBlockers(fb, box(f.goalB()))) ball.addBlocker(x);
 
         Match m = new Match(++matchCounter, f, a, b, ball,
-                new MatchState(cfgInt("match.max-goals", 0), cfgBool("match.overtime.enabled", true)));
-        m.remaining = cfgInt("match.duration-seconds", 180) * 20L;
-        m.kickoffAt = ticks + cfgInt("match.kickoff-seconds", 4) * 20L;
+                new MatchState(cfgInt("match.first-to", 3), cfgBool("match.overtime.enabled", true)));
+        m.remaining = cfgInt("match.time-limit-seconds", 300) * 20L;
+        int voteSeconds = keeperVoteSeconds();
+        m.keeperDeadline = ticks + voteSeconds * 20L;
+        m.kickoffAt = m.keeperDeadline + cfgInt("match.kickoff-seconds", 4) * 20L;
         ball.setFrozen(true);
 
         int perTeam = Math.max(1, cfgInt("match.players-per-team", 4));
@@ -281,7 +292,7 @@ public final class BlockballManager extends ArcadeGameManager {
                 n++;
             }
         }
-        assignKeepers(m);
+        beginKeeperVote(m);
         spawnDisplay(m);
         matches.add(m);
         for (UUID id : concat(m.sideA, m.sideB)) {
@@ -306,7 +317,7 @@ public final class BlockballManager extends ArcadeGameManager {
         Material mat = Material.matchMaterial(gamePlugin.getConfig().getString("ball.material", "WHITE_CONCRETE"));
         if (mat == null || !mat.isBlock()) mat = Material.WHITE_CONCRETE;
         final Material material = mat;
-        float size = (float) (cfgDouble("ball.radius", 0.45) * 2);
+        float size = (float) (cfgDouble("physics.radius", 0.6) * 2);
         m.display = w.spawn(at, BlockDisplay.class, d -> {
             d.setBlock(material.createBlockData());
             d.setPersistent(false);
@@ -401,6 +412,10 @@ public final class BlockballManager extends ArcadeGameManager {
         if (!kick) { power = cfgDouble("controls.pass-power", 9); lift = cfgDouble("controls.pass-lift", 0.8); }
         else if (charged) { power = cfgDouble("controls.shot-power", 20); lift = cfgDouble("controls.shot-lift", 4.5); }
         else { power = cfgDouble("controls.kick-power", 13); lift = cfgDouble("controls.kick-lift", 3.0); }
+        // where you look decides the loft: up lifts the ball into the air, down keeps it on the floor
+        float pitch = pl.getPitch();
+        if (pitch < 0) lift += (-pitch / 90.0) * cfgDouble("controls.pitch-lift", 9);
+        else if (pitch > 15) lift *= 0.3;
         m.ball.kick(dir.getX(), dir.getZ(), power, lift);
 
         m.touches.touch(id.toString(), side, ticks, !kick);
@@ -520,16 +535,104 @@ public final class BlockballManager extends ArcadeGameManager {
         m.ball.z = eye.getZ() + d.getZ();
     }
 
-    /** Assigns the keepers of a new match (the player with the fewest turns so far) and tells everybody. */
+    // ── Keepers are chosen by the team ──────────────────────────────────────────
+
+    private int keeperVoteSeconds() {
+        if (!"AUTO".equalsIgnoreCase(gamePlugin.getConfig().getString("keeper.mode", "AUTO"))) return 0;
+        return Math.max(0, cfgInt("keeper.vote-seconds", 10));
+    }
+
+    private static final class KeeperHolder implements InventoryHolder {
+        final Match match;
+        final int side;
+        Inventory inv;
+        KeeperHolder(Match match, int side) { this.match = match; this.side = side; }
+        @Override public Inventory getInventory() { return inv; }
+    }
+
+    /** Opens the "who is our keeper?" menu for every player of the match; the vote closes at the deadline. */
+    private void beginKeeperVote(Match m) {
+        if (keeperVoteSeconds() <= 0) { m.keeperDeadline = ticks; return; }
+        int min = cfgInt("keeper.min-team-size", 2);
+        for (int side = 0; side < 2; side++) {
+            Set<UUID> team = side == 0 ? m.sideA : m.sideB;
+            if (team.size() < min) continue;
+            for (UUID voter : team) {
+                Player p = Bukkit.getPlayer(voter);
+                if (p == null) continue;
+                KeeperHolder h = new KeeperHolder(m, side);
+                h.inv = Bukkit.createInventory(h, 9, api.tr(voter, "blockball.keeper.menu"));
+                int slot = 0;
+                for (UUID cand : team) {
+                    ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+                    if (head.getItemMeta() instanceof SkullMeta sm) {
+                        sm.setOwningPlayer(Bukkit.getOfflinePlayer(cand));
+                        sm.setDisplayName("§f§l" + nameOf(cand));
+                        sm.setLore(List.of("§7" + api.tr(voter, "blockball.keeper.menu-click"),
+                                "§8" + api.tr(voter, "blockball.keeper.menu-turns", keeperStints.getOrDefault(cand, 0))));
+                        head.setItemMeta(sm);
+                    }
+                    h.inv.setItem(slot++, head);
+                }
+                ItemStack none = new ItemStack(Material.BARRIER);
+                var nm = none.getItemMeta();
+                nm.setDisplayName("§7" + api.tr(voter, "blockball.keeper.menu-auto"));
+                none.setItemMeta(nm);
+                h.inv.setItem(8, none);
+                p.openInventory(h.inv);
+            }
+        }
+    }
+
+    @EventHandler
+    public void onKeeperMenu(InventoryClickEvent e) {
+        if (!(e.getView().getTopInventory().getHolder() instanceof KeeperHolder h)) return;
+        e.setCancelled(true);
+        if (!(e.getWhoClicked() instanceof Player p) || e.getClickedInventory() != e.getView().getTopInventory()) return;
+        int slot = e.getSlot();
+        Set<UUID> team = h.side == 0 ? h.match.sideA : h.match.sideB;
+        if (slot == 8) {
+            h.match.keeperVotes.remove(p.getUniqueId());
+            p.sendMessage(api.tr(p.getUniqueId(), "blockball.keeper.voted-auto"));
+        } else {
+            List<UUID> list = new ArrayList<>(team);
+            if (slot < 0 || slot >= list.size()) return;
+            UUID cand = list.get(slot);
+            h.match.keeperVotes.put(p.getUniqueId(), cand);
+            p.sendMessage(api.tr(p.getUniqueId(), "blockball.keeper.voted", nameOf(cand)));
+        }
+        p.closeInventory();
+    }
+
+    /** The most voted team mate; ties and no votes at all fall back to the one with the fewest turns so far. */
+    private UUID chooseKeeper(Match m, Set<UUID> team, int min) {
+        if (team.size() < min) return null;
+        Map<UUID, Integer> tally = new HashMap<>();
+        for (var v : m.keeperVotes.entrySet()) {
+            if (team.contains(v.getKey()) && team.contains(v.getValue())) tally.merge(v.getValue(), 1, Integer::sum);
+        }
+        if (tally.isEmpty()) return KeeperLogic.pick(new ArrayList<>(team), keeperStints, min);
+        int best = Collections.max(tally.values());
+        List<UUID> top = new ArrayList<>();
+        for (var t : tally.entrySet()) if (t.getValue() == best) top.add(t.getKey());
+        return KeeperLogic.pick(top, keeperStints, 1);
+    }
+
+    /** Closes the vote, assigns the keepers (chosen by the team) and tells everybody. */
     private void assignKeepers(Match m) {
+        m.keepersSet = true;
+        for (UUID id : concat(m.sideA, m.sideB)) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && p.getOpenInventory().getTopInventory().getHolder() instanceof KeeperHolder) p.closeInventory();
+        }
         if (!"AUTO".equalsIgnoreCase(gamePlugin.getConfig().getString("keeper.mode", "AUTO"))) return;
         int min = cfgInt("keeper.min-team-size", 2);
         double depth = cfgDouble("keeper.zone-depth", 6);
         Box field = box(m.field.bounds());
         m.zoneA = KeeperLogic.zone(m.goalA, field, depth);
         m.zoneB = KeeperLogic.zone(m.goalB, field, depth);
-        m.keeperA = KeeperLogic.pick(new ArrayList<>(m.sideA), keeperStints, min);
-        m.keeperB = KeeperLogic.pick(new ArrayList<>(m.sideB), keeperStints, min);
+        m.keeperA = chooseKeeper(m, m.sideA, min);
+        m.keeperB = chooseKeeper(m, m.sideB, min);
         for (UUID k : new UUID[]{m.keeperA, m.keeperB}) {
             if (k == null) continue;
             keeperStints.merge(k, 1, Integer::sum);
@@ -564,8 +667,10 @@ public final class BlockballManager extends ArcadeGameManager {
     }
 
     private void tickMatch(Match m, double dt) {
+        if (!m.keepersSet && ticks >= m.keeperDeadline) assignKeepers(m);
         // kick-off countdown
         if (ticks < m.kickoffAt) {
+            if (!m.keepersSet) { updateDisplay(m, 0, null); return; }
             int secs = (int) Math.ceil((m.kickoffAt - ticks) / 20.0);
             if (secs != m.lastCountdown) {
                 m.lastCountdown = secs;
@@ -717,6 +822,11 @@ public final class BlockballManager extends ArcadeGameManager {
             w.spawnParticle(Particle.FIREWORK, g.centerX(), g.centerY() + 1, g.centerZ(), 40, 1.2, 1, 1.2, 0.1);
             w.spawnParticle(Particle.DUST, g.centerX(), g.centerY() + 1, g.centerZ(), 40, 1.5, 1.2, 1.5, 0,
                     new Particle.DustOptions(col, 1.8f));
+            // the Rocket League explosion: a big flash at the goal and a boom across the field
+            w.spawnParticle(Particle.EXPLOSION_EMITTER, g.centerX(), g.centerY() + 1, g.centerZ(), 3, 0.8, 0.5, 0.8, 0);
+            w.spawnParticle(Particle.TOTEM_OF_UNDYING, g.centerX(), g.centerY() + 1, g.centerZ(), 60, 1.2, 1.0, 1.2, 0.4);
+            w.playSound(new Location(w, g.centerX(), g.centerY(), g.centerZ()), Sound.ENTITY_GENERIC_EXPLODE, 2f, 0.7f);
+            w.playSound(new Location(w, g.centerX(), g.centerY(), g.centerZ()), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.5f, 1f);
         }
     }
 

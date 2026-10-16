@@ -234,7 +234,7 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
         int piles = types.length * 2;
         for (int i = 0; i < piles; i++) {
             double ang = Math.PI * 2 * i / piles + 0.2;
-            int px = cx + (int) Math.round(Math.cos(ang) * 11), pz = cz + (int) Math.round(Math.sin(ang) * 11);
+            int px = cx + (int) Math.round(Math.cos(ang) * 13), pz = cz + (int) Math.round(Math.sin(ang) * 13);
             int t = i % types.length;
             TestArenaKit.platform(w, px, y, pz, 1, 1, Material.POLISHED_ANDESITE);
             w.getBlockAt(px, y + 1, pz).setType(blocks[t], false);

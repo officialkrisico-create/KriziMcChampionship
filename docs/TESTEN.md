@@ -1,399 +1,299 @@
-# TESTEN — het ene testbestand
+# TESTEN — alles wat getest moet worden voor een hoofdevent
 
-Alles wat nog niet live is getest, in één lijst. Afgevinkte dingen staan er niet meer in; nieuwe fixes en
-nieuwe dingen staan onder **N** (eerst doen). Oudere lijsten staan in `docs/archief/`.
+Dit is de volledige lijst voor een echt event: elk systeem en elke game, ook wat eerder al een keer werkte. Loop hem van
+boven naar beneden door, het liefst op een testserver met `/kmcbot add 8` (fake spelers) en `/kmctest <gameId>`.
 
-**Zo gebruik je het**
-1. Werk van boven naar beneden. Blok N eerst: dat zijn de fixes van je vorige testronde.
-2. Elke regel is één handeling: `wat je doet` → **wat je moet zien**. Klopt het niet? Laat het `[ ]` staan en noteer de fout (zie onderaan).
-3. Solo testen kan bijna overal: `/kmcbot add 8` geeft fake spelers, `/kmctest <gameId>` bouwt een testarena, `/kmcauto skip` slaat een ceremonie over.
-4. ⚠ = hier verwacht ik het eerst problemen (nooit live gedraaid, hangt af van Minecraft-gedrag).
+**Afvinken:** `[V]` = werkt, `[X]` = werkt niet (zet er kort bij wat je ziet), `[?]` = twijfel of niet kunnen testen.
+Bij een `[X]` of `[?]` zoek ik uit wat er misgaat; een regel mag een opmerking hebben achter het vinkje.
 
-| Blok | Wat | Tijd | Solo? |
-|---|---|---|---|
-| N | Nieuw na de vorige testronde (fixes + herbouwde games) | 40 min | met bots |
-| A | Bouwen, deployen, opstarten | 5 min | ja |
-| D | Gedeelde systemen (geluid, kroon, bonussen) | 15 min | met bots |
-| E | Regie: pauze, rerun, finale, dryrun | 15 min | met bots |
-| F | Punten en data | 10 min | ja |
-| G | Presentatie: NPC's, ceremonies | 15 min | ja |
-| H | Games (alle 20+) | 2-3 uur | per game |
-| I | Zes arcade-games (opnieuw getest in N, hier de rest) | 30 min | per game |
-| J | Platform: API, clips, camera, anti-grief | 15 min | ja |
-| K | Hele toernooi: `/event simulate`, einde | 20 min | ja |
-| L | Losse dingen: easter eggs, `/tutorial` | 10 min | ja |
+| Blok | Wat | Tijd |
+|---|---|---|
+| 0 | Bouwen, deployen, opstarten | 15 min |
+| 1 | Beheer: validatie, checklist, teams, menu's, bots | 30 min |
+| 2 | Host, lore, teamshowcase, podium, awards | 40 min |
+| 3 | Toernooiverloop van start tot einde | 45 min |
+| 4 | Alle games (27), een voor een | 4-6 uur |
+| 5 | Lobby, data, platform, stream | 30 min |
+| 6 | Randgevallen: pauze, stoppen, uitval, veel spelers | 30 min |
 
-> Een **ronde** is `automation.games-per-round` games (standaard 1 in `config.yml`). "1/8 na één game" is dus geen fout.
+> Een **ronde** is `automation.games-per-round` games (standaard 1). "1/8 na één game" is dus geen fout.
 
 ---
 
-## N. Nieuw na de vorige testronde
+## 0. Bouwen, deployen, opstarten
 
-Deploy eerst **alle** jars opnieuw (`.\deploy.ps1 -Plugins "<server>\plugins"`): KMCCore, kmc-game-api en kmc-stats
-zijn aangepast, en alle arcade-games, Formula MC, SkyWars en nog een paar.
+- [ ] `mvn test` → alle tests groen.
+- [ ] `.\deploy.ps1 -Plugins "<server>\plugins"` → alleen jars zonder `original-`; `kmc-storage` zit er **niet** bij.
+- [ ] 32 jars: KMCCore, kmc-core (KMC Core V2), kmc-game-api, kmc-stats, kmc-tournament-engine en alle games (LuckyBlock en TheBridge zijn weg).
+- [ ] WorldEdit staat in `plugins/` (nodig voor Mob Mayhem, Speed Build, schematics).
+- [ ] Server herstarten (niet `/reload`) → console zonder rode regels, elke plugin meldt "enabled".
+- [ ] Heb je een eigen `plugins/KMCCore/host.yml`: het oude `kmc-lore`-blok verwijderd (of het bestand) en `/kmchost reload` gedaan.
+- [ ] `plugins/KMCCore/config.yml` bevat `automation.games-per-round: 1` (een oude server houdt zijn oude waarde).
+- [ ] Console toont `[Cinematic]`/`[LiveApi]`-regels zonder fouten.
 
----
+## 1. Beheer
 
-### N8. Crafting Countdown — grondstoffen halen, craften, inleveren
-Eerst: het oude `plugins/CraftingCountdown/config.yml` krijgt bij het opstarten de nieuwe secties (stapel-typen, recepten, orders); controleer de console op "gather-and-craft". Je arena-gegevens blijven staan, maar stapels van een oud type (`stone`, `nether`) zet je opnieuw. Bouw daarna `/kmctest crafting_countdown`.
-- [ ] `/craftcountdown validate` na de test-arena → "✔ Configuratie is geldig"; haal je alle stapels weg (`pile clear`) → melding "geen stapels".
-- [ ] Arena: 8 inleverpunten (vaten) op de rand, 12 stapels (6 soorten, elk twee keer) in de binnenring, elk met een zwevend label met de voorraad.
-- [ ] Start: titel "VERZAMEL EN CRAFT!", je hebt een **Werkbank**-item in slot 9; elk team ziet zijn bestelling (te craften items) in chat met een regel "Grondstoffen: …", op het bord en in de sidebar.
-- [ ] Werkbank: rechtsklik op het item opent een crafting table; craft bijvoorbeeld fakkels of een kist uit de grondstoffen van de stapels. Het item kun je niet plaatsen of droppen; raak je het kwijt, dan krijg je het binnen 10 s terug.
-- [ ] Rechtsklik op een stapel → menu met de items, voorraad en "je draagt x/160"; een klik kiest wat je mijnt, daarna geeft elk kapotgeslagen blok van die stapel `per-take` items (zeldzame stapels minder). Je hebt een houweel en bijl in je hotbar.
-- [ ] Cooldown: twee keer snel klikken → "nog Xs wachten"; leeg item → melding; boven het maximum dragen → "je draagt al het maximum".
-- [ ] De stapel vult zich aan elke `piles.restock-seconds` aan (label verandert).
-- [ ] Rechtsklik op het inleverpunt van je eigen team → de bestelde **gecraftte** items verdwijnen uit je inventory, bord en sidebar tellen mee voor het hele team; grondstoffen worden niet aangenomen; klik op het inleverpunt van een ander team → melding van wie het is.
-- [ ] Bestelling compleet → opsplitsing in chat (basis + items + snelheid + reeks = totaal), titel `✔ #n +punten`, meteen een nieuwe bestelling; de punten gaan naar wie heeft ingeleverd, naar rato van het aantal items.
-- [ ] Na 3 bestellingen worden ze groter/zeldzamer (3 regels, tier 2; daarna 4 regels en tier 3).
-- [ ] Snel achter elkaar voltooide bestellingen geven een reeks-bonus (+5 per stap, max +25).
-- [ ] De laatste 30 s: titel "LAATSTE FASE", bossbar rood, piepjes de laatste 10 s.
-- [ ] Einde: uitslag per team met bestellingen, items, snelheids- en reeks-punten; opruimen laat geen labels of borden achter; `/craftcountdown stop` midden in het spel ook niet.
-- [ ] `/pause` stopt de klok en de herstock; opnieuw spelen (rerun) geeft geen dubbele punten.
-- [ ] Geen onmogelijke bestellingen: haal het type `rare` weg → geen enchanting tables, diamantpikhouwelen of gouden appels meer in bestellingen; haal `mine` weg → geen fakkels (kolen) of emmers (ijzer).
+### 1.1 Validatie en checklist
+- [ ] `/kmcvalidate` toont per game "geconfigureerd" of wat er mist.
+- [ ] `/kmcvalidate config` toont per bestand "OK" of afwijkingen; `arena.*` / `course.*` / `director` zijn **geen** "onbekende sleutel" meer; een bewuste typefout (`prestart-secnds`) → "bedoelde je 'prestart-seconds'?".
+- [ ] `/kmcchecklist` opent het menu met de standaard-voorbereidingen; klik vinkt af en het blijft bewaard na een herstart.
+- [ ] `/kmcchecklist add <tekst>`, `remove <nr>`, `toggle <nr>`, `reset`, `defaults`, `list` werken.
+- [ ] Config-doctor/validatie in het Validation Center (`/kmcauto` → Event-checklist).
 
----
+### 1.2 Teams en spelers
+- [ ] `/kmcteam` aanmaken, spelers toevoegen/verwijderen, teamgrootte (`teams.max-players-per-team`) wordt gehandhaafd.
+- [ ] `/kmcteam add <naam> <team>` voor iemand die nog nooit online was: Mojang-opzoeking, echte UUID.
+- [ ] `/kmcrandomteams` verdeelt iedereen eerlijk; `/teamprofile` toont alle 8 teams.
+- [ ] Teamkleuren, armor en emblemen (`/kmcemblem`) kloppen overal (tablist, chat, sidebar).
+- [ ] `/kmcbot add 8`, `/kmcbot info`: `invulnerable=false`; staat er `true`, plak de hele regel (hij noemt de "load"-leden van de server). `/kmcbot remove` ruimt op.
 
-### N9. Vier nieuwe games — algemeen (Laser Logic, Blockball, Factory Frenzy, Dungeon Draft)
-Eerst: vier **nieuwe jars** in `plugins/` (`LaserLogic`, `Blockball`, `FactoryFrenzy`, `DungeonDraft`) plus de vernieuwde `KMCCore`, `kmc-game-api` en `kmc-stats`. De games komen vanzelf in de game-lijst van KMCCore (`games.list` in `config.yml` is aangevuld).
-- [ ] `/kmctest list` toont alle vier; `/kmctest laser_logic`, `blockball`, `factory_frenzy` en `dungeon_draft` geven elk "✔ … is klaar om te starten".
-- [ ] `/<cmd> validate` (`/laser`, `/blockball`, `/factory`, `/dungeon`) geeft na de testarena "geldig"; haal je een baan/bord/veld weg, dan staat er wat er mist.
-- [ ] Elke game: intro-kaart met doel + puntenverdeling, flyover, tutorial, aftelling; `/pause` stopt de klok; `/<cmd> stop` midden in het spel ruimt alles op (geen blokken, mobs, borden of bossbars blijven staan).
-- [ ] Een tweede run (rerun) geeft geen dubbele punten; `/<cmd> start dry` boekt geen punten.
+### 1.3 Menu's
+- [ ] `/kmcauto` → setup-menu: aantal games, rondes, pauzes, finale, ready-check, verrassingsgames (0-3), per game aan/uit.
+- [ ] Presets: er zijn geen standaard-presets; "Maak een preset" slaat je instellingen op, kiezen past ze toe, `/kmcauto preset delete <naam>` verwijdert.
+- [ ] `/kmcdirector`: pauze, rerun, finale, dry-run, tijdschatting.
+- [ ] Taalmenu bij de eerste join; na een keuze sluit het menu meteen; `/kmclanguage` werkt.
+- [ ] Tablist (MCC-stijl, teamnamen gecentreerd en vet, `➤` voor je team), sidebar "Top Teams", `/kmchud test` (15 s).
 
-### N10. Laser Logic — spiegels draaien tot de straal de ontvangers raakt
-- [ ] `/kmctest laser_logic`: 8 borden (vloer + emitter, spiegels, ontvangers) op een rij; bij start staat bij elk team een bord.
-- [ ] Rechtsklik op een spiegel draait hem (geluid + deeltjes); de straal volgt meteen (deeltjesbaan, ontvangers lichten op bij een raak).
-- [ ] Het papier in slot 9: eerste hint toont een fout bord-deel, tweede en derde zijn duidelijker; "geen hints"-bonus verdwijnt na een hint.
-- [ ] Een opgelost bord geeft punten + "eerste-bonus" voor het snelste team; daarna komt de volgende puzzel (moeilijker); een puzzel die niet af is verloopt op tijd en het team gaat door.
-- [ ] `/laser puzzle list` en `/laser puzzle show <id>` werken; een eigen puzzel in `config.yml` die onoplosbaar is wordt bij `validate` afgekeurd.
+## 2. Host, lore, teamshowcase, podium, awards
 
-### N11. Blockball — voetbal met een blokbal
-- [ ] `/kmctest blockball`: 4 velden met doelen, middenstip en spawns; teams worden in wedstrijden van 4 tegen 4 gezet (heats/waves bij minder velden dan wedstrijden, "bye" bij oneven aantal teams).
-- [ ] Linksklik schopt de bal, sneak + linksklik (vasthouden) geeft een geladen schot, rechtsklik is een pass; de bal rolt, stuitert tegen muren en blijft binnen het veld.
-- [ ] Een doelpunt: titel, geluid, bal terug op de middenstip na `goal-reset-seconds`, niemand kan in die tijd schoppen.
-- [ ] Gelijkspel gaat naar golden goal (overtime); einde wedstrijd: winst/gelijk/verlies-punten + per doelpunt en assist; teams die niet spelen wachten op het wachtpunt.
-- [ ] ⚠ Voelt de bal goed (snelheid, sleeën tegen een muur)? Noteer wat te snel/te traag is; waarden staan in `config.yml` onder `ball:`.
+### 2.1 De host zelf
+- [ ] `/kmchost setspawn` plaatst hem; hij praat **niet** voor `/kmcauto start`; `/kmchost info` toont `IDLE`.
+- [ ] Rechtsklik vóór de start: menu met alleen "Wat is KMC?", "Hoe werkt het toernooi?" en "Lore"; tekst alleen voor jou.
+- [ ] `/kmchost test` toont een paar regels boven zijn hoofd (alleen voor jou); lange zinnen splitsen aan het einde van een zin, nooit midden in een zin.
+- [ ] Hij is onkwetsbaar: een vuist in creative, `/kill` en vallen doen niets; verdwijnt hij toch, dan staat hij binnen 10 s terug.
+- [ ] Hij loopt niet van het platform of door muren en staat aan het eind weer op zijn plek.
+- [ ] Bubbel: hoogte goed (`host.npc.dialogue-height`), leesbaar op afstand, met 32 spelers geen lag.
+- [ ] Skin: `/kmchost skin <naam>` en de rank-NPC's dragen de skin van de speler op die plek (1e, 5e, ...), ook offline spelers.
 
-### N11b. Blockball — keepers
-- [ ] Bij de start van een wedstrijd: chat "Keeper van <team>: <naam>" voor beide teams; de keeper krijgt de titel "Jij bent de keeper". Na de wedstrijd krijgt iemand anders de keeper-rol bij het volgende duel (rotatie).
-- [ ] Buiten het eigen doelgebied (6 blokken rond het doel) gedraagt de keeper zich als veldspeler; erbinnen schopt hij verder (+1,4 bereik).
-- [ ] Rechtsklik in het gebied bij een langzame bal → "Gevangen!"; de bal volgt zijn handen; linksklik gooit, rechtsklik rolt; na 5 s of bij het verlaten van het gebied laat hij los.
-- [ ] Een geladen schot (sneak + linksklik van een tegenstander) kan niet gevangen worden maar wel weggeslagen met linksklik ("punch").
-- [ ] Een gestopt schot op zijn doel geeft de titel "REDDING!" en `points.save`; hetzelfde schot twee keer in dezelfde tick geeft niet dubbele punten.
-- [ ] Een bal die vastgehouden wordt telt nooit als doelpunt, ook niet in het doel; tegenstanders kunnen hem niet pakken.
-- [ ] ⚠ Voelt het eerlijk? Te sterk als een keeper alles kan vangen: verlaag `keeper.catch-max-speed` of `reach-bonus`.
+### 2.2 Alles met de host testen (zonder toernooi)
+Elk commando speelt dat onderdeel met testdata waar echte data ontbreekt; `/kmchost skip` stopt hem.
+- [ ] `/kmchost lore` (verhaal: neergestort op een eiland, stoelen = teamgrootte, camera + lopende host + hartslag).
+- [ ] `/kmchost opening`, `rules`, `overview`, `teams` (met team-intro), `lineup`.
+- [ ] `/kmchost results`, `standings`.
+- [ ] `/kmchost finale`, `third`, `second`, `champion`, `awards` (de host staat naast het podium als dat er is).
+- [ ] `/kmchost podium` zet hem een moment op het podium en weer terug.
+- [ ] `/kmchost intro <game>` toont de volledige introductie (lore, regels, besturing, punten, speelduur) van een game.
+- [ ] `/kmchost dialogue <id>`, `announce <tekst>`, `enable`/`disable`, `reload` (meldt waarschuwingen in host.yml).
 
-### N12. Factory Frenzy — grondstoffen, machines, bestellingen
-- [ ] `/kmctest factory_frenzy`: 8 fabrieken; bij start staan er stations (grondstoffen), machines (ovens/…), een bord en een goudblok om in te leveren.
-- [ ] Rechtsklik op een station → grondstoffen in je inventory (cooldown, maximum, voorraad loopt leeg en vult zich aan).
-- [ ] Rechtsklik op een machine → menu: "Alles invoegen", "Output ophalen", "Invoer terugnemen"; de machine werkt een tijd en meldt "klaar"; een machine met vol outputvak staat op "geblokkeerd".
-- [ ] Rechtsklik op het goudblok levert producten in; een volledige bestelling geeft punten (gesplitst over wie heeft ingeleverd) + deadline-bonus; een deels afgeleverde bestelling blijft staan; de volgende bestelling is moeilijker.
-- [ ] Een andere fabriek of ander team zijn machine aanklikken → "dit is de fabriek van …"; items van een vorige run (andere `runId`) werken niet.
-- [ ] Einde: uitslag per team met bestellingen, efficiëntie; alle blokken en borden zijn weg.
+### 2.3 Lore en opening (`/kmcauto start`)
+- [ ] De lore speelt eerst: titel NEERGESTORT, fly-over, lopende en springende host, hartslag, bliksem bij "HET TOERNOOI BEGINT!".
+- [ ] Zet de teamgrootte op 3: "drie stoelen"; een regel met `{editions}`/`{last_champion}` valt weg zonder edities.
+- [ ] Daarna direct de teamshowcase, dan opening, spelregels, rondes & punten en de game-lineup (kaarten zonder ondertitel, juiste aantallen).
+- [ ] Taalbericht na de lore: nette kaart, twee klikbare regels, geen actionbar eroverheen.
+- [ ] `/kmcauto skip` slaat lore/opening over en gaat naar de tussenpauze; `/kmcauto stop` ruimt alles op (geen camera die blijft hangen).
+- [ ] Een tweede `/kmcauto start` tijdens de sessie doet niets extra.
+- [ ] De afteltijd naar het stemmen begint pas als de host is uitgesproken.
 
-### N13. Dungeon Draft — draft je route door de dungeon
-- [ ] `/kmctest dungeon_draft`: 8 banen, per baan een wachtruimte en negen kamers op 14 blokken afstand; parkour-kamers hebben stenen met gaten.
-- [ ] Start: draft-menu met drie opties (type, moeilijkheid, beloning, risico, stemmen); klik = stem (✔ bij jouw keuze); niemand kiest → na `draft-seconds` een willekeurige optie; iedereen gestemd → meteen door.
-- [ ] Gevecht: golven mobs, de kamer is klaar als alle golven dood zijn; mobs laten geen drops achter.
-- [ ] Parkour: vallen kost teamgezondheid en zet je terug bij het checkpoint; finish voor `required` spelers = klaar.
-- [ ] Valkuil: gele vloer + rode deeltjes waarschuwen, daarna schade; druk beide goudblokken in = klaar. Schat: kisten (sommige bevallen) geven munten. Puzzel: lichtjes tonen de volgorde, fout = opnieuw + schade.
-- [ ] Teamgezondheid op = "extra leven" (één keer) en daarna "RUN MISLUKT"; de baas heeft telegraaf-slagen (rode cirkel) en roept hulp op bij 50%.
-- [ ] Draft-menu: genees het team of koop een extra leven met munten; de laatste kamer is altijd de baas.
-- [ ] Einde: uitslag per team (kamers, baas, kisten, gezondheid, tijd); alle mobs, bossbars en markeerblokken zijn weg.
-- [ ] Eigen modus testen: `health.mode: INDIVIDUAL` en `dungeon.vote-mode: LEADER` in `config.yml`, `/dungeon reload`.
+### 2.4 Teamshowcase en podium
+- [ ] `/kmcpodium set` bouwt goud/ijzer/koper; `/kmcpodium test` zet je op plek 1.
+- [ ] Showcase: flyover over het podium, daarna elk team samen bovenop de gouden kolom (kijkt naar de camera), de host staat in het midden erachter, teams worden niet dubbel genoemd.
+- [ ] Teams > 9 spelers vallen terug op een rij; zonder podium werkt de oude opstelling.
+- [ ] Na de showcase staat iedereen weer waar hij stond.
 
----
+### 2.5 Uitslag en awards
+- [ ] Finale-aankondiging komt ná de leaderboard-animatie; 3e, 2e en kampioen staan echt op het podium; de rest kijkt via een camera.
+- [ ] Slotceremonie toont de echte winnaar, MVP en records.
+- [ ] Awards: dezelfde podium-camera, vuurwerk boven het podium, host in beeld, echte data.
+- [ ] Fan Favorite-GUI past voor 32+ spelers; credits, feedback en reset lopen netjes door.
+- [ ] Na het einde staat de host weer op zijn eigen plek (`/kmchost info`).
 
-### N14. KMC Host — presentator met tekst boven zijn hoofd
-Eerst: nieuwe jars `KMCCore`, `kmc-core` (nieuwe objective-types) en `kmc-game-api`. Bij het opstarten schrijft KMCCore `plugins/KMCCore/host.yml`; controleer de console op "host.yml:"-waarschuwingen (onbekende placeholders). Zet de host neer met `/kmchost setspawn`.
-- [ ] **Stil vóór de start**: server herstarten, joinen, `/kmchost setspawn` → de host staat er, praat niet en geen enkele tekst verschijnt. `/kmchost info` toont `IDLE`.
-- [?] Pre-start van een game: de host noemt de game, het doel en sluit af met een zin; wat hij zegt klopt met de game (doel/punten uit de game zelf). Duurt langer dan de countdown? Dan wordt de speech ingekort, niet afgebroken.
-- [ ] `/kmchost intro blockball` (en de andere drie nieuwe games) → volledige introductie: lore, regels, besturing, puntentelling, speelduur. Klopt alles met hoe de game echt werkt?
-- [ ] Tijdens een game: doelpunt (Blockball), puzzel (Laser Logic), bestelling (Factory Frenzy), kamer/baas (Dungeon Draft) geeft een korte opmerking; niet vaker dan elke ±8 s; spelers die ver van de host staan zien de tekst in hun action bar.
-- [ ] `/pause` midden in een game: geen nieuwe live-opmerkingen tot `/resume`.
-- [ ] Na een game: eerst jouw score-uitsplitsing/ledger klopt, dan zegt de host de winnaar (echte naam), beste speler en daarna na de leaderboard-animatie de tussenstand; wisseling aan de top levert "wissel aan de top" op, een kleine voorsprong "spannend", geen verzonnen verschillen.
-- [ ] Finale: aankondiging met de echte finalisten; podium 3e → 2e → kampioen met de echte teamnamen en punten; daarna awards (alleen als er een winnaar is).
-- [ ] Einde van de end-sequence: `/kmchost info` → `IDLE`; de host zegt niets meer tot de volgende `/kmcauto start`.
-- [ ] `/kmcauto stop` midden in een speech: de bubble verdwijnt direct, er komt niets meer uit, ook niet later.
-- [ ] `/kmchost skip` slaat de huidige speech over; `/kmchost announce hallo` laat hem iets zeggen (ook in IDLE); `/kmchost disable` → hij blijft stil, `enable` zet hem weer aan.
-- [ ] `/kmchost reload` herlaadt host.yml; daarna geen dubbele bubbles of dubbele speeches; een kapotte regel in host.yml geeft een waarschuwing, geen crash.
-- [ ] Cutscene-focus: bij de finale-aankondiging en het kampioen-moment zoomt de camera rustig in op de host terwijl hij praat en zet iedereen daarna terug (gamemode en plek goed). Nooit midden in een game, en niet als er al een route (`/kmcpresentation`) speelt.
-- [ ] Eigen route: neem `host-champion` op met `/kmccamera`; bij de kampioen-onthulling speelt die eerst, daarna praat de host. Zonder route gebeurt er niets extra.
+## 3. Toernooiverloop
 
-### N16. Rank-NPC's beheren via /kmclobbynpc
-- [ ] `/kmclobbynpc rank set 1` (en 2, 3 ...) zet een rank-NPC neer; `/kmclobbynpc list` toont ze met de plek; tab-aanvulling werkt.
-- [ ] Sta naast een rank-NPC en gebruik `/kmclobbynpc rank remove here` → hij (en zijn tekst) verdwijnt binnen 4 blokken; ook een NPC die het systeem niet meer kent verdwijnt.
-- [ ] `/kmclobbynpc rank remove 3` en `... remove own` werken; `/kmclobbynpc rank clean` ruimt losgeraakte rank-NPC's op (bijvoorbeeld na een /reload).
-- [ ] `/kmclobbynpc despawnall` haalt de lobby-NPC's én alle rank-NPC's weg; na een herstart komen ze niet terug.
-- [ ] `/kmcnpc rank ...` werkt nog steeds (zelfde beheer), nu ook met `remove here` en `clean`.
+- [ ] Start → (lore) → showcase → opening → eerste tussenpauze → stemmen (`/kmcvote`) → pre-start → game.
+- [ ] Verrassingsgames: aantal in het menu, willekeurig gekozen, `???` bij het stemmen en in de lineup, onthuld bij de beurt; de uitleg verschijnt na de onthulling.
+- [ ] Pre-start: host noemt game, doel en sluit af; de uitlegkaart in de chat toont doel, "zo werkt het" en punten (ook Laser Logic en Factory Frenzy).
+- [ ] Na een game: score-uitsplitsing → GG-knop → leaderboard-animatie → pas dan "Halverwege" en "Tussenpauze" met timer.
+- [ ] "Jouw game": `Je werd #X/32 | je team werd #Y/8` met echte aantallen; tab-punten = sidebar-punten = uitsplitsing (inclusief multiplier).
+- [ ] Multipliers per ronde kloppen; Golden Hour verschijnt maar één keer en pas bij de eerste echte game van die ronde.
+- [ ] Halverwege-pauze, ready-check (`/kmcready`), pauze (`/pause`, `/resume`, `/pause now`), rerun, dry-run zonder punten.
+- [ ] Finale (Dodgebolt, top 2, best-of-3), daarna het eindscherm.
+- [ ] Een uitgeschakelde of overgeslagen game wordt netjes vervangen (`pickNextReadyGame`).
+- [ ] `/event simulate 3 16` draait de echte pipeline: teams én persoonlijke punten, daarna reset (alleen op een testserver!).
+- [ ] Team-bonuspunten (TGTTOS, Formula, Adventure Escape) gaan naar het team en staan niet bij de persoonlijke punten.
+- [ ] Achievements: tab per categorie (L), toasts, vanilla-advancements verborgen, `/kmcachievements`.
+- [ ] Scoreboard/ledger: `ledger.csv` klopt met de tablist; `/kmcseason` en edities in het archief.
 
-### N15. Config-doctor
-- [ ] `/kmcvalidate config` toont per bestand "OK" of de afwijkingen; maak in een game-config bewust een typefout (`prestart-secnds`) → melding met "bedoelde je 'prestart-seconds'?".
-- [ ] Een negatieve duur, een kans boven 1 of `min` boven `max` wordt gemeld; een nieuw team onder `teams:` of een negende ronde onder `tournament.multipliers` geeft GEEN melding.
-- [ ] Verwijder een game-jar uit `plugins/` en laat het id in `games.list` staan → "geen game-plugin geladen voor dit id".
-- [ ] Maak een bestand ongeldige YAML (inspringfout) → fout "geen geldige YAML"; `/kmcauto start` wordt dan geblokkeerd. Andere afwijkingen blokkeren niet.
-- [ ] `plugins/KMCCore/config-doctor.txt` bevat de volledige lijst; `/kmcvalidate` (GUI) toont het onderdeel "Configuratie".
+## 4. Games
 
-
-### N17. Fixes van testronde 14 oktober
-- [?] Game-kaarten in de lineup hebben geen ondertitel meer; de chat en de titel vallen niet meer over elkaar. De host-actiebalk komt alleen tijdens een game bij live-opmerkingen.
-- [ ] Finale: de aankondiging komt ná de leaderboard-animatie en niet er middenin; de intermission start daarna.
-- [ ] Slotceremonie toont de echte winnaar (geen "(winner)" meer).
-- [ ] Nieuw toernooi (`/kmcauto start`): het KMC-boek van het vorige toernooi verdwijnt uit de inventory.
-- [ ] `/event simulate`: ook jouw eigen punten (en die van bots) lopen mee, niet alleen de teampunten.
-- [ ] `/kmcteam add <naam> <team>` voor iemand die nog nooit online was: Mojang-opzoeking, daarna zit hij in het team met zijn echte UUID.
-- [ ] Teamshowcase: alle teamleden staan op een rij, kijken naar de camera en blijven staan tot hun beurt voorbij is.
-- [ ] Podium: `/kmcpodium set` (kijk naar de toeschouwers) bouwt goud/ijzer/koper; bij de uitslag staan 3e, 2e en kampioen er echt op en kijkt de rest via een camera. De chat-podium is weg.
-- [ ] Advancements: vanilla-advancements geven geen toast meer; per categorie een eigen tab met achtergrond en rarity-secties; `plugins/KMCCore/vanilla-advancements.yml` bevat de regels om de vanilla-tabs in spigot.yml weg te halen.
-- [ ] Team-bonuspunten (TGTTOS, Formula MC, Adventure Escape) gaan naar het team en staan niet meer bij de persoonlijke punten.
-- [ ] `/kmctest blockball`, `/kmctest rocket_rush` en `/kmctest block_party` melden meteen "klaar om te starten".
-- [ ] Bots: `/kmcbot info` toont `clientLoaded=true` en `invulnerable=false`; bots kunnen geslagen worden en krijgen schade in alle zes de arcade-games.
-- [ ] Na elke spawn kijken spelers naar het midden van de arena; na stop/einde zijn glow, vuur, snelheid, vlucht, titel en actiebalk weg.
-- [ ] Arcade-sidebars: dun streepje bovenaan, game-regels, dan TEAM met teampunten en jouw punten (zelfde woorden in elke game).
-- [ ] Laser Logic en Factory Frenzy: voor de start staat een kaart met doel, "zo werkt het" en punten in de chat.
-- [ ] Core Charge: boven elk station zweeft hoe lang er nog opgeladen moet worden (balk + seconden); wie in de zone staat ziet het ook in de actiebalk.
-- [ ] Crafting Countdown: je hebt een houweel, bijl en Werkbank in je hotbar; rechtsklik op een stapel kiest wat je mijnt, het blok kapotslaan geeft de grondstof.
-- [ ] Formula MC: de klok loopt met honderdsten (bossbar tijdens de race, actiebalk in qualifying); je kunt meerdere qualifying-rondes rijden en de snelste telt; resterende tijd wordt gemeld.
-- [ ] Formula MC: een boot waar je tegenaan rijdt verdwijnt kort voor je (geen botsing meer, ook niet tegen stilstaande boten).
-
-### N18. KMC-lore: de host vertelt het verhaal bij de start
-Voorbereiding: host geplaatst (`/kmchost setspawn`), jij staat op 5-15 blokken afstand; `/kmcauto start` met minstens 2 spelers.
-**Eerst:** staat er een eigen `plugins/KMCCore/host.yml` op de server, verwijder daar dan het oude `kmc-lore`-blok (en de regels in `how-it-works` en `finale-champion` over de stoelen) of het hele bestand, daarna `/kmchost reload`. Anders hoor je de oude lore.
-- [ ] Wacht tot de opening klaar is: pas daarna begint de tussenpauze ("Volgende game wordt gekozen over ...") en dus de afteltijd naar het stemmen. De host praat daar niet meer doorheen.
-- [ ] `/kmcauto skip` tijdens de lore slaat hem over (camera stopt, host staat weer op zijn plek) en gaat naar de tussenpauze; `/kmcauto stop` ruimt alles op, geen camera blijft hangen.
-- [ ] `/kmchost lore` speelt alleen de lore (zonder toernooi); `/kmchost skip` stopt hem. `host.lore-intro.enabled: false` slaat hem over; `host.scene.enabled: false` laat de host stilstaan.
-- [Beetje] Muren of een laag plafond: de camera blijft vóór de muur en de host loopt niet door blokken.
-
-### N19. Eén podium voor host, teamshowcase en awards
-Voorbereiding: `/kmcpodium set` is gedaan (kijk naar de toeschouwers) en de host is geplaatst.
-- [ ] Vanaf `/kmcauto start` staat de host naast het podium (links van de 2e plek, kijkt naar het publiek) en blijft daar voor de lore, opening, teamshowcase, finale en awards. Zonder podium blijft hij op zijn eigen plek.
-- [ ] Teamshowcase: elk team staat samen bovenop de gouden kolom (rijen van max. 3, kijkt naar de camera), de camera kijkt vanaf het publiek; daarna weer terug. Teams > 9 spelers vallen terug op een rij.
-- [ ] Uitslag en awards: dezelfde camera en hetzelfde podium; bij elke award een vuurwerk boven het podium en de host staat in beeld.
-- [ ] Na `/kmcauto stop` of het einde van het eindscherm staat de host weer op zijn oorspronkelijke plek (`/kmchost info` toont `placed: true`).
-- [ ] `host.podium.host-on-podium: false` laat de host op zijn eigen plek.
-
-### N20. Testronde 15 oktober: fixes en nieuwe dingen
-**Eerst:** verwijder het oude `kmc-lore`-blok uit je eigen `plugins/KMCCore/host.yml` (of het bestand) en `/kmchost reload`; deploy alle jars opnieuw (KMCCore, kmc-game-api en de aangepaste games).
-- [ ] `/kmcbot add 4`, dan `/kmcbot info`: `invulnerable=false`; staat er nog `invulnerable=true`, plak dan de hele regel (hij noemt nu alle "load"-leden van de server).
-- [ ] De host kun je niet meer doden, ook niet met een vuist in creative; verdwijnt hij toch, dan staat hij binnen 10 s terug.
-- [ ] Bubbel: een zin wordt niet meer midden in doorgeknipt; past hij niet op de pagina, dan komt de hele zin op een nieuwe bubbel.
-- [ ] De host loopt in de lore niet meer van het platform af (hij stopt voor een rand of muur).
-- [ ] Camera (lore, showcase, podium) loopt vloeiender; blijft hij haperen, noteer waar (welke shot).
-- [ ] Na de lore volgt direct de teamshowcase: eerst een flyover over het podium, dan elk team samen bovenop de gouden kolom, de host staat in het midden erachter. Daarna opening, spelregels, overzicht en game-lineup.
-- [ ] Taalkeuze staat nu aan het begin van de eerste fase (na de lore).
-- [ ] `/kmcauto start`-menu: geen standaard-presets meer; "Maak een preset" slaat je huidige instellingen op onder een naam die je typt; `/kmcauto preset delete <naam>` verwijdert er een.
-- [ ] `/kmcchecklist` opent de checklist: klik om af te vinken (blijft bewaard in `checklist.yml`), `add <tekst>`, `remove <nr>`, `reset`, `defaults`.
-- [ ] Game-kaarten in de lineup en de pre-game-kaart tonen voor Laser Logic en Factory Frenzy beschrijving, doel en punten (komt nu ook uit host.yml `games.<id>.description/objective`). Zie je nog niets: noteer wat er precies staat bij "GAME n / m".
-- [ ] TGTTOS: iedereen start naast elkaar op de eerste map, ook als er meer spelers dan startpunten zijn. ↻ Wat bedoelde je met "met alle spelers tegelijk"? Noteer wat je ziet.
-- [ ] Spectator na een dood (Mob Mayhem e.a.): je kunt vliegen, ziet iedereen en kunt geen mobs of spelers raken; je staat waar je overleed.
-- [ ] Mob Mayhem: de eerste 3 waves zijn voor elk team gelijk (geen modifiers, geen baby-zombies) en er lopen geen oude mobs rond bij de start.
-- [ ] TNT Tag: Double Trouble geeft meteen extra bommen (minstens 2 erbij); de decoy rent binnen een vierkant van 3×3 rond.
-- [ ] Dodgebolt: trekken aan de boog vóór de ronde start kost geen pijlen meer.
-- [ ] Rising Inferno: de lava is nu zichtbaar als een magma-oppervlak (naast de deeltjes) en stijgt mee.
-- [ ] Formula MC: je zakt of glitcht niet meer door andere boten; ze worden niet meer in "no physics" gezet.
-- [ ] Plek bij uitschakeling: Spleef, SkyWars, Survival Games, TNT Tag en Block Party tonen "(36)", "(35)", …; Parkour toont "#n" bij finishen.
-- [ ] `/kmcapi start` toont de URL, en meldt waarom het niet start (poort bezet/bind) of dat 127.0.0.1 alleen op de servermachine zelf werkt.
-
-## A. Bouwen, deployen, opstarten
-
-- [is niet nodig] `/kmcauto start` vanuit de console → start meteen, zonder menu.
-
-## D. Gedeelde systemen (steekproef in 2-3 games)
-
-- [ ] **Start- en eindgeluid:** bij het begin van een game een pling, bij het einde een stinger; een eigen `sounds.game-start` in een game-config wijzigt toonhoogte/volume.
-- [ ] **Kroon verspringt** naar de nieuwe leider binnen ~1 game.
-- [ ] **Koploper-flits:** bij 0-0 knippert de sidebar-titel niet; als team B team A inhaalt, flitst "⬆ NIEUWE KOPLOPER" ~3 s, met geluid en chatbericht.
-- [ ] **Comeback-bonus:** team ≥100 punten achter → hun punten zijn ×1.25, zelfde bedrag voor speler én team; een team dat niet laatste is krijgt het gewone bedrag.
-- [ ] **Assist-punten (SkyWars):** A slaat B, B slaat A, C maakt A af → C krijgt kill minus 20%, B krijgt de assist (20%). Een hit van >10 s geleden telt niet.
-
-## E. Regie (golf 1)
-
-- [ ] `/kmcauto preset …` en `/kmcauto dryrun` → een korte cyclus draait **zonder punten te boeken**.
-- [ ] `/kmcauto games` en `/kmcauto time` → aantal games en tijdschatting kloppen met het startmenu.
-- [ ] Team ready-check → iedereen moet bevestigen voor de start.
-- [ ] `/pause` midden in een game → wacht tot het veilig is, timers staan stil; `/resume` hervat. ⚠ Test dit in minstens één arcade-game en in Block Party.
-- [ ] `/pause` **tijdens de score-uitsplitsing/leaderboard** → de tussenpauze begint pas na `/resume`, niet dubbel.
-- [ ] `/kmcauto rerun` → punten van de game worden teruggedraaid en de game wordt opnieuw gespeeld.
-- [ ] Director-GUI (`/kmcauto director`) opent en de knoppen doen wat ze zeggen.
-- [ ] Finale (top 2): Dodgebolt start, best-of-3 alleen als finale, team-eliminatie, einde sluit het toernooi netjes af.
-- [ ] Automatic Overtime bij gelijkspel in QuakeCraft.
-- [ ] `/kmcvalidate` meldt een ontbrekende arena of spawn.
-
-## F. Punten en data (golf 2)
-
-- [ ] Na een game: `ledger.csv` bevat elke award.
-- [ ] Einde van het event: archief, podium, awards, credits, feedback, statsboek, reset (`/kmcauto skip` slaat over).
-- [ ] `/kmctrack` toont baanrecords, `/kmcseason` het seizoen, `/kmcfeedback` neemt een bericht aan.
-- [ ] `/kmctournament status` na een volledig toernooi: event-nummer +1, punten op 0.
-
-## G. Presentatie (golf 3)
-
-- [ ] `/kmcnpc rank set 1..10` en `rank own` → rank-NPC's tonen top 10 en jouw eigen plek.
-- [ ] `/kmcnpc presenter set`, daarna `presenter say <tekst>` → presenter praat.
-- [ ] Intro-FX van een game, leaderboard-animatie met pijltjes, houten lepel (bij 3+ teams), teamjingles.
-- [ ] Chat is dicht tijdens uitleg en ceremonie, **ook voor OP**.
-- [ ] GG-knop klikbaar na een game.
-- [ ] Flyovers lopen vloeiend, geen ruk bij waypoints.
-
-## H. Games
-
-Per game: `/kmctest <gameId>` (arena + config in één keer) of de eigen setup, dan `/<cmd> start`.
+Per game: `/kmctest <gameId>` (testarena + config in één keer) of de eigen setup, dan `/<cmd> start [dry]`. Voor alle games:
+sidebar in dezelfde stijl (game-regels, dan "Jouw Team" met teampunten en jouw punten), uitleg-kaart voor de start,
+plek bij uitschakeling `(36)`, `(35)`, … waar je kunt afvallen, `/pause` stopt de klok, `/<cmd> stop` ruimt alles op.
 
 ### Block Party
-Setup: `/blockparty pos1`, `pos2` (blok waar je OP staat), `spectator`, `voidy`, `status` → "klaar ✓".
-- [ ] Niet-teamspelers in de arena worden niet meegenomen.
-- [ ] Zelfde kleur nooit twee rondes achter elkaar; de doelkleur heeft altijd genoeg blokken voor iedereen.
-- [ ] Vanaf ronde 5: chaos-events, o.a. "⇄ MIRROR" (doelkleur is dodelijk), Double/Fake/Colour-Blind/Rapid-Fire.
-- [ ] Laatste seconde nog op de kleur stappen → "⚡ CLUTCH SAVE".
-- [ ] Niemand valt door de void tijdens countdown/grace; vloer is al geverfd bij de landing.
-- [ ] Punten: 1e ≈ 250 + 10 per overleefde ronde, daarna volgens `config.yml`; de intro-kaart noemt hetzelfde.
-- [ ] Vloer wordt na de game gereset.
+- [ ] Setup: `/blockparty pos1/pos2/spectator/voidy/status` → "klaar ✓"; niet-teamspelers worden niet meegenomen.
+- [ ] Zelfde kleur nooit twee rondes achter elkaar; de doelkleur heeft altijd genoeg blokken; ronde 1 gebruikt alleen geel/wit/grijs/zwart (of `presetfloor`).
+- [ ] Doelkleur via titel + bossbar + actionbar + chat; kleurblok in slot 5 en vast; "VERDWIJN!" op 0.
+- [ ] Vanaf ronde 5 chaos-events (Mirror, Double, Fake, Colour-Blind, Rapid-Fire); "⚡ CLUTCH SAVE" in de laatste seconde.
+- [ ] Niemand valt door de void in countdown/grace; vloer geverfd bij de landing en na de game gereset.
+- [ ] Uitschakeling toont de plek in de chat; punten 1e ≈ 250 + 10 per ronde en de uitlegkaart noemt hetzelfde.
 
-### TGTTOS V2
-Setup: `/kmcsetup` → TGTTOS, minstens 1 map.
-- [ ] Start met ≥4 spelers → "5 maps", Map 1/5.
-- [ ] Eerste finishers krijgen medailles, nog **geen** KMC-punten.
-- [ ] 50% klaar → "HELFT VAN HET VELD IS GEFINISHT" + 2 minuten bossbar-aftelling; finishen telt nog mee.
-- [ ] Op 0:00 → DNF zonder punten; heel veld klaar → map eindigt meteen; niemand op 50% → `max-map-seconds` dwingt de aftelling.
-- [ ] Na map 5: EINDUITSLAG top-5, KMC-punten één keer, terug naar lobby.
-- [ ] "🌫 FOG OF WAR" verschijnt af en toe (15%) en maakt het zicht echt donker.
-- [ ] Voorlaatste krijgt Speed II en dat verhuist als iemand anders laatste wordt.
-- [ ] Bossbar "🏁 naam" toont de leider; actionbar toont "👑 KOPLOPER" of "-Xm".
+### TGTTOS
+- [ ] Setup via `/kmcsetup`, minstens 1 map; start met ≥4 spelers → "5 maps".
+- [ ] Iedereen start naast elkaar op de eerste map (ook bij meer spelers dan startpunten). ↻ Wat bedoelde je met "met alle spelers tegelijk"? Noteer wat je ziet.
+- [ ] Eerste finishers krijgen medailles; KMC-punten pas aan het einde; 50% klaar → aftelling van 2 minuten; DNF zonder punten.
+- [ ] Fog of War (15%), Speed II voor de voorlaatste, bossbar met de leider, actionbar "KOPLOPER" of "-Xm".
+- [ ] Einduitslag top-5, team-finishbonus naar het team, terug naar de lobby.
 
 ### TNT Tag
-- [?] Final Showdown (2 spelers) neemt het krimpen over; nieuwe game start met volle border.
+- [ ] Setup via `/kmcsetup`; bom doorgeven door te raken; nieuwe game start met volle border.
+- [ ] Chaos-events: Low Gravity, Speed Frenzy, Darkness, Tracker Failure, Teleport Madness, Shrinking Arena; **Double Trouble geeft meteen minstens 2 extra bommen**.
+- [ ] Powerups; de **decoy** rent binnen een vierkant van 3×3 rond en laat een klap verloren gaan.
+- [ ] Final Showdown (2 spelers) neemt het krimpen over; uitschakeling toont de plek `(n)`.
 
 ### Survival Games
-- [ ] "🍗 THE FEAST" één keer, kist verschijnt boven het midden met duidelijk betere loot; `feast-enabled: false` → geen kist.
+- [ ] Kisten vol loot, supply drops (lichtstraal + kist), "🍗 THE FEAST" één keer; kisten openen pas als het spel begint.
+- [ ] Deathmatch aan het eind; assist-punten; uitschakeling toont de plek `(n)`.
 
-### Mob Mayhem
-Setup: `/mm status` → template-wereld ✔, spawn ✔, ≥4 mob-spawns. `/mm pos1/pos2` slaat hele blokken op en weigert buiten de template-wereld.
-- [?] Je staat in een **gekloonde** wereld `mm_game_<team>_<random>`, niet in de template.
-- [ ] ↻ **Nog open (werkte niet):** Meerdere waves achter elkaar; sterven → spectator, kan niet meer slaan.
-- [?] `/mm stop` → gekloonde wereld wordt verwijderd, geen `mm_game_*` map over.
-- [ ] Achievements: wave 10 → `survivor`, wave 5 zonder dood → `untouchable`, bossmob → `boss_slayer`.
+### SkyWars
+- [ ] Eilanden per team, kisten pas open na de start, void-kills; assist-punten; deathmatch; plek bij uitschakeling.
+
+### Spleef
+- [ ] Vloer breken geeft punten, vallen = eruit met plek `(n)`; laatste overlevende wint; arena wordt hersteld.
+
+### QuakeCraft
+- [ ] Railgun, powerups, hologram-decoy (de railgun pakt hem, geen kill), respawn met bescherming, automatische overtime bij gelijkspel.
+
+### Bingo
+- [ ] Kaart met opdrachten; rij/kolom/volle kaart geeft punten; tegenstanders zien jouw voortgang niet; einde na de tijd.
 
 ### Speed Build
-Nodig: 10 `.schem` in `plugins/KMCCore/schematics/`. Setup: `/speedbuild anchor`, `spawn`, `addbuild …` ×10, `status` → 10/10.
-- [ ] Start → elke speler in eigen slot, blauwdruk ernaast.
-- [ ] Hotbar: GROEN = klaar, ROOD = blauwdruk opnieuw, GOUD = einde (alleen bij build 10).
-- [ ] GROEN toont nauwkeurigheid % + punten; builds gaan op volgorde; buiten je slot bouwen kan niet.
-- [ ] Zelfde bouwsel twee keer → identiek %.
-- [ ] Eindoverzicht klopt; punten landen bij speler én team.
+- [ ] 10 `.schem` in `plugins/KMCCore/schematics/`; elke speler eigen slot met blauwdruk; GROEN = klaar (toont %), ROOD = opnieuw, GOUD = einde.
+- [ ] Zelfde bouwsel geeft hetzelfde %; buiten je slot bouwen kan niet; eindoverzicht klopt, punten bij speler én team.
 
 ### Hole in the Wall
-- [ ] `/hitw testwall` toont een testmuur; events (bv. snelheid) werken.
+- [ ] `/kmctest hole_in_the_wall`: muren met gaten, vallen = eruit, plaatspunten per ronde; legenda met Rood=West, Blauw=Zuid, Geel=Oost, Groen=Noord.
+- [ ] `/hitw testwall`, events (tempo), wanden vanuit de goede kant.
 
-### Formula MC (rest, zie ook N5)
-- [ ] Andere racers zichtbaar binnen 10 blokken; `/fmc cam` flyover.
-- [ ] ⚠ Boost pad en item box geven écht snelheid (server-`setVelocity` op boten is onzeker); stun en schild werken.
+### Dodgebolt (finale)
+- [ ] Alleen als finale (top 2), best-of-3; boog en pijlen per platform; trekken aan de boog **voor** de ronde kost geen pijl; pijl = eruit, val = eruit.
+- [ ] Pijlen die blijven liggen kunnen weer opgepakt worden; team-eliminatie beslist de ronde.
+
+### Elytra Endrium
+- [ ] Parcours met ringen, boost, finish-cam en baanrecord (`/kmctrack`); finishers krijgen `#n`; `/kmctest elytra_endrium`.
+- [ ] Grace-periode na de eerste finisher; val = respawn bij checkpoint.
+
+### Parkour Warrior
+- [ ] Stages en checkpoints in volgorde, skip-regels, finish toont `#n`, finish-cam en baanrecord; `/kmctest parkour_warrior`.
+
+### Adventure Escape
+- [ ] Race over meerdere ronden (laps), checkpoints, finishers `#n`, team-bonus naar het team, finish-cam.
+
+### Mob Mayhem
+- [ ] Setup: `/mm status` → template-wereld ✔, spawn ✔, ≥4 mob-spawns; `/mm pos1/pos2` slaat hele blokken op en weigert buiten de template-wereld.
+- [ ] Je staat in een **gekloonde** wereld `mm_game_<team>_<random>`; `/mm stop` ruimt hem op, geen `mm_game_*` map over.
+- [ ] Eerste 3 waves zijn voor elk team gelijk (geen modifiers, geen baby-zombies); er lopen geen oude mobs rond bij de start.
+- [ ] Meerdere waves achter elkaar; dood → spectator: je vliegt, raakt niets en kunt niet meer slaan. ↻ vorige keer werkte dit niet.
+- [ ] Powerups (`/mm addpowerupspawn`), achievements (wave 10, untouchable, boss_slayer), boss-wave.
+
+### Formula MC
+- [ ] `/kmctest formula_mc`: kwalificatie → pole → race; ronde-detectie, checkpoints, snelste-ronde-bonus; vastzittende boot wordt teruggezet.
+- [ ] Klok met honderdsten (bossbar in de race, actiebalk in qualifying); meerdere qualifying-rondes, de snelste telt, resterende tijd wordt gemeld.
+- [ ] ↻ Je glitcht niet meer door/tegen andere boten (ook niet tegen stilstaande boten van bots); hou je dat nog, maak dan een video.
+- [ ] **Een stap van 1 blok omhoog lukt met je boot, ook op ijs.**
+- [ ] Boost pad en item box geven echt snelheid; stun en schild werken; `/fmc weather rain`; `/kmcspec` na de finish; punten Ace Race-stijl; baanrecord via `/kmctrack`.
 
 ### Rising Inferno
-- [ ] ↻ **Nog open (werkte niet):** ⚠ De lava (BlockDisplay) is zichtbaar en doet schade op het juiste niveau.
+- [ ] `/kmctest rising_inferno`: de lava is nu een magma-oppervlak (naast de deeltjes), stijgt mee en doet schade op het juiste niveau; ↻ vorige keer alleen deeltjes zichtbaar.
+- [ ] Bonus-orbs, finish, achievements `inferno.yml`, "alle bonussen"-event.
 
 ### Rocket Rush (`/rocket`)
-Setup: `/rocket world | spawn | …`, snel: `/kmctest rocket_rush` → "✔ Rocket Rush is klaar om te starten".
-- [ ] Checkpoints in volgorde, ring maar één keer, pickup, vallen → terug naar checkpoint, finish 100/85/70.
-- [ ] Teams staan bij de start naast elkaar, kijken naar het midden van het parcours en nemen geen schade van elkaar.
-- [ ] Sidebar: dun streepje, game-regels, dan TEAM met teampunten en jouw punten (met multiplier).
-- [ ] `/pause` stopt de klok; `/rocket stop` midden in het spel ruimt alles op (ook effecten, titel, actiebalk).
+- [ ] `/kmctest rocket_rush` meldt "klaar om te starten"; checkpoints in volgorde, ring één keer, pickup, vallen → checkpoint, finish 100/85/70.
+- [ ] Teams naast elkaar bij de start, kijken naar het midden; sidebar; `/pause` en `stop`.
 
 ### Knockout Kings (`/knockout`)
-- [ ] ↻ **PvP:** bots slaan met de stick werkt (`/kmcbot info` toont `invulnerable=false`); teamgenoten niet.
-- [ ] ⚠ Knockback voelt goed, val = eliminatie voor de laatste aanvaller, farm-limiet, 3 modifiers.
-- [ ] Sidebar zoals Rocket Rush; `/pause` en `/knockout stop` ruimen netjes op.
+- [ ] Bots slaan met de stick (`/kmcbot info` → `invulnerable=false`) ↻ eerder onkwetsbaar; teamgenoten niet.
+- [ ] Knockback voelt goed, val = eliminatie voor de laatste aanvaller, farm-limiet, 3 modifiers.
 
 ### Crafting Countdown (`/craftcountdown`)
-- [ ] Zie N8 (mijnen met houweel/bijl, Werkbank-item, bestellingen inleveren).
-- [ ] Sidebar en `/pause`/`stop` zoals de andere arcade-games.
+- [ ] `/kmctest crafting_countdown`: 8 inleverpunten (vaten) met een crafting table ernaast, 12 **bergen** van blokken (6 soorten) op een ring.
+- [ ] Geen portable crafting table en geen menu: je mijnt de blokken van een berg met je houweel of bijl en elk blok geeft het item waar het voor staat; een blok dat weg is komt niet terug.
+- [ ] Craft bij de crafting table bij je inleverpunt; rechtsklik op het inleverpunt van je team levert de bestelde gecraftte items in; een ander team zijn punt → melding.
+- [ ] Bestelling compleet → opsplitsing (basis + items + snelheid + reeks), nieuwe bestelling, moeilijker na 3; reeks-bonus; laatste 30 s "LAATSTE FASE".
+- [ ] Draaglimiet, geen onmogelijke bestellingen, `/craftcountdown validate`; na het spel zijn alle bergen weer weg (geen blokken of labels over).
 
 ### Zone Zero (`/zonezero`)
-- [ ] Twee teams in een zone = contested, zones wisselen, geen dubbele hold-punten.
-- [ ] ↻ PvP: bots slaan werkt; teamgenoten niet.
-- [ ] Punten zijn van de speler: alleen wie in de zone staat krijgt de capture-punten.
-- [ ] Sidebar, `/pause` en `/zonezero stop` zoals hierboven.
+- [ ] Twee teams in een zone = contested, zones wisselen, geen dubbele hold-punten, alleen wie in de zone staat krijgt de punten.
+- [ ] Bots slaan werkt, teamgenoten niet.
 
 ### Crown Control (`/crown`)
-- [ ] Een kroondrager scoort elke 10 s zelf punten; zijn team verdient energie.
-- [ ] Een vijand pakt de kroon door 3× te slaan (actionbar telt mee) of door hem uit te schakelen; bij een kill gaat hij direct naar de killer.
-- [ ] Teamgenoten kunnen elkaars kroon niet pakken; helm uitdoen via inventory kan niet.
-- [ ] Vaardigheden (nether star) werken alleen als je team minstens één kroon draagt.
-- [ ] ↻ PvP: bots slaan werkt; sidebar, `/pause` en `/crown stop` ruimen netjes op (ook kroon-displays).
+- [ ] 3 kronen: opzetten (gouden helm, gloeit), kroondrager scoort elke 10 s, team verdient energie.
+- [ ] Vijand pakt de kroon door 3× te slaan of uit te schakelen (kill → direct naar de killer); teamgenoten kunnen niet; helm uitdoen kan niet; vaardigheden (nether star) alleen met een kroon.
 
 ### Core Charge (`/corecharge`)
-- [ ] Boven je kern groeit een gekleurde pilaar mee met de energie, met een balk + percentage erboven.
-- [ ] Boven elk station zweeft hoe lang er nog opgeladen moet worden; wie in de zone staat ziet het ook in de actiebalk.
+- [ ] Gekleurde pilaar + balk met percentage boven je kern; boven elk station zweeft hoe lang er nog opgeladen moet worden (ook actiebalk).
 - [ ] Vaardigheden met cooldown, Final Overload alleen in de laatste 30 s, eindbonus.
-- [ ] ↻ PvP: bots slaan werkt; sidebar, `/pause` en `/corecharge stop` ruimen netjes op (ook kern-displays).
+- [ ] ↻ PvP: bots slaan werkt (eerder onkwetsbaar); `stop` ruimt kern-displays op.
 
-### SkyWars (en Survival Games)
-- [ ] Kisten openen kan pas als het spel echt begint (niet tijdens intro/tutorial/countdown).
-- [ ] Elke uitschakeling toont je plek: "(36)", "(35)", …
+### Laser Logic (`/laser`)
+- [ ] `/kmctest laser_logic`: 8 borden op een rij, bij de start een bord per team; spiegel draaien (geluid + deeltjes), straal volgt meteen, ontvangers lichten op.
+- [ ] **Elke spiegel heeft per puzzel een eigen kleur**; hint 2 noemt "de rode spiegel op (x, y)"; hint 1 de ontvanger, hint 3 een stuk van de oplossing; "geen hints"-bonus verdwijnt na een hint.
+- [ ] Het is een stuk moeilijker (puzzels een niveau hoger, meer bochten, afleidende muren en absorbers, de helft van de spiegels staat verkeerd).
+- [ ] Opgelost bord geeft punten + eerste-bonus, daarna een volgende (moeilijkere); een niet-opgeloste puzzel verloopt op tijd.
+- [ ] `/laser validate`, `puzzle list/show`; een onoplosbare eigen puzzel wordt afgekeurd.
 
-### Overige games
-- [ ] **ParkourWarrior / ElytraEndrium / AdventureEscape:** finish-cam, baanrecords (`/kmctrack`), highlights.
-- [ ] **Spleef, QuakeCraft, SkyWars, ParkourWarrior, ElytraEndrium:** `/kmctest list` toont welke een testarena hebben; `/kmctest <id>` → game start, speelt uit en geeft punten.
-- [ ] **Lobby:** `/ttt`, `/darts` op een Target-blok, vissen, parkour, `/lobbyspleef` → geen toernooipunten.
+### Blockball (`/blockball`) — Rocket League-stijl
+- [ ] `/kmctest blockball`: 4 velden met doelen; wedstrijden van 4 tegen 4, heats/waves bij minder velden, "bye" bij oneven teams.
+- [ ] **Eerst tot 3 doelpunten**; geen winnaar na de tijd (5 min): meeste goals, bij gelijkspel golden goal.
+- [ ] Grote, levendige bal die op de grond en tegen de muren stuitert en doorrolt; kijk je omhoog bij het schoppen dan gaat hij de lucht in, kijk je omlaag dan blijft hij laag.
+- [ ] Doelpunt: titel, explosie, geluid, bal terug op de middenstip; niemand kan schoppen tijdens de reset.
+- [ ] Schop, geladen schot (sneak), pass, dribbelen; assist-venster; punten voor doelpunt/assist/save.
+- [ ] **Keepers kiezen ipv random:** voor elke wedstrijd opent een menu met je teamgenoten; de meeste stemmen wint (gelijk of niemand = automatisch, de rotatie telt mee). De keeper krijgt de titel en vangt/gooit/rolt/slaat weg in zijn gebied.
 
-## I. Arcade-games
+### Factory Frenzy (`/factory`) — nu een Overcooked-keuken
+- [ ] `/kmctest factory_frenzy`: 8 keukens met kratten (tomaat, ui, sla, gehakt, broodjes), snijplanken, twee potten, een pan, vier aanrechten, bordenrek, wasbak, serveerluik en prullenbak; `/factory validate` zegt dat elk gerecht te maken is.
+- [ ] Je draagt maar één ding: het zit in je eerste hotbar-slot, je kunt niets droppen of verplaatsen.
+- [ ] Snijden: ingrediënt op een snijplank, 5× klikken met een lege hand (balk telt mee), dan oppakken.
+- [ ] Koken: 3 gesneden tomaten of uien in een pot → soep na 14 s; gehakt in de pan → burgerpatty na 9 s. Laat je het 10 s staan dan verbrandt het (rook, "VERBRAND!") en moet je de pot legen.
+- [ ] Soep haal je uit de pot met een bord; salade (tomaat + sla) en burger (broodje + patty + sla) stel je samen op een bord op een aanrecht; een fout onderdeel wordt geweigerd.
+- [ ] Serveren bij het gouden blok: alleen een gerecht dat besteld is; punten bij wie meewerkte; tip voor snel serveren, combo voor gerechten achter elkaar; een bestelling die verloopt breekt de combo.
+- [ ] Het bord komt na 8 s vies terug bij de wasbak; 4× klikken met een lege hand maakt het schoon en het ligt weer in het bordenrek; zonder schone borden loopt het vast.
+- [ ] Prullenbak gooit alles weg (een bord komt vies terug); een andere keuken aanklikken → melding; `/pause` stopt kooktijden en bestellingen.
+- [ ] Na het spel zijn alle stations, labels en borden weg en je inventory is leeg.
 
-De zes arcade-games staan bij **H. Games** (eigen sectie per game). Gemeenschappelijk voor alle zes:
+### Dungeon Draft (`/dungeon`)
+- [ ] `/kmctest dungeon_draft`: 8 banen met negen kamers; draft-menu met drie opties, stemmen, timeout-fallback.
+- [ ] **Gevecht: er spawnen mobs** (de wereld mag niet op peaceful blijven; het spel zet hem op normal en herstelt hem) en de kamer is klaar als alle golven dood zijn; ↻ eerder geen mobs.
+- [ ] Parkour: vallen kost teamgezondheid en zet je terug bij het checkpoint; finish voor `required` spelers = klaar. ↻ werkte eerder niet: noteer wat je ziet.
+- [ ] Puzzel, val, winkel (genees/extra leven), baas met telegraaf-slagen, modifiers; einde met uitslag per team en alles opgeruimd.
 
-- [ ] `/<cmd> start dry` boekt geen punten; `/pause` stopt de klok; `/<cmd> stop` midden in een game ruimt alles op.
-- [ ] Dood = respawn met spawnbescherming (waar PvP), en je respawnt naast je teamgenoten, niet erin.
-- [ ] Na elke spawn kijkt iedereen naar het midden van de arena; na stop/einde zijn glow, vuur, snelheid, vlucht, titel en actiebalk weg.
+## 5. Lobby, data, platform, stream
 
-## J. Platform (golf 5)
+- [ ] Lobby: `/ttt`, `/darts` (Target-blok), vissen, parkour, `/lobbyspleef` geven geen toernooipunten; anti-grief (frames, emmers, kisten, ender pearls).
+- [ ] Rank-NPC's (`/kmclobbynpc rank set 1…`, `list`, `rank remove here`, `despawnall`) met de skin en punten van de speler op die plek, live bijgewerkt.
+- [ ] Hall of Fame-NPC (`/kmclobbynpc spawn hof`): top 3, ranks 4-10, team-banners, "Records aller tijden".
+- [ ] Easter eggs ("Easter Egg Hunter" staat als advancement), `/tutorial`.
+- [ ] Spectator: `/kmcspec` (menu, follow, stop); een gestorven speler vliegt en kan niets raken.
+- [ ] Statistieken: `/kmcstats`, `/kmcprofile`, `/kmclb`, `/kmcmvp`, `/kmcmomentum`, `/kmcpowerrank`, `/kmchof`, `/kmcmedals`.
+- [ ] `/kmcapi start` toont de URL en de overlay (`/overlay`, `/api/state`) werkt; ↻ eerder werkte dit niet: noteer de melding (op een server elders: `live-api.bind: 0.0.0.0` + token).
+- [ ] `/clip` (clip-markers), `/kmcaudit` (teleports), `/kmccamera` (routes opnemen), `/gg`.
+- [ ] Story/lore-klikverhaaltjes via de host (herkomst, kampioenschap, trofee, teams, rivaliteiten, seizoenen, finales).
 
-- [ ] ↻ **Nog open (werkte niet):** `/kmcapi start` en `http://127.0.0.1:8765/overlay` → live standen in de OBS-overlay.
-- [ ] `/kmccamera record game <gameId>` → vlieg → `record stop`; de flyover speelt de route.
-- [ ] `/clip start`, speel een game; `clip-markers.csv` bevat game start/einde en kills; `/clip <tekst>` zet een marker (cooldown 5 s).
-- [ ] ⚠ Spectator in een game: `/kmcspec` menu/volgen/leider; na het einde weg.
-- [ ] Anti-grief als **niet-OP**: item-frame, emmer, kist en enderpearl in de lobby geblokkeerd.
-- [ ] `/kmcaudit` na een minuut spelen → geen onveilige teleports; `/kmcaudit clear` wist de lijst.
-- [Dit wil ik niet als functie] `/kmcemblem`, `/kmcemblem wear`.
-- [ ] Verhaallijn: per event verschijnen de regels in chat + presenter.
-- [ ] Grote arena's laden zonder lag-piek (async chunk-preload en paste).
+## 6. Randgevallen
 
-## K. Hele toernooi
-
-⚠ `/event simulate` heeft echte gevolgen (eventnummer +1, bij een volledige run reset hij punten). Doe het op een testserver.
-
-- [ ] Met een echt toernooi actief: `/event simulate 5 16` → **weigert**.
-- [ ] Zonder toernooi: `/event simulate <total-rounds> 16`:
-  - [ ] nooit dezelfde game twee keer achter elkaar
-  - [ ] multiplier loopt op volgens `tournament.multipliers`
-  - [ ] einde: winnaartitel, podium (N4), **Fan Favorite**-GUI, statsboek in je inventory
-  - [ ] `/kmctournament status`: event +1, punten 0
-- [ ] **Fan Favorite:** stem → "✔ Stem genoteerd", na 20 s winnaar met titel + geluid; "Fan Favorite" staat in je advancements; zonder stemmen komt "Geen stemmen…" (geen crash).
-- [ ] `/event simulate 2 16` (minder rondes) → stopt zonder boek en zonder punten-reset.
-- [ ] `/event rollback <sim-pre-… label>` maakt de simulatie ongedaan.
-
-## L. Losse dingen
-
-- [ ] **Paper 26.3-valkuilen:** particle-kleuren, jump-boost-freeze, peaceful difficulty, geen honger in de lobby-radius.
-- [ ] **PvP-poort:** PvP uit in de lobby, aan in games die `handlesPlayerPvp()` zeggen (nu ook alle arcade-games); `GameStopRequestEvent` stopt een game netjes.
-
----
+- [ ] Speler disconnect en rejoin tijdens een game, in de lobby en tijdens de ceremonie.
+- [ ] `/pause` midden in elke game: klok, potion-effecten, mobs en timers; `/resume` zet alles weer in gang.
+- [ ] `/kmcauto stop` en `/kmcgame forceskip` tijdens de lore, de showcase, een game en het eindscherm: geen blijvende entities, camera's, effecten, bossbars of spectators.
+- [ ] Zware server: 32 spelers + bots, geen lag in tablist, sidebar, host en camera (haperen? noteer bij welk shot).
+- [ ] Reload/herstart midden in een sessie: de host komt terug als IDLE, niets praat uit zichzelf.
+- [ ] Te weinig spelers of teams voor een game: de game wordt netjes overgeslagen.
+- [ ] Rerun/snapshot na een crash: punten worden niet dubbel geboekt.
 
 ## Nog niet gebouwd (geen fout, niet melden)
 
 - Opnieuw joinen na een disconnect in de arcade-games.
-- Achievements voor de zes arcade-games.
+- Achievements voor de arcade-games en de vier nieuwe games.
 - Potion-effecten lopen door tijdens `/pause`.
 - Assist-punten alleen in SkyWars; race-gap-indicator alleen in TGTTOS.
-- Titels in games zijn niet aan GUI-schaal aangepast (alleen `/kmchud test` laat zien waar het misgaat).
-- Factory Frenzy: lopende banden en machine-upgrades; Blockball: opgeslagen keepersacties (er zijn geen keepers, wel een doel-zone).
-- Dungeon Draft: eigen mob-AI voor de baas (hij gebruikt een gewone mob met telegraaf-slagen) en kamers die zich tijdens het spel opbouwen.
-- Achievements voor de vier nieuwe games.
+- Titels in games zijn niet aan de GUI-schaal aangepast.
+- Dungeon Draft: eigen mob-AI voor de baas. Factory Frenzy: obstakels per level (draaiend platform, brand) en meerdere keuken-indelingen.
+- Vote-modifiers (veto, boost, spoiler, lock), custom spectator-modus, gesproken host.
 
 ## Een fout melden
 
 Eén regel per fout, dan los ik alles in één ronde op:
 
 ```
-Blok/regel:  N6 / Crown Control / kroon pakken
+Blok/regel:  4 / Crown Control / kroon pakken
 Verwacht:    na 3 klappen is de kroon van mij
 Gebeurde:    niets, de teller blijft op 1/3
 Console:     (plak de regel of "geen")

@@ -34,15 +34,15 @@ public final class FactoryFrenzyPlugin extends AbstractGamePlugin {
     @Override protected String displayName() { return "Factory Frenzy"; }
     @Override protected Material icon() { return Material.BLAST_FURNACE; }
     @Override protected int minPlayers() { return 1; }
-    @Override protected String description() { return "Haal grondstoffen, laat machines produceren en lever de bestellingen van je fabriek."; }
-    @Override protected String objective() { return "Voltooi de meeste bestellingen met je fabriek."; }
+    @Override protected String description() { return "Run samen een keuken: snij, kook, stel gerechten samen, serveer en was af."; }
+    @Override protected String objective() { return "Serveer de meeste gerechten voor de tijd om is."; }
 
     @Override
     protected List<String> scoringLines() {
         return List.of(
-                "Beloning per voltooide bestelling (100-400 ptn, zie het bord)",
-                "+10-25% bonus als de deadline van de bestelling gehaald is",
-                "Punten gaan naar wie de producten heeft ingeleverd",
+                "Per geserveerd gerecht 90-150 ptn (zie het bord)",
+                "Tot +50% extra als je snel serveert, en een combo voor gerechten achter elkaar",
+                "Punten gaan naar wie meewerkte aan het gerecht",
                 placementLine() + " (teamplaats volgens KMC)");
     }
 
@@ -92,10 +92,9 @@ public final class FactoryFrenzyPlugin extends AbstractGamePlugin {
 
         private void info(CommandSender s) {
             var m = manager.loadModel();
-            s.sendMessage("§6Factory Frenzy §7— fabrieken: §f" + arena.locs("factories").size() + " §7| machines: §f"
-                    + m.machines.size() + " §7| stations: §f" + m.stations.size() + " §7| orders: §f" + m.orders.size()
-                    + " §7| items: §f" + m.items.size());
-            if (m.problems.isEmpty()) ok(s, "Productieketen en orders zijn geldig (elke order is te maken).");
+            s.sendMessage("§6Factory Frenzy §7— keukens: §f" + arena.locs("factories").size() + " §7| stations: §f"
+                    + m.stations.size() + " §7| gerechten: §f" + m.dishes.size() + " §7| items: §f" + m.items.size());
+            if (m.problems.isEmpty()) ok(s, "De keuken is geldig (elk gerecht is te maken).");
             else m.problems.forEach(p -> err(s, p));
         }
 
@@ -124,7 +123,7 @@ public final class FactoryFrenzyPlugin extends AbstractGamePlugin {
 
     @Override protected boolean supportsTestArena() { return true; }
 
-    /** Eight identical factory plots in two rows; the machines are placed from config.yml when the game starts. */
+    /** Eight identical kitchen plots in two rows; the stations are placed from config.yml when the game starts. */
     @Override
     protected Location buildTestArena(Player admin, Location origin) {
         World w = origin.getWorld();
@@ -139,7 +138,7 @@ public final class FactoryFrenzyPlugin extends AbstractGamePlugin {
         for (int i = 0; i < 8; i++) {
             int col = i % 4, row = i / 4;
             int fx = cx - 33 + col * 22, fz = cz - 14 + row * 28;
-            TestArenaKit.platform(w, fx, y, fz, 9, 11, i % 2 == 0 ? Material.WHITE_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
+            TestArenaKit.platform(w, fx, y, fz, 8, 8, i % 2 == 0 ? Material.WHITE_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
             arena.addLoc("factories", new Location(w, fx, y + 1, fz));
         }
         return arena.locs("factories").get(0).clone().add(0, 0, 6);

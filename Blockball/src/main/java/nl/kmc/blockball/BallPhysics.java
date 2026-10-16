@@ -126,7 +126,7 @@ public final class BallPhysics {
         double gy = field.minY() + r;
         if (y < gy) {
             y = gy;
-            if (vy < -2.0) vy = -vy * cfg.bounce;       // only a real impact bounces
+            if (vy < -1.2) vy = -vy * cfg.bounce;       // only a real impact bounces
             else if (vy < 0) vy = 0;
         }
         // ceiling

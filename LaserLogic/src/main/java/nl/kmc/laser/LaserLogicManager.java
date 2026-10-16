@@ -37,6 +37,20 @@ public final class LaserLogicManager extends ArcadeGameManager {
 
     // ── Per-team state ────────────────────────────────────────────────────────
 
+    /** Every rotatable mirror gets its own colour each puzzle, so a hint can say "the red mirror". */
+    private enum MirrorColor {
+        RED(Material.RED_STAINED_GLASS, "§c", "red"), ORANGE(Material.ORANGE_STAINED_GLASS, "§6", "orange"),
+        YELLOW(Material.YELLOW_STAINED_GLASS, "§e", "yellow"), LIME(Material.LIME_STAINED_GLASS, "§a", "lime"),
+        CYAN(Material.CYAN_STAINED_GLASS, "§3", "cyan"), BLUE(Material.BLUE_STAINED_GLASS, "§9", "blue"),
+        PURPLE(Material.PURPLE_STAINED_GLASS, "§5", "purple"), PINK(Material.PINK_STAINED_GLASS, "§d", "pink"),
+        WHITE(Material.WHITE_STAINED_GLASS, "§f", "white"), BROWN(Material.BROWN_STAINED_GLASS, "§8", "brown");
+
+        final Material glass;
+        final String code;
+        final String key;
+        MirrorColor(Material glass, String code, String key) { this.glass = glass; this.code = code; this.key = key; }
+    }
+
     private static final class TeamState {
         int boardIndex;
         PuzzleDef def;
@@ -64,6 +78,8 @@ public final class LaserLogicManager extends ArcadeGameManager {
         final List<TextDisplay> labels = new ArrayList<>();
         final Map<Long, TextDisplay> mirrorLabels = new HashMap<>();
         int w, h;
+        /** Colour of each rotatable mirror of the board that is shown, by "x,y". */
+        Map<String, MirrorColor> colors = new HashMap<>();
 
         BoardView(Location origin) { this.origin = origin; }
 
@@ -111,8 +127,9 @@ public final class LaserLogicManager extends ArcadeGameManager {
                             label(x, y, "§c§l" + arrow(c.dir), 0.4f);
                         }
                         case MIRROR -> {
-                            put(cell, Material.TINTED_GLASS);
-                            TextDisplay d = label(x, y, mirrorText(c), 0.4f);
+                            MirrorColor mc = c.rotatable ? colors.get(x + "," + y) : null;
+                            put(cell, mc != null ? mc.glass : Material.TINTED_GLASS);
+                            TextDisplay d = label(x, y, mirrorText(c, mc), 0.4f);
                             mirrorLabels.put(cellKey(x, y), d);
                         }
                         case FILTER -> put(cell, filterGlass(c.color));
@@ -141,7 +158,7 @@ public final class LaserLogicManager extends ArcadeGameManager {
 
         void updateMirror(int x, int y, Comp c) {
             TextDisplay d = mirrorLabels.get(cellKey(x, y));
-            if (d != null && d.isValid()) d.text(Component.text(mirrorText(c)));
+            if (d != null && d.isValid()) d.text(Component.text(mirrorText(c, colors.get(x + "," + y))));
         }
 
         void lamp(int x, int y, boolean on) {
@@ -187,10 +204,22 @@ public final class LaserLogicManager extends ArcadeGameManager {
         return switch (d) { case N -> "↑"; case E -> "→"; case S -> "↓"; case W -> "←"; };
     }
 
-    private static String mirrorText(Comp c) {
+    private static String mirrorText(Comp c, MirrorColor mc) {
         String lock = c.unlockedBy != null ? "§8🔒 " : "";
-        return lock + (c.rotatable ? "§b§l" : "§7§l") + (c.slash ? "╱" : "╲");
+        String tint = c.rotatable ? (mc != null ? mc.code : "§b") + "§l" : "§7§l";
+        return lock + tint + (c.slash ? "╱" : "╲");
     }
+
+    /** A different colour for every rotatable mirror, shuffled again for every puzzle. */
+    private Map<String, MirrorColor> assignColors(LaserBoard board) {
+        List<MirrorColor> palette = new ArrayList<>(List.of(MirrorColor.values()));
+        Collections.shuffle(palette, rnd);
+        Map<String, MirrorColor> out = new HashMap<>();
+        int i = 0;
+        for (int[] m : LaserSim.rotatableMirrors(board)) out.put(m[0] + "," + m[1], palette.get(i++ % palette.size()));
+        return out;
+    }
+
 
     private static Material filterGlass(String color) {
         String name = (color == null ? "WHITE" : color.toUpperCase(Locale.ROOT)) + "_STAINED_GLASS";
@@ -320,6 +349,10 @@ public final class LaserLogicManager extends ArcadeGameManager {
             try { want = PuzzleDef.Difficulty.valueOf(order.get(Math.min(number - 1, order.size() - 1)).toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException ignored) { }
         }
+        // the shipped EASY puzzles were far too easy: every puzzle comes one step up (game.difficulty-shift)
+        int shift = Math.max(0, cfgInt("game.difficulty-shift", 1));
+        for (int i = 0; i < shift && want != PuzzleDef.Difficulty.HARD; i++)
+            want = want == PuzzleDef.Difficulty.EASY ? PuzzleDef.Difficulty.MEDIUM : PuzzleDef.Difficulty.HARD;
         List<PuzzleDef> fresh = new ArrayList<>(), any = new ArrayList<>();
         for (PuzzleDef d : pool) {
             if (d.difficulty() != want) continue;
@@ -328,9 +361,10 @@ public final class LaserLogicManager extends ArcadeGameManager {
         }
         if (!fresh.isEmpty()) return fresh.get(rnd.nextInt(fresh.size()));
         // the configured puzzles of this difficulty are used up: a generated one (solution first), else a repeat
-        if (gamePlugin.getConfig().getBoolean("generator.enabled", true) && want != PuzzleDef.Difficulty.HARD) {
-            int turns = want == PuzzleDef.Difficulty.EASY ? 2 : 4;
-            int size = want == PuzzleDef.Difficulty.EASY ? 9 : 11;
+        if (gamePlugin.getConfig().getBoolean("generator.enabled", true)) {
+            int turns = want == PuzzleDef.Difficulty.EASY ? 3 : want == PuzzleDef.Difficulty.MEDIUM ? 6 : 9;
+            int size = want == PuzzleDef.Difficulty.EASY ? 9 : want == PuzzleDef.Difficulty.MEDIUM ? 11 : 13;
+
             PuzzleDef g = PuzzleGenerator.generate("gen" + number, want, size, size, turns, pointsFor(want),
                     cfgInt("game.puzzle-seconds", 120), rnd);
             if (g != null) return g;
@@ -355,6 +389,7 @@ public final class LaserLogicManager extends ArcadeGameManager {
         ts.locked = false;
         ts.hints = 0;
         ts.beamDirty = true;
+        ts.view.colors = assignColors(ts.board);
         ts.view.render(ts.board);
         for (int[] m : ts.board.find(Type.MIRROR)) {
             Location l = ts.view.origin;
@@ -425,7 +460,10 @@ public final class LaserLogicManager extends ArcadeGameManager {
                     if (s != null && s != ts.board.get(m[0], m[1]).slash) { wrong = m; break; }
                 }
             }
-            text = wrong != null ? api.tr(id, "laser.hint.2", wrong[0] + 1, wrong[1] + 1) : api.tr(id, "laser.hint.2-none");
+            MirrorColor wc = wrong != null ? ts.view.colors.get(wrong[0] + "," + wrong[1]) : null;
+            String colourName = wc != null ? wc.code + api.tr(id, "laser.color." + wc.key) + "§f" : "";
+            text = wrong != null ? api.tr(id, "laser.hint.2", wrong[0] + 1, wrong[1] + 1, colourName) : api.tr(id, "laser.hint.2-none");
+
             if (wrong != null) pulse(ts, wrong[0], wrong[1]);
         } else {
             text = api.tr(id, "laser.hint.3");

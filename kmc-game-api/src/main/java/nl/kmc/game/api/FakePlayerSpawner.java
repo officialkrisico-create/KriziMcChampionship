@@ -152,8 +152,8 @@ public final class FakePlayerSpawner {
             for (Bot bot : new ArrayList<>(BOTS.values())) {
                 try {
                     call(bot.handle, "doTick");
+                    if (tickCount % 4 == 0 && !Boolean.TRUE.equals(readClientLoaded(bot.handle))) markClientLoaded(bot.handle);
                     if (tickCount % 20 == 0) {
-                        if (!isClientLoaded(bot.handle)) markClientLoaded(bot.handle);
                         Queue<?> out = (Queue<?>) call(bot.channel, "outboundMessages");
                         out.clear();
                         if (bot.player.isDead()) bot.player.spigot().respawn();
@@ -193,9 +193,23 @@ public final class FakePlayerSpawner {
                         if (!f.getBoolean(target)) { f.setBoolean(target, true); done.append("field ").append(f.getName()).append(' '); }
                     } catch (ReflectiveOperationException | RuntimeException ignored) { }
                 }
+                for (var f : c.getDeclaredFields()) {
+                    if (f.getType() != int.class || !f.getName().equals("clientLoadedTimeoutTimer")) continue;
+                    try { f.setAccessible(true); f.setInt(target, 0); } catch (ReflectiveOperationException | RuntimeException ignored) { }
+                }
                 for (Method m : c.getDeclaredMethods()) {
+                    String lower = m.getName().toLowerCase();
+                    // the server's own "the client has loaded" switch: markClientLoaded() (Paper 26.x), no arguments
+                    if (m.getParameterCount() == 0 && lower.equals("markclientloaded")) {
+                        try {
+                            m.setAccessible(true);
+                            m.invoke(target);
+                            done.append("markClientLoaded() ");
+                        } catch (ReflectiveOperationException | RuntimeException ignored) { }
+                        continue;
+                    }
                     if (m.getParameterCount() != 1 || m.getParameterTypes()[0] != boolean.class) continue;
-                    if (!m.getName().toLowerCase().contains("clientloaded")) continue;
+                    if (!lower.contains("clientloaded") || lower.contains("unloaded")) continue;
                     try {
                         m.setAccessible(true);
                         m.invoke(target, true);
@@ -242,6 +256,13 @@ public final class FakePlayerSpawner {
 
     /** True / false when the server says whether the client counts as loaded; null when it cannot be read. */
     private static Boolean readClientLoaded(Object handle) {
+        Boolean r = readFrom(handle);
+        if (r != null) return r;
+        Object listener = listenerOf(handle);
+        return listener == null ? null : readFrom(listener);
+    }
+
+    private static Boolean readFrom(Object handle) {
         for (Class<?> c = handle.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
             for (Method m : c.getDeclaredMethods()) {
                 if (m.getParameterCount() != 0 || m.getReturnType() != boolean.class) continue;

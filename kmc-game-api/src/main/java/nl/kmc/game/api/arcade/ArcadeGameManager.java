@@ -709,17 +709,15 @@ public abstract class ArcadeGameManager extends BaseGameManager {
     @Override
     protected final List<String> getScoreboardLines(Player viewer) {
         if (!getState().isRunning() || players.isEmpty()) return defaultScoreboardLines(viewer);
-        // One look for all arcade games: a thin rule, what the game itself shows, then the team block with
-        // what the numbers are called (team points, your points) — the same words in every game.
+        // The same look as every other game: the game's own lines first, then the "Jouw team" block that the
+        // older games show too (team in its colour with its points), and the viewer's own points.
         UUID id = viewer.getUniqueId();
-        List<String> out = new ArrayList<>();
-        out.add("§8§m                      ");
-        out.addAll(sidebar(viewer));
+        List<String> out = new ArrayList<>(sidebar(viewer));
         String team = teamId(id);
         if (team != null && !team.startsWith("solo_") && isParticipant(id)) {
             out.add("");
-            out.add("§e§l" + api.tr(id, "arcade.sb.team") + " §r" + teamName(team));
-            out.add(api.tr(id, "arcade.sb.team-points", shownTeamPoints(team)));
+            out.add(api.tr(id, "game.board.your-team"));
+            out.add(teamName(team) + " §8- §e" + shownTeamPoints(team) + "p");
         } else if (isParticipant(id)) {
             out.add("");
         }

@@ -146,9 +146,7 @@ public final class RankNpcManager implements Listener {
 
         UUID who = pd != null ? pd.getUuid() : null;
         if (!Objects.equals(shown.get(rank), who)) {
-            if (pd != null) {
-                body.setProfile(ResolvableProfile.resolvableProfile().uuid(pd.getUuid()).name(trim16(pd.getName())).build());
-            }
+            if (pd != null) applySkin(body, pd);
             if (who != null) shown.put(rank, who); else shown.remove(rank);
         }
 
@@ -161,6 +159,24 @@ public final class RankNpcManager implements Listener {
             text = "§f§l" + rank + ".\n§e" + pd.getPoints() + " §6●\n" + teamPart;
         }
         label.text(legacy(text));
+    }
+
+    /**
+     * Puts the skin of {@code pd} on the body. An online player's own profile already carries the textures;
+     * for an offline player only the name is given, so the server looks the skin up (a profile with a uuid and
+     * a name but no textures counted as complete and stayed on the default skin).
+     */
+    private void applySkin(Mannequin body, PlayerData pd) {
+        try {
+            Player online = Bukkit.getPlayer(pd.getUuid());
+            if (online != null) {
+                body.setProfile(ResolvableProfile.resolvableProfile(online.getPlayerProfile()));
+            } else {
+                body.setProfile(ResolvableProfile.resolvableProfile().name(trim16(pd.getName())).build());
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().fine("rank npc skin " + pd.getName() + ": " + t);
+        }
     }
 
     private void refreshOwn(List<PlayerData> board) {
