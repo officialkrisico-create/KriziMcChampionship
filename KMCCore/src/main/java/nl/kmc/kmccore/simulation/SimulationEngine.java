@@ -168,6 +168,11 @@ public class SimulationEngine {
                 + " &6(×" + mul + " multiplier) ──");
 
         List<UUID> playerOrder = new ArrayList<>(st.fakePlayers);
+        // the people on the server (and /kmcbot bots) take part as well, so their own points move too
+        for (org.bukkit.entity.Player real : Bukkit.getOnlinePlayers()) {
+            if (plugin.getTeamManager().getTeamByPlayer(real.getUniqueId()) != null && !playerOrder.contains(real.getUniqueId()))
+                playerOrder.add(real.getUniqueId());
+        }
         Collections.shuffle(playerOrder, rng);
 
         for (int i = 0; i < playerOrder.size(); i++) {

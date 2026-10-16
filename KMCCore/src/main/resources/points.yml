@@ -78,12 +78,9 @@ team-placement:
   apply-multiplier: true
 
 # -----------------------------------------------------------------------
-# BONUS REWARDS (Lucky Block + other special events)
+# BONUS REWARDS (special events)
 # -----------------------------------------------------------------------
 bonus:
-  # Lucky Block "bonus points" loot entry value
-  lucky-block-bonus: 50
-
   # Multi-kill streaks (in a single game)
   double-kill:  25   # extra on top of kill reward
   triple-kill:  75

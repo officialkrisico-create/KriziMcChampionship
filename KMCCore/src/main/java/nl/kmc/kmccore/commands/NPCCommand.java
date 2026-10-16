@@ -88,6 +88,8 @@ public class NPCCommand implements CommandExecutor {
                 String what = args.length >= 3 ? args[2].toLowerCase() : "";
                 boolean ok;
                 if (what.equals("all")) { rm.removeAllSlots(); ok = true; }
+                else if (what.equals("here") && sender instanceof Player hp) ok = rm.removeNear(hp.getLocation(), 4.0) > 0;
+                else if (what.equals("clean")) ok = rm.sweepOrphans() > 0;
                 else if (what.equals("own")) ok = rm.removeOwnSpot();
                 else ok = rm.removeSlot(parse(what));
                 sender.sendMessage(MessageUtil.color(ok ? "&a[KMC] Verwijderd." : "&7Niet gevonden."));
@@ -121,7 +123,7 @@ public class NPCCommand implements CommandExecutor {
             }
             case "say" -> {
                 if (args.length < 3) { sender.sendMessage(MessageUtil.color("&cGebruik: /kmcnpc presenter say <tekst>")); return; }
-                pm.say("presenter.custom", 8, String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)));
+                plugin.getHost().announce(String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)));
             }
             default -> sender.sendMessage(MessageUtil.color("&7/kmcnpc presenter set | remove | skin <speler> | say <tekst> &8(geplaatst: "
                     + (pm.isPlaced() ? "ja" : "nee") + ")"));

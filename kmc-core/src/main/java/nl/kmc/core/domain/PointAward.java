@@ -6,7 +6,7 @@ import java.util.UUID;
 public final class PointAward {
 
     public enum Reason {
-        KILL, PLACEMENT, TEAM_PLACEMENT, BONUS, MANUAL, LUCKY_BLOCK,
+        KILL, PLACEMENT, TEAM_PLACEMENT, BONUS, MANUAL,
         DOUBLE_KILL, TRIPLE_KILL, MEGA_KILL, OBJECTIVE, SURVIVAL_BONUS, ASSIST
     }
 

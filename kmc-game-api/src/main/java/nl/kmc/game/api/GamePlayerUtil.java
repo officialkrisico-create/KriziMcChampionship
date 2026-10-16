@@ -27,6 +27,14 @@ public final class GamePlayerUtil {
      *
      * @param player the player to reset (must not be null)
      */
+    /**
+     * The place a player gets when he drops out while {@code place} players are still in the game (the
+     * first of 36 to go out gets 36), as a small suffix for the elimination message: " (36)".
+     */
+    public static String placeTag(int place) {
+        return place <= 0 ? "" : " §8(§e" + place + "§8)";
+    }
+
     public static void resetPlayer(Player player) {
         player.setGameMode(GameMode.ADVENTURE);
         player.getInventory().clear();
@@ -41,6 +49,28 @@ public final class GamePlayerUtil {
         player.setFoodLevel(20);
         player.setSaturation(20f);
         player.setFallDistance(0f);
+        clearEffects(player);
+    }
+
+    /**
+     * Everything a game can leave on a player besides potion effects: glow, invisibility, fire, freeze,
+     * speeds, flight, collision, invulnerability, and the title / action bar that were still showing.
+     */
+    public static void clearEffects(Player player) {
+        try {
+            player.setGlowing(false);
+            player.setInvisible(false);
+            player.setFireTicks(0);
+            player.setFreezeTicks(0);
+            player.setWalkSpeed(0.2f);
+            player.setFlySpeed(0.1f);
+            player.setFlying(false);
+            player.setAllowFlight(false);
+            player.setCollidable(true);
+            player.setInvulnerable(false);
+            player.clearTitle();
+            player.sendActionBar(net.kyori.adventure.text.Component.empty());
+        } catch (Throwable ignored) { /* cosmetic: never let it break a game start or end */ }
     }
 
     /**

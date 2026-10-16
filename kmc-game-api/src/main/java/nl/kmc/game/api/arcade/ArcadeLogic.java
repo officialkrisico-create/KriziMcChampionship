@@ -41,6 +41,39 @@ public final class ArcadeLogic {
         }
     }
 
+    // ── Splitting points ──────────────────────────────────────────────────────
+
+    /**
+     * Splits {@code total} over the keys in proportion to their weights (largest remainder, so the parts add
+     * up to exactly {@code total}). Keys with a weight of 0 or less get nothing.
+     */
+    public static <K> Map<K, Integer> split(int total, Map<K, Integer> weights) {
+        Map<K, Integer> out = new LinkedHashMap<>();
+        long sum = 0;
+        for (int w : weights.values()) sum += Math.max(0, w);
+        if (total <= 0 || sum <= 0) return out;
+        List<K> keys = new ArrayList<>();
+        Map<K, Double> frac = new HashMap<>();
+        int given = 0;
+        for (var e : weights.entrySet()) {
+            int w = Math.max(0, e.getValue());
+            if (w == 0) continue;
+            double exact = total * (w / (double) sum);
+            int part = (int) Math.floor(exact);
+            out.put(e.getKey(), part);
+            frac.put(e.getKey(), exact - part);
+            keys.add(e.getKey());
+            given += part;
+        }
+        keys.sort((a, b) -> {
+            int c = Double.compare(frac.get(b), frac.get(a));
+            return c != 0 ? c : Integer.compare(weights.get(b), weights.get(a));
+        });
+        for (int i = 0; given < total && !keys.isEmpty(); i++, given++) out.merge(keys.get(i % keys.size()), 1, Integer::sum);
+        out.values().removeIf(v -> v <= 0);
+        return out;
+    }
+
     // ── One-time awards ───────────────────────────────────────────────────────
 
     /** Remembers keys so a score event can never be booked twice (e.g. "run:cp:uuid:3"). */

@@ -13,16 +13,16 @@
         <module name="KMCCore" />
         <module name="RocketRush" />
         <module name="kmc-stats" />
+        <module name="LaserLogic" />
         <module name="AdventureEscape" />
         <module name="RisingInferno" />
         <module name="SurvivalGames" />
+        <module name="Blockball" />
         <module name="kmc-core" />
-        <module name="LuckyBlock" />
         <module name="Bingo" />
         <module name="BlockParty" />
         <module name="FormulaMC" />
         <module name="HoleInTheWall" />
-        <module name="TheBridge" />
         <module name="SkyWars" />
         <module name="QuakeCraft" />
         <module name="Spleef" />
@@ -34,10 +34,16 @@
         <module name="CoreCharge" />
         <module name="TGTTOS" />
         <module name="Dodgebolt" />
+        <module name="FactoryFrenzy" />
         <module name="kmc-storage" />
         <module name="ZoneZero" />
+        <module name="DungeonDraft" />
         <module name="ElytraEndrium" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="LuckyBlock" target="25" />
+      <module name="TheBridge" target="21" />
+    </bytecodeTargetLevel>
   </component>
 </project>

@@ -27,8 +27,6 @@ public final class WinnerCeremony {
     private final Runnable onDone;
     private final List<BukkitTask> tasks = new ArrayList<>();
     private boolean finished;
-    /** Which podium places have been revealed so far (the podium is drawn in chat as it fills up). */
-    private boolean shown1, shown2, shown3;
 
     private WinnerCeremony(KMCCore plugin, Runnable onDone) {
         this.plugin = plugin;
@@ -58,6 +56,20 @@ public final class WinnerCeremony {
         int pause = plugin.getConfig().getInt("winner-ceremony.reveal-pause-seconds", 4);
         int hold  = plugin.getConfig().getInt("winner-ceremony.champion-hold-seconds", 7);
 
+        try {
+            var podium = plugin.getPodium();
+            if (podium.isSet()) {
+                java.util.Set<UUID> onPodium = new java.util.HashSet<>();
+                for (int i = 0; i < Math.min(3, standings.size()); i++) onPodium.addAll(standings.get(i).getMembers());
+                List<Player> viewers = new ArrayList<>();
+                for (Player p : Bukkit.getOnlinePlayers()) if (!onPodium.contains(p.getUniqueId())) viewers.add(p);
+                int total = 3 + (standings.size() >= 3 ? pause : 0) + (standings.size() >= 2 ? pause : 0) + hold
+                        + plugin.getConfig().getInt("winner-ceremony.mvp-hold-seconds", 5)
+                        + plugin.getConfig().getInt("winner-ceremony.records-hold-seconds", 6);
+                podium.watch(viewers, total * 20);
+            }
+        } catch (Throwable t) { plugin.getLogger().warning("[KMC] Podium camera: " + t); }
+
         long t = 0;
         schedule(t, () -> titleAll("§6§l★ TOURNOOI VOLTOOID ★", "§7De uitslag...", Sound.BLOCK_NOTE_BLOCK_BELL));
         t += 3;
@@ -80,10 +92,11 @@ public final class WinnerCeremony {
     }
 
     private void revealPlace(KMCTeam team, int place) {
+        try { plugin.getPodium().place(team, place); } catch (Throwable t) { plugin.getLogger().warning("[KMC] Podium: " + t); }
+        try { if (plugin.getHost() != null) plugin.getHost().onPlaceReveal(team, place); }
+        catch (Throwable ignored) { }
         String label = place == 3 ? "§c§l🥉 DERDE PLAATS" : "§7§l🥈 TWEEDE PLAATS";
-        if (place == 3) shown3 = true; else shown2 = true;
         broadcastBlock(label, team.getColor() + team.getDisplayName() + " §8— §e" + team.getPoints() + " punten");
-        broadcastPodium();
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.sendTitle(label, team.getColor() + team.getDisplayName(), 8, 45, 12);
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1f, place == 3 ? 1.0f : 1.3f);
@@ -91,10 +104,11 @@ public final class WinnerCeremony {
     }
 
     private void revealChampions(KMCTeam champ) {
-        shown1 = true;
+        try { plugin.getPodium().place(champ, 1); } catch (Throwable t) { plugin.getLogger().warning("[KMC] Podium: " + t); }
+        try { if (plugin.getHost() != null) plugin.getHost().onChampions(champ); }
+        catch (Throwable ignored) { }
         broadcastBlock("§6§l🏆 KAMPIOENEN 🏆", champ.getColor() + champ.getDisplayName()
                 + " §8— §e" + champ.getPoints() + " punten");
-        broadcastPodium();
         // Team showcase: list members.
         StringBuilder members = new StringBuilder("§7Team: ");
         var ids = champ.getMembers();
@@ -111,34 +125,6 @@ public final class WinnerCeremony {
         launchFireworks(champ.getColor());
         try { nl.kmc.kmccore.presentation.TeamJingles.playNow(plugin, champ); }
         catch (Throwable ignored) { }
-    }
-
-    /**
-     * A small podium in chat: 2nd - 1st - 3rd, a step higher for each better place. Places that are not
-     * revealed yet are left empty, so it fills up with the ceremony.
-     */
-    private void broadcastPodium() {
-        final int[] heights = {2, 3, 1};                       // columns: 2nd, 1st, 3rd
-        final String[] colors = {"§7", "§6", "§c"};
-        final boolean[] on = {shown2, shown1, shown3};
-        final String[] labels = {"2", "1", "3"};
-        for (int row = 0; row < 3; row++) {
-            StringBuilder sb = new StringBuilder();
-            for (int c = 0; c < 3; c++) {
-                if (c > 0) sb.append("  ");
-                boolean filled = on[c] && row >= 3 - heights[c];
-                sb.append(filled ? colors[c] + "████" : "        ");
-            }
-            Bukkit.broadcastMessage(nl.kmc.kmccore.presentation.ChatLayout.center(sb.toString()));
-        }
-        StringBuilder base = new StringBuilder();
-        for (int c = 0; c < 3; c++) {
-            if (c > 0) base.append("  ");
-            base.append(colors[c]).append("§l").append(labels[c]).append("§r");
-            base.append(nl.kmc.kmccore.presentation.ChatLayout.spaces(
-                    32 - nl.kmc.kmccore.presentation.ChatLayout.px("§l" + labels[c])));
-        }
-        Bukkit.broadcastMessage(nl.kmc.kmccore.presentation.ChatLayout.center(base.toString()));
     }
 
     private void revealMvp() {
@@ -222,6 +208,7 @@ public final class WinnerCeremony {
         if (finished) return;
         finished = true;
         cancelTasks();
+        try { plugin.getPodium().finish(); } catch (Throwable ignored) { }
         if (active == this) active = null;
         if (onDone != null) try { onDone.run(); } catch (Throwable ignored) {}
     }

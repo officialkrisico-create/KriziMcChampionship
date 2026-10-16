@@ -1,0 +1,634 @@
+# ================================================================
+# host.yml — wat de KMC-host zegt
+# ================================================================
+# De instellingen van de host (aan/uit, locatie, hoogte, timing, welke aankondigingen) staan in config.yml
+# onder "host:". Hier staan de teksten.
+#
+# Een regel mag een tekst zijn, of een sectie met:
+#   text:      "tekst"  of  {nl: "tekst", en: "text"}   (taal = host.language in config.yml)
+#   delay:     seconden wachten voor deze regel (standaard host.dialogue.default-delay)
+#   duration:  seconden zichtbaar (standaard: naar lengte, tussen min en max)
+#   sound:     een Minecraft-geluid, bijvoorbeeld ENTITY_PLAYER_LEVELUP
+#   requires:  [placeholder, ...]   regel wordt overgeslagen als een van deze leeg is
+#
+# Een dialoog mag hebben: lines (vaste volgorde) of variants (er wordt er één willekeurig gekozen),
+#   audience (ALL | TEAM | SPECTATORS | PLAYER | ADMINS), priority (LOW | NORMAL | HIGH | CRITICAL of 0-100),
+#   cooldown-seconds, skippable, only-on-start (alleen bij de start van KMCAuto), max-wait-seconds (hoe lang
+#   hij in de wachtrij mag staan voor hij vervalt), once (per sessie maar één keer),
+#   focus: true (de camera zoomt tijdens de speech rustig in op de host; nooit tijdens een game),
+#   cutscene: <route-id> (een opgenomen camera-route uit /kmccamera die eerst afspeelt; bestaat ze niet,
+#   dan wordt ze overgeslagen).
+#
+# Placeholders: {player} {team} {team_color} {game} {game_description} {game_objective} {game_time}
+#   {team_score} {player_score} {leaderboard_position} {leaderboard_leader} {leader_points} {second} {gap}
+#   {winner} {top_team_1} {top_team_2} {top_team_3} {team_count} {round} {rounds} {tournament_name}
+#   {team_slogan} {team_members} {game_winner} {top_player} {top_player_points} {games_played} {games_total}
+#   {finalist_a} {finalist_b} {place} {place_team} {place_points}
+#   {seats} {seats_word} {seats_cap}   (de stoelen in het reddingsvliegtuig = spelers per team: 4 / vier / Vier)
+#   {editions} {last_champion} {last_edition} {titles_leader} {titles_count}   (uit het archief van echte edities)
+#   {award_mvp} {award_killer} {award_winner} {award_teammate} {award_comeback} {award_team_wins}
+# Onbekende placeholders worden bij het laden gemeld in de console en leeg gelaten. Een placeholder zonder
+# waarde (bijvoorbeeld nog geen leider) laat de regel met "requires" weg: de host verzint niets.
+# ================================================================
+
+version: 1
+
+dialogue-defaults:
+  audience: ALL
+  priority: NORMAL
+  cooldown-seconds: 0
+  skippable: true
+  max-wait-seconds: 25
+
+# Slogans per team-id (optioneel, tekst voor {team_slogan}). Zet hier de id van het team uit /kmcteam.
+team-slogans: {}
+#  rood: "Wij bijten nooit los."
+
+dialogues:
+
+  # ── De KMC-lore: het allereerste wat er gebeurt bij /kmcauto start ──────────
+  # Een geregisseerde speech (staged): de host loopt, springt en gebaart, de camera zoomt in en vliegt over,
+  # en de spanning loopt op (hartslag, deeltjes, bliksem). Pas als hij uitgesproken is begint de opening en
+  # later de afteltijd naar het stemmen. Uitzetten: host.lore-intro.enabled: false in config.yml.
+  # Per regel (alles optioneel):
+  #   shot:     wide | push | closeup | orbit | crane | fly | top | low | hold      (camera)
+  #   walk:     forward:4 | back:3 | left:2 | right:2 | home                        (de host loopt, in blokken)
+  #   act:      jump | hop | swing | wave | crouch | stand | turn | spin | nod       (gebaar)
+  #   fx:       thunder | burst | rise | stomp                                      (effect)
+  #   title / subtitle: tekst midden in beeld voor iedereen
+  #   tension:  0-10 hoe gespannen het moment is (standaard loopt het vanzelf op)
+  # Regels met een placeholder die geen waarde heeft (nog geen edities) worden overgeslagen: er wordt niets
+  # verzonnen. Je kunt een eigen camera-route afspelen vóór de speech met: cutscene: <route-id>.
+  kmc-lore:
+    staged: true
+    priority: CRITICAL
+    skippable: true
+    max-wait-seconds: 150
+    lines:
+      # ── Ontwaken: stil, kil, bijna fluisterend ──
+      - text: "&7&oRustig... adem in. Jullie leven nog."
+        shot: fly
+        act: crouch
+        tension: 1
+        delay: 1
+        duration: 5
+        title: "&c&l✈ NEERGESTORT"
+        subtitle: "&7&oDag 1"
+      - text: "&7&oHet laatste wat je je herinnert: turbulentie, rook, een gil door de cabine."
+        shot: wide
+        act: stand
+        walk: forward:2
+        tension: 2
+      - text: "&7&oDaarna de klap. En daarna... niets. Alleen golven en brandend metaal."
+        shot: push
+        fx: stomp
+        tension: 3
+        sound: ENTITY_GENERIC_EXPLODE
+      # ── De situatie ──
+      - text: "&7&oJullie zijn neergestort op een eiland dat op geen enkele kaart staat."
+        shot: low
+        act: crouch
+        tension: 4
+        delay: 1
+      - text: "&7&oGeen telefoon. Geen signaal. Van het vliegtuig is een wrak over."
+        shot: orbit
+        tension: 4
+      - text: "&7&oMaar het radiobaken in de staart werkt nog. En iemand heeft het gehoord."
+        shot: closeup
+        act: nod
+        tension: 5
+        delay: 1
+        sound: BLOCK_NOTE_BLOCK_BELL
+      - text: "&7&oEen reddingsvliegtuig is onderweg. Het landt op het strand zodra het weer het toelaat."
+        shot: crane
+        walk: back:2
+        act: stand
+        tension: 6
+      # ── De klap: zoveel stoelen als een team spelers heeft ({seats}) ──
+      - text: "&c&oMaar er zijn maar {seats_word} stoelen."
+        shot: push
+        tension: 7
+        delay: 2
+        duration: 4
+        sound: ENTITY_WARDEN_HEARTBEAT
+      - text: "&c&o{seats_cap}. Van jullie allemaal."
+        shot: closeup
+        act: crouch
+        fx: stomp
+        tension: 8
+        delay: 2
+        duration: 4
+      - text: "&7&o{team_count} groepen overlevenden. Eén vliegtuig. Eén team van {seats_word} komt thuis."
+        requires: [team_count]
+        shot: top
+        tension: 7
+      - text: "&7&oDe rest blijft achter op het eiland. En geloof me: dat is geen grap."
+        shot: orbit
+        walk: right:2
+        act: turn
+        tension: 8
+      - text: "Eerder wist {last_champion} te ontsnappen. Nu is het jullie beurt."
+        requires: [last_champion]
+        shot: low
+        tension: 7
+      # ── De proef ──
+      - text: "&7&oHet eiland test jullie. Elke game is een proef: wie sterk is, haalt punten. Wie punten heeft, krijgt een stoel."
+        shot: push
+        act: stand
+        tension: 8
+      - text: "&7&oIn {rounds} rondes valt de beslissing, en elke ronde telt zwaarder dan de vorige."
+        requires: [rounds]
+        shot: crane
+        tension: 8
+      - text: "&7&oHoor je dat? Dat is het vliegtuig, ver weg... of je eigen hartslag."
+        shot: low
+        act: crouch
+        tension: 9
+        delay: 2
+        duration: 4
+      - text: "&7&oDe zon zakt. De zee wordt stil. En het eiland wacht."
+        shot: closeup
+        tension: 9
+        delay: 1.5
+        duration: 4
+      # ── Het moment ──
+      - text: "&c&lDE OVERLEVINGSSTRIJD BEGINT!"
+        shot: low
+        act: jump
+        fx: thunder
+        tension: 10
+        delay: 1.5
+        duration: 3.5
+        title: "&c&lOVERLEVEN"
+        subtitle: "&e{tournament_name}"
+        sound: ENTITY_LIGHTNING_BOLT_THUNDER
+      - text: "{seats_cap} stoelen. Maak ze jullie eigen."
+        shot: fly
+        act: hop
+        fx: burst
+        walk: home
+        tension: 5
+        delay: 0.5
+        sound: ENTITY_FIREWORK_ROCKET_LAUNCH
+
+  # ── Opening: speelt bij /kmcauto start ──────────────────────────────────────
+  opening:
+    only-on-start: true
+    priority: HIGH
+    max-wait-seconds: 90
+    lines:
+      - text: "Welkom bij de {tournament_name}!"
+        duration: 4
+        sound: ENTITY_PLAYER_LEVELUP
+      - text: "{team_count} teams gaan de strijd met elkaar aan."
+        requires: [team_count]
+      - "Verdien punten, help je team en probeer bovenaan het leaderboard te eindigen."
+      - "Luister goed naar de uitleg van iedere game, want iedere overwinning kan het verschil maken."
+      - text: "Zijn jullie klaar? Dan gaan we beginnen!"
+        sound: ENTITY_FIREWORK_ROCKET_LAUNCH
+
+  how-it-works:
+    priority: HIGH
+    max-wait-seconds: 40
+    lines:
+      - text: "Zo werkt het toernooi: we spelen {rounds} rondes."
+        requires: [rounds]
+      - "Elke game levert punten op voor jou en voor je team."
+      - "Hoe later de ronde, hoe zwaarder je punten meetellen: de multiplier stijgt."
+      - "Aan het eind is er één team dat de {seats_word} stoelen in het reddingsvliegtuig krijgt."
+
+  tournament-overview:
+    priority: HIGH
+    max-wait-seconds: 40
+    lines:
+      - "Elke game heeft zijn eigen puntentelling: ik leg die per game uit."
+      - "Samenwerken loont, want je team scoort mee met elk punt dat jij verdient."
+
+  teams-start:
+    priority: HIGH
+    max-wait-seconds: 40
+    lines:
+      - text: "En nu... de teams!"
+        sound: BLOCK_NOTE_BLOCK_BELL
+      - text: "Dit zijn de {team_count} teams die om de titel strijden."
+        requires: [team_count]
+
+  # Per team: placeholders {team}, {team_color}, {team_slogan}, {team_members}
+  team-intro:
+    priority: NORMAL
+    max-wait-seconds: 14
+    lines:
+      - text: "Dames en heren, maak je klaar voor {team_color}{team}§f!"
+        sound: ENTITY_FIREWORK_ROCKET_TWINKLE
+        duration: 3
+      - text: "{team_color}{team_slogan}"
+        requires: [team_slogan]
+        duration: 3
+      - text: "Zijn jullie klaar om de concurrentie te verslaan?"
+        duration: 3
+
+  games-lineup:
+    priority: HIGH
+    max-wait-seconds: 40
+    lines:
+      - "Dan de games. Ik loop ze nu langs."
+      - "Per game hoor je het doel en hoe je punten verdient. Kijk goed mee!"
+
+  # ── Pauze en voortgang ──────────────────────────────────────────────────────
+  next-game:
+    priority: HIGH
+    max-wait-seconds: 30
+    lines:
+      - text: "Het volgende spel is {game}!"
+        sound: ENTITY_PLAYER_LEVELUP
+
+  # ── Resultaten ───────────────────────────────────────────────────────────────
+  results-game:
+    priority: HIGH
+    max-wait-seconds: 40
+    lines:
+      - "Wat een ronde!"
+      - text: "De overwinning van {game} gaat naar {game_winner}!"
+        requires: [game, game_winner]
+      - text: "Beste speler van deze game: {top_player} met {top_player_points} punten."
+        requires: [top_player, top_player_points]
+      - "De resultaten zijn verwerkt. Laten we kijken wat dit betekent voor het kampioenschap!"
+
+  standings-normal:
+    priority: NORMAL
+    max-wait-seconds: 45
+    lines:
+      - "De tussenstand is bekend!"
+      - text: "{leaderboard_leader} staat bovenaan met {leader_points} punten."
+        requires: [leaderboard_leader, leader_points]
+      - text: "Daarna volgt {second}."
+        requires: [second]
+
+  standings-close:
+    priority: NORMAL
+    max-wait-seconds: 45
+    lines:
+      - "De strijd aan de top wordt steeds spannender!"
+      - text: "{leaderboard_leader} staat bovenaan, maar {second} zit er maar {gap} punten achter."
+        requires: [leaderboard_leader, second, gap]
+      - "Er kan nog van alles gebeuren!"
+
+  standings-new-leader:
+    priority: HIGH
+    max-wait-seconds: 45
+    lines:
+      - text: "Wissel aan de top! {leaderboard_leader} neemt de leiding over."
+        requires: [leaderboard_leader]
+        sound: ENTITY_PLAYER_LEVELUP
+      - text: "Met {leader_points} punten staan ze nu bovenaan."
+        requires: [leader_points]
+
+  standings-runaway:
+    priority: NORMAL
+    max-wait-seconds: 45
+    lines:
+      - text: "{leaderboard_leader} loopt flink uit: {gap} punten voorsprong op {second}."
+        requires: [leaderboard_leader, gap, second]
+      - "Kunnen de anderen dat nog dichten?"
+
+  # ── Live aankondigingen tijdens een game (variants: één willekeurige) ───────
+  live-goal:
+    priority: NORMAL
+    cooldown-seconds: 12
+    max-wait-seconds: 6
+    variants:
+      - "Wat een doelpunt! {team_color}{team}§f laat zich niet tegenhouden!"
+      - "{player} scoort! Wat een schot!"
+      - "Goal! Dit team zit er bovenop!"
+  live-puzzle:
+    priority: NORMAL
+    cooldown-seconds: 15
+    max-wait-seconds: 6
+    variants:
+      - "{team_color}{team}§f heeft een puzzel opgelost!"
+      - "Slim gedaan, {player}! Weer een puzzel van de baan."
+  live-order:
+    priority: NORMAL
+    cooldown-seconds: 15
+    max-wait-seconds: 6
+    variants:
+      - "De fabriek van {team_color}{team}§f draait op volle toeren!"
+      - "{player} levert een bestelling af! Wie houdt dit team nog tegen?"
+  live-room:
+    priority: LOW
+    cooldown-seconds: 20
+    max-wait-seconds: 5
+    variants:
+      - "{team_color}{team}§f heeft weer een kamer overwonnen!"
+  live-boss:
+    priority: HIGH
+    cooldown-seconds: 20
+    max-wait-seconds: 8
+    variants:
+      - "De baas is verslagen door {team_color}{team}§f! Een indrukwekkende prestatie!"
+      - "{player} haalt de baas neer! Wat een moment!"
+  live-checkpoint:
+    priority: LOW
+    cooldown-seconds: 30
+    max-wait-seconds: 4
+    variants:
+      - "{player} haalt weer een checkpoint!"
+  live-last-standing:
+    priority: HIGH
+    cooldown-seconds: 20
+    max-wait-seconds: 8
+    variants:
+      - "{player} is de laatste die overeind staat!"
+  live-clutch:
+    priority: NORMAL
+    cooldown-seconds: 20
+    max-wait-seconds: 6
+    variants:
+      - "{player} met een clutch-moment! Wat een reactie!"
+      - "Ongelofelijk, {player}! Dat noemen we koelbloedig."
+
+  # ── Finale en prijsuitreiking ───────────────────────────────────────────────
+  finale-announce:
+    priority: CRITICAL
+    max-wait-seconds: 60
+    once: true
+    focus: true
+    lines:
+      - text: "Het is zover!"
+        sound: ENTITY_ENDER_DRAGON_GROWL
+      - text: "De finale: {finalist_a} tegen {finalist_b}!"
+        requires: [finalist_a, finalist_b]
+      - "Slechts één team kan kampioen worden."
+  finale-third:
+    priority: CRITICAL
+    max-wait-seconds: 30
+    lines:
+      - text: "Op de derde plaats: {place_team} met {place_points} punten!"
+        requires: [place_team, place_points]
+        duration: 3
+  finale-second:
+    priority: CRITICAL
+    max-wait-seconds: 30
+    lines:
+      - text: "Op de tweede plaats: {place_team} met {place_points} punten!"
+        requires: [place_team, place_points]
+        duration: 3
+  finale-champion:
+    priority: CRITICAL
+    max-wait-seconds: 60
+    focus: true
+    cutscene: host-champion      # optioneel: neem een route met deze naam op met /kmccamera
+    lines:
+      - text: "Dit was een kampioenschap vol spanning, teamwork en spectaculaire momenten."
+        duration: 4
+      - text: "Maar er kan er maar één bovenaan eindigen."
+        duration: 3
+      - text: "De winnaars van de {tournament_name} zijn..."
+        duration: 3
+        sound: BLOCK_NOTE_BLOCK_BELL
+      - text: "{place_team}§f!"
+        requires: [place_team]
+        duration: 5
+        sound: UI_TOAST_CHALLENGE_COMPLETE
+      - text: "Jullie vliegen naar huis. De rest blijft achter op het eiland."
+        duration: 5
+  finale-awards:
+    priority: HIGH
+    max-wait-seconds: 60
+    lines:
+      - "Dan de awards!"
+      - text: "MVP van het toernooi: {award_mvp}!"
+        requires: [award_mvp]
+      - text: "Beste teamgenoot: {award_teammate}."
+        requires: [award_teammate]
+      - text: "Meeste kills: {award_killer}."
+        requires: [award_killer]
+      - text: "Meeste game-overwinningen: {award_winner}."
+        requires: [award_winner]
+      - "Bedankt voor jullie inzet en tot de volgende KMC!"
+
+  # ── Interactie ──────────────────────────────────────────────────────────────
+  info-about:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 20
+    lines:
+      - "KMC is de Krizi Minecraft Championship."
+      - "Teams strijden in een reeks games om punten en uiteindelijk om de titel."
+  info-how:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 20
+    lines:
+      - "Een toernooi bestaat uit rondes met elk meerdere games."
+      - "Je verdient punten voor jezelf en voor je team. Later in het toernooi tellen ze zwaarder."
+  info-no-game:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 15
+    lines:
+      - "Er is op dit moment geen game om uit te leggen."
+  info-no-standings:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 15
+    lines:
+      - "Er zijn nog geen punten verdeeld."
+  info-my-stats:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 20
+    lines:
+      - text: "{player}, jij staat op {player_score} punten."
+        requires: [player_score]
+      - text: "Je team {team_color}{team}§f heeft {team_score} punten en staat op plek {leaderboard_position}."
+        requires: [team, team_score, leaderboard_position]
+  idle-touch:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 10
+    lines:
+      - "Ik begin met presenteren zodra het toernooi start. Tot dan kun je me alles over KMC vragen!"
+
+  # ── Test (/kmchost test) ────────────────────────────────────────────────────
+  test-bubble:
+    audience: ALL
+    priority: LOW
+    max-wait-seconds: 10
+    lines:
+      - "Dit is een test van de tekst boven mijn hoofd."
+      - "Lange zinnen worden automatisch verdeeld over meerdere korte regels, zodat alles leesbaar blijft en niet buiten beeld valt."
+      - "Klopt alles? Dan is de host klaar voor het toernooi!"
+
+  # ── Lore: verhalen. Fictief, zonder verzonnen resultaten ────────────────────
+  lore-origin:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oEen oud verhaal zegt dat KMC begon als een gewone vriendengroep en een lege wereld."
+      - "&7&oEn een vraag die niemand liet rusten: wie is de beste van allemaal?"
+  lore-championship:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oSindsdien wordt er gestreden, ronde na ronde, game na game."
+      - "&7&oNiet om geld, maar om een naam die in de lobby blijft hangen."
+  lore-trophy:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oDe trofee? Men fluistert dat hij glimt zodra een team echt samenwerkt."
+      - "&7&oEn dat hij zwaarder is dan hij lijkt."
+  lore-teams:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oAcht teams, acht karakters: de Rode Ratten, de Oranje Otters, de Gele Gnoes en de Groene Goudvissen."
+      - "&7&oDe Blauwe Bavianen, de Paarse Palingen, de Roze Rendieren en de Witte Wespen."
+  lore-rivalries:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oRivaliteit hoort erbij. Wie wie dwarszit? Dat schrijft de tussenstand."
+  lore-seasons:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - text: "Er zijn al {editions} edities gespeeld. De laatste kampioen was {last_champion}."
+        requires: [editions, last_champion]
+      - text: "Het team met de meeste titels is {titles_leader}, met {titles_count}."
+        requires: [titles_leader, titles_count]
+  lore-seasons-empty:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "Er zijn nog geen edities vastgelegd. Deze is de eerste die in de boeken komt."
+  lore-finals:
+    audience: PLAYER
+    priority: LOW
+    max-wait-seconds: 30
+    lines:
+      - "&7&oDe finale is waar legendes ontstaan: twee teams, één spel, één winnaar."
+
+lore-order: [origin, championship, trophy, teams, rivalries, seasons, finals]
+
+# ── Game-introducties ────────────────────────────────────────────────────────
+# Per game komt het doel, de beschrijving en de puntentelling uit de registratie van de game zelf. Hier kun
+# je lore, regels, besturing, waarschuwingen, speelduur en een afsluiting toevoegen. Wat hier niet staat,
+# wordt niet verzonnen. Volgorde van de onderdelen: host.game-intros.sections in config.yml.
+game-defaults:
+  intro: "Het is tijd voor {game}!"
+  goal: "Het doel: {game_objective}"
+  scoring-header: "Zo verdien je punten:"
+  duration: "Speelduur: {game_time}."
+  closing: "Succes, en geef alles wat je hebt!"
+
+games:
+  laser_logic:
+    description: "Draai de spiegels zo dat de laserstraal alle ontvangers bereikt."
+    objective: "Los de meeste puzzels op als team."
+    lore: "Elke puzzel is een kleine kamer vol spiegels en een laser die precies één weg wil."
+    rules:
+      - "Elk team heeft zijn eigen bord."
+      - "Draai de spiegels tot de laserstraal alle ontvangers raakt."
+      - "Een opgelost bord geeft punten, daarna volgt een lastigere puzzel."
+    controls:
+      - "Rechtsklik op een spiegel om hem te draaien."
+      - "Rechtsklik op het papier in je hotbar voor een hint."
+    warnings:
+      - "Een hint kost je de bonus voor een puzzel zonder hint."
+    duration: "ongeveer 7 minuten"
+    closing: "Denk goed na, want iedere seconde telt!"
+  blockball:
+    description: "Voetbal met een blokbal: schop de bal in het doel van de tegenstander."
+    objective: "Win je wedstrijd door meer doelpunten te maken."
+    lore: "Voetbal, maar dan van blokken: de bal is een blok en het veld is een arena."
+    rules:
+      - "Twee teams spelen tegen elkaar, zo veel mogelijk doelpunten."
+      - "Bij gelijkspel volgt een golden goal."
+    controls:
+      - "Linksklik om de bal te schoppen."
+      - "Houd sneak ingedrukt en linksklik voor een geladen schot."
+      - "Rechtsklik om de bal door te geven."
+    duration: "een wedstrijd duurt ongeveer 3 minuten"
+    closing: "Teamwork maakt het verschil!"
+  factory_frenzy:
+    description: "Haal grondstoffen, laat machines produceren en lever de bestellingen van je fabriek."
+    objective: "Voltooi de meeste bestellingen met je fabriek."
+    lore: "Een fabriek heeft grondstoffen, machines en een deadline nodig, en jullie zijn de arbeiders."
+    rules:
+      - "Haal grondstoffen bij de stations."
+      - "Stop ze in de machines en haal de producten op."
+      - "Lever de producten in bij het goudblok om bestellingen te voltooien."
+    controls:
+      - "Rechtsklik op een station of machine."
+      - "Rechtsklik op het goudblok om af te leveren."
+    duration: "ongeveer 7 minuten"
+    closing: "Een goed georganiseerde fabriek wint!"
+  dungeon_draft:
+    description: "Kies kamer voor kamer je eigen route door een dungeon en versla de eindbaas."
+    objective: "Kom met je team zo ver mogelijk door de dungeon."
+    lore: "Jullie staan aan het begin van een gevaarlijke dungeon, met een route die jullie zelf kiezen."
+    rules:
+      - "Na elke kamer kiest het team de volgende kamer in het draft-menu."
+      - "Schade gaat van de gezamenlijke teamgezondheid af, met één extra leven."
+      - "De laatste kamer is altijd de eindbaas."
+    controls:
+      - "Klik in het draft-menu om te stemmen."
+    warnings:
+      - "Is de teamgezondheid op en is er geen extra leven meer, dan is de run voorbij."
+    duration: "ongeveer 12 minuten"
+    closing: "Wie haalt het einde?"
+
+# ── Menu bij het aanklikken van de host ──────────────────────────────────────
+menu:
+  title: "&6&lKMC Host"
+  idle-options: [about, how, lore]
+  items:
+    about:
+      slot: 10
+      material: BOOK
+      name: "&eWat is KMC?"
+      lore: ["&7Een korte uitleg over het kampioenschap."]
+    how:
+      slot: 11
+      material: MAP
+      name: "&eHoe werkt het toernooi?"
+      lore: ["&7Rondes, punten en de multiplier."]
+    game:
+      slot: 12
+      material: NETHER_STAR
+      name: "&eWelke game wordt er gespeeld?"
+      lore: ["&7De introductie van de huidige of volgende game."]
+    rules:
+      slot: 13
+      material: WRITABLE_BOOK
+      name: "&eSpelregels van de game"
+      lore: ["&7Regels, besturing en puntentelling."]
+    standings:
+      slot: 14
+      material: GOLD_INGOT
+      name: "&eTussenstand"
+      lore: ["&7Wie staat bovenaan?"]
+    stats:
+      slot: 15
+      material: PLAYER_HEAD
+      name: "&eMijn statistieken"
+      lore: ["&7Jouw punten en die van je team."]
+    lore:
+      slot: 16
+      material: ENCHANTED_BOOK
+      name: "&eVertel de lore van KMC"
+      lore: ["&7Een verhaal uit de wereld van KMC."]
+    replay:
+      slot: 22
+      material: CLOCK
+      name: "&eIntroductie opnieuw"
+      lore: ["&7Speel de introductie van de game opnieuw af (alleen voor jou)."]

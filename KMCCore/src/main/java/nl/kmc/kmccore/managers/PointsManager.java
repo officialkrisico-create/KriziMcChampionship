@@ -321,7 +321,6 @@ public class PointsManager {
     // Bonuses
     // ----------------------------------------------------------------
 
-    public int getLuckyBlockBonus()  { return pointsCfg.getInt("bonus.lucky-block-bonus", 50); }
     public int getDoubleKillBonus()  { return pointsCfg.getInt("bonus.double-kill", 25); }
     public int getTripleKillBonus()  { return pointsCfg.getInt("bonus.triple-kill", 75); }
     public int getMegaKillBonus()    { return pointsCfg.getInt("bonus.mega-kill", 150); }

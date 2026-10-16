@@ -62,27 +62,6 @@ achievements:
     scope_game_id: elytra_endrium
     progress_target: 3
 
-  - id: luckyblock_champion
-    name: "Lucky Streak"
-    description: "Win a game of Lucky Block"
-    category: CHAMPIONSHIP
-    rarity: RARE
-    icon: GOLD_BLOCK
-    hidden: false
-    trigger: GAME_WIN_SPECIFIC
-    scope_game_id: lucky_block
-
-  - id: luckyblock_legend
-    name: "Fortune's Favourite"
-    description: "Win 3 games of Lucky Block"
-    category: LEGENDARY
-    rarity: EPIC
-    icon: RABBIT_FOOT
-    hidden: false
-    trigger: GAME_WIN_SPECIFIC
-    scope_game_id: lucky_block
-    progress_target: 3
-
   - id: parkour_champion
     name: "Parkour Warrior"
     description: "Win a game of Parkour Warrior"
@@ -228,26 +207,5 @@ achievements:
     hidden: false
     trigger: GAME_WIN_SPECIFIC
     scope_game_id: tgttos
-    progress_target: 3
-
-  - id: bridge_champion
-    name: "Bridge Builder"
-    description: "Win a game of The Bridge"
-    category: CHAMPIONSHIP
-    rarity: RARE
-    icon: STONE_BRICKS
-    hidden: false
-    trigger: GAME_WIN_SPECIFIC
-    scope_game_id: the_bridge
-
-  - id: bridge_legend
-    name: "Bridge Keeper"
-    description: "Win 3 games of The Bridge"
-    category: LEGENDARY
-    rarity: EPIC
-    icon: IRON_BARS
-    hidden: false
-    trigger: GAME_WIN_SPECIFIC
-    scope_game_id: the_bridge
     progress_target: 3
 

@@ -69,6 +69,20 @@ public final class DodgeboltListener implements Listener {
         }
     }
 
+    /**
+     * Drawing and releasing the bow before the round starts must not cost the arrow: cancelling the shot
+     * itself (not just the launched arrow) keeps the arrow in the quiver.
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.HIGH)
+    public void onShoot(org.bukkit.event.entity.EntityShootBowEvent e) {
+        DodgeboltGameManagerV2 gm = running();
+        if (gm == null || !(e.getEntity() instanceof Player p) || !gm.isParticipant(p.getUniqueId())) return;
+        if (gm.isRoundLive()) return;
+        e.setCancelled(true);
+        e.setConsumeItem(false);
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> p.updateInventory());
+    }
+
     @EventHandler
     public void onArrowPickup(PlayerPickupArrowEvent e) {
         DodgeboltGameManagerV2 gm = running();

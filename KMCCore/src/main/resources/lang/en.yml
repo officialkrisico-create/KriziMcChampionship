@@ -77,19 +77,12 @@ sb:
   spleef:
     tip1: "&7Break the floor under"
     tip2: "&7your opponents!"
-  luckyblock:
-    tip1: "&7Break lucky blocks"
-    tip2: "&7for random loot!"
   tnttag:
     round: "&7Round &e{0}"
     time: "&7Time &f{0}s"
     out: "&7You are &cEliminated"
     it: "&c&l⚠ YOU HAVE THE BOMB!"
     safe: "&a&lSafe — run away!"
-  bridge:
-    target: "&7First to &e{0} &7goals"
-    standings: "&e&lSTANDINGS"
-    your-goals: "&7Your goals &b{0}"
   mob:
     your-team: "&e&lYOUR TEAM"
     wave: "&7Wave &e{0}"
@@ -234,7 +227,7 @@ tnt:
       sub: "&eOne bomb. No powerups. No escape."
   chaos:
     title: "&5&lCHAOS EVENT"
-    double-note: "&5&lDOUBLE TROUBLE! &7Next round gets extra bombs!"
+    double-note: "&5&lDOUBLE TROUBLE! &7Extra bombs have been added right now!"
     low_gravity: "Low Gravity"
     speed_frenzy: "Speed Frenzy"
     darkness: "Darkness"
@@ -257,7 +250,7 @@ fmc:
   time-up: "&b[Formula MC] &eTime is up!"
   time-up-race: "&b[Formula MC] &eTime's up — race over!"
   fastest: "&b[Formula MC] &6⏱ Fastest lap: &e{0} &7({1}, +{2})"
-  team-avg: "&b[Formula MC] &6✦ {0} &7team average &e#{1} &8({2}) &e+{3} each"
+  team-avg: "&b[Formula MC] &6✦ {0} &7team average &e#{1} &8({2}) &e+{3} for the team"
   results: "&b&l═══ Formula MC — results ═══"
   best-lap: "&8(best lap {0})"
   checkpoint: "&b✔ Checkpoint {0}/{1}"
@@ -268,9 +261,13 @@ fmc:
   back-on-track: "&e↩ Back on track"
   mastery: "&b[Formula MC] &7See your track records and Track Mastery: &e&n/kmctrack &7(click)"
   quali:
-    sub: "&7Drive one lap — the fastest starts on pole"
-    start: "&e&l[Qualifying] &7One timed lap, no collisions. Fastest time starts in front!"
+    sub: "&7Drive as many laps as you can — your fastest counts"
+    start: "&e&l[Qualifying] &7Timed laps without collisions: drive several, the fastest counts. Fastest time starts in front!"
     lap-done: "&7Qualified — waiting for the others"
+    lap-best: "&a✔ New best: &f{0} &8| &7P{1} &8| &7lap {2}"
+    lap-slower: "&7Best stays &f{0} &8| &7P{1} &8| &7lap {2}"
+    remaining: "&e[Qualifying] &f{0}s &7left — drive a faster lap!"
+    hud: "&e⏱ &f{0} &8| &7best &a{1} &8| &7{2} left"
     results: "&e&l═══ Starting grid ═══"
     pole: "&e[Qualifying] &6Pole position: &f{0} &7({1}, +{2} points)"
     grid: "&7Grid slot &e#{0}"
@@ -465,21 +462,7 @@ bp:
       title: "&5⇄ MIRROR"
       sub: "&7The colour shown is the one NOT to stand on!"
 
-# ── The Bridge ────────────────────────────────────────────────────────────────
-bridge:
-  intro-sub: "&9Score in the opponent's goal"
-  tut:
-    "1": "&9&l» &fBuild a bridge to the opponent's goal."
-    "2": "&9&l» &fScore by stepping into their goal hole."
-    "3": "&9&l» &fFall into the void? You respawn at your own team."
-    "4": "&9&l» &fFirst team to &e{0} &fgoals wins!"
-  no-side: "&9[The Bridge] &7Your team has no side of its own — you play for &f{0}&7."
-  scored: "&b⚽ &e{0} &9scored for {1}&9! ({2}/{3})"
-  assist: "&e+{0} &7points for the assist on &f{1}"
-  goal:
-    title: "&b&lGOAL!"
-    sub: "&7Respawning…"
-  own-wool: "&cYou can only place your own team's wool!"
+
 
 # ── Elytra Endrium ────────────────────────────────────────────────────────────
 ee:
@@ -545,19 +528,7 @@ hitw:
     "6": "NORTH"
     "7": "NORTH-EAST"
 
-# ── Lucky Block ───────────────────────────────────────────────────────────────
-lb:
-  tut:
-    "1": "&6&l» &fBreak lucky blocks for random loot."
-    "2": "&6&l» &fSometimes good, sometimes... less so."
-    "3": "&6&l» &fA fight eliminates players permanently."
-    "4": "&6&l» &fLast player standing wins!"
-  out:
-    title: "&c&lEliminated!"
-    sub: "&7Wait for the game to end."
-  eliminated: "&c☠ &7{0} &7was eliminated! &e{1} &7players left."
-  kill-pts: "&6+{0} points for the kill!"
-  assist-pts: "&e+{0} &7points for the assist on &f{1}"
+
 
 # ── Mob Mayhem ────────────────────────────────────────────────────────────────
 mm:
@@ -664,7 +635,7 @@ pw:
     need-fails: "You need {0} more fail(s) to skip."
     none: "No next checkpoint to skip to."
   skipped: "&7{0} &7skipped stage &e{1} &7(no points)"
-  finished: "&a&l[Parkour] &e{0} &afinished!"
+  finished: "&a&l[Parkour] &e{0} &afinished as &6#{1}&a!"
   finish:
     title: "&a&lFINISHED!"
     sub: "&7Great run!"
@@ -780,7 +751,7 @@ tgttos:
   void: "&cFell into the void — back to {0}"
   void-cp: "checkpoint {0}"
   void-start: "the start"
-  team-bonus: "&b&lTEAM BONUS &7— the whole team has finished! &8(&b+{0}&8 pts each)"
+  team-bonus: "&b&lTEAM BONUS &7— the whole team has finished! &8(&b+{0}&8 pts for the team)"
   map: "&e&l[TGTTOS] &eMap &6{0}&e/&6{1} &7— &b{2}"
   map-rule: "&7The map ends &e{0} &7after &e{1}% &7have finished."
   fog: "&8&l🌫 FOG OF WAR &7— you can only see a short distance ahead!"
@@ -888,7 +859,6 @@ score:
     OBJECTIVE: "game goals"
     BONUS: "bonus"
     SURVIVAL_BONUS: "survival"
-    LUCKY_BLOCK: "lucky block"
     DOUBLE_KILL: "double kill"
     TRIPLE_KILL: "triple kill"
     MEGA_KILL: "mega kill"
@@ -1227,6 +1197,10 @@ spectator:
 
 # ── Wave 6: arcade games ──────────────────────────────────────────────────────
 arcade:
+  sb:
+    team: "TEAM"
+    team-points: "&7Team points &a{0}"
+    your-points: "&7Your points &f{0}"
   down:
     title: "&c&lKNOCKED OUT"
     sub: "&7You are back in {0}s"
@@ -1285,21 +1259,27 @@ knockout:
     points: "&7Points &a{0}"
 
 crafting:
-  intro-sub: "&6Collect the ordered items and deliver them"
+  intro-sub: "&6Gather, craft and deliver"
+  workbench: "&6&lWorkbench &7(right-click)"
   tut:
-    "1": "&6&l» &fYour team gets orders: items with quantities. See the board at your delivery point and the sidebar."
-    "2": "&6&l» &fRight-click a pile in the arena and choose which item to take. Piles have a cooldown, a stock and refill themselves."
-    "3": "&6&l» &fCarry the items to your own delivery point and right-click it. Progress is shared by the whole team."
+    "1": "&6&l» &fYour team gets orders: items to craft, with quantities. See the board at your delivery point and the sidebar."
+    "2": "&6&l» &fYou get raw materials by mining: right-click a pile to choose what you want, then break the block with your pickaxe or axe."
+    "3": "&6&l» &fCraft the item with the Workbench (right-click it in your hotbar) and deliver it at your own delivery point."
     "4": "&6&l» &fDone = points for whoever delivered, a new order and bonuses for speed and streaks."
   go:
-    title: "&6&lCOLLECT!"
-    sub: "&7Right-click the piles"
+    title: "&6&lGATHER AND CRAFT!"
+    sub: "&7Materials at the piles, craft with your Workbench"
   order:
     first: "&6[Order #{0}] &7Your task: {1}"
     new: "&6[Order #{0}] &7New order: {1}"
+    needs: "&7Materials: &f{0}"
     done: "&a&l✔ Order #{0} done! &7base &f{1} &8+ &7items &f{2} &8+ &7speed &f{3} &8+ &7streak &f{4} &8= &e&l{5} points"
     other: "&6[Crafting] &e{0} &7finished order #{1} &8(+{2})"
+  tool:
+    pickaxe: "&6&lPickaxe"
+    axe: "&6&lAxe"
   pile:
+    mining: "&7You are mining &e{0}&7 now — break the blocks of this pile"
     took: "&a+{0} {1} &8(carrying {2}/{3})"
     cooldown: "&7Wait a moment: &e{0}s &7left at this pile."
     full: "&cYou are carrying the maximum ({0}). Deliver first!"
@@ -1321,6 +1301,243 @@ crafting:
     orders: "&7Orders &f{0} &8(streak {1})"
     carry: "&7Carrying &f{0}&7/&f{1}"
     you: "&7You delivered &f{0}"
+
+laser:
+  intro-sub: "&bTurn the mirrors, reach the receivers"
+  tut:
+    "1": "&b&l» &fYour team has its own puzzle board: an emitter shoots a laser, the receivers have to light up."
+    "2": "&b&l» &fRight-click a mirror to turn it (╱ or ╲). The beam changes immediately."
+    "3": "&b&l» &fWalls and absorbers stop the beam, splitters make two, filters colour it."
+    "4": "&b&l» &fStuck? Right-click the paper in your hotbar for a hint — the first one costs the no-hint bonus."
+  diff:
+    easy: "&aEasy"
+    medium: "&eMedium"
+    hard: "&cHard"
+  puzzle:
+    title: "&b&lPUZZLE {0}"
+    sub: "{0} &8| &7{1} pts &8| &7{2}s"
+  hint:
+    item: "&b&lHint &7(right-click)"
+    lore: "&7Max {0} per puzzle. The first hint costs the no-hint bonus (+{1})."
+    max: "&cNo more hints for this puzzle."
+    lost: " &8(no-hint bonus is gone)"
+    line: "&b[Hint {0}/{1}] &f{2}"
+    "1": "These receiver(s) still have to light up: &e{0}"
+    "2": "The mirror at cell &e({0}, {1}) &fis wrong (marked with particles)."
+    2-none: "No mirror needs turning — look at the receivers."
+    "3": "Part of the solution is shown briefly with white particles."
+  foreign: "&cThis is another team's board."
+  fixed: "&7This mirror is fixed."
+  locked: "&7This mirror is locked until receiver &e{0} &7lights up."
+  solved: "&a&l✔ Puzzle {0} solved! &7base &f{1} &8+ &7first &f{2} &8+ &7no-hint &f{3} &8= &e&l{4} points &8({5}s)"
+  solved-other: "&b[Laser] &e{0} &7solved puzzle &f{1}&7."
+  timeout: "&b[Laser] &7Time is up for puzzle {0} — on to the next."
+  sb:
+    time: "&7Time &f{0}"
+    puzzle: "&7Puzzle &f{0} &8({1}&8)"
+    left: "&7Left &f{0}s"
+    solved: "&7Solved &a{0}"
+    hints: "&7Hints &e{0}&7/&e{1}"
+    team: "&7Team &a{0}"
+  results: "&b&l═══ Laser Logic — results ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} pts &8| &7{3} puzzles (&a{4}&7/&e{5}&7/&c{6}&7), avg {7}s, {8} hints"
+
+blockball:
+  intro-sub: "&aKick the ball into the goal"
+  tut:
+    "1": "&a&l» &fYour team plays 4 against 4: kick the ball into the opponent's goal."
+    "2": "&a&l» &fLeft-click = kick, right-click = pass. Hold sneak and left-click for a charged shot."
+    "3": "&a&l» &fWalking into the ball pushes it too. Stay on the field: walking off brings you back."
+    "4": "&a&l» &fA win, draw or loss earns points; goals and assists give a bonus."
+  wave: "&a[Blockball] &7Round &f{0}&7/&f{1} &8— &f{2} &7matches at the same time."
+  bye: "&a[Blockball] &7Your team has no opponent this round: &e+{0} points&7."
+  match:
+    title: "&a&lMATCH"
+    sub: "{0} &7vs {1}"
+  overtime:
+    title: "&6&lOVERTIME"
+    sub: "&7Golden goal — the next goal wins"
+  goal:
+    title: "&a&lGOAL! {0}"
+    sub: "&f{0} &8| &7{1} - {2}"
+    chat: "&a[Goal] {0} &7scores through &f{1} &8({3}-{4})"
+    chat-assist: "&a[Goal] {0} &7scores through &f{1} &7(assist &f{2}&7) &8({3}-{4})"
+  own-goal: "&cown goal"
+  out: "&cYou have to stay on the field."
+  keeper:
+    you: "&b&lYou are the keeper!"
+    you-sub: "&7In your own area: right-click = catch, left-click = punch away"
+    announce: "&7Keeper of {0}&7: &f{1}"
+    caught: "&aCaught! &7Left-click = throw, right-click = roll"
+    released: "&7You have to let go of the ball"
+    save: "&b&l✋ SAVE!"
+    save-sub: "&7Shot stopped"
+    summary: "&7As keeper: &a{0} &7saves, {1} catches"
+    sb: "&7Keeper &8| &7saves &f{0}"
+  charged: "&6Charged — click for a shot!"
+  match-result: "&a[Blockball] {0} &f{1} &8- &f{2} {3} &8— {4}"
+  match-win: "&e{0} wins"
+  match-draw: "&7draw"
+  match-you: "&7You: &a{0} &7goals, &a{1} &7assists, {2} shots, {3} passes"
+  sb:
+    wave: "&7Round &f{0}&7/&f{1}"
+    time: "&7Time &f{0}"
+    you: "&7You &a{0}&7 goals, &a{1}&7 assists"
+    waiting: "&7Waiting for your match"
+  results: "&a&l═══ Blockball — results ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} pts &8| &7{3}/{4} won, goal difference {5}-{6}"
+
+factory:
+  intro-sub: "&6Produce and deliver the orders"
+  tut:
+    "1": "&6&l» &fYour team runs its own factory. The board shows the orders: which products and how many."
+    "2": "&6&l» &fRight-click a resource station to take materials, and a machine to put them in."
+    "3": "&6&l» &fMachines take time: collect the result from the machine menu and pass it on."
+    "4": "&6&l» &fRight-click the gold block to deliver. Every order pays points to whoever delivered."
+  go:
+    title: "&6&lPRODUCE!"
+    sub: "&7Resources, machines, delivery"
+  foreign: "&cThis is the factory of {0}&c."
+  order:
+    new: "&6[Order] &f{0}&7: {1} &8(+{2} pts)"
+    done: "&a&l✔ {0} delivered! &e+{1} &7(deadline bonus +{2})"
+  station:
+    cooldown: "&7Wait a moment."
+    full: "&cYou are carrying the maximum ({0})."
+    empty: "&c{0} is out — the station refills."
+    took: "&a+{0} {1} &8(stock {2}/{3})"
+  state:
+    idle: "Waiting for input"
+    waiting_for_input: "Waiting for more input"
+    processing: "Working"
+    ready: "Ready for pick-up"
+    blocked: "Blocked — collect the output"
+    disabled: "Disabled"
+  queue: "Queue {0}/{1}"
+  recipe:
+    in: "Input: {0}"
+    out: "Output: {0}"
+    time: "Time: {0}s"
+  empty: "empty"
+  buffer: "In the machine"
+  insert:
+    label: "Insert all"
+    lore: "Puts every usable item from your inventory in."
+  collect: "Collect output"
+  return:
+    label: "Take input back"
+    lore: "Only what is not in production yet."
+  inserted: "&a{0} items inserted"
+  nothing-to-insert: "&7You carry nothing this machine uses."
+  collected: "&a{0} products collected"
+  returned: "&7{0} items returned"
+  deliver:
+    ok: "&a{0} products delivered"
+    nothing: "&7You carry nothing an order needs."
+  final:
+    title: "&c&lFINAL STRETCH"
+    sub: "&7{0} seconds left — deliver everything!"
+  results: "&6&l═══ Factory Frenzy — results ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} pts &8| &7{3} orders, {4} items partly done, {5} delivered, efficiency {6}%"
+  sb:
+    time: "&7Time &f{0}"
+    order: "&f{0} &e{1}&7/&e{2}"
+    team: "&7Team &a{0}"
+    done: "&7Orders &f{0}"
+    carry: "&7Carrying &f{0}&7/&f{1}"
+    you: "&7You delivered &f{0}"
+
+dungeon:
+  intro-sub: "&5Draft your route through the dungeon"
+  tut:
+    "1": "&5&l» &fEvery team runs its own dungeon. After each room you pick the next one from a few options."
+    "2": "&5&l» &fVote in the draft menu: most votes wins. Nobody chooses? Chance decides."
+    "3": "&5&l» &fDamage comes off the shared team health. When it is gone, the run is over."
+    "4": "&5&l» &fSpend coins from chests and rooms on healing or an extra life. Last room: the boss!"
+  foreign: "&cThis is another team's lane."
+  draft:
+    title: "&5Pick your next room"
+    header: "&dRoom {0}/{1} &8| &f{2}s &7left"
+    health: "&7Team health &c{0}/{1} &8| &7lives &a{2}"
+    currency: "&7Coins &6{0}"
+    chat: "&5[Dungeon] &fPick room {0} of {1} in the menu."
+    auto: "&7Nobody chose — the team goes to &f{0}&7."
+    leader-only: "&cOnly the team leader chooses in this mode."
+  type:
+    combat: "Combat"
+    parkour: "Parkour"
+    trap: "Trap"
+    treasure: "Treasure"
+    puzzle: "Puzzle"
+    boss: "Boss"
+  difficulty: "Difficulty {0}"
+  reward: "Reward {0} pts"
+  risk: "Risk: {0}"
+  votes: "Votes {0}"
+  mod:
+    double_reward: "Double reward"
+    reduced_time: "Less time"
+    extra_wave: "Extra wave"
+    heal: "Heals afterwards"
+  shop:
+    heal: "Heal the team"
+    revive: "Extra life"
+    cost: "Costs {0} coins"
+    poor: "&cNot enough coins."
+    healed: "&a{0} healed the team."
+    revived: "&a{0} bought an extra life."
+  room:
+    enter: "&5[Dungeon] &fYou enter &e{0}&f. &7Goal: {1}"
+    goal:
+      combat: "defeat every wave"
+      parkour: "reach the finish"
+      trap: "press the switches"
+      treasure: "open the chests"
+      puzzle: "press the pads in the right order"
+      boss: "defeat the boss"
+    done: "&a&l✔ {0} cleared! &e+{1} &7(bonus +{2})"
+    timeout: "&c{0}: out of time — the team loses health."
+  combat:
+    wave: "&cWave {0}/{1}"
+  parkour:
+    finished: "&aFinished {0}/{1}"
+    fell: "&cYou fell — back to the checkpoint."
+  trap:
+    switch: "&eSwitch {0}/{1}"
+  treasure:
+    empty: "&7This chest is already empty."
+    found: "&6{0} found &e{1} &6coins!"
+    trapped: "&c{0} opened a trapped chest!"
+  puzzle:
+    watch: "&7Wait until the sequence is shown."
+    wrong: "&cWrong! The sequence starts over."
+  boss:
+    telegraph: "&c&lWatch out — a strike is coming!"
+    phase2: "&c&lThe boss calls for help!"
+  revive:
+    title: "&a&lExtra life!"
+    sub: "&7The team recovers half its health"
+  end:
+    done: "&a&lDUNGEON CLEARED"
+    failed: "&c&lRUN FAILED"
+    sub: "&7{0} rooms cleared"
+  results: "&5&l═══ Dungeon Draft — results ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} pts &8| &7{3} rooms, difficulty {4}, {5} boss, {6} chests, health {7}, {8} extra lives, {9}s"
+  sb:
+    time: "&7Time &f{0}"
+    room: "&7Room &f{0}&7/&f{1}"
+    drafting: "&dChoosing a route..."
+    completed: "&aCleared"
+    failed: "&cFailed"
+    health: "&7Health &c{0}&7/&c{1} &a+{2}"
+    currency: "&7Coins &6{0}"
+    team: "&7Team &a{0}"
+    combat: "&7Wave &f{0}&7/&f{1} &8| &7enemies &f{2}"
+    parkour: "&7Finished &f{0}"
+    switches: "&7Switches &f{0}&7/&f{1}"
+    chests: "&7Chests &f{0}&7/&f{1}"
+    puzzle: "&7Puzzle &f{0}&7/&f{1}"
+    boss: "&7Boss &c{0} HP"
 
 zonezero:
   intro-sub: "&5Control the open zones"
@@ -1446,6 +1663,7 @@ core:
   full: "&b[Core Charge] &e{0} &7fully charged the core!"
   activated: "&b[Core Charge] &e{0} &7activates &f{1}"
   results: "&b&l═══ Core Charge — results ═══"
+  charging: "&b⚡ Charging &f{0}% &8| &e{1}s &7to go"
   sb:
     time: "&7Time &f{0}"
     final: "&c&lFINAL CHARGE"

@@ -34,12 +34,13 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 
 /**
- * Crafting Countdown (Build Mart style): every team gets orders — items and quantities — and collects the
+ * Crafting Countdown (Build Mart style, with recipe crafting instead of building): every team gets orders — items to craft — and collects the
  * items from resource piles spread over the arena. A pile is a block you right-click: a menu shows what it
  * holds, each pick gives a configurable amount, piles have a stock, a per-player cooldown and restock by
  * themselves. Everything is carried to the team's own delivery station; progress is shared by the team.
  * A completed order pays points (items, speed, streak) to the players who delivered it, and the next order
- * is generated straight away, a little harder every few orders. No crafting, no building.
+ * is generated straight away, a little harder every few orders. Crafting is the vanilla crafting table (every
+ * player has a portable workbench item); there is no building.
  */
 public final class CraftingCountdownManager extends ArcadeGameManager {
 
@@ -56,6 +57,13 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         boolean dirty = true;
         Pile(String id, PileType type, Location at) { this.id = id; this.type = type; this.at = at; }
     }
+
+    /** Marks the portable workbench item. */
+    private NamespacedKey workbenchKey;
+    /** Marks the mining tools (they are not carried goods). */
+    private NamespacedKey toolKey;
+    /** What each player mines at each pile: "<player>:<pile>" to the item. */
+    private final Map<String, Material> mining = new HashMap<>();
 
     private static final class Order {
         final int seq;
@@ -171,7 +179,19 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
             int min = m.get("min") instanceof Number n ? n.intValue() : 4;
             int max = m.get("max") instanceof Number n ? n.intValue() : min;
             double value = m.get("value") instanceof Number n ? n.doubleValue() : 1.0;
-            out.add(new PoolItem(mat.name(), Math.max(1, tier), Math.max(1, min), Math.max(1, max), value));
+            // the raw materials this item is crafted from; they have to be on the piles
+            Set<String> requires = new LinkedHashSet<>();
+            if (m.get("requires") instanceof List<?> rl) {
+                for (Object r : rl) {
+                    Material rm = Material.matchMaterial(String.valueOf(r));
+                    if (rm == null || !rm.isItem()) {
+                        if (problems != null) problems.add("item-pool " + item + ": onbekende grondstof " + r);
+                        continue;
+                    }
+                    requires.add(rm.name());
+                }
+            }
+            out.add(new PoolItem(mat.name(), Math.max(1, tier), Math.max(1, min), Math.max(1, max), value, requires));
         }
         return out;
     }
@@ -223,7 +243,7 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         List<PoolItem> pl = loadPool(p);
         if (pl.isEmpty()) p.add("lege item-pool in config.yml");
         else if (placed > 0 && OrderLogic.candidates(pl, items, 1).isEmpty())
-            p.add("geen enkel item uit de item-pool (tier 1) is te krijgen bij de geplaatste stapels");
+            p.add("geen enkel recept uit de item-pool (tier 1) is te maken met de grondstoffen van de geplaatste stapels");
         if (loadDifficulty().isEmpty()) p.add("orders.difficulty is leeg");
         return p;
     }
@@ -265,6 +285,9 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         durationTicks = cfgInt("game.duration-seconds", 240) * 20L;
         finalAnnounced = false;
         lastBeep = -1;
+        workbenchKey = new NamespacedKey(gamePlugin, "workbench");
+        toolKey = new NamespacedKey(gamePlugin, "tool");
+        mining.clear();
 
         // piles (a pile is a block: right-click it)
         int n = 0;
@@ -328,6 +351,64 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
                 for (Order o : ts.orders) announceOrder(m, o, false);
             }
         }
+        for (Player p : activePlayers()) {
+            p.setGameMode(GameMode.SURVIVAL);         // digging needs survival; everything else stays blocked
+            giveTools(p);
+            giveWorkbench(p);
+        }
+    }
+
+    // ── Portable workbench ────────────────────────────────────────────────────
+
+    private boolean isWorkbench(ItemStack it) {
+        if (it == null || it.getType() != Material.CRAFTING_TABLE || !it.hasItemMeta()) return false;
+        return it.getItemMeta().getPersistentDataContainer().has(workbenchKey, org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
+    /** Everybody can craft anywhere: right-click this item to open a crafting table. */
+    private void giveWorkbench(Player p) {
+        if (!gamePlugin.getConfig().getBoolean("crafting.workbench-item", true)) return;
+        for (ItemStack it : p.getInventory().getContents()) if (isWorkbench(it)) return;
+        ItemStack bench = new ItemStack(Material.CRAFTING_TABLE);
+        ItemMeta meta = bench.getItemMeta();
+        meta.setDisplayName(api.tr(p.getUniqueId(), "crafting.workbench"));
+        meta.getPersistentDataContainer().set(workbenchKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        bench.setItemMeta(meta);
+        // slot 9 when it is free (and the tools never sit there), else the first free hotbar slot
+        var inv = p.getInventory();
+        int slot = 8;
+        if (inv.getItem(slot) != null && !isTool(inv.getItem(slot))) {
+            slot = -1;
+            for (int i = 8; i >= 0; i--) if (inv.getItem(i) == null) { slot = i; break; }
+        }
+        if (slot < 0) {                                  // a full hotbar: the workbench wins slot 9
+            ItemStack old = inv.getItem(8);
+            inv.setItem(8, bench);
+            if (old != null) inv.addItem(old);
+        } else inv.setItem(slot, bench);
+        p.updateInventory();
+    }
+
+    private boolean isTool(ItemStack it) {
+        return it != null && it.hasItemMeta()
+                && it.getItemMeta().getPersistentDataContainer().has(toolKey, org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
+    /** An unbreakable pickaxe and axe: the piles are real blocks that have to be mined. */
+    private void giveTools(Player p) {
+        for (ItemStack it : p.getInventory().getContents()) if (isTool(it)) return;
+        for (int n = 0; n < 2; n++) {
+            ItemStack tool = new ItemStack(n == 0 ? Material.IRON_PICKAXE : Material.IRON_AXE);
+            ItemMeta m = tool.getItemMeta();
+            m.setDisplayName(api.tr(p.getUniqueId(), n == 0 ? "crafting.tool.pickaxe" : "crafting.tool.axe"));
+            m.setUnbreakable(true);
+            m.addEnchant(org.bukkit.enchantments.Enchantment.EFFICIENCY, 3, true);
+            m.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS, org.bukkit.inventory.ItemFlag.HIDE_UNBREAKABLE,
+                    org.bukkit.inventory.ItemFlag.HIDE_ATTRIBUTES);
+            m.getPersistentDataContainer().set(toolKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+            tool.setItemMeta(m);
+            p.getInventory().setItem(n, tool);
+        }
     }
 
     private long restockTicks() { return Math.max(1, cfgInt("piles.restock-seconds", 15)) * 20L; }
@@ -359,6 +440,18 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
                     .append(OrderLogic.pretty(o.lines.get(i).item()));
         }
         p.sendMessage(api.tr(viewer, fresh ? "crafting.order.new" : "crafting.order.first", o.seq, sb.toString()));
+        String needs = ingredients(o);
+        if (!needs.isEmpty()) p.sendMessage(api.tr(viewer, "crafting.order.needs", needs));
+    }
+
+    /** The raw materials an order is made from, for the hint under the order. */
+    private String ingredients(Order o) {
+        Set<String> all = new LinkedHashSet<>();
+        for (Line l : o.lines) {
+            PoolItem pi = poolById.get(l.item());
+            if (pi != null) for (String r : pi.requires()) all.add(OrderLogic.pretty(r));
+        }
+        return String.join("§7, §f", all);
     }
 
     // ── Piles ─────────────────────────────────────────────────────────────────
@@ -398,9 +491,10 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         }
     }
 
+    /** Items on you, not counting the workbench item. */
     private int carried(Player p) {
         int n = 0;
-        for (ItemStack it : p.getInventory().getStorageContents()) if (it != null) n += it.getAmount();
+        for (ItemStack it : p.getInventory().getStorageContents()) if (it != null && !isWorkbench(it) && !isTool(it)) n += it.getAmount();
         return n;
     }
 
@@ -581,10 +675,17 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
 
     @EventHandler
     public void onUse(PlayerInteractEvent e) {
-        if (e.getAction() != Action.RIGHT_CLICK_BLOCK || e.getHand() != EquipmentSlot.HAND) return;
-        if (!live || !getState().isRunning() || e.getClickedBlock() == null) return;
+        if (e.getHand() != EquipmentSlot.HAND) return;
         Player p = e.getPlayer();
         UUID id = p.getUniqueId();
+        if ((e.getAction() == Action.RIGHT_CLICK_AIR || e.getAction() == Action.RIGHT_CLICK_BLOCK)
+                && live && getState().isRunning() && isParticipant(id) && isWorkbench(e.getItem())) {
+            e.setCancelled(true);
+            if (isActive(id)) p.openWorkbench(null, true);
+            return;
+        }
+        if (e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (!live || !getState().isRunning() || e.getClickedBlock() == null) return;
         if (!isParticipant(id)) return;
         var b = e.getClickedBlock();
         long k = key(b.getX(), b.getY(), b.getZ());
@@ -619,9 +720,36 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
         if (e.getClickedInventory() != e.getView().getTopInventory()) return;
         Material m = h.slots.get(e.getRawSlot());
         if (m == null) return;
-        take(p, h.pile, m);
-        render(h, p);
-        if (h.pile.dirty) updateLabel(h.pile);
+        // choosing is not taking: from now on the blocks of this pile give this item when they are mined
+        mining.put(p.getUniqueId() + ":" + h.pile.id, m);
+        p.closeInventory();
+        p.playSound(p.getLocation(), Sound.UI_BUTTON_CLICK, 0.7f, 1.3f);
+        actionBar(p, api.tr(p.getUniqueId(), "crafting.pile.mining", OrderLogic.pretty(m.name())));
+    }
+
+    /** Mining is real: the pile block is dug with the pickaxe or axe, and every break gives the chosen item. */
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOW)
+    public void onMine(org.bukkit.event.block.BlockBreakEvent e) {
+        Player p = e.getPlayer();
+        UUID id = p.getUniqueId();
+        if (!live || !getState().isRunning() || !isParticipant(id)) return;
+        var b = e.getBlock();
+        Pile pile = pileAt.get(key(b.getX(), b.getY(), b.getZ()));
+        if (pile == null) return;
+        e.setCancelled(true);                        // the block stays: it is a pile, not a block you can remove
+        e.setDropItems(false);
+        if (!isActive(id)) return;
+        Material sel = mining.get(id + ":" + pile.id);
+        if (sel == null || !pile.stock.containsKey(sel)) {
+            sel = null;
+            for (var en : pile.stock.entrySet()) if (en.getValue().amount() > 0) { sel = en.getKey(); break; }
+            if (sel == null && !pile.stock.isEmpty()) sel = pile.stock.keySet().iterator().next();
+            if (sel == null) return;
+            mining.put(id + ":" + pile.id, sel);
+        }
+        take(p, pile, sel);
+        if (pile.dirty) updateLabel(pile);
+        b.getWorld().spawnParticle(Particle.BLOCK, b.getLocation().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, 0, b.getBlockData());
     }
 
     @EventHandler
@@ -637,6 +765,7 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
             restock();
             nextRestock = ticks + restockTicks();
         }
+        if (ticks % 40 == 0) for (Player p : activePlayers()) { giveTools(p); giveWorkbench(p); }   // lost it in the crafting grid?
         if (ticks % 10 == 0) {
             for (Pile pile : piles) if (pile.dirty) updateLabel(pile);
             for (var en : teams.entrySet()) if (en.getValue().dirty) updateBoard(en.getKey(), en.getValue());
@@ -698,6 +827,12 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
                         .append(Component.text(" " + got + "/" + l.required(), full ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
             }
         }
+        if (!ts.orders.isEmpty()) {
+            String needs = ingredients(ts.orders.get(0));
+            if (!needs.isEmpty())
+                c = c.append(Component.newline())
+                        .append(Component.text("Grondstoffen: " + ChatColor.stripColor(needs), NamedTextColor.DARK_GRAY));
+        }
         c = c.append(Component.newline()).append(Component.text("Rechtsklik om in te leveren", NamedTextColor.GRAY));
         ts.board.text(c);
     }
@@ -722,7 +857,6 @@ public final class CraftingCountdownManager extends ArcadeGameManager {
                 }
             }
             l.add("");
-            l.add(api.tr(id, "crafting.sb.team", shownTeamPoints(team)));
             l.add(api.tr(id, "crafting.sb.orders", ts.completed, ts.streak));
         }
         l.add(api.tr(id, "crafting.sb.carry", carried(viewer), cfgInt("piles.max-carry", 128)));

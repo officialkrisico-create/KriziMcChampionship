@@ -1,0 +1,19 @@
+name: DungeonDraft
+version: 1.0.0
+main: nl.kmc.dungeon.DungeonDraftPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: "Dungeon Draft - teams draft their own route through a dungeon, room by room"
+
+commands:
+  dungeon:
+    description: Dungeon Draft control + setup
+    aliases: [dungeondraft, dd]
+    usage: /dungeon <start|stop|status|validate|info|test|world|lane|room|spawn|reload>
+    permission: dungeondraft.admin
+
+permissions:
+  dungeondraft.admin:
+    description: Dungeon Draft admin commands
+    default: op

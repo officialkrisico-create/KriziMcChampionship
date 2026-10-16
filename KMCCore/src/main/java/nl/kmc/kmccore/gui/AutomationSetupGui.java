@@ -146,9 +146,9 @@ public final class AutomationSetupGui extends Gui {
                 });
 
         button(SLOT_PRESETS, item(Material.BOOK, "&b&lPresets",
-                        "&7Standaard, kort, speciaal of test:",
-                        "&7zet alles in één keer.",
-                        "&eKlik om te kiezen"),
+                        "&7Je eigen presets: zet alles in één keer.",
+                        "&7Of maak een nieuwe van je huidige instellingen.",
+                        "&eKlik om te kiezen of te maken"),
                 p -> new PresetPickerGui(plugin, onStartNow).open(p));
     }
 

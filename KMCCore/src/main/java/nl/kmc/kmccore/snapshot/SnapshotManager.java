@@ -26,7 +26,7 @@ import java.util.logging.Level;
  * <p>NOT captured (these can't easily be restored mid-event):
  * <ul>
  *   <li>In-flight game state (active arena, racer positions, etc.)</li>
- *   <li>World/block changes from games (Bridge wool, Spleef holes)</li>
+ *   <li>World/block changes from games (Spleef holes)</li>
  *   <li>Player inventories</li>
  *   <li>Database history rows</li>
  * </ul>

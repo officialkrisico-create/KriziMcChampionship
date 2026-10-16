@@ -64,7 +64,7 @@ public final class GameApiPlugin extends JavaPlugin {
                 gameId = agp.gameId();
                 name   = agp.displayName();
             } else {
-                try {   // plain game plugins (Adventure Escape, Lucky Block) expose a public static GAME_ID
+                try {   // plain game plugins (Adventure Escape) expose a public static GAME_ID
                     var fld = owner.getClass().getField("GAME_ID");
                     if (fld.get(null) instanceof String s) gameId = s;
                 } catch (ReflectiveOperationException ignored) { }

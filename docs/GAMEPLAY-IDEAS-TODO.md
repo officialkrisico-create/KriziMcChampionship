@@ -59,8 +59,7 @@ once built, so this stays useful as a changelog too.
 - [~] **Assist-punten (80/20-split)** — deels gebouwd, zie hieronder.
       Belangrijke ontdekking tijdens het bouwen: de gedeelde
       `PlayerKillListener` in KMCCore blijkt bijna nooit te vuren voor de
-      echte PvP-games — SkyWars, Survival Games, Spleef, QuakeCraft, Lucky
-      Block, The Bridge, TNT Tag en Mob Mayhem crediten kills allemaal
+      echte PvP-games — SkyWars, Survival Games, Spleef, QuakeCraft, TNT Tag en Mob Mayhem crediten kills allemaal
       **zelf** via hun eigen `api.points().givePoints(...)`-aanroep, niet via
       die listener. Dus: een nieuwe gedeelde `AssistTracker`-utility gebouwd
       in `kmc-game-api` (trackt de laatste 2 verschillende aanvallers per
@@ -72,7 +71,7 @@ once built, so this stays useful as a changelog too.
       wiring nog nodig (zelfde patroon: vervang hun eigen
       `lastAttacker`-tracking door `AssistTracker`, splits de kill-punten bij
       het crediten). Volgende sessie: QuakeCraft, Survival Games, Spleef,
-      Lucky Block, The Bridge, TNT Tag, Mob Mayhem.
+      TNT Tag, Mob Mayhem.
 - [x] **Golden Hour** — bij `/kmctournament start` wordt stiekem één ronde
       (1..totaal) geloot als de Golden Hour-ronde; pas onthuld zodra die
       ronde daadwerkelijk begint (`TournamentManager.checkGoldenHour()`,

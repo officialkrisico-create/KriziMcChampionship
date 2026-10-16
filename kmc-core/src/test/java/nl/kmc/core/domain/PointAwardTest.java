@@ -60,12 +60,6 @@ class PointAwardTest {
     }
 
     @Test
-    void lucky_block_reason_is_valid() {
-        PointAward a = award(LUCKY_BLOCK, 30);
-        assertEquals(LUCKY_BLOCK, a.getReason());
-    }
-
-    @Test
     void survival_bonus_reason_is_valid() {
         PointAward a = award(SURVIVAL_BONUS, 5);
         assertEquals(SURVIVAL_BONUS, a.getReason());

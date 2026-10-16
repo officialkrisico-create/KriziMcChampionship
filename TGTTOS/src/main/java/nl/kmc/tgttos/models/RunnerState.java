@@ -20,6 +20,7 @@ public class RunnerState {
 
     /** Cumulative total points across all rounds. */
     private int totalPoints;
+    private int teamBonus;
 
     /** Total deaths across all rounds. */
     private int totalDeaths;
@@ -117,7 +118,10 @@ public class RunnerState {
         consecutiveDnf = 0;   // a finish resets the DNF streak
     }
 
-    public void giveBonusPoints(int amount) {
-        totalPoints += amount;
+    /** A bonus for the whole team: shown on its own, never part of the personal points or the ranking. */
+    public void giveTeamBonus(int amount) {
+        teamBonus += amount;
     }
+
+    public int getTeamBonus() { return teamBonus; }
 }

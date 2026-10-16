@@ -249,6 +249,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
 
         List<PlayerState> holders = players.values().stream()
                 .filter(ps -> ps.isAlive() && ps.isIt()).toList();
+        final int placeBefore = (int) aliveCount();      // everybody who goes out in this explosion shares it
         for (PlayerState ps : holders) {
             ps.eliminate(eliminationCounter++);
             Player p = Bukkit.getPlayer(ps.getUuid());
@@ -260,7 +261,7 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
                 toSpectator(p);
                 p.sendTitle(api.tr(p.getUniqueId(), "tnt.boom.title"), api.tr(p.getUniqueId(), "tnt.boom.sub"), 5, 40, 10);
             }
-            tellAll("tnt.boom.chat", ps.getName());
+            tellAllPlaced("tnt.boom.chat", placeBefore, ps.getName());
         }
 
         int survivalPts = plugin.getConfig().getInt("points.round-survive", 60);
@@ -393,6 +394,12 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
         }
     }
 
+    /** An elimination message with the place the player gets: "(36)". */
+    private void tellAllPlaced(String key, int place, Object... args) {
+        for (Player p : Bukkit.getOnlinePlayers())
+            p.sendMessage(api.tr(p.getUniqueId(), key, args) + nl.kmc.game.api.GamePlayerUtil.placeTag(place));
+    }
+
     private void tellAll(String key, Object... args) {
         for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(api.tr(p.getUniqueId(), key, args));
     }
@@ -429,11 +436,32 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
             case "SPEED_FRENZY" -> applyAll("speed", 1, 20 * 20);
             case "DARKNESS" -> applyAll("darkness", 0, 20 * 20);
             case "TRACKER_FAILURE" -> trackerFailure(15);
-            case "DOUBLE_TROUBLE" -> { nextRoundTntBonus = 2; tellAll("tnt.chaos.double-note"); }
+            case "DOUBLE_TROUBLE" -> { addBombs(); tellAll("tnt.chaos.double-note"); }
             case "TELEPORT_MADNESS" -> teleportMadness(15);
             case "SHRINKING_ARENA" -> chaosShrink();
         }
         Bukkit.getScheduler().runTaskLater(plugin, () -> activeChaos = null, 20 * 20L);
+    }
+
+    /**
+     * Double Trouble, right now: the bombs double (at least two more), given to players who do not hold one.
+     * At least one player always stays without a bomb, so the round can still be survived.
+     */
+    private void addBombs() {
+        List<PlayerState> holders = players.values().stream().filter(ps -> ps.isAlive() && ps.isIt()).toList();
+        List<PlayerState> free = new ArrayList<>(players.values().stream()
+                .filter(ps -> ps.isAlive() && !ps.isIt()).toList());
+        Collections.shuffle(free);
+        int extra = Math.min(Math.max(2, holders.size()), Math.max(0, free.size() - 1));
+        for (int i = 0; i < extra; i++) {
+            PlayerState ps = free.get(i);
+            ps.setIt(true);
+            ps.recordTagPass();
+            ps.markReceivedTnt();
+            Player p = Bukkit.getPlayer(ps.getUuid());
+            if (p != null) p.playSound(p.getLocation(), Sound.ENTITY_TNT_PRIMED, 1f, 0.8f);
+        }
+        updateVisuals();
     }
 
     /** Temporary border squeeze for ~20s, then it opens back up. */
@@ -700,10 +728,11 @@ public final class TNTTagGameManagerV2 extends BaseGameManager {
     public void eliminateEnvironmental(Player p) {
         PlayerState ps = players.get(p.getUniqueId());
         if (ps == null || !ps.isAlive()) return;
+        final int place = (int) aliveCount();
         ps.eliminate(eliminationCounter++);
         clearTnt(p);
         toSpectator(p);
-        tellAll("tnt.out.border", ps.getName());
+        tellAllPlaced("tnt.out.border", place, ps.getName());
         updateVisuals();
         updateBossBar();
         if (aliveCount() <= 1) end();

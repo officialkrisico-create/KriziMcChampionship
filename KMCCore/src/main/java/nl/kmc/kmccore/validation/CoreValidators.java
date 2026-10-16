@@ -30,6 +30,7 @@ public final class CoreValidators {
         all.add(new NpcValidator(plugin));
         all.add(new AchievementValidator(plugin));
         all.add(new DatabaseValidator(plugin));
+        all.add(new ConfigDoctorValidator(plugin));
 
         // Per-game validators derived from the SetupService registrations.
         SetupService setup = service(plugin, SetupService.class);
@@ -78,7 +79,45 @@ public final class CoreValidators {
         }
     }
 
+    // ── Configuration (the config doctor) ──────────────────────────────────────
+
+    /**
+     * Typos, wrong types and impossible values in the config files of KMCCore and the game plugins.
+     * Most findings are warnings (the game still plays); only an unreadable file or a missing finale game
+     * blocks.
+     */
+    public record ConfigDoctorValidator(KMCCore plugin) implements Validator {
+        @Override public String  id()          { return "config"; }
+        @Override public String  displayName() { return "Configuratie"; }
+        @Override public Material icon()        { return Material.WRITABLE_BOOK; }
+        @Override public ValidationReport validate() {
+            ValidationReport r = new ValidationReport();
+            ConfigDoctorRun.Result res;
+            try { res = ConfigDoctorRun.run(plugin); }
+            catch (Throwable t) { r.warn("Config-doctor", "kon niet draaien: " + t, "/kmcvalidate config"); return r; }
+            java.util.Map<String, java.util.List<ConfigDoctor.Finding>> byFile = new java.util.LinkedHashMap<>();
+            for (var f : res.findings()) byFile.computeIfAbsent(f.file(), k -> new java.util.ArrayList<>()).add(f);
+            for (String file : res.files()) if (!byFile.containsKey(file)) r.ok(file, "geen afwijkingen");
+            for (var en : byFile.entrySet()) {
+                int shown = 0;
+                for (var f : en.getValue()) {
+                    if (shown++ >= 6) {
+                        r.warn(en.getKey(), "... en " + (en.getValue().size() - 6) + " meer", "/kmcvalidate config");
+                        break;
+                    }
+                    String text = (f.path().isEmpty() ? "" : f.path() + ": ") + f.message();
+                    boolean blocks = f.severity() == ConfigDoctor.Severity.ERROR
+                            && (f.path().isEmpty() || f.path().equals("automation.finale.game"));
+                    if (blocks) r.error(en.getKey(), text, f.hint());
+                    else r.warn(en.getKey(), text, f.hint());
+                }
+            }
+            return r;
+        }
+    }
+
     // ── Tournament ─────────────────────────────────────────────────────────────
+
 
     public record TournamentValidator(KMCCore plugin) implements Validator {
         @Override public String  id()          { return "tournament"; }

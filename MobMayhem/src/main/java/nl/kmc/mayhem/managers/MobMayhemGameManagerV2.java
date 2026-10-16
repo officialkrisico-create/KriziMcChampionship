@@ -273,6 +273,18 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
         flow.start();
     }
 
+    /** Removes every non-player creature near {@code centre} that is not one of this match's wave mobs. */
+    private void clearStrayMobs(Location centre) {
+        double r = plugin.getConfig().getDouble("game.clear-radius", 160);
+        var key = new NamespacedKey(plugin, WaveExecutor.MOB_TEAM_KEY);
+        for (org.bukkit.entity.Entity e : centre.getWorld().getNearbyEntities(centre, r, 128, r)) {
+            if (e instanceof Player || !(e instanceof org.bukkit.entity.LivingEntity)) continue;
+            if (e.getPersistentDataContainer().has(key, org.bukkit.persistence.PersistentDataType.STRING)) continue;   // a wave mob of a running team
+            if (e instanceof org.bukkit.entity.ArmorStand) continue;
+            e.remove();
+        }
+    }
+
     private void startWaveForTeam(TeamGameState ts, Arena arena, WaveDefinition wave) {
         // Players are never put into the cloned arena world otherwise — without
         // this, mobs spawn in an empty world nobody is standing in, and vanilla
@@ -296,6 +308,9 @@ public final class MobMayhemGameManagerV2 extends BaseGameManager {
                 if (p != null) plugin.getUpgradeManager().reapply(p);
             }
         }
+
+        // No stray mobs from an earlier match or team in the arena before the wave begins.
+        if (playerSpawn != null && playerSpawn.getWorld() != null) clearStrayMobs(playerSpawn);
 
         final String teamId = ts.getTeamId();
         WaveExecutor exec = new WaveExecutor(plugin, ts, arena, wave,

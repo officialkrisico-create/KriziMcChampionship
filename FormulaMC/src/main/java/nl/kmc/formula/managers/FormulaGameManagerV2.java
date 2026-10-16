@@ -42,6 +42,8 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     private Circuit circuit;
 
     private volatile boolean raceLive;
+    private long qualiEndMs;
+    private final Set<Integer> qualiAnnounced = new HashSet<>();
     private long raceStartMs;
 
     private BukkitTask holdTask, pollTask, stepTask, visTask, timeLimitTask, graceTask;
@@ -175,6 +177,9 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         startLiveTasks();
         tellKey("fmc.quali.start");
         int max = plugin.getConfig().getInt("qualifying.max-seconds", 120);
+        if (max <= 0 && plugin.getConfig().getInt("qualifying.max-laps", 0) <= 0) max = 120;   // it must be able to end
+        qualiAnnounced.clear();
+        qualiEndMs = max > 0 ? System.currentTimeMillis() + max * 1000L : 0;
         if (max > 0) {
             qualiTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (getState().isRunning() && phase == Phase.QUALI) finishQualifying();
@@ -182,15 +187,64 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         }
     }
 
-    /** One qualifying lap is done: park the boat on its grid slot and wait for the others. */
+    /**
+     * A qualifying lap is done. The fastest of all laps counts, so the racer simply drives on and tries
+     * again until the time is up (or until qualifying.max-laps laps, when that is set).
+     */
     private void finishQualiLap(Racer r, Player p, long lap) {
-        r.markQualiDone(lap);
-        p.sendTitle("§e§l" + fmt(lap), api.tr(p.getUniqueId(), "fmc.quali.lap-done"), 5, 50, 10);
-        p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1.2f);
-        Boat b = boatOf(r);
+        UUID id = p.getUniqueId();
+        boolean better = r.recordQualiLap(lap);
+        int maxLaps = plugin.getConfig().getInt("qualifying.max-laps", 0);
+        boolean parked = maxLaps > 0 && r.getQualiLaps() >= maxLaps;
+        int pos = 1;
+        for (Racer o : racers.values()) if (o != r && o.getQualiMs() >= 0 && o.getQualiMs() < r.getQualiMs()) pos++;
+        p.sendTitle("§e§l" + fmt(lap),
+                api.tr(id, better ? "fmc.quali.lap-best" : "fmc.quali.lap-slower", fmt(r.getQualiMs()), pos, r.getQualiLaps()),
+                0, 50, 10);
+        p.playSound(p.getLocation(), better ? Sound.UI_TOAST_CHALLENGE_COMPLETE : Sound.BLOCK_NOTE_BLOCK_BASS,
+                1f, better ? 1.2f : 0.8f);
+        if (!parked) return;
+        r.markQualiDone(r.getQualiMs());
+        p.sendMessage(api.tr(id, "fmc.quali.lap-done"));
+        Boat bt = boatOf(r);
         Location slot = grid.get(r.getUuid());
-        if (b != null && slot != null) moveBoat(b, slot);
+        if (bt != null && slot != null) moveBoat(bt, slot);
         if (racers.values().stream().allMatch(Racer::isQualiDone)) finishQualifying();
+    }
+
+    /** Every 2 ticks: the running clock with milliseconds, and how long qualifying still lasts. */
+    private void timerHud(long now) {
+        if (phase == Phase.RACE) {
+            if (bossBar != null && raceStartMs > 0) {
+                bossBar.setTitle(ChatColor.AQUA + "" + ChatColor.BOLD + "Formula MC " + ChatColor.GRAY + "| "
+                        + ChatColor.YELLOW + "⏱ " + fmt(now - raceStartMs) + " " + ChatColor.GRAY + "| "
+                        + circuit.getDisplayName() + " " + weatherIcon());
+            }
+            return;
+        }
+        if (phase != Phase.QUALI) return;
+        long left = qualiEndMs > 0 ? Math.max(0, qualiEndMs - now) : -1;
+        if (left >= 0) {
+            int secs = (int) Math.ceil(left / 1000.0);
+            for (int mark : plugin.getConfig().getIntegerList("qualifying.announce-at")) {
+                if (secs <= mark && secs > mark - 3 && qualiAnnounced.add(mark)) tellKey("fmc.quali.remaining", mark);
+            }
+            if (secs <= 3 && secs > 0 && qualiAnnounced.add(-secs)) {
+                for (Racer r : racers.values()) {
+                    Player p = Bukkit.getPlayer(r.getUuid());
+                    if (p != null) p.sendTitle("", "§e" + secs, 0, 22, 4);
+                }
+            }
+        }
+        for (Racer r : racers.values()) {
+            Player p = Bukkit.getPlayer(r.getUuid());
+            if (p == null || r.isQualiDone()) continue;
+            String lap = fmt(now - r.getLapStartMs());
+            String best = r.getQualiMs() >= 0 ? fmt(r.getQualiMs()) : "--";
+            String timeLeft = left >= 0 ? "§c" + fmt(left).substring(0, fmt(left).indexOf('.')) : "§7-";
+            p.sendActionBar(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(
+                    api.tr(p.getUniqueId(), "fmc.quali.hud", lap, best, timeLeft)));
+        }
     }
 
     /** Orders the grid by qualifying time, announces pole, then counts down to the real start. */
@@ -347,7 +401,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
                         PointAward.Reason.OBJECTIVE, registration.getId());
             }
         }
-        // Team bonus: the average placement of a team's racers (a DNF counts as last + 1), paid to each member.
+        // Team bonus: the average placement of a team's racers (a DNF counts as last + 1), paid to the team.
         Map<String, List<Integer>> perTeam = new LinkedHashMap<>();
         for (int i = 0; i < ranked.size(); i++) {
             Racer r = ranked.get(i);
@@ -365,10 +419,11 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             String teamId = avgs.get(i).getKey();
             var team = api.teams().getTeam(teamId);
             if (team.isEmpty()) continue;
-            for (UUID member : team.get().getMembers())
-                api.points().givePoints(member, bonus, PointAward.Reason.TEAM_PLACEMENT, registration.getId());
+            // a team bonus: it goes to the team, not to the personal points of its members
+            int teamTotal = bonus * Math.max(1, team.get().getMembers().size());
+            api.points().giveTeamPoints(teamId, teamTotal, PointAward.Reason.TEAM_PLACEMENT, registration.getId());
             tellKey("fmc.team-avg", team.get().getColor() + team.get().getDisplayName(), i + 1,
-                    String.format(Locale.ROOT, "%.1f", avgs.get(i).getValue()), bonus);
+                    String.format(Locale.ROOT, "%.1f", avgs.get(i).getValue()), teamTotal);
         }
 
         int fastestBonus = plugin.getConfig().getInt("points.fastest-lap-bonus", 25);
@@ -548,6 +603,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
     private void pollRacers() {
         if (!raceLive || circuit == null) return;
         long now = System.currentTimeMillis();
+        timerHud(now);
         double maxStep = plugin.getConfig().getDouble("game.max-teleport-step", 30.0);
         long stuckMs = plugin.getConfig().getInt("game.stuck-seconds", 8) * 1000L;
 
@@ -617,7 +673,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
         r.setSectorStartMs(now);
         long lap = r.completeLap(now);
         api.games().recordSector(registration.getId(), circuit.getId(), 0, r.getUuid(), r.getName(), lap);
-        if (phase == Phase.QUALI) {          // qualifying: one timed lap, then park on the grid
+        if (phase == Phase.QUALI) {          // qualifying: a timed lap; the racer keeps driving for a better one
             finishQualiLap(r, p, lap);
             return false;
         }
@@ -684,28 +740,63 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
      * by those), so a boat that is close to another one is switched to no-physics for as long as they
      * overlap: they drive through each other. Gravity is held while ghosting so nothing sinks into the floor.
      */
+    /** Pairs (viewer|other) whose boat is hidden from the viewer because they are on top of each other. */
+    private final Set<String> ghostPairs = new HashSet<>();
+
+    /**
+     * A boat is pushed by other boats in the client of its driver, which the server cannot switch off. What
+     * the client does not know about it cannot hit: while two racers are close, each is hidden from the
+     * other (boat and driver) and shown again as soon as they have driven apart. A racer who has not moved
+     * yet is passed through in the same way.
+     */
+    private void hideOverlapping() {
+        double close = plugin.getConfig().getDouble("boat.ghost-distance", 2.8);
+        double far = close + 1.5;
+        List<Racer> list = new ArrayList<>(racers.values());
+        for (int i = 0; i < list.size(); i++) {
+            Racer ra = list.get(i);
+            Player a = Bukkit.getPlayer(ra.getUuid());
+            Boat ba = boatOf(ra);
+            if (a == null || !a.isOnline() || ba == null) continue;
+            for (int j = 0; j < list.size(); j++) {
+                if (i == j) continue;
+                Racer rb = list.get(j);
+                Player b = Bukkit.getPlayer(rb.getUuid());
+                Boat bb = boatOf(rb);
+                if (b == null || !b.isOnline() || bb == null || bb.getWorld() != ba.getWorld()) continue;
+                Location la = ba.getLocation(), lb = bb.getLocation();
+                double dx = la.getX() - lb.getX(), dz = la.getZ() - lb.getZ();
+                double d2 = dx * dx + dz * dz;
+                boolean sameLevel = Math.abs(la.getY() - lb.getY()) < 2.5;
+                String key = a.getUniqueId() + "|" + b.getUniqueId();
+                boolean hidden = ghostPairs.contains(key);
+                if (!hidden && sameLevel && d2 < close * close) {
+                    a.hideEntity(plugin, bb);
+                    a.hideEntity(plugin, b);
+                    ghostPairs.add(key);
+                } else if (hidden && (!sameLevel || d2 > far * far)) {
+                    if (!hiddenPairs.contains(key)) {          // not hidden for being far away
+                        a.showEntity(plugin, bb);
+                        a.showEntity(plugin, b);
+                    }
+                    ghostPairs.remove(key);
+                }
+            }
+        }
+    }
+
+    /**
+     * Racers never get in each other's way: boats that are close are hidden from one another (the driver's
+     * client cannot push what it does not know about) and the team collision rules cover the server side.
+     * A boat is never switched to "no physics" any more: that is what made boats sink through the floor and
+     * jitter when two overlapped.
+     */
     private void ghostNearbyBoats() {
         if (!plugin.getConfig().getBoolean("boat.ghost-collisions", true)) return;
-        List<Boat> boats = new ArrayList<>();
+        hideOverlapping();
         for (Racer r : racers.values()) {
             Boat b = boatOf(r);
-            if (b != null) boats.add(b);
-        }
-        double close = plugin.getConfig().getDouble("boat.ghost-distance", 2.8);
-        for (Boat b : boats) {
-            boolean near = false;
-            Location l = b.getLocation();
-            for (Boat o : boats) {
-                if (o == b || o.getWorld() != b.getWorld()) continue;
-                Location ol = o.getLocation();
-                double dx = l.getX() - ol.getX(), dz = l.getZ() - ol.getZ();
-                if (dx * dx + dz * dz < close * close && Math.abs(l.getY() - ol.getY()) < 2.0) { near = true; break; }
-            }
-            if (near != b.hasNoPhysics()) b.setNoPhysics(near);
-            if (near) {
-                Vector v = b.getVelocity();
-                if (v.getY() < 0) { v.setY(0); b.setVelocity(v); }
-            }
+            if (b != null && b.hasNoPhysics()) b.setNoPhysics(false);      // left over from an earlier version
         }
     }
 
@@ -853,6 +944,7 @@ public final class FormulaGameManagerV2 extends BaseGameManager {
             }
         }
         hiddenPairs.clear();
+        ghostPairs.clear();
     }
 
     // ── Ranking / display ─────────────────────────────────────────────────────

@@ -44,7 +44,11 @@ visibility:
 qualifying:
   enabled: true
   # Maximum duration of the qualifying session (seconds). Slowpokes start at the back.
-  max-seconds: 120
+  max-seconds: 180
+  # Several timed laps: the fastest one counts. 0 = drive until the time is up; N = park after N laps.
+  max-laps: 0
+  # The remaining time is announced in chat when it drops to these many seconds.
+  announce-at: [120, 60, 30, 10]
   # Countdown (seconds) between the qualifying results and the race start.
   countdown-seconds: 5
 

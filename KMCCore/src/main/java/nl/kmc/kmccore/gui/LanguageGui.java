@@ -55,7 +55,8 @@ public final class LanguageGui extends Gui {
                         p.sendMessage(lang.tr(code, "language.set", lang.displayName(code)));
                         try { plugin.getScoreboardManager().forceRefreshPlayer(p); } catch (Exception ignored) {}
                         try { plugin.getTabListManager().updateTabList(p); } catch (Exception ignored) {}
-                        new LanguageGui(plugin, p).open(p);
+                        // chosen: close the menu (on the next tick, we are inside its click handler)
+                        plugin.getServer().getScheduler().runTask(plugin, () -> p.closeInventory());
                     });
         }
 

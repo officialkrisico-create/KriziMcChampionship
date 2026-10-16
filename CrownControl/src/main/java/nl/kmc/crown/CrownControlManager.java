@@ -563,11 +563,9 @@ public final class CrownControlManager extends ArcadeGameManager {
             l.add(api.tr(id, "crown.sb.wearing", mine.hits, Math.max(1, gamePlugin.getConfig().getInt("crowns.hits-to-steal", 3))));
         }
         l.add("");
-        l.add(api.tr(id, "crown.sb.team", shownTeamPoints(team)));
         l.add(api.tr(id, "crown.sb.energy", (int) energyOf(viewer), (int) capacity()));
         if (doubleUntil.getOrDefault(team, 0L) > ticks) l.add(api.tr(id, "crown.sb.double", (doubleUntil.get(team) - ticks) / 20));
         if (bountyBy != null && ticks < bountyUntil) l.add(api.tr(id, "crown.sb.bounty", teamName(bountyTarget)));
-        l.add(api.tr(id, "crown.sb.you", contribution.getOrDefault(id, 0)));
         return l;
     }
 

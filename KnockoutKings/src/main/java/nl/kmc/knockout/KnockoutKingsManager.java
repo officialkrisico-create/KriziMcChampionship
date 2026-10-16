@@ -476,7 +476,6 @@ public final class KnockoutKingsManager extends ArcadeGameManager {
         l.add("");
         l.add(api.tr(id, "knockout.sb.kills", s.kills));
         l.add(api.tr(id, "knockout.sb.deaths", s.deaths));
-        l.add(api.tr(id, "knockout.sb.points", book.player(id)));
         return l;
     }
 

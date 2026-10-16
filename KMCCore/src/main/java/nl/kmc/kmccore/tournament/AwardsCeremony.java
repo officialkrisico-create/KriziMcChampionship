@@ -54,6 +54,8 @@ public final class AwardsCeremony {
             if (onDone != null) onDone.run();
             return;
         }
+        try { if (plugin.getHost() != null) plugin.getHost().onAwards(); }
+        catch (Throwable ignored) { }
         active = new AwardsCeremony(plugin, awards, onDone);
         active.start();
     }
@@ -68,6 +70,12 @@ public final class AwardsCeremony {
 
     private void start() {
         int per = Math.max(3, plugin.getConfig().getInt("awards-ceremony.seconds-per-award", 7));
+        // The awards happen at the same podium as the rest of the ceremonies, with the host beside it.
+        try {
+            var podium = plugin.getPodium();
+            if (podium != null && podium.isSet())
+                podium.watch(new ArrayList<>(Bukkit.getOnlinePlayers()), (4 + queue.size() * per + 2) * 20);
+        } catch (Throwable t) { plugin.getLogger().warning("[KMC] Awards camera: " + t); }
         long t = 0;
         schedule(t, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
@@ -112,6 +120,12 @@ public final class AwardsCeremony {
             p.sendTitle(name, winner, 5, 70, 15);
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.9f, 1.2f);
         }
+        var pod = plugin.getPodium();
+        if (pod != null && pod.isSet() && pod.spot(1) != null) {       // everybody watches the podium: fireworks there
+            Color c = team != null ? dye(team) : Color.YELLOW;
+            burstAt(pod.spot(1).add(0, 1, 0), c);
+            return;
+        }
         // A small firework above the winner (if online) — or above everybody for a team prize.
         if (!a.teamAward() && a.player() != null) {
             Player w = Bukkit.getPlayer(a.player());
@@ -122,6 +136,18 @@ public final class AwardsCeremony {
                 if (mp != null) burst(mp, dye(team));
             }
         }
+    }
+
+    private void burstAt(org.bukkit.Location at, Color c) {
+        try {
+            Firework fw = at.getWorld().spawn(at, Firework.class);
+            FireworkMeta meta = fw.getFireworkMeta();
+            meta.addEffect(FireworkEffect.builder().withColor(c, Color.WHITE).with(FireworkEffect.Type.STAR)
+                    .flicker(true).trail(true).build());
+            meta.setPower(1);
+            fw.setFireworkMeta(meta);
+            Bukkit.getScheduler().runTaskLater(plugin, fw::detonate, 12L);
+        } catch (Throwable ignored) { }
     }
 
     private void burst(Player p, Color c) {
@@ -162,6 +188,8 @@ public final class AwardsCeremony {
         tasks.clear();
         if (active == this) active = null;
         if (skipped) for (Player p : Bukkit.getOnlinePlayers()) p.clearTitle();
+        try { var podium = plugin.getPodium(); if (podium != null && podium.isSet()) podium.finish(); }
+        catch (Throwable ignored) { }
         if (onDone != null) try { onDone.run(); } catch (Throwable ignored) { }
     }
 

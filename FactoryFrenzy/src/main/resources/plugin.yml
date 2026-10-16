@@ -1,0 +1,19 @@
+name: FactoryFrenzy
+version: 1.0.0
+main: nl.kmc.factory.FactoryFrenzyPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: "Factory Frenzy - team production and logistics: resources, machines, orders"
+
+commands:
+  factory:
+    description: Factory Frenzy control + setup
+    aliases: [factoryfrenzy, ff]
+    usage: /factory <start|stop|status|validate|info|test|world|factory|spawn|reload>
+    permission: factoryfrenzy.admin
+
+permissions:
+  factoryfrenzy.admin:
+    description: Factory Frenzy admin commands
+    default: op

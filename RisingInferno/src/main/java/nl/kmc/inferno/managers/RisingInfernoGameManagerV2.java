@@ -71,7 +71,9 @@ public final class RisingInfernoGameManagerV2 extends BaseGameManager {
     private StandardStartFlow startFlow;
     private BossBar bossBar;
     private BukkitTask loop;
-    private BlockDisplay lavaDisplay;
+    /** The lava surface: a grid of stretched magma blocks (a display entity cannot show a fluid). */
+    private final List<BlockDisplay> lavaTiles = new ArrayList<>();
+    private static final double TILE = 8;
     private final List<ItemDisplay> orbDisplays = new ArrayList<>();
 
     private LavaModel model;
@@ -323,23 +325,44 @@ public final class RisingInfernoGameManagerV2 extends BaseGameManager {
         World w = arena.getWorld();
         Box a = arena.getLavaArea();
         if (w == null || a == null) return;
-        float sx = (float) (a.sizeX() + 2 * MARGIN), sz = (float) (a.sizeZ() + 2 * MARGIN);
-        Location l = new Location(w, a.minX() - MARGIN, lavaY - THICKNESS, a.minZ() - MARGIN);
-        lavaDisplay = w.spawn(l, BlockDisplay.class, e -> {
-            e.setBlock(Material.LAVA.createBlockData());
-            e.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(),
-                    new Vector3f(sx, (float) THICKNESS, sz), new AxisAngle4f()));
-            e.setBrightness(new Display.Brightness(15, 15));
-            e.setViewRange(8f);
-            e.setPersistent(false);
-            e.setTeleportDuration(2);
-        });
+        lavaTiles.clear();
+        double x0 = a.minX() - MARGIN, z0 = a.minZ() - MARGIN;
+        double sx = a.sizeX() + 2 * MARGIN, sz = a.sizeZ() + 2 * MARGIN;
+        // Lava itself cannot be shown by a block display (fluids have no model), so the surface is made of
+        // magma blocks, stretched over tiles of 8 x 8 so the texture stays sharp.
+        for (double dx = 0; dx < sx; dx += TILE) {
+            for (double dz = 0; dz < sz; dz += TILE) {
+                final float tw = (float) Math.min(TILE, sx - dx), td = (float) Math.min(TILE, sz - dz);
+                Location l = new Location(w, x0 + dx, lavaY - THICKNESS, z0 + dz);
+                BlockDisplay d = w.spawn(l, BlockDisplay.class, e -> {
+                    e.setBlock(Material.MAGMA_BLOCK.createBlockData());
+                    e.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(),
+                            new Vector3f(tw, (float) THICKNESS, td), new AxisAngle4f()));
+                    e.setBrightness(new Display.Brightness(15, 15));
+                    e.setViewRange(8f);
+                    e.setDisplayWidth(0f);
+                    e.setDisplayHeight(0f);
+                    e.setPersistent(false);
+                    e.setTeleportDuration(2);
+                });
+                lavaTiles.add(d);
+            }
+        }
     }
 
     private void moveLava() {
-        if (lavaDisplay == null || !lavaDisplay.isValid()) return;
         Box a = arena.getLavaArea();
-        lavaDisplay.teleport(new Location(lavaDisplay.getWorld(), a.minX() - MARGIN, lavaY - THICKNESS, a.minZ() - MARGIN));
+        if (a == null || lavaTiles.isEmpty()) return;
+        double x0 = a.minX() - MARGIN, z0 = a.minZ() - MARGIN;
+        double sx = a.sizeX() + 2 * MARGIN, sz = a.sizeZ() + 2 * MARGIN;
+        int i = 0;
+        for (double dx = 0; dx < sx; dx += TILE) {
+            for (double dz = 0; dz < sz; dz += TILE) {
+                if (i >= lavaTiles.size()) return;
+                BlockDisplay d = lavaTiles.get(i++);
+                if (d != null && d.isValid()) d.teleport(new Location(d.getWorld(), x0 + dx, lavaY - THICKNESS, z0 + dz));
+            }
+        }
     }
 
     /** A few bubbles and flames on the surface near the players. */
@@ -361,7 +384,8 @@ public final class RisingInfernoGameManagerV2 extends BaseGameManager {
     }
 
     private void removeLavaAndOrbs() {
-        if (lavaDisplay != null) { if (lavaDisplay.isValid()) lavaDisplay.remove(); lavaDisplay = null; }
+        for (BlockDisplay d : lavaTiles) if (d != null && d.isValid()) d.remove();
+        lavaTiles.clear();
         for (ItemDisplay d : orbDisplays) if (d != null && d.isValid()) d.remove();
         orbDisplays.clear();
     }

@@ -74,7 +74,7 @@ public class LobbyProtectionListener implements Listener {
 
         // Only protect if in lobby zone AND no active game is running for them
         if (isInLobbyZone(player.getLocation())) {
-            // Also skip if game is active — let Lucky Block etc. handle damage
+            // Also skip if game is active — let the running game handle damage
             if (!gameRunning()) {
                 event.setCancelled(true);
             }
@@ -98,7 +98,7 @@ public class LobbyProtectionListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCreatureSpawn(CreatureSpawnEvent event) {
-        // Allow CUSTOM spawns (plugins spawning mobs for a reason — e.g. Lucky Block)
+        // Allow CUSTOM spawns (plugins spawning mobs for a reason — e.g. Mob Mayhem)
         if (event.getSpawnReason() == CreatureSpawnEvent.SpawnReason.CUSTOM) return;
 
         if (isInLobbyZone(event.getLocation())) {

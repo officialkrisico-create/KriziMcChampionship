@@ -19,8 +19,8 @@
     <!-- ================================================== -->
     <!--
          Modules are listed in BUILD ORDER.
-         KMCCore MUST come first because LuckyBlock and
-         AdventureEscape depend on it.
+         KMCCore MUST come first because AdventureEscape and the
+         other V1 game modules depend on it.
     -->
     <modules>
         <!-- ── V2 foundation (build first) ── -->
@@ -32,7 +32,6 @@
 
         <!-- ── Legacy V1 modules (unchanged until Phase 10 migration) ── -->
         <module>KMCCore</module>
-        <module>LuckyBlock</module>
         <module>AdventureEscape</module>
         <module>QuakeCraft</module>
         <module>Bingo</module>
@@ -43,7 +42,6 @@
         <module>TGTTOS</module>
         <module>BlockParty</module>
         <module>SpeedBuild</module>
-        <module>TheBridge</module>
         <module>TNTTag</module>
         <module>SkyWars</module>
         <module>SurvivalGames</module>
@@ -53,6 +51,10 @@
         <module>RocketRush</module>
         <module>KnockoutKings</module>
         <module>CraftingCountdown</module>
+        <module>LaserLogic</module>
+        <module>Blockball</module>
+        <module>FactoryFrenzy</module>
+        <module>DungeonDraft</module>
         <module>ZoneZero</module>
         <module>CrownControl</module>
         <module>CoreCharge</module>

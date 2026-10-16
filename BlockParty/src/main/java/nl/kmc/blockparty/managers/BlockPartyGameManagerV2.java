@@ -406,6 +406,12 @@ public final class BlockPartyGameManagerV2 extends BaseGameManager {
         bp.eliminate(round);
         eliminationOrder.add(bp.getUuid());
         statsService.recordPlacement(bp.getUuid(), alivePlayers().size() + 1);
+        {
+            String outName = Bukkit.getOfflinePlayer(bp.getUuid()).getName();
+            String tag = nl.kmc.game.api.GamePlayerUtil.placeTag(alivePlayers().size() + 1);
+            for (Player v : Bukkit.getOnlinePlayers())
+                v.sendMessage("§c☠ §7" + (outName != null ? outName : "?") + tag);
+        }
         statsService.recordSurvivalSeconds(bp.getUuid(), bp.getRoundsSurvived());
         Bukkit.getPluginManager().callEvent(
                 new BlockPartyPlayerEliminateEvent(bp.getUuid(), round, bp.getRoundsSurvived()));

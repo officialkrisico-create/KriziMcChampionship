@@ -100,6 +100,7 @@ public class TournamentManager {
         if (plugin.getPointsLedger() != null) plugin.getPointsLedger().clear();   // a fresh book for a new event
         startedAtMs = System.currentTimeMillis();
         nl.kmc.kmccore.tournament.EventEndSequence.closeFeedback();
+        nl.kmc.kmccore.scoring.StatsBook.removeFromAll();   // the book of the previous tournament
         incrementEventNumber();   // KMC #1, #2, ...
         plugin.getPointsManager().deactivateGoldenHour();
         goldenRound = plugin.getConfig().getBoolean("golden-hour.enabled", true)

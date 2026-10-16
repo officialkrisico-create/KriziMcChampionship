@@ -91,7 +91,7 @@ public class AutomationManager {
 
     /** Stages of the opening presentation, in order (each is a section of ceremonies.yml). */
     private static final List<String> OPENING_STAGES = List.of(
-            "opening", "how-it-works", "tournament-overview", "team-showcase", "game-lineup");
+            "team-showcase", "opening", "how-it-works", "tournament-overview", "game-lineup");
 
     private static final Map<String, String> STAGE_LABELS = Map.of(
             "opening",             "Opening",
@@ -155,19 +155,62 @@ public class AutomationManager {
         preGame = null;
         plugin.getTournamentManager().setChampion(null, null);
         attemptedThisCycle.clear();
+        nl.kmc.kmccore.scoring.StatsBook.removeFromAll();   // the book of the previous tournament
         createBossBar();
+        host().ifPresent(h -> h.onAutomationStart());   // the host becomes active — once, only now
         // Opening presentation: opening → how it works → rounds & points → teams → games.
         // Each stage shows its title, reveals its chat lines one at a time (with a soft chime),
         // keeps a progress bar, and always leaves a read-pause before the next stage.
         ceremonyActive = true;
         plugin.getChatGate().mute("ceremony:opening");
         final int gen = ++ceremonyGeneration;
-        runCeremonyStage(gen, 0, () -> {
-            ceremonyActive = false;
-            plugin.getChatGate().unmute("ceremony:opening");
+        // The host tells the KMC lore first (walking, with camera work); the opening presentation follows it.
+        runLoreIntro(gen, () -> runCeremonyStage(gen, 0, () -> {
             cancelStageBar();
-            enterIntermission();
-        });
+            // The countdown to the vote only starts when the host has said everything.
+            awaitHost(gen, () -> {
+                ceremonyActive = false;
+                plugin.getChatGate().unmute("ceremony:opening");
+                enterIntermission();
+            });
+        }));
+    }
+
+    /**
+     * The KMC lore: the host's story at the start of the tournament. {@code then} runs exactly once when it is
+     * over (or at once when there is none, or when the host fails to report back within the story's length).
+     */
+    private void runLoreIntro(int gen, Runnable then) {
+        final boolean[] fired = {false};
+        Runnable proceed = () -> {
+            if (fired[0]) return;
+            fired[0] = true;
+            if (gen != ceremonyGeneration) return;          // skipped or stopped meanwhile
+            cancelStageBar();
+            then.run();
+        };
+        var hostMgr = host();
+        int ticks = hostMgr.isPresent() ? hostMgr.get().playLoreIntro(proceed) : -1;
+        if (ticks < 0) { proceed.run(); return; }
+        setBossBar("&6&lKMC &8| &eDe lore", BarColor.PURPLE, 1.0);
+        // Safety net: whatever happens to the host, the story never holds the tournament longer than this.
+        ceremonyLater(gen, ticks + 200L, proceed);
+    }
+
+    /** Waits (at most a while) until the host has nothing left to say, then continues with {@code then}. */
+    private void awaitHost(int gen, Runnable then) {
+        final boolean[] fired = {false};
+        Runnable proceed = () -> {
+            if (fired[0]) return;
+            fired[0] = true;
+            if (gen != ceremonyGeneration) return;
+            then.run();
+        };
+        var hostMgr = host();
+        if (hostMgr.isEmpty()) { proceed.run(); return; }
+        int max = Math.max(5, plugin.getConfig().getInt("host.lore-intro.wait-for-host-seconds", 120));
+        hostMgr.get().whenQuiet(max, proceed);
+        ceremonyLater(gen, (max + 5L) * 20L, proceed);
     }
 
     /** True while the opening presentation is still playing. */
@@ -177,6 +220,7 @@ public class AutomationManager {
     public boolean skipCeremony() {
         if (!ceremonyActive) return false;
         cancelCeremony();
+        host().ifPresent(h -> h.skipAll());      // the lore and the stage speeches go with it
         for (Player p : Bukkit.getOnlinePlayers()) p.clearTitle();
         broadcast("&6[KMC] &7Presentatie overgeslagen door een admin.");
         enterIntermission();
@@ -187,6 +231,7 @@ public class AutomationManager {
 
     private void cancelCeremony() {
         if (teamShowcase != null) { teamShowcase.cancel(); teamShowcase = null; }
+        host().ifPresent(h -> h.onShowcaseEnd());
         try { plugin.getCeremonyFireworks().cancelAll(); } catch (Throwable ignored) { }
         boolean wasActive = ceremonyActive;
         ceremonyGeneration++;
@@ -237,6 +282,7 @@ public class AutomationManager {
             playStageSound(idx);
             stageBurst(idx);
             fireworksForStage(phase);
+            host().ifPresent(h -> h.onCeremonyStage(phase));
 
             // Chat script for this stage: a framed header, then one block per message (laid out
             // with centring / wrapping), then stage-specific content, then a closing rule.
@@ -253,7 +299,7 @@ public class AutomationManager {
                 // The "not all games" note must say what is actually true for this tournament.
                 if (phase.equals("game-lineup")
                         && ChatColor.stripColor(MessageUtil.color(message)).toLowerCase().contains("niet alle games"))
-                    message = "<c>" + lineupNote();
+                    message = "<c>" + MessageUtil.color(lineupNote());
                 blocks.add(new ArrayList<>(ChatLayout.body(message)));
             }
             switch (phase) {
@@ -267,20 +313,22 @@ public class AutomationManager {
                     // Always warn, even if an older ceremonies.yml on disk lacks the disclaimer line.
                     boolean has = cm.getMessages(phase, ph).stream()
                             .anyMatch(m -> ChatColor.stripColor(MessageUtil.color(m)).toLowerCase().contains("niet alle games"));
-                    if (!has) blocks.add(new ArrayList<>(ChatLayout.body("<c>" + lineupNote())));
+                    if (!has) blocks.add(new ArrayList<>(ChatLayout.body("<c>" + MessageUtil.color(lineupNote()))));
                 }
                 default -> { }
             }
 
             boolean isLineup = phase.equals("game-lineup");
             if (!isLineup && !interactiveShowcase) blocks.add(List.of(ChatLayout.rule(color), ""));
-            long langHold = phase.equals("opening") ? announceLanguage(gen, 50L) : 0L;
+            long langHold = idx == 0 ? announceLanguage(gen, 50L) : 0L;   // the very first thing after the lore
             long end = revealBlocks(gen, blocks, langHold, cm);
             if (interactiveShowcase) {
                 var teams = plugin.getTeamManager().getTeamsSortedByPoints();
                 teamShowcase = new nl.kmc.kmccore.presentation.TeamShowcase(plugin);
+                ceremonyLater(gen, end, () -> host().ifPresent(h -> h.onShowcaseBegin()));
                 end = teamShowcase.schedule(teams, buildTeamShowcaseBlocks(), end,
                         (delay, task) -> ceremonyLater(gen, delay, task));
+                ceremonyLater(gen, end, () -> host().ifPresent(h -> h.onShowcaseEnd()));
                 ceremonyLater(gen, end, () -> {
                     Bukkit.broadcastMessage(ChatLayout.rule(color));
                     Bukkit.broadcastMessage("");
@@ -358,7 +406,9 @@ public class AutomationManager {
                 try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.GAME_CARD); }
                 catch (Throwable ignored) { }
                 for (Player p : Bukkit.getOnlinePlayers()) {
-                    p.sendTitle(MessageUtil.color("&e&l" + shownName), MessageUtil.color("&7" + shorten(sub, 60)),
+                    // the title only names the game: the goal and the scoring are in the chat card, and a
+                    // subtitle on top of it made both unreadable
+                    p.sendTitle(MessageUtil.color("&e&l" + shownName), "",
                             5, (int) Math.max(20, holdFinal - 15), 10);
                     p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, pitch);
                     p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, pitch);
@@ -525,7 +575,8 @@ public class AutomationManager {
 
     public void stop() {
         plugin.getChatGate().clear();
-        cancelCeremony();
+        cancelCeremony();                              // first: a speech that ends now must not continue the opening
+        host().ifPresent(h -> h.onAutomationStop());   // pending speech is dropped; nothing comes back
         restoreLocatorBar();
         cancelTick();
         hideBossBar();
@@ -754,13 +805,16 @@ public class AutomationManager {
         finalePhase = true;
 
         plugin.getArenaManager().teleportAllToLobby();
-        postGameLeaderboardChain();
         createBossBar();
 
         int intro = Math.max(10, plugin.getConfig().getInt("automation.finale.intro-seconds", 30));
-        // The leaderboard chain takes ~22 s; the finale announcement follows it.
-        Bukkit.getScheduler().runTaskLater(plugin, this::announceFinale, 450L);
-        enterIntermission(intro + 22, true);
+        // The finale is announced when the leaderboard animation is over — never in the middle of it.
+        postGameLeaderboardChain(() -> {
+            if (!finalePhase || state == State.IDLE) return;        // stopped or skipped in the meantime
+            announceFinale();
+            if (state == State.PAUSED) { stateBeforePause = State.INTERMISSION; return; }
+            enterIntermission(intro, true);
+        });
     }
 
     private void announceFinale() {
@@ -788,11 +842,8 @@ public class AutomationManager {
         }
         try { plugin.getCeremonyFireworks().play(nl.kmc.kmccore.presentation.CeremonyFireworks.Moment.FINALE); }
         catch (Throwable ignored) { }
-        try {
-            plugin.getPresenter().say("presenter.finale", 10,
-                    teams.get(0).getColor() + teams.get(0).getDisplayName() + "§f",
-                    teams.get(1).getColor() + teams.get(1).getDisplayName() + "§f");
-        } catch (Throwable ignored) { }
+        final KMCTeam fa = teams.get(0), fb = teams.get(1);
+        host().ifPresent(h -> h.onFinaleAnnounce(fa, fb));
     }
 
     /** The finale is over: set the champion, then run the closing ceremony. */
@@ -820,7 +871,7 @@ public class AutomationManager {
 
     /** Games per round: the configured value, or enabled games / total rounds when it is 0. */
     private int gamesPerRound() {
-        int cfg = plugin.getConfig().getInt("automation.games-per-round", 2);
+        int cfg = plugin.getConfig().getInt("automation.games-per-round", 1);
         if (cfg > 0) return cfg;
         int total = Math.max(1, plugin.getTournamentManager().getTotalRounds());
         int games = Math.max(1, plugin.getGameManager().getEnabledGames().size());
@@ -1145,10 +1196,7 @@ public class AutomationManager {
                 BarColor.GREEN, 1.0);
         broadcast("&6[KMC] &a" + game.getDisplayName() + " &estart over &6"
                 + countdownSeconds + " &eseconden!");
-        try {
-            plugin.getPresenter().say("presenter.next-game", Math.max(6, countdownSeconds),
-                    game.getDisplayName(), lookupObjective(game.getId()));
-        } catch (Throwable ignored) { }
+        host().ifPresent(h -> h.onGameIntro(game, countdownSeconds));
 
         startTick(() -> {
             countdownSeconds--;
@@ -1264,6 +1312,7 @@ public class AutomationManager {
     }
 
     private void endTournament(String lastWinner) {
+        host().ifPresent(h -> h.prepareFinishing());   // the host presents the end sequence, then goes quiet
         stop();
 
         // Closing cinematic (no-op if unconfigured) and ceremony text, then the full end sequence:
@@ -1298,14 +1347,8 @@ public class AutomationManager {
         final String finalGameName = gameName;
 
         int seq = plugin.getPointsLedger().lastGameSeq();
-        try {
-            var byTeam = nl.kmc.kmccore.scoring.PointsLedger.byTeam(plugin.getPointsLedger().forGame(seq));
-            if (!byTeam.isEmpty()) {
-                KMCTeam top = plugin.getTeamManager().getTeam(byTeam.keySet().iterator().next());
-                if (top != null) plugin.getPresenter().say("presenter.game-result", 8, finalGameName,
-                        top.getColor() + top.getDisplayName());
-            }
-        } catch (Throwable ignored) { }
+        // The host presents the result now that the points are booked (the ledger has them).
+        host().ifPresent(h -> h.onGameResults(finalGameName, seq));
         if (nl.kmc.kmccore.scoring.ScoreReport.hasData(plugin, seq)) {
             // Where did THIS game's points come from: top players, per-team breakdown, "your game".
             nl.kmc.kmccore.scoring.ScoreReport.schedule(plugin, seq, finalGameName);
@@ -1321,9 +1364,13 @@ public class AutomationManager {
             if (plugin.getConfig().getBoolean("presentation.leaderboard-animation", true)) {
                 // a short breather after the last line, then on with the intermission
                 nl.kmc.kmccore.presentation.LeaderboardAnimation.run(plugin, ranksBefore, pointsBefore,
-                        () -> Bukkit.getScheduler().runTaskLater(plugin, afterAll, 40L));
+                        () -> {
+                            host().ifPresent(h -> h.onStandings());
+                            Bukkit.getScheduler().runTaskLater(plugin, afterAll, 40L);
+                        });
             } else {
                 broadcastOverallTeamLeaderboard();
+                host().ifPresent(h -> h.onStandings());
                 Bukkit.getScheduler().runTaskLater(plugin, afterAll, 60L);
             }
         }, 400L);
@@ -1486,6 +1533,14 @@ public class AutomationManager {
         ph.put("game_objective", lookupObjective(game.getId()));
         cm.getMessages(phase, ph).forEach(Bukkit::broadcastMessage);
         showCeremonyTitle(cm.getTitle(phase, ph), cm.getSubtitle(phase, ph));
+        // The explanation of the game itself: goal, how it works and how you score, from what the game
+        // registered and what host.yml knows. A hidden surprise game shows nothing.
+        if (!plugin.getGameManager().isSurpriseHidden(game.getId())) {
+            List<String> how = plugin.getHost() != null ? plugin.getHost().howToPlay(game.getId()) : List.of();
+            List<String> card = ChatLayout.preGameCard(game.getDisplayName(), lookupDescription(game.getId()),
+                    lookupObjective(game.getId()), how, lookupScoring(game.getId()));
+            card.forEach(Bukkit::broadcastMessage);
+        }
     }
 
     /**
@@ -1534,6 +1589,13 @@ public class AutomationManager {
         m.put("total_rounds",    String.valueOf(plugin.getTournamentManager().getTotalRounds()));
         m.put("games_per_round", String.valueOf(gamesPerRound()));
         m.put("game_count",      String.valueOf(plugin.getGameManager().getEnabledGames().size()));
+        try {                                   // who is ahead (the champion once the tournament is decided)
+            var standing = plugin.getTournamentManager().getFinalStandings();
+            if (!standing.isEmpty()) {
+                m.put("winner", standing.get(0).getDisplayName());
+                m.put("champion", standing.get(0).getDisplayName());
+            }
+        } catch (Throwable ignored) { }
         return m;
     }
 
@@ -1551,9 +1613,10 @@ public class AutomationManager {
         var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
         if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
             var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class).get(gameId);
-            if (reg.isPresent() && reg.get().getDescription() != null) return reg.get().getDescription();
+            if (reg.isPresent() && reg.get().getDescription() != null && !reg.get().getDescription().isBlank())
+                return reg.get().getDescription();
         }
-        return "";
+        return plugin.getHost() != null ? plugin.getHost().gameText(gameId, "description") : "";
     }
 
     /** Looks up a game's objective text from the V2 registry, or "" if unavailable. */
@@ -1561,9 +1624,10 @@ public class AutomationManager {
         var coreV2 = Bukkit.getPluginManager().getPlugin(nl.kmc.core.KMCConstants.CORE_V2_PLUGIN_NAME);
         if (coreV2 instanceof nl.kmc.core.KMCCorePlugin v2) {
             var reg = v2.getContainer().get(nl.kmc.core.service.GameRegistryService.class).get(gameId);
-            if (reg.isPresent()) return reg.get().getObjective();
+            if (reg.isPresent() && reg.get().getObjective() != null && !reg.get().getObjective().isBlank())
+                return reg.get().getObjective();
         }
-        return "";
+        return plugin.getHost() != null ? plugin.getHost().gameText(gameId, "objective") : "";
     }
 
     /**
@@ -1589,7 +1653,11 @@ public class AutomationManager {
     /** Why a game is not ready (or "klaar"). */
     public String  getGameReadinessReason(String gameId) { return readinessReasonUnified(gameId); }
 
+    private java.util.Optional<nl.kmc.kmccore.host.HostManager> host() {
+        return java.util.Optional.ofNullable(plugin.getHost());
+    }
+
     public State   getState()            { return state; }
-    public boolean isRunning()           { return state != State.IDLE && state != State.PAUSED; }
+    public boolean isRunning()          { return state != State.IDLE && state != State.PAUSED; }
     public int     getCountdownSeconds() { return countdownSeconds; }
 }

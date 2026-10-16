@@ -1,0 +1,132 @@
+# ================================================================
+# Factory Frenzy — resources, machines, orders
+# ================================================================
+# Every team has a factory: resource stations give raw materials, machines turn them into products,
+# products are delivered at the delivery block against the open orders. Machines, stations and the delivery
+# block are placed from the layout below (relative to the factory origin) and put back after the game.
+#
+# Setup:
+#   /factory world
+#   /factory factory add        stand on the origin block of a team's factory (one per team)
+#   /factory info | validate    checks that every order can really be produced
+#   /factory start [dry] | stop | factory list | factory clear | reload
+# Quick test arena (8 plots):  /kmctest factory_frenzy
+# Controls: right-click a station to take materials, a machine to open its menu, the gold block to deliver.
+# Not built: conveyors and temporary upgrades (both optional in the spec).
+# ================================================================
+
+config-version: 1
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Produceer en lever de bestellingen"
+  flyover-radius: 30
+  tutorial-seconds: 8
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 420
+  final-countdown-seconds: 30
+  max-carry: 48                # most factory items a player carries
+  station-cooldown-seconds: 1.0
+  machine-speed: 1.0           # 1.0 = recipes take their configured time
+
+orders:
+  open: 2                      # open orders per team
+  medium-after: 2              # medium orders appear after this many completed orders
+  complex-after: 5             # complex ones after this many
+  # The order pool itself is `order-pool` below.
+
+# Items: the id is used everywhere below. material = how it looks in your inventory.
+items:
+  wood:         { name: "Hout",              material: OAK_LOG }
+  iron:         { name: "IJzererts",         material: RAW_IRON }
+  sand:         { name: "Zand",              material: SAND }
+  copper:       { name: "Kopererts",         material: RAW_COPPER }
+  redstone:     { name: "Redstone",          material: REDSTONE }
+  plank:        { name: "Planken",           material: OAK_PLANKS }
+  metal:        { name: "Metaal",            material: IRON_INGOT }
+  glass:        { name: "Glas",              material: GLASS }
+  copper_ingot: { name: "Koperstaaf",        material: COPPER_INGOT }
+  component:    { name: "Machine-onderdeel", material: COMPARATOR }
+  circuit:      { name: "Schakeling",        material: REPEATER }
+  crate_metal:  { name: "Metaalkist",        material: IRON_BLOCK }
+  crate_glass:  { name: "Glaskist",          material: TINTED_GLASS }
+
+# Machine types: which recipes they know. Inputs are put in the machine; whenever a recipe is satisfied
+# and the queue has room it starts. queue = jobs in progress at once, output-cap = items that wait for pick-up.
+machine-types:
+  sawmill:
+    name: "Zagerij"
+    block: STONECUTTER
+    queue: 3
+    output-cap: 16
+    recipes:
+      - { id: planks, in: { wood: 1 }, out: { plank: 2 }, seconds: 4 }
+  smelter:
+    name: "Smelter"
+    block: BLAST_FURNACE
+    queue: 3
+    output-cap: 12
+    recipes:
+      - { id: metal, in: { iron: 2 }, out: { metal: 1 }, seconds: 6 }
+      - { id: glass, in: { sand: 1 }, out: { glass: 1 }, seconds: 5 }
+      - { id: copper, in: { copper: 2 }, out: { copper_ingot: 1 }, seconds: 6 }
+  assembler:
+    name: "Assembler"
+    block: SMITHING_TABLE
+    queue: 2
+    output-cap: 8
+    recipes:
+      - { id: component, in: { metal: 1, redstone: 1 }, out: { component: 1 }, seconds: 8 }
+      - { id: circuit, in: { glass: 1, copper_ingot: 1 }, out: { circuit: 1 }, seconds: 8 }
+  packager:
+    name: "Verpakker"
+    block: BARREL
+    queue: 2
+    output-cap: 6
+    recipes:
+      - { id: crate_metal, in: { metal: 4 }, out: { crate_metal: 1 }, seconds: 6 }
+      - { id: crate_glass, in: { glass: 4 }, out: { crate_glass: 1 }, seconds: 6 }
+
+# Positions are [east, up, south] relative to the factory origin.
+layout:
+  stations:       # take = items per click; stock refills restock-amount every restock-seconds
+    - { id: wood,     item: wood,     at: [-5, 0, -4], stock: 48, restock-seconds: 8,  restock-amount: 6, take: 4 }
+    - { id: iron,     item: iron,     at: [-5, 0, -2], stock: 48, restock-seconds: 8,  restock-amount: 6, take: 4 }
+    - { id: sand,     item: sand,     at: [-5, 0, 0],  stock: 48, restock-seconds: 8,  restock-amount: 6, take: 4 }
+    - { id: copper,   item: copper,   at: [-5, 0, 2],  stock: 40, restock-seconds: 8,  restock-amount: 6, take: 4 }
+    - { id: redstone, item: redstone, at: [-5, 0, 4],  stock: 40, restock-seconds: 10, restock-amount: 4, take: 4 }
+  machines:
+    - { id: sawmill,    type: sawmill,   at: [-2, 0, -4] }
+    - { id: smelter1,   type: smelter,   at: [-2, 0, -1] }
+    - { id: smelter2,   type: smelter,   at: [-2, 0, 2] }
+    - { id: assembler1, type: assembler, at: [1, 0, -1] }
+    - { id: assembler2, type: assembler, at: [1, 0, 2] }
+    - { id: packager,   type: packager,  at: [4, 0, 0] }
+  delivery: [5, 0, 4]
+  board: [0, 0, -7]
+  spawn: [0, 0, 7]
+
+# Orders. difficulty SIMPLE | MEDIUM | COMPLEX; deadline-seconds 0 = no deadline;
+# bonus-percent = extra reward when delivered within the deadline. Every order is checked on load:
+# its items must be producible with the machines and stations of the layout.
+order-pool:
+  - { id: planks,    name: "Plankenlevering",         difficulty: SIMPLE,  items: { plank: 8 },  reward: 100 }
+  - { id: glass,     name: "Glaslevering",            difficulty: SIMPLE,  items: { glass: 6 },  reward: 100 }
+  - { id: metal,     name: "Metaalpakket",            difficulty: SIMPLE,  items: { metal: 4 },  reward: 110 }
+  - { id: repair,    name: "Reparatiekit",            difficulty: MEDIUM,  items: { metal: 4, component: 2 }, reward: 200, deadline-seconds: 150, bonus-percent: 15 }
+  - { id: electro,   name: "Elektronica",             difficulty: MEDIUM,  items: { circuit: 3 }, reward: 220, deadline-seconds: 150, bonus-percent: 15 }
+  - { id: equipment, name: "Geavanceerde apparatuur", difficulty: COMPLEX, items: { component: 4, crate_glass: 1 }, reward: 350, deadline-seconds: 200, bonus-percent: 20 }
+  - { id: export,    name: "Exportzending",           difficulty: COMPLEX, items: { crate_metal: 2, circuit: 2 }, reward: 380, deadline-seconds: 200, bonus-percent: 20 }
+
+points:
+  team-placement: true
+
+arena:
+  world: ""

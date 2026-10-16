@@ -127,7 +127,7 @@ public final class PresetManager {
         String base = ROOT + "." + name.toLowerCase();
         int gpr = Math.max(1, cfg.getInt("automation.games-per-round", 2));
         int rounds = plugin.getTournamentManager().getTotalRounds();
-        cfg.set(base + ".description", "Opgeslagen via /kmcauto preset save");
+        cfg.set(base + ".description", "Eigen preset");
         cfg.set(base + ".total-games", cfg.getInt("automation.total-games", rounds * gpr));
         cfg.set(base + ".games-per-round", gpr);
         cfg.set(base + ".intermission-seconds", cfg.getInt("automation.intermission-seconds", 30));
@@ -146,38 +146,37 @@ public final class PresetManager {
         return (int) Math.ceil(Math.max(1, games) / (double) Math.max(1, gamesPerRound));
     }
 
-    // ── Built-ins ─────────────────────────────────────────────────────────────
+    // ── Old built-ins ─────────────────────────────────────────────────────────
+
+    /** The four presets earlier versions wrote into every config.yml; they are removed (once) when untouched. */
+    private static final Map<String, String> OLD_BUILT_INS = Map.of(
+            "standard", "Standaard KMC-avond: 12 games met finale",
+            "short", "Kort event (± 1,5 uur): 6 games met finale",
+            "special", "Speciale editie: 16 games, lange pauze en finale",
+            "test", "Testavond: 2 games, korte timers, geen finale of ready-check");
+
+    private boolean cleaned;
 
     private void ensureBuiltIns() {
+        if (cleaned) return;
+        cleaned = true;
         var cfg = plugin.getConfig();
         boolean changed = false;
-        changed |= builtIn("standard", "Standaard KMC-avond: 12 games met finale",
-                12, 2, 30, 30, true, 300, true, "mid-break", List.of(1.0, 1.5, 2.0, 2.5, 3.0, 4.0));
-        changed |= builtIn("short", "Kort event (± 1,5 uur): 6 games met finale",
-                6, 2, 20, 25, false, 0, true, "mid-break", List.of(1.0, 1.5, 2.5));
-        changed |= builtIn("special", "Speciale editie: 16 games, lange pauze en finale",
-                16, 2, 30, 30, true, 420, true, "every-break",
-                List.of(1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 3.5, 5.0));
-        changed |= builtIn("test", "Testavond: 2 games, korte timers, geen finale of ready-check",
-                2, 2, 5, 10, false, 0, false, "off", List.of(1.0));
+        for (var e : OLD_BUILT_INS.entrySet()) {
+            String base = ROOT + "." + e.getKey();
+            if (cfg.isConfigurationSection(base) && e.getValue().equals(cfg.getString(base + ".description"))) {
+                cfg.set(base, null);
+                changed = true;
+            }
+        }
         if (changed) plugin.saveConfig();
     }
 
-    private boolean builtIn(String name, String desc, int games, int gpr, int intermission, int vote,
-                            boolean midBreak, int midBreakSeconds, boolean finale, String ready, List<Double> ladder) {
-        var cfg = plugin.getConfig();
-        String base = ROOT + "." + name;
-        if (cfg.isConfigurationSection(base)) return false;
-        cfg.set(base + ".description", desc);
-        cfg.set(base + ".total-games", games);
-        cfg.set(base + ".games-per-round", gpr);
-        cfg.set(base + ".intermission-seconds", intermission);
-        cfg.set(base + ".voting-duration", vote);
-        cfg.set(base + ".mid-break.enabled", midBreak);
-        cfg.set(base + ".mid-break.seconds", midBreakSeconds);
-        cfg.set(base + ".finale", finale);
-        cfg.set(base + ".ready-check", ready);
-        cfg.set(base + ".multipliers", ladder);
+    /** Removes a preset an admin made. */
+    public boolean delete(String name) {
+        if (!exists(name)) return false;
+        plugin.getConfig().set(ROOT + "." + name.toLowerCase(), null);
+        plugin.saveConfig();
         return true;
     }
 }

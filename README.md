@@ -30,10 +30,8 @@ as the rotation.
   - [TNT Tag](#tnt-tag)
   - [Elytra Endrium](#elytra-endrium)
   - [Parkour Warrior](#parkour-warrior)
-  - [The Bridge](#the-bridge)
   - [Adventure Escape](#adventure-escape)
   - [Bingo](#bingo)
-  - [Lucky Block](#lucky-block)
   - [Block Party](#block-party)
   - [Speed Build](#speed-build)
 - [Scoring reference](#scoring-reference)
@@ -69,7 +67,7 @@ as the rotation.
 - **Easter egg NPCs** — hidden lobby NPCs with their own line; find them all for an achievement
 - **Simulation** — test scoring math without running real games (`/event simulate`)
 - **Snapshots / rollback** — recover from disasters with `/event rollback`
-- **Map rotation** — multi-map games (TGTTOS, Bridge, etc.) cycle automatically
+- **Map rotation** — multi-map games (TGTTOS, etc.) cycle automatically
 - **Lobby NPCs** — clickable game-launch NPCs in lobby
 - **Player preferences** — opt in/out of features via `/kmcprefs`
 - **Server health monitor** — TPS, RAM, online count — `/kmchealth`
@@ -88,10 +86,8 @@ as the rotation.
 | **TNT Tag** | Hot-potato with TNT | Solo |
 | **Elytra Endrium** | Elytra checkpoint race | Solo with team scoring |
 | **Parkour Warrior** | Solo parkour with stages and checkpoints | Solo |
-| **The Bridge** | Bridge battle, score goals in opponent's hole | Teams |
 | **Adventure Escape** | Puzzle escape room with effect blocks | Teams |
 | **Bingo** | Collect items to complete a bingo card | Teams |
-| **Lucky Block** | Break lucky blocks, fight with random loot | Teams |
 | **Block Party** | Colour-elimination, last standing | Solo with team scoring |
 | **Speed Build** | Solo schematic-accuracy build challenge | Solo |
 | **Hole in the Wall** | Dodge giant walls sweeping over a round platform, multi-round | Solo with team scoring |
@@ -303,7 +299,7 @@ If you want to pick games manually instead of voting:
 
 Available game IDs: `team_skywars`, `survival_games`, `quake_craft`, `spleef_teams`,
 `tgttos`, `mob_mayhem`, `tnt_tag`, `elytra_endrium`, `parkour_warrior`,
-`the_bridge`, `adventure_escape`, `bingo_teams`, `lucky_block`, `block_party`,
+`adventure_escape`, `bingo_teams`, `block_party`,
 `speed_build`
 
 (These are the exact keys from `games.list` in `plugins/KMCCore/config.yml` —
@@ -362,8 +358,8 @@ Between every game, all players return to the central **Lobby**. The lobby
 is a protected zone — no PvP, no block breaking.
 
 Before each game there is a **ready-up** phase, then players are teleported
-to the arena. Several games (MobMayhem, Block Party, The Bridge, Parkour
-Warrior, Lucky Block, Speed Build — more being added over time) run a full
+to the arena. Several games (MobMayhem, Block Party, Parkour
+Warrior, Speed Build — more being added over time) run a full
 start presentation at this point instead of a bare countdown — see
 [Special moments](#special-moments). The rest still use a plain countdown.
 Players are frozen in place until their game's countdown/presentation ends,
@@ -473,11 +469,8 @@ Kill points are **not** — they are always flat.
 
 | Game | Action | Points |
 |---|---|---|
-| The Bridge | Score a goal | 150 |
-| The Bridge | Team goal assist | 75 (team share) |
 | Bingo | Complete a square | 25 |
 | Bingo | Complete a line | 100 per team member |
-| Lucky Block | Lucky bonus loot event | 50 |
 
 ---
 
@@ -714,35 +707,6 @@ Difficulty point values (EASY +8 / MEDIUM +12 / HARD +15) are in
 
 ---
 
-### The Bridge
-
-2v2 / 4v4 bridge battle — score goals by jumping into the opponent's hole.
-
-**Setup:**
-```
-/bridge setworld <world-name>
-/bridge setvoidy 0
-/bridge createteam red
-/bridge editteam red
-/bridge name "Red Side"
-/bridge color RED
-/bridge wool RED_WOOL           ← wool block this team places
-/bridge spawn                   ← stand at team spawn
-/bridge commit
-
-/bridge createteam blue
-/bridge editteam blue
-... repeat ...
-
-/bridge listteams               ← verify
-```
-
-Goal detection is based on players entering the void below the goal hole.
-
-**Run:** `/bridge start`
-
----
-
 ### Adventure Escape
 
 Puzzle escape room with effect-block triggers.
@@ -793,22 +757,6 @@ First team to complete a **line** (row, column, or diagonal) wins.
 If time runs out, most completed squares wins.
 
 **Run:** `/bingo start`
-
----
-
-### Lucky Block
-
-PvP arena where lucky blocks drop random loot.
-
-Lucky Block uses team spawns from KMCCore — no separate arena commands.
-
-**Setup:**
-1. Build a PvP arena
-2. Place lucky blocks in the arena (configure which material counts in
-   `plugins/LuckyBlock/config.yml`)
-3. Set team spawns through KMCCore (`/kmcteam spawn set <team>`)
-
-**Run:** `/luckyblock start`
 
 ---
 
@@ -977,25 +925,12 @@ multiplier (which applies to placement points only).
 | Team 3rd | 300 |
 | Team 4th | 100 |
 
-### The Bridge
-
-| Action | Points |
-|---|---|
-| Score a goal | 150 |
-| Team goal share | 75 |
-
 ### Bingo
 
 | Action | Points |
 |---|---|
 | Complete a square | 25 |
 | Complete a line | 100 per team member |
-
-### Lucky Block
-
-| Action | Points |
-|---|---|
-| Lucky bonus event | 50 |
 
 ### Block Party
 
@@ -1150,10 +1085,8 @@ and Speed Build**, which don't have a `reload` subcommand yet (change their
 /tnttag         start | stop | status | reload
 /elytraendrium  start | stop | status | reload
 /parkourwarrior start | stop | status | reload
-/bridge         start | stop | status | reload
 /adventure      start | stop | status | reload
 /bingo          start | stop | status | reload
-/luckyblock     start | stop | status | reload
 /blockparty     start | stop | status              (no reload)
 /speedbuild     start | stop | status              (no reload)
 ```
@@ -1375,7 +1308,7 @@ spot, void level) or generate a test arena with `/kmctest dodgebolt`.
 can click it (or type `/kmcready`); the game carries on when every team answered or after the timeout.
 `/kmcready force` ends it.
 
-**Overtime.** A game that supports it (The Bridge: golden goal, QuakeCraft: sudden death) is extended
+**Overtime.** A game that supports it (QuakeCraft: sudden death) is extended
 once when the top places are level at the end. Per game: `games.<id>.overtime.enabled|seconds|max-extensions`
 in that game's config.
 
@@ -1494,14 +1427,74 @@ Common to all of them:
 |---|---|---|---|
 | Rocket Rush | `rocket_rush` | `/rocket` | `checkpoint add` (in order), `ring add`, `pickup add`, `finish`, `floor` |
 | Knockout Kings | `knockout_kings` | `/knockout` | `pos1`+`pos2` then `platform`, `respawn add`, `killy` |
-| Crafting Countdown | `crafting_countdown` | `/craftcountdown` | `station add` (the delivery block you look at, one per team), `pile add <type>` (the block you look at); pile types, item pool, orders and points in config |
+| Crafting Countdown | `crafting_countdown` | `/craftcountdown` | `station add` (the delivery block you look at, one per team), `pile add <type>` (the block you look at); pile types, recipes (item-pool), orders and points in config |
 | Zone Zero | `zone_zero` | `/zonezero` | `pos1`+`pos2` then `zone add <id>` (6+ zones for 2 open at a time) |
 | Crown Control | `crown_control` | `/crown` | `pos1`+`pos2` then `zone`; optional `lockdown add <id>`; menu: nether star or `/crown use` |
 | Core Charge | `core_charge` | `/corecharge` | `core add` (per team), `orb add`, `station add`; menu: nether star or `/corecharge use` |
+| Laser Logic | `laser_logic` | `/laser` (`/ll`) | `board add` (the lowest-x/z corner of a team's puzzle board, one per team); puzzles in config (`puzzle list`/`show`) |
+| Blockball | `blockball` | `/blockball` (`/bb`) | per field: `pos1`+`pos2` then `field add <id>`, `goal <id> a|b` (pos1+pos2 each), `ball <id>`, `fspawn <id> a|b`; `spawn add` = waiting spot |
+| Factory Frenzy | `factory_frenzy` | `/factory` (`/ff`) | `factory add` (origin block of a team's factory, one per team); machines, stations and orders in config |
+| Dungeon Draft | `dungeon_draft` | `/dungeon` (`/dd`) | `lane add` (origin block of a team's lane, one per team); rooms (`rooms:`), health, shop and points in config |
 
 Tuning (times, points, modifiers, kit) is in each game's `config.yml`; points tables follow the spec defaults.
-Crafting Countdown is a Build Mart style collecting game (no crafting or building): teams get orders, take the items
-from resource piles and hand them in at their delivery station. Test arena: `/kmctest crafting_countdown`.
+Crafting Countdown is a Build Mart style game where the building is replaced by recipe crafting: teams get orders
+(items to craft), take the raw materials from resource piles, craft with the vanilla crafting table (everybody has a
+portable "Werkbank" item) and hand the result in at their delivery station. Test arena: `/kmctest crafting_countdown`.
+
+The four newest games share the arcade framework and have their rules in a pure, unit-tested logic class
+(`LaserSim`, `BallPhysics`/`MatchLogic`, `FactoryModel`, `DungeonLogic`); their shipped `config.yml` is validated by a test.
+- **Laser Logic** — every team has its own board; turn mirrors (right-click) until the beam reaches the receivers.
+  Puzzles are validated (solvable, not solved at the start); three hint levels; first-solver and no-hint bonuses.
+- **Blockball** — 4v4 football with a block ball (left-click kick, sneak + left-click charged shot, right-click pass).
+  Heats are played in waves when there are fewer fields than matches; a draw goes to a golden goal. Every team has a
+  rotating **goalkeeper** (config `keeper:`): in his own area he reaches further, right-click catches a slow ball
+  (then left-click throws, right-click rolls), left-click punches it away; a stopped shot is a *save* (`points.save`).
+- **Factory Frenzy** — resource stations, machines (idle/waiting/processing/ready/blocked) and orders with deadlines;
+  points go to whoever delivered. Conveyors and upgrades are not built (see docs/TESTEN.md).
+- **Dungeon Draft** — a lane per team; after every room the team drafts the next from a few options (combat, parkour,
+  trap, treasure, puzzle, boss) with a shared health pool and revives.
+Test arenas: `/kmctest laser_logic`, `blockball`, `factory_frenzy`, `dungeon_draft`.
+
+### The KMC host (presenter NPC, announcer and lore guy)
+
+The presenter NPC is also the **host**: it presents the opening, the teams, every game, the results, the standings
+and the finale in a speech bubble above its head (one shared text display, reused for every sentence). It only
+speaks by itself while a KMCAuto session runs; placing the NPC, a join or a plugin reload never starts a speech.
+
+| State | Meaning |
+|---|---|
+| `DISABLED` | `host.enabled: false` or `/kmchost disable` |
+| `IDLE` | placed, silent; clicking it only gives general info and lore |
+| `ACTIVE` | from `/kmcauto start` until KMCAuto ends or is stopped |
+| `FINISHING` | the end sequence (podium, awards) is being presented, then back to IDLE |
+
+- Setup: `/kmchost setspawn` (or `/kmcnpc presenter set`), skin with `/kmchost skin <speler>`. Texts: `plugins/KMCCore/host.yml`
+  (dialogues, lore, per-game extras, menu). Behaviour: `host:` in `config.yml`.
+- Reacts to real KMC moments only: ceremony stages, the team showcase, the pre-start of a game (goal, rules and scoring
+  come from the game's own registration), booked game results, the standings after the leaderboard animation, the finale
+  and the podium, and game objectives that games report (`GameObjectiveEvent`: goals, puzzles, orders, rooms, bosses, ...).
+- One queue with priorities, cooldowns and de-duplication; an interrupted or too-old speech is dropped, never replayed.
+- Right-click the host: menu (about, how it works, game, rules, standings, my stats, lore, replay). Players can only make
+  it speak; nothing in the menu changes scores or games.
+- Lore is marked fiction and never invents results: the "seasons" lore uses the real archive of finished editions and
+  says so when there is none. Awards named by the host come from the real awards of the finished tournament.
+- Admin: `/kmchost info|spawn|setspawn|remove|skin|intro [game]|announce <text>|dialogue <id>|lore|test|skip|enable|disable|reload`
+  (also `/kmc host ...`), permission `kmc.host.admin`. `test` only shows a few lines to you and touches nothing else.
+
+**KMC lore and the staged host.** At `/kmcauto start` the host first tells the KMC lore (`kmc-lore` in host.yml), a
+*staged* speech: the host walks, jumps and gestures, the camera moves from shot to shot (push-in, orbit, crane, top,
+low angle, fly-over) and the tension builds with a heartbeat, particles and lightning (visual only). The opening
+presentation follows; the countdown to the vote (the intermission) starts only when the host has said everything
+(`host.lore-intro.wait-for-host-seconds` is the safety limit). Any dialogue can be staged: set `staged: true` and add
+per line `shot`, `walk` (`forward:4`, `back`, `left`, `right`, `home`), `act` (`jump`, `hop`, `swing`, `wave`,
+`crouch`, `stand`, `turn`, `spin`, `nod`), `fx` (`thunder`, `burst`, `rise`, `stomp`), `title`/`subtitle` and
+`tension` (0-10). Camera work never runs during a game or over another cinematic; an own recorded route can play
+first with `cutscene: <route>`. Switches: `host.lore-intro.*`, `host.scene.*` (walk speed, heartbeat, particles,
+thunder). Admin: `/kmchost lore`.
+
+**One podium for everything.** With a podium built (`/kmcpodium set`) the host presents from beside it for the whole
+KMCAuto session (`host.podium.host-on-podium`), the team showcase lines each team up on top of the gold column, and
+the places, champions and awards all use the same podium and camera. Without a podium everything behaves as before.
 
 ## Player commands
 

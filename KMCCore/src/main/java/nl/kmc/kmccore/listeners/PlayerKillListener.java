@@ -26,7 +26,7 @@ public class PlayerKillListener implements Listener {
         if (killer == null) return;
         if (killer.equals(event.getEntity())) return; // self-kill
 
-        // Per-game handlers (e.g. SkyWars, SurvivalGames, LuckyBlock) credit
+        // Per-game handlers (e.g. SkyWars, SurvivalGames) credit
         // kills with their own per-game point values via givePoints().
         // The set below lists games that take responsibility — the global
         // award is suppressed for those so points don't double-count.
@@ -39,10 +39,6 @@ public class PlayerKillListener implements Listener {
                 case "spleef":
                 case "quake_craft":
                 case "quakecraft":
-                case "lucky_block":
-                case "luckyblock":
-                case "the_bridge":
-                case "bridge":
                 case "tnt_tag":
                 case "tnttag":
                 case "mob_mayhem":

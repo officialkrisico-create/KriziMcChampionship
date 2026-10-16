@@ -158,12 +158,10 @@ public class StatsGUI implements Listener {
                 Map.entry("quakecraft",       Material.BOW),
                 Map.entry("parkour_warrior",  Material.LIME_WOOL),
                 Map.entry("tgttos",           Material.RABBIT_FOOT),
-                Map.entry("the_bridge",       Material.IRON_SWORD),
                 Map.entry("elytra_endrium",   Material.ELYTRA),
                 Map.entry("spleef",           Material.IRON_SHOVEL),
                 Map.entry("meltdown_mayhem",  Material.LAVA_BUCKET),
                 Map.entry("mob_mayhem",       Material.ZOMBIE_HEAD),
-                Map.entry("lucky_block",      Material.GOLD_BLOCK),
                 Map.entry("hole_in_the_wall", Material.BRICK_WALL),
                 Map.entry("rising_inferno",   Material.LAVA_BUCKET),
                 Map.entry("bingo",            Material.PAPER)

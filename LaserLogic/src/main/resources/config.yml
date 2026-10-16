@@ -1,0 +1,150 @@
+# ================================================================
+# Laser Logic — turn the mirrors until the beam reaches the receivers
+# ================================================================
+# Every team has its own puzzle board; boards are drawn into the world when the game starts and put back
+# afterwards, so the arena only needs free space (a flat floor, nothing in the way).
+#
+# Setup:
+#   /laser world
+#   /laser board add        stand on the corner with the lowest x and z of a team's board, at the height of
+#                           the components (the floor is drawn one block lower). One board per team.
+#   /laser spawn add        optional; the team stands at the board's spawn-offset otherwise
+#   /laser validate | test | info | puzzle list | puzzle show <id> | start [dry] | stop | reload
+# Quick test arena:  /kmctest laser_logic
+# Controls: right-click a mirror to turn it; right-click the paper in your hotbar for a hint.
+# ================================================================
+
+config-version: 1
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Draai de spiegels, bereik de ontvangers"
+  flyover-radius: 30
+  tutorial-seconds: 7
+  countdown-seconds: 5
+
+game:
+  duration-seconds: 420
+  # How long a team may spend on one puzzle when the puzzle does not say otherwise.
+  puzzle-seconds: 120
+  # The difficulty of the 1st, 2nd, ... puzzle of every team; the last entry repeats.
+  progression: [EASY, EASY, MEDIUM, MEDIUM, HARD, HARD]
+
+board:
+  # Where a team stands, relative to its board's origin: [east, up, south].
+  spawn-offset: [-2, 0, 4]
+  floor-material: SMOOTH_QUARTZ
+
+rules:
+  # Ticks between two turns by the same player.
+  rotate-cooldown-ticks: 4
+
+generator:
+  # When the configured puzzles of a difficulty are used up, make a new one (solution first, validated).
+  # The generator only makes EASY and MEDIUM puzzles; HARD ones come from the list below.
+  enabled: true
+
+points:
+  easy: 100
+  medium: 175
+  hard: 275
+  first-completion-bonus: 25   # first team to solve its Nth puzzle
+  no-hint-bonus: 15            # solved without using a hint
+  team-placement: true
+
+hints:
+  enabled: true
+  max-per-puzzle: 3            # 1: which receiver, 2: which mirror is wrong, 3: part of the solution path
+
+effects:
+  particle-density: 2          # 1 (light) .. 4
+
+# ── Puzzles ─────────────────────────────────────────────────────────────────
+# size: [width, height]; cells are (x, y): x to the east, y to the south (north = smaller y).
+# Components: EMITTER (dir, color), MIRROR (orient SLASH|BACKSLASH, rotatable, unlocked-by <receiver id>),
+# SPLITTER (sends a beam left and right), FILTER (color), ABSORBER, RECEIVER (id, need-color, need-dir).
+# walls: cells the beam cannot pass. required: receivers that must be active (default: all).
+# Every puzzle is checked on load: it must have a solution and must not start solved.
+puzzles:
+  - id: easy_corner
+    difficulty: EASY
+    size: [7, 5]
+    time-limit-seconds: 75
+    components:
+      - { type: EMITTER, at: [0, 2], dir: EAST, color: RED }
+      - { type: MIRROR, at: [3, 2], orient: BACKSLASH, id: m1 }
+      - { type: RECEIVER, at: [3, 0], id: r1 }
+    walls: ["5,3"]
+
+  - id: easy_stairs
+    difficulty: EASY
+    size: [7, 7]
+    time-limit-seconds: 90
+    components:
+      - { type: EMITTER, at: [0, 5], dir: EAST, color: RED }
+      - { type: MIRROR, at: [2, 5], orient: BACKSLASH, id: m1 }
+      - { type: MIRROR, at: [2, 2], orient: SLASH, id: m2 }
+      - { type: RECEIVER, at: [5, 2], id: r1 }
+    walls: ["4,4", "5,5"]
+
+  - id: medium_zigzag
+    difficulty: MEDIUM
+    size: [9, 7]
+    time-limit-seconds: 120
+    components:
+      - { type: EMITTER, at: [0, 3], dir: EAST, color: GREEN }
+      - { type: MIRROR, at: [2, 3], orient: BACKSLASH, id: m1 }
+      - { type: MIRROR, at: [2, 1], orient: BACKSLASH, id: m2 }
+      - { type: MIRROR, at: [6, 1], orient: SLASH, id: m3 }
+      - { type: MIRROR, at: [6, 5], orient: SLASH, id: m4 }
+      - { type: ABSORBER, at: [4, 2] }
+      - { type: RECEIVER, at: [8, 5], id: r1 }
+    walls: ["4,4", "7,3"]
+
+  - id: medium_detour
+    difficulty: MEDIUM
+    size: [9, 9]
+    time-limit-seconds: 120
+    components:
+      - { type: EMITTER, at: [0, 2], dir: EAST, color: YELLOW }
+      - { type: MIRROR, at: [3, 2], orient: SLASH, id: m1 }
+      - { type: MIRROR, at: [3, 6], orient: SLASH, id: m2 }
+      - { type: MIRROR, at: [7, 6], orient: BACKSLASH, id: m3 }
+      - { type: ABSORBER, at: [5, 5] }
+      - { type: RECEIVER, at: [7, 2], id: r1 }
+    walls: ["5,4", "1,6"]
+
+  - id: hard_split
+    difficulty: HARD
+    size: [11, 9]
+    time-limit-seconds: 150
+    components:
+      - { type: EMITTER, at: [0, 4], dir: EAST, color: RED }
+      - { type: SPLITTER, at: [3, 4] }
+      - { type: MIRROR, at: [3, 1], orient: BACKSLASH, id: m1 }
+      - { type: MIRROR, at: [3, 7], orient: SLASH, id: m2 }
+      - { type: FILTER, at: [6, 7], color: BLUE }
+      - { type: RECEIVER, at: [9, 1], id: r1 }
+      - { type: RECEIVER, at: [10, 7], id: r2, need-color: BLUE }
+    walls: ["6,2", "8,6"]
+
+  - id: hard_locked
+    difficulty: HARD
+    size: [11, 9]
+    time-limit-seconds: 150
+    components:
+      - { type: EMITTER, at: [0, 4], dir: EAST, color: RED }
+      - { type: SPLITTER, at: [2, 4] }
+      - { type: MIRROR, at: [2, 1], orient: BACKSLASH, id: m1 }
+      - { type: MIRROR, at: [2, 7], orient: SLASH, id: m2, unlocked-by: r1 }
+      - { type: RECEIVER, at: [6, 1], id: r1 }
+      - { type: RECEIVER, at: [10, 7], id: r2 }
+    walls: ["5,5", "8,3"]
+
+arena:
+  world: ""

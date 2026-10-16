@@ -31,6 +31,37 @@ public final class StatsBook {
 
     private StatsBook() {}
 
+    private static org.bukkit.NamespacedKey key() {
+        return new org.bukkit.NamespacedKey("kmc", "statsbook");
+    }
+
+    /** True for the personal book this class builds (tagged, or an older one: author KMC, title "KMC #n"). */
+    public static boolean isStatsBook(ItemStack it) {
+        if (it == null || it.getType() != Material.WRITTEN_BOOK || !it.hasItemMeta()) return false;
+        if (!(it.getItemMeta() instanceof BookMeta m)) return false;
+        if (m.getPersistentDataContainer().has(key(), org.bukkit.persistence.PersistentDataType.BYTE)) return true;
+        String author = m.hasAuthor() ? net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(m.author()) : "";
+        String title = m.hasTitle() ? net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(m.title()) : "";
+        return "KMC".equals(author) && title.startsWith("KMC #");
+    }
+
+    /** Takes the statsbook out of the inventory of every online player (a new tournament starts). */
+    public static int removeFromAll() {
+        int n = 0;
+        for (Player p : org.bukkit.Bukkit.getOnlinePlayers()) n += removeFrom(p);
+        return n;
+    }
+
+    public static int removeFrom(Player p) {
+        int n = 0;
+        var inv = p.getInventory();
+        for (int i = 0; i < inv.getSize(); i++) {
+            if (isStatsBook(inv.getItem(i))) { inv.setItem(i, null); n++; }
+        }
+        if (isStatsBook(p.getItemOnCursor())) { p.setItemOnCursor(null); n++; }
+        return n;
+    }
+
     public static ItemStack build(KMCCore plugin, Player viewer, int edition) {
         ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
         BookMeta meta = (BookMeta) book.getItemMeta();
@@ -38,6 +69,7 @@ public final class StatsBook {
         LanguageManager lm = plugin.getLanguageManager();
         UUID me = viewer.getUniqueId();
 
+        meta.getPersistentDataContainer().set(key(), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
         meta.author(Component.text("KMC", NamedTextColor.GOLD, TextDecoration.BOLD));
         meta.title(Component.text("KMC #" + edition, NamedTextColor.GOLD));
 

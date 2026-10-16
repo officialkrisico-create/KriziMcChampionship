@@ -1,0 +1,19 @@
+name: Blockball
+version: 1.0.0
+main: nl.kmc.blockball.BlockballPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: "Blockball - football with a logical block ball, heats of 4v4"
+
+commands:
+  blockball:
+    description: Blockball control + setup
+    aliases: [bb]
+    usage: /blockball <start|stop|status|validate|info|world|spawn|pos1|pos2|field|goal|ball|fspawn|reload>
+    permission: blockball.admin
+
+permissions:
+  blockball.admin:
+    description: Blockball admin commands
+    default: op

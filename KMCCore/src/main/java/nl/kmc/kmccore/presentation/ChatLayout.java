@@ -148,6 +148,41 @@ public final class ChatLayout {
     }
 
     /** One game in the line-up: numbered, centred name, description, goal and scoring. */
+    /** The explanation of one game just before it starts: what it is, the goal, how it works, how you score. */
+    public static List<String> preGameCard(String name, String description, String objective,
+                                           List<String> howToPlay, List<String> scoring) {
+        List<String> out = new ArrayList<>();
+        out.add("");
+        out.add(rule('e'));
+        out.add(center("§e§l✦ §6§l" + name.toUpperCase() + " §e§l✦"));
+        if (description != null && !description.isBlank()) {
+            out.add("");
+            for (String l : wrap("§7§o" + description, WRAP_PX - 30, "", "")) out.add(center(l));
+        }
+        if (objective != null && !objective.isBlank()) {
+            out.add("");
+            out.addAll(wrap("§6§lDOEL §8» §f" + objective, WRAP_PX, " ", spaces(px(" §6§lDOEL §8» "))));
+        }
+        if (howToPlay != null && !howToPlay.isEmpty()) {
+            out.add("");
+            out.add(" §a§lZO WERKT HET §8»");
+            for (String l : howToPlay) out.addAll(wrap("§8• §f" + l, WRAP_PX, "   ", "     "));
+        }
+        if (scoring != null && !scoring.isEmpty()) {
+            out.add("");
+            out.add(" §b§lPUNTEN §8»");
+            int shown = 0;
+            for (String s : scoring) {
+                if (shown++ >= 5) break;
+                int dash = s.indexOf(" — ");
+                String pretty = dash > 0 ? "§e" + s.substring(0, dash) + " §8— §7" + s.substring(dash + 3) : "§f" + s;
+                out.addAll(wrap("§8• " + pretty, WRAP_PX, "   ", "     "));
+            }
+        }
+        out.add(rule('e'));
+        return out;
+    }
+
     public static List<String> gameCard(int n, int total, String name, String description,
                                         String objective, List<String> scoring) {
         List<String> out = new ArrayList<>();

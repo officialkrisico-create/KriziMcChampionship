@@ -42,6 +42,7 @@ public final class ValidateCommand implements CommandExecutor {
         if (args.length >= 1) {
             switch (args[0].toLowerCase()) {
                 case "test"   -> chatReport(sender);
+                case "config" -> configReport(sender);
                 case "export" -> export(plugin, sender);
                 default       -> open(sender);
             }
@@ -54,6 +55,29 @@ public final class ValidateCommand implements CommandExecutor {
     private void open(CommandSender sender) {
         if (sender instanceof Player p) new ValidationCenterGui(plugin).open(p);
         else chatReport(sender);
+    }
+
+    // ── Config doctor ───────────────────────────────────────────────────────────
+
+    /** /kmcvalidate config: every finding of the config doctor, also written to config-doctor.txt. */
+    private void configReport(CommandSender sender) {
+        var res = nl.kmc.kmccore.validation.ConfigDoctorRun.run(plugin);
+        List<String> lines = nl.kmc.kmccore.validation.ConfigDoctorRun.lines(res);
+        long errors = res.findings().stream().filter(f -> f.severity() == nl.kmc.kmccore.validation.ConfigDoctor.Severity.ERROR).count();
+        long warns = res.findings().stream().filter(f -> f.severity() == nl.kmc.kmccore.validation.ConfigDoctor.Severity.WARN).count();
+        sender.sendMessage("§6§l═══ KMC Config-doctor ═══");
+        sender.sendMessage("§7" + res.files().size() + " bestanden gecontroleerd: §c" + errors + " fouten§7, §e" + warns + " waarschuwingen");
+        int shown = 0;
+        for (String l : lines) {
+            if (shown++ >= 40) { sender.sendMessage("§7... zie plugins/KMCCore/config-doctor.txt voor de rest"); break; }
+            String c = l.startsWith("OK") ? "§a" : l.startsWith("---") ? "§6" : l.contains("ERROR") ? "§c" : "§e";
+            sender.sendMessage(c + l);
+        }
+        try {
+            Files.writeString(new File(plugin.getDataFolder(), "config-doctor.txt").toPath(), String.join("\n", lines) + "\n");
+        } catch (Exception e) {
+            sender.sendMessage("§c[EVS] Kon config-doctor.txt niet schrijven: " + e.getMessage());
+        }
     }
 
     // ── Chat report ─────────────────────────────────────────────────────────────

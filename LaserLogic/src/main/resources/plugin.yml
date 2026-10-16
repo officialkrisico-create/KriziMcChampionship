@@ -1,0 +1,19 @@
+name: LaserLogic
+version: 1.0.0
+main: nl.kmc.laser.LaserLogicPlugin
+api-version: '1.21'
+authors: [KMC]
+depend: [KMCCore, kmc-game-api]
+description: "Laser Logic - team puzzle boards: turn the mirrors until the beam reaches the receivers"
+
+commands:
+  laser:
+    description: Laser Logic control + setup
+    aliases: [laserlogic, ll]
+    usage: /laser <start|stop|status|validate|test|info|world|board|puzzle|spawn|reload>
+    permission: laserlogic.admin
+
+permissions:
+  laserlogic.admin:
+    description: Laser Logic admin commands
+    default: op

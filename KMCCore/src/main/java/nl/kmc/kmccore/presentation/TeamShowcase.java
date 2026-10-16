@@ -40,9 +40,11 @@ public final class TeamShowcase {
     private static final int PER_PLAYER_TICKS = 24;
     private static final int LEAD_TICKS       = 40;
     private static final int TAIL_TICKS       = 45;
+    private static final int FLYOVER_TICKS    = 110;
 
     private final KMCCore plugin;
     private final Map<UUID, Location> originalLocations = new HashMap<>();
+    private final List<org.bukkit.scheduler.BukkitTask> facingTasks = new ArrayList<>();
 
     public TeamShowcase(KMCCore plugin) { this.plugin = plugin; }
 
@@ -58,6 +60,12 @@ public final class TeamShowcase {
                          BiConsumer<Long, Runnable> later) {
         long tick = startTick;
         Location stage = stageLocation();
+        if (stage != null && stage.getWorld() != null) {
+            // An establishing fly-over of the stage (and the host behind it) before the first team steps on.
+            final long flyAt = tick;
+            later.accept(flyAt, () -> playFlyover(stage, FLYOVER_TICKS));
+            tick += FLYOVER_TICKS;
+        }
         for (int i = 0; i < teams.size(); i++) {
             KMCTeam team = teams.get(i);
             List<String> block = i < blocks.size() ? blocks.get(i) : List.of();
@@ -80,6 +88,8 @@ public final class TeamShowcase {
 
         // 1) Roster in chat + team title + camera stop
         later.accept(at, () -> {
+            try { if (plugin.getHost() != null) plugin.getHost().onTeamIntro(team); }
+            catch (Throwable ignored) { }
             block.forEach(Bukkit::broadcastMessage);
             if (stage == null || n == 0) {
                 for (Player p : Bukkit.getOnlinePlayers())
@@ -135,8 +145,12 @@ public final class TeamShowcase {
         catch (Throwable t) { return List.of(); }
     }
 
-    /** Centre of the stage: the centre of the podium spots, else the KMC lobby (null when there is none). */
+    /** Centre of the stage: the physical podium, else the podium spots of the opening ceremony, else the lobby. */
     private Location stageLocation() {
+        try {
+            var pod = plugin.getPodium();
+            if (pod != null && pod.isSet()) return pod.spot(1);      // the one podium of every ceremony
+        } catch (Throwable ignored) { }
         List<Location> spots = podium();
         if (!spots.isEmpty() && spots.get(0).getWorld() != null) {
             double x = 0, y = 0, z = 0;
@@ -159,30 +173,70 @@ public final class TeamShowcase {
      */
     private void lineUp(List<Player> members, Location stage) {
         int n = members.size();
+        Map<UUID, Location> spotOf = new HashMap<>();
         float yaw = stage.getYaw();
         double r = Math.toRadians(yaw);
         double rx = Math.cos(r), rz = Math.sin(r);
         List<Location> spots = podium();
+        List<Location> slots = List.of();
+        try {
+            var pod = plugin.getPodium();
+            if (pod != null && pod.isSet()) slots = pod.showcaseSlots(n);
+        } catch (Throwable ignored) { }
         for (int i = 0; i < n; i++) {
             Player p = members.get(i);
             originalLocations.putIfAbsent(p.getUniqueId(), p.getLocation());
             Location l;
-            if (!spots.isEmpty()) {
-                Location s = spots.get(i % spots.size());
-                int lap = i / spots.size();
-                l = s.clone();
-                if (lap > 0) {
-                    double off = 1.6 * ((lap + 1) / 2) * (lap % 2 == 1 ? 1 : -1);
-                    l.add(rx * off, 0, rz * off);
-                }
-            } else {
+            if (!slots.isEmpty()) {                  // the physical podium: everybody on top of the gold column
+                l = slots.get(i).clone();
+            } else if (spots.size() >= n) {                 // enough podium spots: one each
+                l = spots.get(i).clone();
+            } else {                                  // too few: a straight row, everybody in the picture
                 double off = (i - (n - 1) / 2.0) * 1.6;
                 l = stage.clone().add(rx * off, 0, rz * off);
             }
             l.setYaw(yaw);
             l.setPitch(0f);
             p.teleport(l);
+            spotOf.put(p.getUniqueId(), l.clone());
         }
+        startFacing(members, spotOf, yaw);
+    }
+
+    /**
+     * Keeps the team where it was put and looking at the camera for as long as its stage time lasts: a
+     * player who turns his head or takes a step is put back (rotation only when he did not move).
+     */
+    private void startFacing(List<Player> members, Map<UUID, Location> spots, float yaw) {
+        var t = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player p : members) {
+                Location spot = spots.get(p.getUniqueId());
+                if (spot == null || !p.isOnline()) continue;
+                Location now = p.getLocation();
+                if (now.getWorld() != spot.getWorld() || now.distanceSquared(spot) > 1.0) { p.teleport(spot); continue; }
+                float d = Math.abs(((now.getYaw() - yaw + 540f) % 360f) - 180f);
+                if (d > 4f || Math.abs(now.getPitch()) > 12f) p.setRotation(yaw, 0f);
+            }
+        }, 2L, 3L);
+        facingTasks.add(t);
+    }
+
+    /** A sweep over the stage: high from the left, down past the front, ending where the team cameras start. */
+    private void playFlyover(Location stage, int ticks) {
+        var cm = plugin.getCinematicManager();
+        if (cm == null || stage.getWorld() == null) return;
+        List<Player> viewers = new ArrayList<>(Bukkit.getOnlinePlayers());
+        if (viewers.isEmpty()) return;
+        float yaw = stage.getYaw();
+        double y = stage.getY();
+        int seg = Math.max(10, ticks / 4);
+        CameraRoute route = new CameraRoute("team-showcase-flyover", "showcase flyover");
+        route.addWaypoint(wp(stage, yaw, -16.0, y + 11.0, 4.0, 180f + 50f, 30f, 10));
+        route.addWaypoint(wp(stage, yaw, -9.0, y + 6.5, 12.0, 180f + 28f, 20f, seg));
+        route.addWaypoint(wp(stage, yaw, 0.0, y + 4.0, 15.0, 180f, 12f, seg));
+        route.addWaypoint(wp(stage, yaw, 9.0, y + 4.5, 12.0, 180f - 24f, 14f, seg));
+        route.addWaypoint(wp(stage, yaw, 0.0, y + 2.6, 9.5, 180f, 8f, seg));
+        cm.playRouteInstance("team-showcase-flyover", route, viewers, false, null);
     }
 
     private void playCamera(KMCTeam team, List<Player> members, Location stage, int duration) {
@@ -234,6 +288,8 @@ public final class TeamShowcase {
 
     /** Puts everyone who was lined up back where they stood. */
     private void sendBack() {
+        facingTasks.forEach(org.bukkit.scheduler.BukkitTask::cancel);
+        facingTasks.clear();
         for (Map.Entry<UUID, Location> e : originalLocations.entrySet()) {
             Player p = Bukkit.getPlayer(e.getKey());
             if (p != null && p.isOnline()) p.teleport(e.getValue());

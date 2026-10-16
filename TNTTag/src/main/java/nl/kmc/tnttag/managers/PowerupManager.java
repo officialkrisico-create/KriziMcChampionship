@@ -211,16 +211,33 @@ public final class PowerupManager {
             return;
         }
         decoys.add(npc);
-        // The decoy sprints away in the direction you were facing, bouncing off nothing — 8 seconds.
-        org.bukkit.util.Vector dir = p.getLocation().getDirection().setY(0).normalize().multiply(0.38);
+        // The decoy runs around in a 3 x 3 square on the spot where it was dropped (not away in one line), so it
+        // keeps looking like a player who is dodging — 8 seconds.
+        final Location origin = at.clone();
         new org.bukkit.scheduler.BukkitRunnable() {
             int ticks = 0;
+            int retarget = 0;
+            double tx = origin.getX(), tz = origin.getZ();
             @Override public void run() {
                 if (npc.isDead() || !npc.isValid() || ticks++ > 160) { remove(npc); cancel(); return; }
-                Location next = npc.getLocation().add(dir);
-                next.setDirection(dir);
-                // stop at walls
-                if (next.getBlock().getType().isSolid() && next.clone().add(0, 1, 0).getBlock().getType().isSolid()) { return; }
+                Location cur = npc.getLocation();
+                double dx = tx - cur.getX(), dz = tz - cur.getZ();
+                double dist = Math.hypot(dx, dz);
+                if (dist < 0.25 || retarget-- <= 0) {
+                    java.util.concurrent.ThreadLocalRandom r = java.util.concurrent.ThreadLocalRandom.current();
+                    tx = origin.getX() + r.nextDouble(-1.5, 1.5);
+                    tz = origin.getZ() + r.nextDouble(-1.5, 1.5);
+                    retarget = 10 + r.nextInt(10);
+                    return;
+                }
+                double step = Math.min(0.3, dist);
+                Location next = cur.clone().add(dx / dist * step, 0, dz / dist * step);
+                next.setYaw((float) Math.toDegrees(Math.atan2(-dx, dz)));
+                // never into a wall: pick another corner of the square
+                if (next.getBlock().getType().isSolid() && next.clone().add(0, 1, 0).getBlock().getType().isSolid()) {
+                    retarget = 0;
+                    return;
+                }
                 if (!next.getBlock().getType().isSolid()) npc.teleport(next);
             }
         }.runTaskTimer(plugin, 2L, 1L);

@@ -77,7 +77,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
             for (int i = 0; i < everyone.size(); i++) {
                 Player p = everyone.get(i);
                 if (!startSpawns.isEmpty()) {
-                    nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, startSpawns.get(i % startSpawns.size()));
+                    nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, startSlot(startSpawns, i));
                 }
                 p.setGameMode(GameMode.ADVENTURE);
                 p.setHealth(20); p.setFoodLevel(20);
@@ -305,9 +305,11 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
                 : 0;
         if (bonus <= 0) return;
 
+        // a team bonus goes to the team (one award), not to the personal points of its runners
+        api.points().giveTeamPoints(teamId, bonus, PointAward.Reason.TEAM_PLACEMENT, registration.getId());
         for (RunnerState rs : runners.values()) {
             if (!teamId.equals(api.teams().getTeamByPlayer(rs.getUuid()).map(t -> t.getId()).orElse(null))) continue;
-            rs.giveBonusPoints(bonus);
+            rs.giveTeamBonus(bonus);
         }
         tellKey("tgttos.team-bonus", bonus);
     }
@@ -335,6 +337,20 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
 
     // ── Round management ──────────────────────────────────────────────────────
 
+    /**
+     * The start place of player {@code i}: every spawn is used first, and players beyond the number of spawns
+     * stand beside the spawns instead of inside whoever is there, so the whole field starts side by side.
+     */
+    private static Location startSlot(List<Location> spawns, int i) {
+        Location base = spawns.get(i % spawns.size());
+        int layer = i / spawns.size();
+        if (layer == 0) return base;
+        double step = 1.1 * ((layer + 1) / 2);
+        double side = layer % 2 == 1 ? step : -step;
+        double r = Math.toRadians(base.getYaw());
+        return base.clone().add(Math.cos(r) * side, 0, Math.sin(r) * side);
+    }
+
     private void beginMap() {
         currentMap++;
         if (currentMap > mapsPerGame()) { end(); return; }
@@ -359,7 +375,7 @@ public final class TGTTOSGameManagerV2 extends BaseGameManager {
         List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
         for (int i = 0; i < online.size(); i++) {
             Player p = online.get(i);
-            Location dest = spawns.isEmpty() ? p.getLocation() : spawns.get(i % spawns.size());
+            Location dest = spawns.isEmpty() ? p.getLocation() : startSlot(spawns, i);
             nl.kmc.game.api.GamePlayerUtil.safeTeleport(p, dest);
             p.setGameMode(GameMode.ADVENTURE);
             p.setHealth(20); p.setFoodLevel(20);

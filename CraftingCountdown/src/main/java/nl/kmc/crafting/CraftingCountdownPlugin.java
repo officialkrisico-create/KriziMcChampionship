@@ -37,15 +37,15 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
     @Override protected Material icon() { return Material.CRAFTING_TABLE; }
     @Override protected int minPlayers() { return 1; }
     @Override protected String description() {
-        return "Verzamel de bestelde items bij de grondstofstapels en lever ze in bij je eigen inleverpunt.";
+        return "Haal grondstoffen bij de stapels, craft de bestelde items en lever ze in bij je eigen inleverpunt.";
     }
-    @Override protected String objective() { return "Voltooi de meeste bestellingen als team."; }
+    @Override protected String objective() { return "Craft en lever de meeste bestellingen als team."; }
 
     @Override
     protected List<String> scoringLines() {
         var c = getConfig();
         return List.of(
-                "+" + c.getInt("points.base-per-order", 10) + " ptn + de waarde van de items — per voltooide bestelling",
+                "+" + c.getInt("points.base-per-order", 10) + " ptn + de waarde van de gecrafte items — per voltooide bestelling",
                 "+" + c.getInt("points.speed-bonus", 25) + " ptn — snelheidsbonus voor een snelle bestelling",
                 "+" + c.getInt("points.streak-per-step", 5) + " ptn per bestelling in een reeks (max +" + c.getInt("points.streak-cap", 25) + ")",
                 "Punten zijn van de spelers die de items hebben ingeleverd");
@@ -60,12 +60,17 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
 
     @Override
     protected void onGameEnable() {
-        // A config.yml from the old crafting version lacks the pile/order sections: add the new defaults
-        // once, next to whatever arena data is already there.
-        if (!getConfig().contains("pile-types", true) || !getConfig().contains("item-pool", true)) {
+        // A config.yml from an older version (recipes, or the first collecting version) gets the current
+        // tuning sections; the arena data (world, stations, piles, spawns) is left alone.
+        if (getConfig().getInt("config-version", 0) < 2) {
+            for (String sec : List.of("game", "crafting", "piles", "pile-types", "orders", "item-pool", "points",
+                    "recipes", "start-sequence"))
+                getConfig().set(sec, null);
+            getConfig().set("config-version", null);
             getConfig().options().copyDefaults(true);
             saveConfig();
-            getLogger().info("[CraftingCountdown] New default pile types and order pool added to config.yml.");
+            reloadConfig();
+            getLogger().info("[CraftingCountdown] config.yml updated to the gather-and-craft version (config-version 2).");
         }
         var cmd = new CraftCommand();
         var c = getCommand("craftcountdown");
@@ -216,15 +221,16 @@ public final class CraftingCountdownPlugin extends AbstractGamePlugin {
             int sx = cx + (int) Math.round(Math.cos(ang) * 24), sz = cz + (int) Math.round(Math.sin(ang) * 24);
             TestArenaKit.platform(w, sx, y, sz, 2, 2, i % 2 == 0 ? Material.WHITE_CONCRETE : Material.LIGHT_GRAY_CONCRETE);
             w.getBlockAt(sx, y + 1, sz).setType(Material.BARREL, false);
+            w.getBlockAt(sx + (cx > sx ? 1 : -1), y + 1, sz).setType(Material.CRAFTING_TABLE, false);
             arena.addLoc("stations", new Location(w, sx + 0.5, y + 1, sz + 0.5));
             // a spot next to the barrel, facing the middle
             double yaw = Math.toDegrees(Math.atan2(-(cx - sx), cz - sz));
             arena.addLoc("spawns", TestArenaKit.stand(w, sx + (cx - sx) / 12.0 + 0.5, y + 1, sz + (cz - sz) / 12.0 + 0.5, (float) yaw));
         }
 
-        String[] types = {"wood", "stone", "farm", "mobs", "nether", "rare"};
+        String[] types = {"wood", "mine", "farm", "mobs", "market", "rare"};
         Material[] blocks = {Material.OAK_LOG, Material.COBBLESTONE, Material.HAY_BLOCK, Material.BONE_BLOCK,
-                Material.NETHERRACK, Material.DIAMOND_BLOCK};
+                Material.BOOKSHELF, Material.DIAMOND_BLOCK};
         int piles = types.length * 2;
         for (int i = 0; i < piles; i++) {
             double ang = Math.PI * 2 * i / piles + 0.2;

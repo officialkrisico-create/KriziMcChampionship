@@ -51,6 +51,11 @@ public final class BotCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§6Bots (" + bots.size() + "): §f" + (bots.isEmpty() ? "geen"
                         : String.join("§7, §f", bots.stream().map(Player::getName).toList())));
             }
+            case "info" -> {
+                var bots = FakePlayerSpawner.bots();
+                if (bots.isEmpty()) sender.sendMessage("§7Geen bots.");
+                for (Player b : bots) sender.sendMessage("§f" + b.getName() + " §7— " + FakePlayerSpawner.info(b));
+            }
             case "here" -> {
                 if (!(sender instanceof Player admin)) { sender.sendMessage("Alleen spelers."); return true; }
                 var bots = new ArrayList<>(FakePlayerSpawner.bots());
@@ -103,13 +108,14 @@ public final class BotCommand implements CommandExecutor, TabCompleter {
         s.sendMessage("§e/kmcbot remove <naam|all> §7— verwijder een bot of alle bots");
         s.sendMessage("§e/kmcbot list §7— toon alle bots");
         s.sendMessage("§e/kmcbot here §7— teleporteer alle bots naar jou");
+        s.sendMessage("§e/kmcbot info §7— toestand van de bots (onkwetsbaar? geladen?)");
         s.sendMessage("§8Bots tellen als echte spelers voor alle games en blijven staan waar je ze zet.");
     }
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String l, String[] args) {
         if (args.length == 1)
-            return List.of("add", "remove", "list", "here").stream().filter(o -> o.startsWith(args[0].toLowerCase())).toList();
+            return List.of("add", "remove", "list", "here", "info").stream().filter(o -> o.startsWith(args[0].toLowerCase())).toList();
         if (args.length == 2 && args[0].equalsIgnoreCase("remove")) {
             List<String> names = new ArrayList<>(FakePlayerSpawner.bots().stream().map(Player::getName).toList());
             names.add("all");

@@ -27,6 +27,22 @@ public final class PresetPickerGui extends Gui {
                 new AutomationSetupGui(plugin, onStartNow).open(p);
             });
         }
+        button(Math.min(17, 9 + Math.min(9, names.size())), item(Material.NETHER_STAR, "&a&lMaak een preset",
+                        "&7Slaat je huidige instellingen op",
+                        "&7(games, pauzes, finale, multipliers)",
+                        "&7onder een naam die je in de chat typt.",
+                        "",
+                        "&eKlik om te maken"),
+                p -> plugin.getChatInput().await(p, "Hoe moet de preset heten? (één woord)", text -> {
+                    String name = text.trim().toLowerCase().replaceAll("[^a-z0-9_-]", "");
+                    if (name.isEmpty()) {
+                        p.sendMessage(MessageUtil.color("&c[KMC] Die naam kan niet. Gebruik letters en cijfers."));
+                    } else {
+                        plugin.getDirector().presets().saveCurrent(name);
+                        p.sendMessage(MessageUtil.color("&a[KMC] Preset &e" + name + "&a gemaakt van je huidige instellingen."));
+                    }
+                    new PresetPickerGui(plugin, onStartNow).open(p);
+                }));
         button(22, item(Material.ARROW, "&7« Terug"), p -> new AutomationSetupGui(plugin, onStartNow).open(p));
         fillEmpty();
     }

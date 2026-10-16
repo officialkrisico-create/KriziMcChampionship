@@ -10,7 +10,7 @@ import java.util.UUID;
  * tournament. Cleared when the tournament resets / ends.
  *
  * <p>Reasons are short strings like:
- *   "kill", "placement_1", "lucky_block_loot", "team_placement_1"
+ *   "kill", "placement_1", "team_placement_1"
  */
 public class PointAward {
 
@@ -46,7 +46,6 @@ public class PointAward {
         if (reason == null) return "Onbekend";
         return switch (reason) {
             case "kill"            -> "Kill";
-            case "lucky_block_loot"-> "Lucky Block";
             case "double_kill"     -> "Double Kill";
             case "triple_kill"     -> "Triple Kill";
             case "mega_kill"       -> "Mega Kill";

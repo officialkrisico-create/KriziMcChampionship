@@ -332,7 +332,6 @@ public final class RocketRushManager extends ArcadeGameManager {
             l.add(api.tr(id, "rocket.sb.rockets", countRockets(viewer)));
             l.add(s.finished ? api.tr(id, "rocket.sb.finished", s.place)
                     : s.dnf ? api.tr(id, "rocket.sb.dnf") : api.tr(id, "rocket.sb.racing", livePosition(id)));
-            l.add(api.tr(id, "rocket.sb.points", book.player(id)));
         }
         return l;
     }

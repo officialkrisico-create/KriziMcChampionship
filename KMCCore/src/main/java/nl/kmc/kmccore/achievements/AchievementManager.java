@@ -43,7 +43,7 @@ public class AchievementManager {
             String frame = switch (a.getRarity()) { case COMMON -> "task"; case RARE -> "goal"; default -> "challenge"; };
             String color = switch (a.getRarity()) { case COMMON -> "gray"; case RARE -> "aqua"; default -> "gold"; };
             entries.add(new nl.kmc.stats.achievement.AdvancementToasts.Entry(a.getId(), a.getName(), a.getDescription(),
-                    frame, color, a.getIcon(), false, a.getRarity().name()));
+                    frame, color, a.getIcon(), false, a.getRarity().name(), a.getRarity().name()));
         }
         toasts.registerEntries(entries);
         nl.kmc.stats.achievement.AdvancementToasts.silenceVanilla();

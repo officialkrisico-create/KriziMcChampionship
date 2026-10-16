@@ -62,6 +62,21 @@ class OrderLogicTest {
     }
 
     @Test
+    void craftedItemsNeedTheirRawMaterialsFromPiles() {
+        List<PoolItem> recipes = List.of(
+                new PoolItem("TORCH", 1, 8, 16, 1.0, Set.of("COAL", "OAK_PLANKS")),
+                new PoolItem("CHEST", 1, 1, 2, 10.0, Set.of("OAK_PLANKS")));
+        // the torch itself is on no pile, only its materials are
+        Set<String> piles = Set.of("COAL", "OAK_PLANKS");
+        assertEquals(2, OrderLogic.candidates(recipes, piles, 1).size());
+        // no coal anywhere: no torch order, the chest is still possible
+        List<PoolItem> noCoal = OrderLogic.candidates(recipes, Set.of("OAK_PLANKS"), 1);
+        assertEquals(1, noCoal.size());
+        assertEquals("CHEST", noCoal.get(0).item());
+        assertTrue(OrderLogic.candidates(recipes, Set.of("TORCH"), 1).isEmpty());   // an item on a pile does not make it craftable
+    }
+
+    @Test
     void nothingObtainableGivesNoOrder() {
         assertTrue(OrderLogic.generate(POOL, Set.of("GRAVEL"), new Difficulty(0, 2, 3, 1.0), 48, new Random()).isEmpty());
     }

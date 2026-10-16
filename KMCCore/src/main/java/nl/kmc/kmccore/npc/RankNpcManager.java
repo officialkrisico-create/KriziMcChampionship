@@ -51,6 +51,7 @@ public final class RankNpcManager implements Listener {
         load();
         Bukkit.getPluginManager().registerEvents(this, plugin);
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::refresh, 60L, 100L);
+        Bukkit.getScheduler().runTaskLater(plugin, this::sweepOrphans, 20L);   // leftovers of a reload or crash
     }
 
     // ── Setup ─────────────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ public final class RankNpcManager implements Listener {
         slots.clear();
         removeOwnSpot();
         save();
+        sweepOrphans();
     }
 
     public Map<Integer, Location> getSlots() { return Collections.unmodifiableMap(slots); }
@@ -137,6 +139,7 @@ public final class RankNpcManager implements Listener {
                 d.setShadowed(true);
                 d.setDefaultBackground(false);
                 d.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
+                d.getPersistentDataContainer().set(tagKey(), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
             });
             labels.put(rank, label);
         }
@@ -172,6 +175,7 @@ public final class RankNpcManager implements Listener {
                     t.setVisibleByDefault(false);          // only its owner is shown it
                     t.setDefaultBackground(false);
                     t.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
+                    t.getPersistentDataContainer().set(tagKey(), org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
                 });
                 ownLabels.put(p.getUniqueId(), d);
                 p.showEntity(plugin, d);
@@ -193,6 +197,66 @@ public final class RankNpcManager implements Listener {
             d.text(legacy(text));
         }
     }
+
+    // ── Removal helpers (orphans, "the one next to me") ───────────────────────
+
+    private org.bukkit.NamespacedKey tagKey() { return new org.bukkit.NamespacedKey(plugin, "rank_npc"); }
+
+    private boolean tracked(UUID id) {
+        for (Mannequin b : bodies.values()) if (b != null && b.getUniqueId().equals(id)) return true;
+        for (TextDisplay l : labels.values()) if (l != null && l.getUniqueId().equals(id)) return true;
+        for (TextDisplay l : ownLabels.values()) if (l != null && l.getUniqueId().equals(id)) return true;
+        return false;
+    }
+
+    /**
+     * Removes rank-NPC entities that the manager no longer knows about (left behind by a reload, a crash
+     * or a failed removal). Everything it spawns carries a tag, so nothing else is touched.
+     *
+     * @return how many entities were removed
+     */
+    public int sweepOrphans() {
+        int n = 0;
+        for (org.bukkit.World w : Bukkit.getWorlds()) {
+            for (Entity e : w.getEntitiesByClasses(Mannequin.class, TextDisplay.class)) {
+                if (!e.getPersistentDataContainer().has(tagKey(), org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                if (tracked(e.getUniqueId())) continue;
+                e.remove();
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * Removes the rank NPC (or the "own position" display) within {@code radius} blocks of {@code at}, plus
+     * any tagged entity there that was left behind. Returns the number of things removed.
+     */
+    public int removeNear(Location at, double radius) {
+        int n = 0;
+        for (var e : new ArrayList<>(slots.entrySet())) {
+            Location l = e.getValue();
+            if (l.getWorld() != null && l.getWorld().equals(at.getWorld()) && l.distanceSquared(at) <= radius * radius) {
+                if (removeSlot(e.getKey())) n++;
+            }
+        }
+        if (ownSpot != null && ownSpot.getWorld() != null && ownSpot.getWorld().equals(at.getWorld())
+                && ownSpot.distanceSquared(at) <= radius * radius) {
+            if (removeOwnSpot()) n++;
+        }
+        if (at.getWorld() != null) {
+            for (Entity e : at.getWorld().getNearbyEntities(at, radius, radius + 3, radius)) {
+                if (!(e instanceof Mannequin) && !(e instanceof TextDisplay)) continue;
+                if (!e.getPersistentDataContainer().has(tagKey(), org.bukkit.persistence.PersistentDataType.BYTE)) continue;
+                e.remove();
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The slot numbers that exist, in order. */
+    public List<Integer> slotNumbers() { return new ArrayList<>(slots.keySet()); }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
 

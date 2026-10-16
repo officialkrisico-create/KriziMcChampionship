@@ -42,6 +42,27 @@ commands:
     usage: /kmcnpc <create|remove|list> [type] [fancyNpcId]
     permission: kmc.npc.admin
 
+  kmchost:
+    description: "The KMC host (presenter NPC): place, test, replay intros, announce"
+    usage: /kmchost <info|spawn|setspawn|remove|skin|intro|announce|dialogue|test|skip|enable|disable|reload>
+    permission: kmc.host.admin
+    aliases: [khost]
+
+  kmcpodium:
+    description: "The physical podium of the winner ceremony: set, remove, test"
+    usage: /kmcpodium <set|remove|test|info>
+    permission: kmc.admin
+
+  kmcchecklist:
+    description: "The tournament checklist: everything still to do, to tick off"
+    usage: /kmcchecklist [list|add <text>|remove <nr>|toggle <nr>|reset|defaults]
+    permission: kmc.admin
+
+  kmc:
+    description: "KMC main command: /kmc host ..."
+    usage: /kmc host <info|spawn|setspawn|intro|announce|test|skip|reload>
+    permission: kmc.host.admin
+
   kmcround:
     description: Manage tournament rounds
     usage: /kmcround <set|next|info> [round]
@@ -195,7 +216,7 @@ commands:
 
   kmclobbynpc:
     description: Manage decorative lobby NPCs (admin)
-    usage: /kmclobbynpc <create|remove|list> [type]
+    usage: /kmclobbynpc <spawn|rank|list|despawnall> [...]
     permission: kmc.lobbynpc.admin
 
   event:
@@ -316,6 +337,7 @@ permissions:
       kmc.tournament.admin: true
       kmc.game.admin: true
       kmc.npc.admin: true
+      kmc.host.admin: true
       kmc.round.admin: true
       kmc.points.admin: true
       kmc.automation.admin: true
@@ -345,6 +367,7 @@ permissions:
   kmc.tournament.admin: { description: Manage tournament,       default: op }
   kmc.game.admin:       { description: Manage games,            default: op }
   kmc.npc.admin:        { description: Manage NPCs,             default: op }
+  kmc.host.admin:       { description: Manage the KMC host (presenter NPC), default: op }
   kmc.round.admin:      { description: Manage rounds,           default: op }
   kmc.points.admin:     { description: Manage points,           default: op }
   kmc.automation.admin: { description: Control automation,      default: op }

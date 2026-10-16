@@ -349,13 +349,13 @@ public class RaceManager {
             String teamId = teamAverages.get(i).getKey();
             var team = teamLookup.get(teamId);
             if (team == null) continue;
-            for (UUID memberId : team.getMembers()) {
-                api.givePoints(memberId, bonusEach, nl.kmc.core.domain.PointAward.Reason.TEAM_PLACEMENT, GAME_ID);
-            }
+            // a team bonus: it goes to the team, not to the personal points of its members
+            int teamTotal = bonusEach * Math.max(1, team.getMembers().size());
+            api.giveTeamPoints(teamId, teamTotal);
             broadcast("&6&l✦ Team " + team.getDisplayName()
                     + " &7team-avg #" + teamRank
                     + " &8(" + String.format("%.1f", teamAverages.get(i).getValue())
-                    + " avg) &e+" + bonusEach + " elk");
+                    + " avg) &e+" + teamTotal + " voor het team");
         }
 
         broadcast("&6═══════════════════════════════════");

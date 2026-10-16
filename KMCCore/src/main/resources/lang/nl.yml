@@ -77,19 +77,12 @@ sb:
   spleef:
     tip1: "&7Breek de vloer onder"
     tip2: "&7je tegenstanders!"
-  luckyblock:
-    tip1: "&7Sla lucky blocks kapot"
-    tip2: "&7voor willekeurige loot!"
   tnttag:
     round: "&7Ronde &e{0}"
     time: "&7Tijd &f{0}s"
     out: "&7Jij bent &cUitgeschakeld"
     it: "&c&l⚠ JIJ HEBT DE BOM!"
     safe: "&a&lVeilig — ren weg!"
-  bridge:
-    target: "&7Eerste tot &e{0} &7doelpunten"
-    standings: "&e&lSTAND"
-    your-goals: "&7Jouw doelpunten &b{0}"
   mob:
     your-team: "&e&lJOUW TEAM"
     wave: "&7Golf &e{0}"
@@ -234,7 +227,7 @@ tnt:
       sub: "&eÉén bom. Geen powerups. Geen ontsnapping."
   chaos:
     title: "&5&lCHAOS EVENT"
-    double-note: "&5&lDOUBLE TROUBLE! &7De volgende ronde krijgt extra bommen!"
+    double-note: "&5&lDOUBLE TROUBLE! &7Er komen meteen extra bommen bij!"
     low_gravity: "Lage zwaartekracht"
     speed_frenzy: "Snelheidsrazernij"
     darkness: "Duisternis"
@@ -257,7 +250,7 @@ fmc:
   time-up: "&b[Formula MC] &eTijd is om!"
   time-up-race: "&b[Formula MC] &eTijd om — einde race!"
   fastest: "&b[Formula MC] &6⏱ Snelste ronde: &e{0} &7({1}, +{2})"
-  team-avg: "&b[Formula MC] &6✦ {0} &7team-gemiddelde &e#{1} &8({2}) &e+{3} elk"
+  team-avg: "&b[Formula MC] &6✦ {0} &7team-gemiddelde &e#{1} &8({2}) &e+{3} voor het team"
   results: "&b&l═══ Formula MC — uitslag ═══"
   best-lap: "&8(beste ronde {0})"
   checkpoint: "&b✔ Checkpoint {0}/{1}"
@@ -268,9 +261,13 @@ fmc:
   back-on-track: "&e↩ Terug op de baan"
   mastery: "&b[Formula MC] &7Bekijk je baanrecords en Track Mastery: &e&n/kmctrack &7(klik)"
   quali:
-    sub: "&7Rijd één ronde — de snelste start op pole"
-    start: "&e&l[Qualifying] &7Eén tijdrit-ronde, zonder botsingen. Snelste tijd start vooraan!"
+    sub: "&7Rijd zo veel rondes als je kunt — je snelste telt"
+    start: "&e&l[Qualifying] &7Tijdrit zonder botsingen: je kunt meerdere rondes rijden, de snelste telt. Snelste tijd start vooraan!"
     lap-done: "&7Gekwalificeerd — wacht op de rest"
+    lap-best: "&a✔ Nieuwe beste: &f{0} &8| &7P{1} &8| &7ronde {2}"
+    lap-slower: "&7Beste blijft &f{0} &8| &7P{1} &8| &7ronde {2}"
+    remaining: "&e[Qualifying] &7Nog &f{0}s &7— rijd een snellere ronde!"
+    hud: "&e⏱ &f{0} &8| &7beste &a{1} &8| &7nog {2}"
     results: "&e&l═══ Startopstelling ═══"
     pole: "&e[Qualifying] &6Pole position: &f{0} &7({1}, +{2} punten)"
     grid: "&7Startplek &e#{0}"
@@ -465,21 +462,7 @@ bp:
       title: "&5⇄ SPIEGEL"
       sub: "&7De getoonde kleur is juist FOUT om op te staan!"
 
-# ── The Bridge ────────────────────────────────────────────────────────────────
-bridge:
-  intro-sub: "&9Scoor in het doel van de tegenstander"
-  tut:
-    "1": "&9&l» &fBouw een brug naar het doel van de tegenstander."
-    "2": "&9&l» &fScoor door in hun doelgat te stappen."
-    "3": "&9&l» &fVal in de void? Dan respawn je bij je eigen team."
-    "4": "&9&l» &fEerste team tot &e{0} &fdoelpunten wint!"
-  no-side: "&9[The Bridge] &7Je team heeft geen eigen kant — je speelt mee voor &f{0}&7."
-  scored: "&b⚽ &e{0} &9scoorde voor {1}&9! ({2}/{3})"
-  assist: "&e+{0} &7punten voor de assist op &f{1}"
-  goal:
-    title: "&b&lDOELPUNT!"
-    sub: "&7Respawnen…"
-  own-wool: "&cJe kunt alleen de wol van je eigen team plaatsen!"
+
 
 # ── Elytra Endrium ────────────────────────────────────────────────────────────
 ee:
@@ -545,19 +528,7 @@ hitw:
     "6": "NOORDEN"
     "7": "NOORDOOSTEN"
 
-# ── Lucky Block ───────────────────────────────────────────────────────────────
-lb:
-  tut:
-    "1": "&6&l» &fSla lucky blocks kapot voor willekeurige loot."
-    "2": "&6&l» &fSoms goed, soms... minder goed."
-    "3": "&6&l» &fEen gevecht elimineert spelers permanent."
-    "4": "&6&l» &fLaatste speler die overblijft wint!"
-  out:
-    title: "&c&lUitgeschakeld!"
-    sub: "&7Wacht tot de game afgelopen is."
-  eliminated: "&c☠ &7{0} &7is uitgeschakeld! &e{1} &7spelers over."
-  kill-pts: "&6+{0} punten voor de kill!"
-  assist-pts: "&e+{0} &7punten voor de assist op &f{1}"
+
 
 # ── Mob Mayhem ────────────────────────────────────────────────────────────────
 mm:
@@ -664,7 +635,7 @@ pw:
     need-fails: "Je hebt nog {0} meer fail(s) nodig om te skippen."
     none: "Geen volgend checkpoint om te skippen."
   skipped: "&7{0} &7sloeg stage &e{1} &7over (geen punten)"
-  finished: "&a&l[Parkour] &e{0} &agefinisht!"
+  finished: "&a&l[Parkour] &e{0} &agefinisht als &6#{1}&a!"
   finish:
     title: "&a&lGEFINISHT!"
     sub: "&7Mooie run!"
@@ -780,7 +751,7 @@ tgttos:
   void: "&cIn de void gevallen — terug naar {0}"
   void-cp: "checkpoint {0}"
   void-start: "de start"
-  team-bonus: "&b&lTEAM-BONUS &7— het hele team is klaar! &8(&b+{0}&8 ptn elk)"
+  team-bonus: "&b&lTEAM-BONUS &7— het hele team is klaar! &8(&b+{0}&8 ptn voor het team)"
   map: "&e&l[TGTTOS] &eMap &6{0}&e/&6{1} &7— &b{2}"
   map-rule: "&7De map eindigt &e{0} &7nadat &e{1}% &7gefinisht is."
   fog: "&8&l🌫 FOG OF WAR &7— je ziet nu maar een klein stukje voor je!"
@@ -888,7 +859,6 @@ score:
     OBJECTIVE: "game-doelen"
     BONUS: "bonus"
     SURVIVAL_BONUS: "overleven"
-    LUCKY_BLOCK: "lucky block"
     DOUBLE_KILL: "dubbele kill"
     TRIPLE_KILL: "triple kill"
     MEGA_KILL: "mega kill"
@@ -1227,6 +1197,10 @@ spectator:
 
 # ── Golf 6: arcade games ──────────────────────────────────────────────────────
 arcade:
+  sb:
+    team: "TEAM"
+    team-points: "&7Teampunten &a{0}"
+    your-points: "&7Jouw punten &f{0}"
   down:
     title: "&c&lUITGESCHAKELD"
     sub: "&7Je komt over {0}s terug"
@@ -1285,21 +1259,27 @@ knockout:
     points: "&7Punten &a{0}"
 
 crafting:
-  intro-sub: "&6Verzamel de bestelde items en lever ze in"
+  intro-sub: "&6Verzamel, craft en lever in"
+  workbench: "&6&lWerkbank &7(rechtsklik)"
   tut:
-    "1": "&6&l» &fJe team krijgt bestellingen: items met aantallen. Zie het bord bij jullie inleverpunt en de sidebar."
-    "2": "&6&l» &fRechtsklik op een stapel in de arena en kies welk item je pakt. Stapels hebben een cooldown, een voorraad en vullen zichzelf bij."
-    "3": "&6&l» &fBreng de items naar jullie eigen inleverpunt en rechtsklik erop. De voortgang is van het hele team."
+    "1": "&6&l» &fJe team krijgt bestellingen: te craften items met aantallen. Zie het bord bij jullie inleverpunt en de sidebar."
+    "2": "&6&l» &fGrondstoffen haal je door te mijnen: rechtsklik op een stapel om te kiezen wat je wilt, sla dan het blok kapot met je houweel of bijl."
+    "3": "&6&l» &fCraft het item met de Werkbank (rechtsklik op het item in je hotbar) en lever het in bij jullie eigen inleverpunt."
     "4": "&6&l» &fKlaar = punten voor wie heeft ingeleverd, een nieuwe bestelling en bonussen voor snelheid en reeksen."
   go:
-    title: "&6&lVERZAMEL!"
-    sub: "&7Rechtsklik op de stapels"
+    title: "&6&lVERZAMEL EN CRAFT!"
+    sub: "&7Grondstoffen bij de stapels, craften met je Werkbank"
   order:
     first: "&6[Bestelling #{0}] &7Jullie opdracht: {1}"
     new: "&6[Bestelling #{0}] &7Nieuwe bestelling: {1}"
+    needs: "&7Grondstoffen: &f{0}"
     done: "&a&l✔ Bestelling #{0} klaar! &7basis &f{1} &8+ &7items &f{2} &8+ &7snelheid &f{3} &8+ &7reeks &f{4} &8= &e&l{5} punten"
     other: "&6[Crafting] &e{0} &7heeft bestelling #{1} afgerond &8(+{2})"
+  tool:
+    pickaxe: "&6&lHouweel"
+    axe: "&6&lBijl"
   pile:
+    mining: "&7Je mijnt nu &e{0}&7 — sla de blokken van deze stapel kapot"
     took: "&a+{0} {1} &8(je draagt {2}/{3})"
     cooldown: "&7Even wachten: nog &e{0}s &7bij deze stapel."
     full: "&cJe draagt al het maximum ({0}). Lever eerst in!"
@@ -1321,6 +1301,243 @@ crafting:
     orders: "&7Bestellingen &f{0} &8(reeks {1})"
     carry: "&7Je draagt &f{0}&7/&f{1}"
     you: "&7Jij leverde &f{0}"
+
+laser:
+  intro-sub: "&bDraai de spiegels, bereik de ontvangers"
+  tut:
+    "1": "&b&l» &fJe team heeft een eigen puzzelbord: een emitter schiet een laser, de ontvangers moeten oplichten."
+    "2": "&b&l» &fRechtsklik op een spiegel om hem te draaien (╱ of ╲). De straal verandert direct."
+    "3": "&b&l» &fMuren en absorbers stoppen de straal, splitters maken er twee, filters kleuren hem."
+    "4": "&b&l» &fVast? Rechtsklik op het papier in je hotbar voor een hint — de eerste kost je de no-hint-bonus."
+  diff:
+    easy: "&aMakkelijk"
+    medium: "&eGemiddeld"
+    hard: "&cMoeilijk"
+  puzzle:
+    title: "&b&lPUZZEL {0}"
+    sub: "{0} &8| &7{1} ptn &8| &7{2}s"
+  hint:
+    item: "&b&lHint &7(rechtsklik)"
+    lore: "&7Max {0} per puzzel. De eerste hint kost de no-hint-bonus (+{1})."
+    max: "&cGeen hints meer voor deze puzzel."
+    lost: " &8(no-hint-bonus is weg)"
+    line: "&b[Hint {0}/{1}] &f{2}"
+    "1": "Deze ontvanger(s) moeten nog oplichten: &e{0}"
+    "2": "De spiegel op vakje &e({0}, {1}) &fstaat verkeerd (gemarkeerd met deeltjes)."
+    2-none: "Geen enkele spiegel hoeft nog gedraaid te worden — kijk naar de ontvangers."
+    "3": "Een deel van de oplossing wordt kort getoond met witte deeltjes."
+  foreign: "&cDit is het bord van een ander team."
+  fixed: "&7Deze spiegel zit vast."
+  locked: "&7Deze spiegel is vergrendeld tot ontvanger &e{0} &7oplicht."
+  solved: "&a&l✔ Puzzel {0} opgelost! &7basis &f{1} &8+ &7eerste &f{2} &8+ &7no-hint &f{3} &8= &e&l{4} punten &8({5}s)"
+  solved-other: "&b[Laser] &e{0} &7loste puzzel &f{1} &7op."
+  timeout: "&b[Laser] &7Tijd om voor puzzel {0} — op naar de volgende."
+  sb:
+    time: "&7Tijd &f{0}"
+    puzzle: "&7Puzzel &f{0} &8({1}&8)"
+    left: "&7Over &f{0}s"
+    solved: "&7Opgelost &a{0}"
+    hints: "&7Hints &e{0}&7/&e{1}"
+    team: "&7Team &a{0}"
+  results: "&b&l═══ Laser Logic — uitslag ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} ptn &8| &7{3} puzzels (&a{4}&7/&e{5}&7/&c{6}&7), gem. {7}s, {8} hints"
+
+blockball:
+  intro-sub: "&aSchop de bal in het doel"
+  tut:
+    "1": "&a&l» &fJe team speelt 4 tegen 4: schop de bal in het doel van de tegenstander."
+    "2": "&a&l» &fLinksklik = schop, rechtsklik = pass. Houd sneak ingedrukt en linksklik voor een geladen schot."
+    "3": "&a&l» &fOok tegen de bal aan lopen duwt hem. Blijf op het veld: eruit lopen brengt je terug."
+    "4": "&a&l» &fWinst, gelijkspel en verlies leveren punten op; doelpunten en assists geven een bonus."
+  wave: "&a[Blockball] &7Ronde &f{0}&7/&f{1} &8— &f{2} &7wedstrijden tegelijk."
+  bye: "&a[Blockball] &7Je team heeft deze ronde geen tegenstander: &e+{0} punten&7."
+  match:
+    title: "&a&lWEDSTRIJD"
+    sub: "{0} &7tegen {1}"
+  overtime:
+    title: "&6&lVERLENGING"
+    sub: "&7Golden goal — het volgende doelpunt wint"
+  goal:
+    title: "&a&lGOAL! {0}"
+    sub: "&f{0} &8| &7{1} - {2}"
+    chat: "&a[Goal] {0} &7scoort via &f{1} &8({3}-{4})"
+    chat-assist: "&a[Goal] {0} &7scoort via &f{1} &7(assist &f{2}&7) &8({3}-{4})"
+  own-goal: "&cvelddoelpunt"
+  out: "&cJe moet op het veld blijven."
+  keeper:
+    you: "&b&lJij bent de keeper!"
+    you-sub: "&7In je eigen gebied: rechtsklik = vangen, linksklik = wegslaan"
+    announce: "&7Keeper van {0}&7: &f{1}"
+    caught: "&aGevangen! &7Linksklik = gooien, rechtsklik = rollen"
+    released: "&7Je moet de bal loslaten"
+    save: "&b&l✋ REDDING!"
+    save-sub: "&7Een schot gestopt"
+    summary: "&7Als keeper: &a{0} &7reddingen, {1} vangsten"
+    sb: "&7Keeper &8| &7reddingen &f{0}"
+  charged: "&6Geladen — klik voor een schot!"
+  match-result: "&a[Blockball] {0} &f{1} &8- &f{2} {3} &8— {4}"
+  match-win: "&e{0} wint"
+  match-draw: "&7gelijkspel"
+  match-you: "&7Jij: &a{0} &7doelpunten, &a{1} &7assists, {2} schoten, {3} passes"
+  sb:
+    wave: "&7Ronde &f{0}&7/&f{1}"
+    time: "&7Tijd &f{0}"
+    you: "&7Jij &a{0}&7 goals, &a{1}&7 assists"
+    waiting: "&7Je wacht op je wedstrijd"
+  results: "&a&l═══ Blockball — uitslag ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} ptn &8| &7{3}/{4} gewonnen, doelsaldo {5}-{6}"
+
+factory:
+  intro-sub: "&6Produceer en lever de bestellingen"
+  tut:
+    "1": "&6&l» &fJe team runt een eigen fabriek. Het bord toont de bestellingen: welke producten en hoeveel."
+    "2": "&6&l» &fRechtsklik op een grondstofstation om materiaal te pakken, en op een machine om het erin te stoppen."
+    "3": "&6&l» &fMachines werken op tijd: haal het resultaat uit het menu van de machine en geef het door aan de volgende."
+    "4": "&6&l» &fRechtsklik op het gouden blok om te leveren. Elke bestelling levert punten op voor wie heeft ingeleverd."
+  go:
+    title: "&6&lPRODUCEER!"
+    sub: "&7Grondstoffen, machines, levering"
+  foreign: "&cDit is de fabriek van {0}&c."
+  order:
+    new: "&6[Bestelling] &f{0}&7: {1} &8(+{2} ptn)"
+    done: "&a&l✔ {0} geleverd! &e+{1} &7(deadline-bonus +{2})"
+  station:
+    cooldown: "&7Even wachten."
+    full: "&cJe draagt al het maximum ({0})."
+    empty: "&c{0} is op — het station vult zich aan."
+    took: "&a+{0} {1} &8(voorraad {2}/{3})"
+  state:
+    idle: "Wacht op invoer"
+    waiting_for_input: "Wacht op meer invoer"
+    processing: "Bezig"
+    ready: "Klaar om op te halen"
+    blocked: "Geblokkeerd — haal de uitvoer op"
+    disabled: "Uitgeschakeld"
+  queue: "Wachtrij {0}/{1}"
+  recipe:
+    in: "Invoer: {0}"
+    out: "Uitvoer: {0}"
+    time: "Duur: {0}s"
+  empty: "leeg"
+  buffer: "In de machine"
+  insert:
+    label: "Plaats alles"
+    lore: "Stopt alle bruikbare items uit je inventory erin."
+  collect: "Haal uitvoer"
+  return:
+    label: "Haal invoer terug"
+    lore: "Alleen wat nog niet in productie is."
+  inserted: "&a{0} items geplaatst"
+  nothing-to-insert: "&7Je hebt niets bij je wat deze machine gebruikt."
+  collected: "&a{0} producten opgehaald"
+  returned: "&7{0} items teruggegeven"
+  deliver:
+    ok: "&a{0} producten geleverd"
+    nothing: "&7Je hebt niets bij je wat een bestelling nodig heeft."
+  final:
+    title: "&c&lLAATSTE FASE"
+    sub: "&7Nog {0} seconden — lever alles in!"
+  results: "&6&l═══ Factory Frenzy — uitslag ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} ptn &8| &7{3} bestellingen, {4} items deels klaar, {5} geleverd, efficiëntie {6}%"
+  sb:
+    time: "&7Tijd &f{0}"
+    order: "&f{0} &e{1}&7/&e{2}"
+    team: "&7Team &a{0}"
+    done: "&7Bestellingen &f{0}"
+    carry: "&7Je draagt &f{0}&7/&f{1}"
+    you: "&7Jij leverde &f{0}"
+
+dungeon:
+  intro-sub: "&5Draft je route door de dungeon"
+  tut:
+    "1": "&5&l» &fElk team loopt zijn eigen dungeon. Na elke kamer kies je de volgende uit een paar opties."
+    "2": "&5&l» &fStem in het draft-menu: meeste stemmen wint. Niemand kiest? Dan beslist het toeval."
+    "3": "&5&l» &fSchade gaat van de gezamenlijke teamgezondheid af. Is die op, dan is de run voorbij."
+    "4": "&5&l» &fMunten uit kisten en kamers geef je uit aan genezing of een extra leven. Laatste kamer: de baas!"
+  foreign: "&cDit is de baan van een ander team."
+  draft:
+    title: "&5Kies je volgende kamer"
+    header: "&dKamer {0}/{1} &8| &7nog &f{2}s"
+    health: "&7Teamgezondheid &c{0}/{1} &8| &7levens &a{2}"
+    currency: "&7Munten &6{0}"
+    chat: "&5[Dungeon] &fKies kamer {0} van {1} in het menu."
+    auto: "&7Niemand koos — het team gaat naar &f{0}&7."
+    leader-only: "&cAlleen de teamleider kiest in deze modus."
+  type:
+    combat: "Gevecht"
+    parkour: "Parkour"
+    trap: "Valkuil"
+    treasure: "Schat"
+    puzzle: "Puzzel"
+    boss: "Eindbaas"
+  difficulty: "Moeilijkheid {0}"
+  reward: "Beloning {0} ptn"
+  risk: "Risico: {0}"
+  votes: "Stemmen {0}"
+  mod:
+    double_reward: "Dubbele beloning"
+    reduced_time: "Minder tijd"
+    extra_wave: "Extra golf"
+    heal: "Genezing na afloop"
+  shop:
+    heal: "Genees het team"
+    revive: "Extra leven"
+    cost: "Kosten {0} munten"
+    poor: "&cTe weinig munten."
+    healed: "&a{0} liet het team genezen."
+    revived: "&a{0} kocht een extra leven."
+  room:
+    enter: "&5[Dungeon] &fJe betreedt &e{0}&f. &7Doel: {1}"
+    goal:
+      combat: "versla alle golven"
+      parkour: "bereik de finish"
+      trap: "druk de schakelaars in"
+      treasure: "open de kisten"
+      puzzle: "druk de pads in de juiste volgorde"
+      boss: "versla de baas"
+    done: "&a&l✔ {0} voltooid! &e+{1} &7(bonus +{2})"
+    timeout: "&c{0}: de tijd is om — het team verliest gezondheid."
+  combat:
+    wave: "&cGolf {0}/{1}"
+  parkour:
+    finished: "&aGefinisht {0}/{1}"
+    fell: "&cGevallen — terug naar het checkpoint."
+  trap:
+    switch: "&eSchakelaar {0}/{1}"
+  treasure:
+    empty: "&7Deze kist is al leeg."
+    found: "&6{0} vond &e{1} &6munten!"
+    trapped: "&c{0} opende een bevallen kist!"
+  puzzle:
+    watch: "&7Wacht tot de volgorde klaar is."
+    wrong: "&cFout! De volgorde begint opnieuw."
+  boss:
+    telegraph: "&c&lPas op — een slag komt eraan!"
+    phase2: "&c&lDe baas roept hulp!"
+  revive:
+    title: "&a&lExtra leven!"
+    sub: "&7Het team herstelt de helft"
+  end:
+    done: "&a&lDUNGEON VOLTOOID"
+    failed: "&c&lRUN MISLUKT"
+    sub: "&7{0} kamers voltooid"
+  results: "&5&l═══ Dungeon Draft — uitslag ═══"
+  result-line: "  &7#{0} {1} &8— &e{2} ptn &8| &7{3} kamers, moeilijkheid {4}, {5} baas, {6} kisten, gezondheid {7}, {8} extra levens, {9}s"
+  sb:
+    time: "&7Tijd &f{0}"
+    room: "&7Kamer &f{0}&7/&f{1}"
+    drafting: "&dRoute kiezen..."
+    completed: "&aVoltooid"
+    failed: "&cMislukt"
+    health: "&7Gezondheid &c{0}&7/&c{1} &a+{2}"
+    currency: "&7Munten &6{0}"
+    team: "&7Team &a{0}"
+    combat: "&7Golf &f{0}&7/&f{1} &8| &7vijanden &f{2}"
+    parkour: "&7Gefinisht &f{0}"
+    switches: "&7Schakelaars &f{0}&7/&f{1}"
+    chests: "&7Kisten &f{0}&7/&f{1}"
+    puzzle: "&7Puzzel &f{0}&7/&f{1}"
+    boss: "&7Baas &c{0} HP"
 
 zonezero:
   intro-sub: "&5Controleer de open zones"
@@ -1446,6 +1663,7 @@ core:
   full: "&b[Core Charge] &e{0} &7heeft de kern volledig opgeladen!"
   activated: "&b[Core Charge] &e{0} &7activeert &f{1}"
   results: "&b&l═══ Core Charge — uitslag ═══"
+  charging: "&b⚡ Opladen &f{0}% &8| &7nog &e{1}s &7blijven staan"
   sb:
     time: "&7Tijd &f{0}"
     final: "&c&lFINAL CHARGE"

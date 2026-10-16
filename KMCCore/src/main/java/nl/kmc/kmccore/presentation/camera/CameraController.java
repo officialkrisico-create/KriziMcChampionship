@@ -35,7 +35,7 @@ public final class CameraController {
     /** Ticks of speed ramp at the very start and end of a route. */
     private static final double EASE_TICKS = 24.0;
     /** Client-side interpolation window for the camera entity, in ticks. */
-    private static final int TELEPORT_DURATION = 2;
+    private static final int TELEPORT_DURATION = 3;
     /** After this many failed re-attaches a player falls back to direct teleports. */
     private static final int MAX_ATTACH_MISSES = 8;
 

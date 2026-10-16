@@ -164,8 +164,8 @@ public final class StoryManager implements Listener {
 
     private void say(String plain) {
         try {
-            if (plain != null && !plain.isBlank() && plugin.getPresenter() != null)
-                plugin.getPresenter().say("presenter.custom", 9, plain);
+            if (plain != null && !plain.isBlank() && plugin.getHost() != null)
+                plugin.getHost().autoSay(plain, 9);
         } catch (Throwable ignored) { }
     }
 }

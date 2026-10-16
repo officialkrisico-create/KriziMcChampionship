@@ -328,6 +328,7 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
         PlayerStats ps = stats.get(victim.getUniqueId());
         if (ps == null || !ps.isAlive()) return;
 
+        final int place = (int) stats.values().stream().filter(PlayerStats::isAlive).count();
         ps.eliminate(eliminationCounter++);
         victim.setGameMode(GameMode.SPECTATOR);
         victim.getInventory().clear();
@@ -351,11 +352,13 @@ public final class SurvivalGamesManagerV2 extends BaseGameManager {
                     assistPlayer.sendMessage(api.tr(assistId, "game.assist", split.assistAmount(), victim.getName()));
             }
             assistTracker.clear(victim.getUniqueId());
-            broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName());
+            broadcast("§c☠ §7" + victim.getName() + " §8← §e" + killer.getName()
+                    + nl.kmc.game.api.GamePlayerUtil.placeTag(place));
         } else {
             assistTracker.clear(victim.getUniqueId());
             for (Player rp : Bukkit.getOnlinePlayers())
-                rp.sendMessage("§c☠ §7" + victim.getName() + " §7" + api.tr(rp.getUniqueId(), reason));
+                rp.sendMessage("§c☠ §7" + victim.getName() + " §7" + api.tr(rp.getUniqueId(), reason)
+                        + nl.kmc.game.api.GamePlayerUtil.placeTag(place));
         }
         victim.sendTitle(api.tr(victim.getUniqueId(), "game.eliminated.title"),
                 "§7" + api.tr(victim.getUniqueId(), reason), 10, 50, 10);

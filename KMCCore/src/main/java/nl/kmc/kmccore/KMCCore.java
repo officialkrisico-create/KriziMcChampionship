@@ -82,6 +82,12 @@ public final class KMCCore extends JavaPlugin {
     /** Lobby presenter that announces games, results and the finale. */
     private nl.kmc.kmccore.npc.PresenterManager presenter;
     public nl.kmc.kmccore.npc.PresenterManager getPresenter() { return presenter; }
+    private nl.kmc.kmccore.presentation.PodiumManager podium;
+    private nl.kmc.kmccore.checklist.Checklist checklist;
+    public nl.kmc.kmccore.checklist.Checklist getChecklist() { return checklist; }
+    public nl.kmc.kmccore.presentation.PodiumManager getPodium() { return podium; }
+    private nl.kmc.kmccore.host.HostManager host;
+    public nl.kmc.kmccore.host.HostManager getHost() { return host; }
 
     /** Live player ranking on NPCs (/kmcnpc rank ...). */
     private nl.kmc.kmccore.npc.RankNpcManager rankNpcManager;
@@ -145,6 +151,13 @@ public final class KMCCore extends JavaPlugin {
         director = new nl.kmc.kmccore.director.DirectorService(this);
         rankNpcManager = new nl.kmc.kmccore.npc.RankNpcManager(this);
         presenter = new nl.kmc.kmccore.npc.PresenterManager(this);
+        var vanillaAdv = new nl.kmc.kmccore.achievements.VanillaAdvancements(this);
+        getServer().getPluginManager().registerEvents(vanillaAdv, this);
+        getServer().getScheduler().runTaskLater(this, vanillaAdv::writeSnippet, 100L);
+        podium = new nl.kmc.kmccore.presentation.PodiumManager(this);
+        checklist = new nl.kmc.kmccore.checklist.Checklist(new java.io.File(getDataFolder(), "checklist.yml"));
+        host = new nl.kmc.kmccore.host.HostManager(this);
+        getServer().getPluginManager().registerEvents(host, this);   // registered once; gated by the host state
         camService = new nl.kmc.kmccore.presentation.CamService(this);
         ggManager = new nl.kmc.kmccore.presentation.GgManager(this);
         clipMarkers = new nl.kmc.kmccore.platform.ClipMarkers(this);
@@ -219,6 +232,7 @@ public final class KMCCore extends JavaPlugin {
         if (lobbyGames != null) lobbyGames.shutdown();
         if (liveApi != null) liveApi.stop();
         if (splineRecorder != null) splineRecorder.shutdown();
+        if (host != null) host.shutdown();
         if (presenter != null) presenter.shutdown();
         if (pointsLedger != null) pointsLedger.flush();
         if (trackRecords != null) trackRecords.flush();
@@ -244,6 +258,11 @@ public final class KMCCore extends JavaPlugin {
         setCmd("kmcgame",        new GameCommand(this));
         setCmd("kmclb",          new LeaderboardCommand(this));
         setCmd("kmcnpc",         new NPCCommand(this));
+        var hostCommand = new nl.kmc.kmccore.host.HostCommand(this);
+        setCmd("kmchost",        hostCommand);
+        setCmd("kmcpodium",      new nl.kmc.kmccore.commands.PodiumCommand(this));
+        setCmd("kmcchecklist",   new nl.kmc.kmccore.commands.ChecklistCommand(this));
+        setCmd("kmc",            hostCommand);
         setCmd("kmcround",       new RoundCommand(this));
         setCmd("kmcpoints",      new PointsCommand(this));
         setCmd("tc",             new TeamChatCommand(this));

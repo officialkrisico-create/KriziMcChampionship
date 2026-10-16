@@ -172,8 +172,7 @@ public final class EventEndSequence {
             p.sendTitle(MessageUtil.color("&6&l🏆 KMC #" + edition), MessageUtil.color("Winnaar: " + winnerName), 10, 80, 20);
             p.playSound(p.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1f, 1f);
         }
-        try { plugin.getPresenter().say("presenter.champions", 12, winnerName + "§f"); }
-        catch (Throwable ignored) { }
+        // the host reveals the podium itself, step by step, in WinnerCeremony (3rd, 2nd, champions)
         List<PlayerData> top = plugin.getPlayerDataManager().getLeaderboard();
         if (!top.isEmpty()) {
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -249,6 +248,7 @@ public final class EventEndSequence {
         plugin.getChatGate().unmute("end:sequence");
         try { resetAction.run(); }
         catch (Throwable t) { plugin.getLogger().warning("[KMC] End-of-tournament reset failed: " + t); }
+        try { if (plugin.getHost() != null) plugin.getHost().onSessionEnd(); } catch (Throwable ignored) { }
         if (active == this) active = null;
         done.run();
     }

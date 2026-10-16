@@ -256,7 +256,7 @@ public class AdminCommands {
     // /kmclobbynpc — spawn lobby NPCs
     // --------------------------------------------------------------
 
-    public static class LobbyNPCCommand implements CommandExecutor {
+    public static class LobbyNPCCommand implements CommandExecutor, org.bukkit.command.TabExecutor {
         private final KMCCore plugin;
         public LobbyNPCCommand(KMCCore plugin) { this.plugin = plugin; }
 
@@ -268,7 +268,9 @@ public class AdminCommands {
             }
             if (args.length == 0) {
                 sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc spawn <stats|hof|easter_egg>");
-                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc despawnall");
+                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc rank <set <1-10>|own|remove <n|own|all|here>|list|refresh|clean>");
+                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc list");
+                sender.sendMessage(ChatColor.YELLOW + "/kmclobbynpc despawnall  " + ChatColor.GRAY + "(lobby NPCs and rank NPCs)");
                 return true;
             }
             switch (args[0].toLowerCase()) {
@@ -289,11 +291,102 @@ public class AdminCommands {
                 }
                 case "despawnall" -> {
                     plugin.getLobbyNPCManager().despawnAll();
-                    sender.sendMessage(ChatColor.GREEN + "All KMC lobby NPCs removed.");
+                    var rm = plugin.getRankNpcManager();
+                    int ranks = rm.getSlots().size();
+                    rm.removeAllSlots();
+                    sender.sendMessage(ChatColor.GREEN + "All KMC lobby NPCs removed" + ChatColor.GRAY
+                            + " (" + ranks + " rank NPC slot" + (ranks == 1 ? "" : "s") + " cleared too).");
                 }
+                case "list" -> {
+                    var rm = plugin.getRankNpcManager();
+                    sender.sendMessage(ChatColor.GOLD + "Rank NPCs: " + ChatColor.WHITE + rm.getSlots().size() + "/"
+                            + nl.kmc.kmccore.npc.RankNpcManager.MAX_SLOT + ChatColor.GRAY + "  own position: "
+                            + (rm.getOwnSpot() != null ? ChatColor.GREEN + "yes" : ChatColor.GRAY + "no"));
+                    rm.getSlots().forEach((n, l) -> sender.sendMessage(ChatColor.GRAY + "  #" + n + " " + ChatColor.WHITE
+                            + (l.getWorld() != null ? l.getWorld().getName() : "?") + " " + l.getBlockX() + ", "
+                            + l.getBlockY() + ", " + l.getBlockZ()));
+                }
+                case "rank" -> rank(p, args);
                 default -> sender.sendMessage(ChatColor.RED + "Unknown subcommand.");
             }
             return true;
+        }
+
+        /** /kmclobbynpc rank set <1-10> | own | remove <n|own|all|here> | list | refresh | clean */
+        private void rank(Player p, String[] args) {
+            var rm = plugin.getRankNpcManager();
+            String sub = args.length >= 2 ? args[1].toLowerCase() : "list";
+            switch (sub) {
+                case "set" -> {
+                    int n = args.length >= 3 ? parseInt(args[2]) : -1;
+                    if (n < 1 || n > nl.kmc.kmccore.npc.RankNpcManager.MAX_SLOT) {
+                        p.sendMessage(ChatColor.RED + "Usage: /kmclobbynpc rank set <1-10>");
+                        return;
+                    }
+                    rm.setSlot(n, p.getLocation());
+                    p.sendMessage(ChatColor.GREEN + "Rank NPC #" + n + " placed at your position.");
+                }
+                case "own" -> {
+                    rm.setOwnSpot(p.getLocation().add(0, 2, 0));
+                    p.sendMessage(ChatColor.GREEN + "\"Your position\" display placed (everyone sees their own rank).");
+                }
+                case "remove" -> {
+                    String what = args.length >= 3 ? args[2].toLowerCase() : "";
+                    switch (what) {
+                        case "all" -> {
+                            rm.removeAllSlots();
+                            p.sendMessage(ChatColor.GREEN + "All rank NPCs removed.");
+                        }
+                        case "own" -> p.sendMessage(rm.removeOwnSpot()
+                                ? ChatColor.GREEN + "Own-position display removed." : ChatColor.GRAY + "There is none.");
+                        case "here", "" -> {
+                            int n = rm.removeNear(p.getLocation(), 4.0);
+                            p.sendMessage(n > 0 ? ChatColor.GREEN + "Removed " + n + " rank NPC part" + (n == 1 ? "" : "s")
+                                    + " within 4 blocks." : ChatColor.GRAY + "No rank NPC within 4 blocks. Stand next to it, or use /kmclobbynpc rank remove <1-10|all>.");
+                        }
+                        default -> {
+                            int n = parseInt(what);
+                            p.sendMessage(n > 0 && rm.removeSlot(n)
+                                    ? ChatColor.GREEN + "Rank NPC #" + n + " removed." : ChatColor.GRAY + "No rank NPC #" + what + ".");
+                        }
+                    }
+                }
+                case "refresh" -> {
+                    rm.refresh();
+                    p.sendMessage(ChatColor.GREEN + "Rank NPCs refreshed.");
+                }
+                case "clean" -> {
+                    int n = rm.sweepOrphans();
+                    p.sendMessage(ChatColor.GREEN + "Removed " + n + " leftover rank NPC entit" + (n == 1 ? "y" : "ies") + ".");
+                }
+                default -> {
+                    p.sendMessage(ChatColor.GOLD + "Rank NPCs: " + ChatColor.WHITE + rm.getSlots().size() + "/"
+                            + nl.kmc.kmccore.npc.RankNpcManager.MAX_SLOT);
+                    p.sendMessage(ChatColor.GRAY + "/kmclobbynpc rank set <1-10> | own | remove <n|own|all|here> | list | refresh | clean");
+                }
+            }
+        }
+
+        private static int parseInt(String s) {
+            try { return Integer.parseInt(s); } catch (NumberFormatException e) { return -1; }
+        }
+
+        
+        public java.util.List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
+            java.util.List<String> out = new java.util.ArrayList<>();
+            if (args.length == 1) out.addAll(java.util.List.of("spawn", "rank", "list", "despawnall"));
+            else if (args.length == 2 && args[0].equalsIgnoreCase("spawn")) out.addAll(java.util.List.of("stats", "hof", "easter_egg"));
+            else if (args.length == 2 && args[0].equalsIgnoreCase("rank"))
+                out.addAll(java.util.List.of("set", "own", "remove", "list", "refresh", "clean"));
+            else if (args.length == 3 && args[0].equalsIgnoreCase("rank") && args[1].equalsIgnoreCase("set")) {
+                for (int i = 1; i <= nl.kmc.kmccore.npc.RankNpcManager.MAX_SLOT; i++) out.add(String.valueOf(i));
+            } else if (args.length == 3 && args[0].equalsIgnoreCase("rank") && args[1].equalsIgnoreCase("remove")) {
+                out.addAll(java.util.List.of("here", "all", "own"));
+                for (int n : plugin.getRankNpcManager().slotNumbers()) out.add(String.valueOf(n));
+            }
+            String prefix = args[args.length - 1].toLowerCase();
+            out.removeIf(s -> !s.toLowerCase().startsWith(prefix));
+            return out;
         }
     }
 }

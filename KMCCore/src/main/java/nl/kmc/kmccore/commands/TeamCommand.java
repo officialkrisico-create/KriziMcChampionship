@@ -41,33 +41,7 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
             case "add" -> {
                 if (!sender.hasPermission("kmc.team.admin")) { sender.sendMessage(MessageUtil.get("no-permission")); return true; }
                 if (args.length < 3) { sender.sendMessage(MessageUtil.color("&cGebruik: /kmcteam add <speler> <team>")); return true; }
-
-                OfflinePlayer target = Bukkit.getOfflinePlayer(args[1]);
-                if (target == null || (target.getName() == null && !target.hasPlayedBefore())) {
-                    sender.sendMessage(MessageUtil.get("player-not-found").replace("{player}", args[1]));
-                    return true;
-                }
-
-                // Ensure PlayerData exists (needed for team tracking)
-                String name = target.getName() != null ? target.getName() : args[1];
-                plugin.getPlayerDataManager().getOrCreate(target.getUniqueId(), name);
-
-                TeamManager.AddResult result = plugin.getTeamManager()
-                        .addPlayerToTeam(target.getUniqueId(), args[2].toLowerCase());
-
-                switch (result) {
-                    case OK -> {
-                        sender.sendMessage(MessageUtil.get("team.added")
-                                .replace("{player}", name)
-                                .replace("{team}", args[2]));
-                        // Lobby TP happens inside addPlayerToTeam for online players
-                    }
-                    case ALREADY_IN_TEAM -> sender.sendMessage(MessageUtil.get("team.already-in-team").replace("{player}", name));
-                    case TEAM_FULL       -> sender.sendMessage(MessageUtil.get("team.full")
-                            .replace("{team}", args[2])
-                            .replace("{max}", String.valueOf(plugin.getTeamManager().getMaxPlayersPerTeam())));
-                    case TEAM_NOT_FOUND  -> sender.sendMessage(MessageUtil.get("team.not-found").replace("{team}", args[2]));
-                }
+                addByName(sender, args[1], args[2].toLowerCase());
             }
 
             case "remove" -> {
@@ -216,4 +190,45 @@ public class TeamCommand implements CommandExecutor, TabCompleter {
 
         return List.of();
     }
+
+    /**
+     * Adds a player to a team by name. Works for players that have never been on this server: when the name
+     * is not known locally the Mojang profile is looked up (in the background), and the player is put in
+     * the team under their real UUID, so it is the same account when they join later.
+     */
+    private void addByName(CommandSender sender, String name, String teamId) {
+        Player online = Bukkit.getPlayerExact(name);
+        OfflinePlayer cached = online != null ? online : Bukkit.getOfflinePlayerIfCached(name);
+        if (cached != null) {
+            addResolved(sender, cached.getUniqueId(), cached.getName() != null ? cached.getName() : name, teamId);
+            return;
+        }
+        sender.sendMessage(MessageUtil.color("&7Zoeken naar &f" + name + " &7bij Mojang..."));
+        var profile = Bukkit.createProfile(name);
+        profile.update().whenComplete((p, ex) -> Bukkit.getScheduler().runTask(plugin, () -> {
+            if (ex != null || p == null || p.getId() == null) {
+                sender.sendMessage(MessageUtil.get("player-not-found").replace("{player}", name));
+                return;
+            }
+            addResolved(sender, p.getId(), p.getName() != null ? p.getName() : name, teamId);
+        }));
+    }
+
+    private void addResolved(CommandSender sender, java.util.UUID uuid, String name, String teamId) {
+        // Ensure PlayerData exists (needed for team tracking)
+        plugin.getPlayerDataManager().getOrCreate(uuid, name);
+
+        TeamManager.AddResult result = plugin.getTeamManager().addPlayerToTeam(uuid, teamId);
+        switch (result) {
+            case OK -> sender.sendMessage(MessageUtil.get("team.added")
+                    .replace("{player}", name)
+                    .replace("{team}", teamId));
+            case ALREADY_IN_TEAM -> sender.sendMessage(MessageUtil.get("team.already-in-team").replace("{player}", name));
+            case TEAM_FULL       -> sender.sendMessage(MessageUtil.get("team.full")
+                    .replace("{team}", teamId)
+                    .replace("{max}", String.valueOf(plugin.getTeamManager().getMaxPlayersPerTeam())));
+            case TEAM_NOT_FOUND  -> sender.sendMessage(MessageUtil.get("team.not-found").replace("{team}", teamId));
+        }
+    }
+
 }

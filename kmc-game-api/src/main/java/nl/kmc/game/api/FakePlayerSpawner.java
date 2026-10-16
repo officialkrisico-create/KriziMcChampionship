@@ -38,6 +38,8 @@ public final class FakePlayerSpawner {
     }
 
     private static final Map<UUID, Bot> BOTS = new LinkedHashMap<>();
+    /** Bots that already got the "player loaded" packet (it is sent once, not every second). */
+    private static final java.util.Set<Object> PACKET_FED = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     private static BukkitTask tickTask;
     private static long tickCount;
 
@@ -129,6 +131,8 @@ public final class FakePlayerSpawner {
         Player player = (Player) call(handle, "getBukkitEntity");
         player.teleport(at);
 
+        String fixed = markClientLoaded(handle);
+        if (!fixed.isEmpty()) plugin.getLogger().info("[KMC] Bot " + name + ": client loaded gezet via " + fixed);
         BOTS.put(uuid, new Bot(handle, channel, player));
         startTick(plugin);
         return player;
@@ -149,6 +153,7 @@ public final class FakePlayerSpawner {
                 try {
                     call(bot.handle, "doTick");
                     if (tickCount % 20 == 0) {
+                        if (!isClientLoaded(bot.handle)) markClientLoaded(bot.handle);
                         Queue<?> out = (Queue<?>) call(bot.channel, "outboundMessages");
                         out.clear();
                         if (bot.player.isDead()) bot.player.spigot().respawn();
@@ -162,6 +167,116 @@ public final class FakePlayerSpawner {
 
     private static void stopTickIfIdle() {
         if (BOTS.isEmpty() && tickTask != null) { tickTask.cancel(); tickTask = null; }
+    }
+
+    // ── "Client loaded" ───────────────────────────────────────────────────────
+
+    /**
+     * Since 1.21.5 a server player is invulnerable until its client has said it finished loading
+     * (a packet a bot never sends, and the timeout that would set it is ticked by the network handler a
+     * bot does not have). Without this a bot cannot be hurt at all: no damage, no knockback, no kills.
+     *
+     * <p>The member is not public and its name differs between server versions, so this looks at every
+     * boolean field / boolean setter whose name mentions "clientLoaded" on the player and on its packet
+     * listener, and as a last resort feeds the listener the "player loaded" packet itself.
+     */
+    private static String markClientLoaded(Object handle) {
+        StringBuilder done = new StringBuilder();
+        Object listener = listenerOf(handle);
+        for (Object target : new Object[]{handle, listener}) {
+            if (target == null) continue;
+            for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (var f : c.getDeclaredFields()) {
+                    if (f.getType() != boolean.class || !f.getName().toLowerCase().contains("clientloaded")) continue;
+                    try {
+                        f.setAccessible(true);
+                        if (!f.getBoolean(target)) { f.setBoolean(target, true); done.append("field ").append(f.getName()).append(' '); }
+                    } catch (ReflectiveOperationException | RuntimeException ignored) { }
+                }
+                for (Method m : c.getDeclaredMethods()) {
+                    if (m.getParameterCount() != 1 || m.getParameterTypes()[0] != boolean.class) continue;
+                    if (!m.getName().toLowerCase().contains("clientloaded")) continue;
+                    try {
+                        m.setAccessible(true);
+                        m.invoke(target, true);
+                        done.append("method ").append(m.getName()).append(' ');
+                    } catch (ReflectiveOperationException | RuntimeException ignored) { }
+                }
+            }
+        }
+        if (listener != null && !isClientLoaded(handle) && PACKET_FED.add(handle)) {
+            // feed the listener the packet a real client sends when it has finished loading
+            for (Method m : listener.getClass().getMethods()) {
+                if (m.getParameterCount() != 1) continue;
+                Class<?> p = m.getParameterTypes()[0];
+                if (!p.getSimpleName().toLowerCase().contains("playerloaded")) continue;
+                try {
+                    Object packet = null;
+                    for (var f : p.getDeclaredFields()) {
+                        if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) && f.getType() == p) {
+                            f.setAccessible(true);
+                            packet = f.get(null);
+                            break;
+                        }
+                    }
+                    if (packet == null) packet = p.getDeclaredConstructor().newInstance();
+                    m.invoke(listener, packet);
+                    done.append("packet ").append(m.getName()).append(' ');
+                    break;
+                } catch (ReflectiveOperationException | RuntimeException ignored) { }
+            }
+        }
+        return done.toString().trim();
+    }
+
+    private static Object listenerOf(Object handle) {
+        for (Class<?> c = handle.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (var f : c.getDeclaredFields()) {
+                if (f.getType().getSimpleName().equals("ServerGamePacketListenerImpl")) {
+                    try { f.setAccessible(true); return f.get(handle); } catch (ReflectiveOperationException ignored) { }
+                }
+            }
+        }
+        return null;
+    }
+
+    /** True / false when the server says whether the client counts as loaded; null when it cannot be read. */
+    private static Boolean readClientLoaded(Object handle) {
+        for (Class<?> c = handle.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Method m : c.getDeclaredMethods()) {
+                if (m.getParameterCount() != 0 || m.getReturnType() != boolean.class) continue;
+                if (!m.getName().toLowerCase().contains("clientloaded")) continue;
+                try { m.setAccessible(true); return (Boolean) m.invoke(handle); } catch (ReflectiveOperationException | RuntimeException ignored) { }
+            }
+            for (var f : c.getDeclaredFields()) {
+                if (f.getType() != boolean.class || !f.getName().toLowerCase().contains("clientloaded")) continue;
+                try { f.setAccessible(true); return f.getBoolean(handle); } catch (ReflectiveOperationException | RuntimeException ignored) { }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isClientLoaded(Object handle) {
+        Boolean b = readClientLoaded(handle);
+        return b != null && b;
+    }
+
+    /** A one-line description of a bot's state, for {@code /kmcbot info}. */
+    public static String info(Player player) {
+        Bot bot = player == null ? null : BOTS.get(player.getUniqueId());
+        if (bot == null) return "geen bot";
+        Boolean loaded = readClientLoaded(bot.handle);
+        StringBuilder names = new StringBuilder();
+        for (Object target : new Object[]{bot.handle, listenerOf(bot.handle)}) {
+            if (target == null) continue;
+            for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (var f : c.getDeclaredFields()) if (f.getName().toLowerCase().contains("load")) names.append(f.getName()).append(' ');
+                for (Method m : c.getDeclaredMethods()) if (m.getName().toLowerCase().contains("load")) names.append(m.getName()).append("() ");
+            }
+        }
+        return "gamemode=" + player.getGameMode() + ", invulnerable=" + player.isInvulnerable()
+                + ", clientLoaded=" + (loaded == null ? "onbekend" : loaded) + ", noDamageTicks=" + player.getNoDamageTicks()
+                + ", health=" + player.getHealth() + (names.length() == 0 ? "" : " [load-leden: " + names.toString().trim() + "]");
     }
 
     // ── Reflection helpers ────────────────────────────────────────────────────

@@ -55,7 +55,6 @@ class PointsManagerTest {
               fourth-place: 100
               apply-multiplier: true
             bonus:
-              lucky-block-bonus: 50
               double-kill: 25
               triple-kill: 75
               mega-kill: 150
@@ -250,7 +249,6 @@ class PointsManagerTest {
 
     @Test
     void bonusValues_readFromPointsYml() {
-        assertEquals(50, points.getLuckyBlockBonus());
         assertEquals(25, points.getDoubleKillBonus());
         assertEquals(75, points.getTripleKillBonus());
         assertEquals(150, points.getMegaKillBonus());

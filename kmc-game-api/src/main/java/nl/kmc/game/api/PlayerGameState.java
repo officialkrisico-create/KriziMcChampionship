@@ -33,7 +33,7 @@ public final class PlayerGameState {
     public int     assists;
     public int     pointsEarned;
 
-    // Extension map for game-specific data (e.g. score in The Bridge, islands in SkyWars)
+    // Extension map for game-specific data (e.g. goals in Blockball, islands in SkyWars)
     public final Map<String, Object> extra = new HashMap<>();
 
     public long capturedAt = System.currentTimeMillis();

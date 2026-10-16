@@ -228,11 +228,13 @@ public final class SpleefGameManagerV2 extends BaseGameManager {
         PlayerState ps = players.get(p.getUniqueId());
         if (ps == null || !ps.isAlive()) return;
 
+        final int place = (int) players.values().stream().filter(PlayerState::isAlive).count();
         ps.eliminate(eliminationCounter++);
         p.setGameMode(GameMode.SPECTATOR);
         p.getInventory().clear();
         for (Player v : Bukkit.getOnlinePlayers()) {
-            v.sendMessage("§c☠ §7" + p.getName() + " §7" + api.tr(v.getUniqueId(), reason));
+            v.sendMessage("§c☠ §7" + p.getName() + " §7" + api.tr(v.getUniqueId(), reason)
+                    + nl.kmc.game.api.GamePlayerUtil.placeTag(place));
         }
         p.sendTitle(api.tr(p.getUniqueId(), "spleef.out.title"), "§7" + api.tr(p.getUniqueId(), reason), 10, 50, 10);
 

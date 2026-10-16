@@ -19,7 +19,7 @@ public final class GameObjectiveEvent extends Event {
     private static final HandlerList HANDLERS = new HandlerList();
 
     public enum Type {
-        /** Player scored a goal (The Bridge). */
+        /** Player scored a goal (Blockball). */
         GOAL_SCORED,
         /** Player completed a lap (Adventure Escape, Elytra Endrium). */
         LAP_COMPLETED,
@@ -27,6 +27,12 @@ public final class GameObjectiveEvent extends Event {
         RACE_FINISHED,
         /** Player finished a race under an achievement-defined time threshold. */
         RACE_FINISHED_FAST,
+        /** A team solved a puzzle (Laser Logic). */
+        PUZZLE_SOLVED,
+        /** A team completed a production order (Factory Frenzy). */
+        ORDER_COMPLETED,
+        /** A team cleared a room of its dungeon (Dungeon Draft). */
+        ROOM_CLEARED,
         /** Player completed an entire parkour run without dying. */
         PARKOUR_PERFECT_RUN,
         /** Player completed all checkpoints in an Elytra run without crashing. */

@@ -1,0 +1,104 @@
+# ================================================================
+# Blockball — football with a block ball
+# ================================================================
+# Teams are paired into heats (4 v 4). As many heats are played at the same time as there are fields;
+# teams that are not playing wait at the waiting spot. Every match is booked once.
+#
+# Setup (per field):
+#   /blockball world
+#   /blockball pos1 + pos2           the corners of the field: floor level to the ceiling, goals included
+#   /blockball field add <id>
+#   /blockball pos1 + pos2           around the goal of team A (it must lie inside the field, at one end)
+#   /blockball goal <id> a           ... and the same for team B:  goal <id> b
+#   /blockball ball <id>             stand on the centre spot
+#   /blockball fspawn <id> a|b       stand where team A / B starts (repeat for every player)
+#   /blockball spawn add             the waiting spot for teams that are not playing
+#   /blockball validate | info | start [dry] | stop | field list|remove|clear
+# Quick test arena (4 fields):  /kmctest blockball
+# Controls: left-click = kick, sneak (hold) + left-click = charged shot, right-click = pass.
+# Keeper (one per team, rotates): in his own area right-click = catch, left-click = punch away; holding the
+# ball: left-click = throw, right-click = roll.
+# ================================================================
+
+config-version: 1
+
+start-flow:
+  introduction: true
+  flyover: true
+  tutorial: true
+  countdown: true
+start-sequence:
+  intro-seconds: 3
+  intro-subtitle: "Schop de bal in het doel"
+  flyover-radius: 30
+  tutorial-seconds: 8
+  countdown-seconds: 5
+
+match:
+  duration-seconds: 180
+  kickoff-seconds: 4
+  goal-reset-seconds: 3
+  wave-gap-seconds: 6
+  players-per-team: 4
+  max-goals: 0               # first to N goals wins (0 = play the full time)
+  assist-window-seconds: 6
+  overtime:
+    enabled: true            # a draw continues as golden goal
+    seconds: 60
+
+controls:
+  range: 2.6                 # how far from the ball a kick still works
+  kick-power: 13
+  kick-lift: 3.0
+  kick-cooldown-ticks: 8
+  shot-power: 20             # sneak (held for charge-ticks) + left-click
+  shot-lift: 4.5
+  shot-cooldown-ticks: 24
+  charge-ticks: 14
+  pass-power: 9              # right-click
+  pass-lift: 0.8
+  pass-cooldown-ticks: 6
+  dribble-radius: 1.0        # walking into the ball nudges it
+  dribble-push: 4.5
+  dribble-max: 7
+
+# Goalkeeper: one per team per match, rotating so everybody gets a turn. Inside his own area (the goal
+# widened by zone-depth) he reaches further, right-click catches a slow ball (left-click throws, right-click
+# rolls it, the hold ends after hold-seconds or when he leaves the area) and left-click punches it away.
+keeper:
+  mode: AUTO                 # AUTO | OFF
+  min-team-size: 2           # a team with fewer players on the field has no keeper
+  zone-depth: 6
+  reach-bonus: 1.4           # extra range for kicks inside the area
+  catch-max-speed: 18        # harder shots (a charged shot is 20) have to be punched
+  hold-seconds: 5
+  catch-cooldown-ticks: 40   # after letting go he cannot catch again at once
+  punch-power: 15
+  punch-lift: 4.0
+  throw-power: 16
+  throw-lift: 2.0
+  save-window-seconds: 3     # an opponent played the ball at most this long ago
+  save-min-speed: 7          # slower balls are no shot
+
+ball:
+  material: WHITE_CONCRETE
+  radius: 0.45
+  max-speed: 26
+  gravity: 24
+  ground-friction: 0.9
+  air-drag: 0.1
+  bounce: 0.55
+  wall-bounce: 0.7
+
+points:
+  win: 300
+  draw: 225
+  loss: 150
+  bye: 225                   # a team without an opponent in a heat
+  goal: 10                   # individual bonus (also counts for the team)
+  assist: 5
+  save: 8                    # a keeper stops a real shot (individual, counts for the team)
+  team-placement: true
+
+arena:
+  world: ""

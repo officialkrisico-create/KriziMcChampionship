@@ -34,9 +34,10 @@ automation:
   # Seconds between vote closing and game actually starting
   prestart-seconds: 10
 
-  # How many games are played per round before the multiplier goes up
+  # How many games are played per round before the multiplier goes up. 1 = one game per round, so with
+  # 8 rounds 8 games are played, however many games are in the rotation.
   # 0 = automatic: enabled games divided by total rounds (16 games / 8 rounds = 2 per round)
-  games-per-round: 2
+  games-per-round: 1
 
   # Seconds between repetitions of the same game (when repetitions > 1)
   # Used for brief intermission / schematic reset time
@@ -223,11 +224,7 @@ games:
       min-players: 2
       repetitions: 1
 
-    the_bridge:
-      display-name: "The Bridge"
-      icon: WHITE_WOOL
-      min-players: 2
-      repetitions: 1
+
 
     survival_games:
       display-name: "Survival Games"
@@ -283,11 +280,7 @@ games:
       min-players: 2
       repetitions: 1
 
-    lucky_block:
-      display-name: "LUCKY BLOCK"
-      icon: SPONGE
-      min-players: 2
-      repetitions: 1
+
 
     block_party:
       display-name: "Block Party"
@@ -355,6 +348,30 @@ games:
       min-players: 2
       repetitions: 1
 
+    laser_logic:
+      display-name: "Laser Logic"
+      icon: REDSTONE_LAMP
+      min-players: 1
+      repetitions: 1
+
+    blockball:
+      display-name: "Blockball"
+      icon: SLIME_BLOCK
+      min-players: 2
+      repetitions: 1
+
+    factory_frenzy:
+      display-name: "Factory Frenzy"
+      icon: BLAST_FURNACE
+      min-players: 1
+      repetitions: 1
+
+    dungeon_draft:
+      display-name: "Dungeon Draft"
+      icon: WITHER_SKELETON_SKULL
+      min-players: 1
+      repetitions: 1
+
 # -----------------------------------------------------------------------
 # Points
 # -----------------------------------------------------------------------
@@ -373,7 +390,6 @@ games:
 easter-egg-npc:
   lines:
     - "&7\"Heb je al geprobeerd het uit en weer aan te zetten?\""
-    - "&7\"Ik heb ooit 500 lucky blocks geopend. Vraag niet wat erin zat.\""
     - "&7\"De ronde-multiplier is eigenlijk gewoon een schattingsfout van de ontwikkelaar.\""
     - "&7\"Psst... niemand leest deze tekst, behalve jij nu.\""
     - "&7\"Fun fact: ik ben gewoon een dorpeling met een identiteitscrisis.\""
@@ -494,6 +510,101 @@ consolation:
 
 presenter:
   enabled: true
+
+# -----------------------------------------------------------------------
+# KMC Host: the presenter NPC. It speaks above its head and only by itself while KMCAuto runs
+# (/kmcauto start ... end). The texts are in host.yml. Admin: /kmchost (or /kmc host).
+# -----------------------------------------------------------------------
+host:
+  enabled: true
+  language: nl                  # language of the bubble (a text may have nl/en variants in host.yml)
+  npc:
+    name: "&6&lKMC Host"
+    show-name: true
+    skin: ""                    # player name; empty = /kmcnpc presenter skin or /kmchost skin
+    dialogue-height: 2.6        # blocks above the feet; raise it when other displays are in the way
+    look-at-players: true       # turns towards the nearest player while speaking
+  activation:
+    require-kmcauto: true       # false = the host also answers events outside a KMCAuto session
+    start-on-kmcauto-start: true
+    stop-on-kmcauto-end: true
+  dialogue:
+    enabled: true
+    show-above-head: true
+    default-duration: 3.0       # minimum seconds a sentence stays up
+    max-duration: 9.0
+    default-delay: 0.5          # pause between sentences
+    ticks-per-char: 2.0         # longer sentences stay up longer (within min/max)
+    max-chars-per-line: 26
+    max-lines: 3                # a longer sentence is split over several short pages
+    queue-size: 16
+    chat-mirror: false          # also a chat line for everybody that is meant to see it
+    remote-mirror: ACTIONBAR    # for players who are too far away to see the bubble: NONE | ACTIONBAR | CHAT
+    visible-range: 48.0
+  intro:
+    enabled: true
+  team-intros:
+    enabled: true
+  game-intros:
+    enabled: true
+    prestart-sections: [intro, goal, closing]       # what is said in the pre-start countdown (must fit it)
+    sections: [intro, lore, goal, rules, controls, scoring, warnings, duration, closing]   # menu / replay
+    max-scoring-lines: 4
+  live-announcements:
+    enabled: true
+    global-cooldown-seconds: 8
+    types:                      # only events games really report
+      goal: true
+      puzzle: true
+      order: true
+      room: true
+      boss: true
+      checkpoint: false         # busy: off by default
+      last-standing: true
+      clutch: true
+  leaderboard-announcements:
+    enabled: true
+    every-n-games: 1
+    announce-new-leader: true
+    close-gap: 150              # at most this many points between 1st and 2nd = "close"
+    runaway-gap: 500
+  results:
+    enabled: true
+  lore:
+    enabled: true
+  lore-intro:                   # the KMC lore at the start of the tournament (dialogue "kmc-lore" in host.yml)
+    enabled: true               # /kmcauto start: the host tells the story first, then the opening follows
+    dialogue: kmc-lore
+    wait-for-host-seconds: 120  # the countdown to the vote waits until the host is done, at most this long
+  podium:
+    host-on-podium: true        # with a podium (/kmcpodium set) the host presents beside it for the whole session
+  scene:                        # staged dialogues (kmc-lore): the host acts, the tension rises
+    enabled: true               # false = the host stands still and only speaks
+    walk-speed: 0.21            # blocks per tick (0.21 = walking pace)
+    heartbeat: true             # a heartbeat that gets faster and louder
+    particles: true
+    thunder: true               # lightning (visual only) on the lines that ask for it
+  finale:
+    enabled: true
+    max-seconds: 600            # safety: the end sequence presentation always ends after this
+  effects:
+    sounds: true
+    particles: true
+    talk-sound: ENTITY_VILLAGER_YES
+    volume: 0.8
+    pitch: 1.1
+  cooldowns:
+    default: 0                  # seconds, for dialogues without their own cooldown
+  cutscenes:
+    enabled: true               # camera work for dialogues with focus/cutscene in host.yml
+    max-focus-seconds: 30
+    distance: 7.0               # how far in front of the host the focus camera starts
+    height: 2.2
+  interaction:
+    enabled: true
+    cooldown-seconds: 2
+    menu-when-idle: true        # before /kmcauto start only general info and lore (menu.idle-options in host.yml)
+    options: [about, how, game, rules, standings, stats, lore, replay]
 
 team-jingles:
   enabled: true

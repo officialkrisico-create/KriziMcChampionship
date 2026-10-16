@@ -138,7 +138,19 @@ public final class DirectorGui extends Gui {
                             refresh(p);
                         });
             }
+            button(44, item(Material.NETHER_STAR, "&a&lMaak een preset",
+                            "&7Slaat je huidige instellingen op",
+                            "&7onder een naam die je typt."),
+                    p -> plugin.getChatInput().await(p, "Hoe moet de preset heten? (één woord)", text -> {
+                        String pn = text.trim().toLowerCase().replaceAll("[^a-z0-9_-]", "");
+                        if (!pn.isEmpty()) {
+                            plugin.getDirector().presets().saveCurrent(pn);
+                            p.sendMessage(nl.kmc.kmccore.util.MessageUtil.color("&a[KMC] Preset &e" + pn + "&a gemaakt."));
+                        }
+                        refresh(p);
+                    }));
         } else {
+
             set(SLOT_GAMES, item(Material.PAPER, "&f&lAantal games: &e" + am.getTotalGames(),
                     "&8Alleen aan te passen vóór de start."));
         }

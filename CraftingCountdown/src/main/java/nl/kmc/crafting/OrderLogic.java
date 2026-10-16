@@ -11,8 +11,16 @@ public final class OrderLogic {
 
     private OrderLogic() { }
 
-    /** One orderable item. {@code tier}: 1 common ... 3 rare; {@code value}: points per item. */
-    public record PoolItem(String item, int tier, int min, int max, double value) {}
+    /**
+     * One orderable item. {@code tier}: 1 common ... 3 rare; {@code value}: points per item.
+     * {@code requires}: the raw materials the item is crafted from (they must come from the piles); empty
+     * means the item itself is picked up from a pile.
+     */
+    public record PoolItem(String item, int tier, int min, int max, double value, Set<String> requires) {
+        public PoolItem(String item, int tier, int min, int max, double value) {
+            this(item, tier, min, max, value, Set.of());
+        }
+    }
 
     /** Orders get harder once a team has delivered {@code fromOrder} orders. */
     public record Difficulty(int fromOrder, int lines, int maxTier, double scale) {}
@@ -31,10 +39,16 @@ public final class OrderLogic {
         return best != null ? best : new Difficulty(0, 2, 1, 1.0);
     }
 
-    /** Pool entries that may be ordered: obtainable in this arena and not above the allowed tier. */
+    /**
+     * Pool entries that may be ordered: every raw material (or the item itself when it has no recipe) can be
+     * picked up from a placed pile, and the tier is not above the allowed one.
+     */
     public static List<PoolItem> candidates(List<PoolItem> pool, Set<String> obtainable, int maxTier) {
         List<PoolItem> out = new ArrayList<>();
-        for (PoolItem p : pool) if (obtainable.contains(p.item()) && p.tier() <= maxTier) out.add(p);
+        for (PoolItem p : pool) {
+            Set<String> need = p.requires().isEmpty() ? Set.of(p.item()) : p.requires();
+            if (obtainable.containsAll(need) && p.tier() <= maxTier) out.add(p);
+        }
         return out;
     }
 

@@ -259,6 +259,13 @@ public class WaveExecutor {
                     + ") — re-run /mm addmobspawn there while standing in open air in the TEMPLATE world.");
         }
         Entity ent = spawnWorld.spawnEntity(spawn, type);
+        // Vanilla spawns a zombie as a baby now and then; in the fair waves everybody gets the same mobs.
+        if (ent instanceof Ageable ageable && wave.getWaveNumber() <= plugin.getConfig().getInt("game.fair-waves", 3)) {
+            ageable.setAdult();
+        }
+        if (ent instanceof Zombie zombie && wave.getWaveNumber() <= plugin.getConfig().getInt("game.fair-waves", 3)) {
+            zombie.setBaby(false);
+        }
         if (ent == null) {
             plugin.getLogger().severe("[MobMayhem] spawnEntity(" + type + ") returned null at "
                     + fmt(spawn) + " in world '" + spawnWorld.getName() + "'.");
@@ -378,6 +385,9 @@ public class WaveExecutor {
     private Set<WaveModifier> pickModifiers() {
         Set<WaveModifier> result = new HashSet<>();
         var cfg = plugin.getConfig();
+
+        // The first waves are the same for every team: no random modifier, so nobody has an easier start.
+        if (wave.getWaveNumber() <= cfg.getInt("game.fair-waves", 3)) return result;
 
         // Blood Moon is rolled separately — rarer and more dramatic than the
         // regular modifier pool, so it isn't crowded out by common ones.

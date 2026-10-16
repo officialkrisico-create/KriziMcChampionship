@@ -54,8 +54,12 @@ public final class CoreChargeManager extends ArcadeGameManager {
     private static final class Station {
         final Location at;
         final CaptureMeter meter;
+        final double captureSeconds;
         long readyAt;
-        Station(Location at, CaptureMeter meter) { this.at = at; this.meter = meter; }
+        org.bukkit.entity.TextDisplay holo;           // floats above the station: who charges it and for how long
+        Station(Location at, CaptureMeter meter, double captureSeconds) {
+            this.at = at; this.meter = meter; this.captureSeconds = captureSeconds;
+        }
     }
 
     private final CoreChargePlugin plugin;
@@ -134,8 +138,22 @@ public final class CoreChargeManager extends ArcadeGameManager {
         orbReadyAt = new long[orbLocs.size()];
         orbDisplays = new ItemDisplay[orbLocs.size()];
         for (int i = 0; i < orbLocs.size(); i++) orbDisplays[i] = spawnOrb(orbLocs.get(i));
+        double captureSecs = cfg.getDouble("game.station-capture-seconds", 8);
         for (Location l : arena.locs("stations")) {
-            stations.add(new Station(l, new CaptureMeter(cfg.getDouble("game.station-capture-seconds", 8), 1.0)));
+            Station st = new Station(l, new CaptureMeter(captureSecs, 1.0), captureSecs);
+            stations.add(st);
+            World hw = l.getWorld();
+            if (hw != null) {
+                st.holo = hw.spawn(l.clone().add(0, 2.6, 0), org.bukkit.entity.TextDisplay.class, d -> {
+                    d.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+                    d.setPersistent(false);
+                    d.setShadowed(true);
+                    d.setDefaultBackground(false);
+                    d.setBackgroundColor(Color.fromARGB(90, 0, 0, 0));
+                    d.setViewRange(0.8f);
+                    d.text(net.kyori.adventure.text.Component.text("⚡"));
+                });
+            }
         }
         for (var en : cores.entrySet()) buildCore(en.getKey(), en.getValue());
     }
@@ -218,6 +236,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
             }
         }
 
+        if (ticks % 10 == 0) updateStationHolos(cfg.getDouble("game.station-radius", 3.5));
         if (ticks % 20 == 0) {
             for (var en : cores.entrySet()) refreshCore(en.getKey(), en.getValue());
             drawStations();
@@ -480,6 +499,43 @@ public final class CoreChargeManager extends ArcadeGameManager {
         };
     }
 
+    /** The text above every station: idle, who charges it and for how long, contested, or recharging. */
+    private void updateStationHolos(double radius) {
+        for (int i = 0; i < stations.size(); i++) {
+            Station st = stations.get(i);
+            if (st.holo == null || !st.holo.isValid()) continue;
+            String text;
+            if (ticks < st.readyAt) {
+                long left = (st.readyAt - ticks + 19) / 20;
+                text = "§7⚡ Station " + (i + 1) + "\n§8herlaadt §7" + left + "s";
+            } else if (st.meter.status() == nl.kmc.game.api.arcade.ArcadeLogic.CaptureStatus.CONTESTED) {
+                text = "§c§l⚔ Station " + (i + 1) + "\n§7Meerdere teams — wie blijft staan?";
+            } else if (st.meter.capturer() != null) {
+                double frac = Math.max(0, Math.min(1, st.meter.fraction()));
+                int secs = (int) Math.ceil((1 - frac) * st.captureSeconds);
+                int filled = (int) Math.round(frac * 10);
+                text = teamName(st.meter.capturer()) + " §fladen op\n§a" + "█".repeat(filled) + "§8" + "█".repeat(10 - filled)
+                        + " §e" + secs + "s";
+            } else {
+                text = "§b⚡ Station " + (i + 1) + "\n§7Blijf " + (int) Math.round(st.captureSeconds) + "s in de zone";
+            }
+            st.holo.text(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(text));
+
+            // the players inside the zone see the same on their action bar
+            if (st.meter.capturer() != null && ticks >= st.readyAt) {
+                double frac = Math.max(0, Math.min(1, st.meter.fraction()));
+                int secs = (int) Math.ceil((1 - frac) * st.captureSeconds);
+                for (UUID id : players) {
+                    Player p = Bukkit.getPlayer(id);
+                    if (p == null || !isActive(id) || p.getWorld() != st.at.getWorld()) continue;
+                    if (p.getLocation().distanceSquared(st.at) > radius * radius) continue;
+                    if (!teamId(id).equals(st.meter.capturer())) continue;
+                    actionBar(p, api.tr(id, "core.charging", (int) Math.round(frac * 100), secs));
+                }
+            }
+        }
+    }
+
     private void drawStations() {
         World w = arena.world();
         if (w == null) return;
@@ -510,9 +566,6 @@ public final class CoreChargeManager extends ArcadeGameManager {
             if (tc.surgeUntil > ticks) l.add(api.tr(id, "core.sb.surge", (tc.surgeUntil - ticks) / 20));
             if (tc.overloadUntil > ticks) l.add(api.tr(id, "core.sb.overload", (tc.overloadUntil - ticks) / 20));
         }
-        l.add("");
-        l.add(api.tr(id, "core.sb.team", shownTeamPoints(team)));
-        l.add(api.tr(id, "core.sb.you", contribution.getOrDefault(id, 0)));
         return l;
     }
 
@@ -557,6 +610,7 @@ public final class CoreChargeManager extends ArcadeGameManager {
 
     @Override
     protected void cleanupGame() {
+        for (Station st : stations) if (st.holo != null && st.holo.isValid()) st.holo.remove();
         for (ItemDisplay d : orbDisplays) if (d != null && d.isValid()) d.remove();
         orbDisplays = new ItemDisplay[0];
         for (TeamCore tc : cores.values()) {

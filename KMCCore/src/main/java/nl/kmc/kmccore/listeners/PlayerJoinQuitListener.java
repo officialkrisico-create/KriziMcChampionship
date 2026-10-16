@@ -50,6 +50,9 @@ public class PlayerJoinQuitListener implements Listener {
             plugin.getServer().getScheduler().runTaskLater(plugin,
                     () -> plugin.getAchievementManager().syncAdvancements(player), 40L);
 
+        // An old tournament book does not belong in a running tournament.
+        if (plugin.getTournamentManager().isActive()) nl.kmc.kmccore.scoring.StatsBook.removeFrom(player);
+
         // First join: ask for a language (the game messages follow it). Never during a running game.
         if (plugin.getConfig().getBoolean("language.ask-on-first-join", true)
                 && !plugin.getLanguageManager().hasChosen(player.getUniqueId())) {

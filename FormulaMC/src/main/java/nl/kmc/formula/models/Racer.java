@@ -69,10 +69,22 @@ public final class Racer {
     public boolean isQualiDone()         { return qualiDone; }
     public void markQualiDone(long ms)   { this.qualiDone = true; this.qualiMs = ms; }
 
+    private int qualiLaps;
+    public int getQualiLaps()            { return qualiLaps; }
+
+    /** Records one timed qualifying lap; the fastest one counts. Returns true when it is the new best. */
+    public boolean recordQualiLap(long ms) {
+        qualiLaps++;
+        boolean better = qualiMs < 0 || ms < qualiMs;
+        if (better) qualiMs = ms;
+        return better;
+    }
+
     /** Clears the lap state of the qualifying session so the race starts from zero. */
     public void resetForRace() {
         nextCheckpoint = 0;
         lapsCompleted = 0;
+        qualiLaps = 0;
         lastLapMs = -1;
         bestLapMs = -1;
         lapStartMs = 0;

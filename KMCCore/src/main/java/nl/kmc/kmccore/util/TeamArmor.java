@@ -59,7 +59,7 @@ public final class TeamArmor {
 
     /**
      * Apply team-colored chestplate + leggings + boots (NO helmet).
-     * Used by The Bridge so player faces stay visible.
+     * For games where player faces should stay visible.
      */
     public static void applyChestLegsBoots(Player p) {
         Color color = resolveColor(p);
@@ -72,7 +72,7 @@ public final class TeamArmor {
 
     /**
      * Apply full team-colored leather armor set (helmet, chest, legs, boots).
-     * Use this for The Bridge or other games where armor IS combat-relevant.
+     * Use this for games where armor IS combat-relevant.
      */
     public static void applyFullSet(Player p) {
         Color color = resolveColor(p);

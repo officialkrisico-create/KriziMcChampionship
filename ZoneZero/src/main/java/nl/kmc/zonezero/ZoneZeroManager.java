@@ -320,9 +320,6 @@ public final class ZoneZeroManager extends ArcadeGameManager {
             else state = "§7-";
             l.add("§f" + z.name + " " + state);
         }
-        l.add("");
-        l.add(api.tr(id, "zonezero.sb.team", shownTeamPoints(team)));
-        l.add(api.tr(id, "zonezero.sb.you", contribution.getOrDefault(id, 0)));
         return l;
     }
 

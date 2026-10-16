@@ -189,7 +189,33 @@ public abstract class ArcadeGameManager extends BaseGameManager {
         int team = teamIndex(teamId(id));
         Location base = sp.get(team % sp.size());
         int slot = slotOf.getOrDefault(id, 0) + (team / sp.size()) * 4;
-        return spreadAround(base, slot);
+        return faceCenter(spreadAround(base, slot));
+    }
+
+    /**
+     * {@code at} turned to look at the middle of the arena (the flyover centre, else the middle of the spawn
+     * points), so everybody starts looking at the action instead of at a wall.
+     */
+    protected final Location faceCenter(Location at) {
+        if (at == null || at.getWorld() == null) return at;
+        Location c = null;
+        try { c = flyoverCenter(); } catch (Throwable ignored) { }
+        if (c == null || c.getWorld() != at.getWorld()) {
+            double x = 0, z = 0;
+            int n = 0;
+            for (Location l : spawnPoints()) {
+                if (l == null || l.getWorld() != at.getWorld()) continue;
+                x += l.getX(); z += l.getZ(); n++;
+            }
+            if (n == 0) return at;
+            c = new Location(at.getWorld(), x / n, at.getY(), z / n);
+        }
+        double dx = c.getX() - at.getX(), dz = c.getZ() - at.getZ();
+        if (dx * dx + dz * dz < 1.0) return at;
+        Location out = at.clone();
+        out.setYaw((float) Math.toDegrees(Math.atan2(-dx, dz)));
+        out.setPitch(0f);
+        return out;
     }
 
     /**
@@ -409,6 +435,25 @@ public abstract class ArcadeGameManager extends BaseGameManager {
             } catch (Throwable ignored) { }
         }
         return book.team(team);
+    }
+
+    /**
+     * Tells the rest of KMC that a player reached a game objective (achievements, the host's live
+     * announcements). Nothing here changes scores. {@code player} may be null: then an online member of
+     * {@code team} is used, and when nobody is online nothing is reported.
+     */
+    protected final void reportObjective(UUID player, String team, nl.kmc.core.event.GameObjectiveEvent.Type type) {
+        try {
+            Player p = player != null ? Bukkit.getPlayer(player) : null;
+            if (p == null && team != null) {
+                for (UUID id : membersOf(team)) {
+                    Player m = Bukkit.getPlayer(id);
+                    if (m != null && m.isOnline()) { p = m; break; }
+                }
+            }
+            if (p == null) return;
+            new nl.kmc.core.event.GameObjectiveEvent(p, registration.getId(), type).callEvent();
+        } catch (Throwable ignored) { }
     }
 
     /**
@@ -664,7 +709,22 @@ public abstract class ArcadeGameManager extends BaseGameManager {
     @Override
     protected final List<String> getScoreboardLines(Player viewer) {
         if (!getState().isRunning() || players.isEmpty()) return defaultScoreboardLines(viewer);
-        return sidebar(viewer);
+        // One look for all arcade games: a thin rule, what the game itself shows, then the team block with
+        // what the numbers are called (team points, your points) — the same words in every game.
+        UUID id = viewer.getUniqueId();
+        List<String> out = new ArrayList<>();
+        out.add("§8§m                      ");
+        out.addAll(sidebar(viewer));
+        String team = teamId(id);
+        if (team != null && !team.startsWith("solo_") && isParticipant(id)) {
+            out.add("");
+            out.add("§e§l" + api.tr(id, "arcade.sb.team") + " §r" + teamName(team));
+            out.add(api.tr(id, "arcade.sb.team-points", shownTeamPoints(team)));
+        } else if (isParticipant(id)) {
+            out.add("");
+        }
+        if (isParticipant(id)) out.add(api.tr(id, "arcade.sb.your-points", book.player(id)));
+        return out;
     }
 
     @Override protected PlayerGameState capturePlayerState(Player player) { return null; }

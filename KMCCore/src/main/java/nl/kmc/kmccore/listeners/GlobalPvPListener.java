@@ -11,7 +11,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
  * Global PvP disabler for the KMC tournament.
  *
  * <p>Cancels ALL player-vs-player damage by default. Specific minigames
- * that want PvP (like Survival Games or The Bridge) can un-cancel the
+ * that want PvP (like Survival Games or SkyWars) can un-cancel the
  * event in their own listener at {@link EventPriority#HIGHEST}.
  *
  * <p>This runs at NORMAL priority so minigames can override at HIGHEST.

@@ -37,14 +37,20 @@ public final class LiveApiServer {
     private HttpServer server;
     private BukkitTask refresher;
     private volatile String cached = "{}";
+    private volatile String lastError = "";
 
     public LiveApiServer(KMCCore plugin) { this.plugin = plugin; }
 
     public boolean isRunning() { return server != null; }
 
+    /** Why the last start failed (empty when it did not). */
+    public String lastError() { return lastError; }
+
     public void start() {
         var cfg = plugin.getConfig();
-        if (!cfg.getBoolean("live-api.enabled", false) || server != null) return;
+        lastError = "";
+        if (!cfg.getBoolean("live-api.enabled", false)) { lastError = "live-api.enabled staat uit"; return; }
+        if (server != null) return;
         int port = cfg.getInt("live-api.port", 8765);
         String bind = cfg.getString("live-api.bind", "127.0.0.1");
         try {
@@ -65,8 +71,13 @@ public final class LiveApiServer {
             server.start();
             refresher = Bukkit.getScheduler().runTaskTimer(plugin, this::refresh, 1L, 20L);
             plugin.getLogger().info("[LiveApi] Listening on http://" + bind + ":" + port + "/overlay");
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            lastError = e.getClass().getSimpleName() + ": " + e.getMessage();
             plugin.getLogger().warning("[LiveApi] Could not start on " + bind + ":" + port + " — " + e.getMessage());
+            server = null;
+        } catch (Throwable t) {
+            lastError = t.getClass().getSimpleName() + ": " + t.getMessage();
+            plugin.getLogger().warning("[LiveApi] Could not start: " + t);
             server = null;
         }
     }

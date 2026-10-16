@@ -62,7 +62,6 @@ public class LobbyNPCManager implements Listener {
     /** Fallback lines if `easter-egg-npc.lines` isn't set in config.yml — one NPC, one fixed line each. */
     private static final List<String> DEFAULT_EASTER_EGG_LINES = List.of(
             "&7\"Heb je al geprobeerd het uit en weer aan te zetten?\"",
-            "&7\"Ik heb ooit 500 lucky blocks geopend. Vraag niet wat erin zat.\"",
             "&7\"De ronde-multiplier is eigenlijk gewoon een schattingsfout van de ontwikkelaar.\"",
             "&7\"Psst... niemand leest deze tekst, behalve jij nu.\"",
             "&7\"Fun fact: ik ben gewoon een dorpeling met een identiteitscrisis.\"");

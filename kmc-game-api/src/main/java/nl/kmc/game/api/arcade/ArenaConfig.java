@@ -46,7 +46,10 @@ public final class ArenaConfig {
     }
 
     public void setLoc(String path, Location l) {
-        cfg().set("arena." + path, l == null ? null : toMap(l));
+        // a section, not a raw map: a map only becomes readable through getConfigurationSection after a reload,
+        // and the readiness check of /kmctest runs before the game reloads its config
+        if (l == null) cfg().set("arena." + path, null);
+        else cfg().createSection("arena." + path, toMap(l));
         plugin.saveConfig();
     }
 

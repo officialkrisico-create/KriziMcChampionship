@@ -384,7 +384,13 @@ public class AutomationCommand implements CommandExecutor, TabCompleter {
                 presets.saveCurrent(args[2]);
                 sender.sendMessage(MessageUtil.color("&a[KMC] Huidige instellingen opgeslagen als preset &e" + args[2].toLowerCase()));
             }
-            default -> sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto preset [list|show|apply|save] <naam>"));
+            case "delete" -> {
+                if (args.length < 3) { sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto preset delete <naam>")); return; }
+                sender.sendMessage(MessageUtil.color(presets.delete(args[2])
+                        ? "&a[KMC] Preset &e" + args[2].toLowerCase() + "&a verwijderd."
+                        : "&cOnbekende preset."));
+            }
+            default -> sender.sendMessage(MessageUtil.color("&cGebruik: /kmcauto preset [list|show|apply|save|delete] <naam>"));
         }
     }
 

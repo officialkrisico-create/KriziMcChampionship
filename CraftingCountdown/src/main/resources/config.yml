@@ -1,8 +1,9 @@
 # ================================================================
-# Crafting Countdown — collect the ordered items and deliver them
+# Crafting Countdown — gather, craft and deliver
 # ================================================================
-# Build Mart style, but without any building or crafting: every team gets orders (items + quantities),
-# collects the items from resource piles all over the arena and hands them in at its own delivery station.
+# Build Mart style gathering, with recipe crafting instead of building: every team gets orders (things to
+# craft). The raw materials lie in resource piles all over the arena; you pick them up, craft the item at a
+# crafting table and hand it in at your team's own delivery station.
 #
 # Setup (look at the block with your crosshair):
 #   /craftcountdown world
@@ -12,7 +13,10 @@
 #   /craftcountdown validate | start [dry] | stop | status | reload
 #   /craftcountdown pile list | pile remove | pile clear [type] | pile types | station list | station clear
 # Quick test arena:  /kmctest crafting_countdown
+# Crafting: everybody gets a "Werkbank" item (right-click = crafting table), so no tables have to be built.
 # ================================================================
+
+config-version: 2
 
 start-flow:
   introduction: true
@@ -21,15 +25,19 @@ start-flow:
   countdown: true
 start-sequence:
   intro-seconds: 3
-  intro-subtitle: "Verzamel de bestelde items en lever ze in"
+  intro-subtitle: "Verzamel, craft en lever in"
   flyover-radius: 30
   tutorial-seconds: 7
   countdown-seconds: 5
 
 game:
-  duration-seconds: 240
+  duration-seconds: 300
   # The last N seconds are announced and counted down.
   final-countdown-seconds: 30
+
+crafting:
+  # Give every player a portable crafting table item. false = only crafting tables placed in the arena work.
+  workbench-item: true
 
 # What a pile gives and how it refills (a pile type can override per-take, stock and restock-amount).
 piles:
@@ -38,37 +46,38 @@ piles:
   stock: 64                # stock per item in a pile
   restock-seconds: 15      # every N seconds ...
   restock-amount: 16       # ... every item in every pile gets this much back (up to the stock)
-  max-carry: 128           # most items a player may carry in total
+  max-carry: 160           # most items a player may carry in total (raw materials and crafted items)
 
-# The kinds of piles. Which items they hold is up to you; an item can only be ordered when at least one
-# placed pile holds it, so an order is never impossible.
+# The kinds of piles. Which items they hold is up to you. A recipe can only be ordered when every raw
+# material of it is on at least one placed pile, so an order is never impossible.
 pile-types:
   wood:
     name: "Houthakkers"
-    icon: OAK_LOG
-    items: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG]
-  stone:
-    name: "Steengroeve"
-    icon: COBBLESTONE
-    items: [COBBLESTONE, STONE, ANDESITE]
+    icon: OAK_PLANKS
+    items: [OAK_PLANKS, BIRCH_PLANKS, SPRUCE_PLANKS, OAK_LOG]
+  mine:
+    name: "Mijn"
+    icon: IRON_INGOT
+    items: [COBBLESTONE, COAL, IRON_INGOT, REDSTONE]
   farm:
     name: "Boerderij"
     icon: WHEAT
-    items: [WHEAT, CARROT, POTATO, BEETROOT]
+    items: [WHEAT, APPLE, CARROT, POTATO]
   mobs:
     name: "Mob-buit"
-    icon: BONE
-    items: [BONE, STRING, FEATHER, LEATHER]
-  nether:
-    name: "Nether"
-    icon: BLAZE_ROD
-    items: [QUARTZ, BLAZE_ROD, NETHER_WART]
-    per-take: 4
-    stock: 32
+    icon: STRING
+    items: [STRING, LEATHER, GUNPOWDER, BONE]
+    per-take: 6
+  market:
+    name: "Markt"
+    icon: PAPER
+    items: [PAPER, QUARTZ, NETHER_WART]
+    per-take: 6
+    stock: 48
   rare:
     name: "Schatkamer"
     icon: DIAMOND
-    items: [DIAMOND, EMERALD, GOLD_INGOT, LAPIS_LAZULI]
+    items: [DIAMOND, GOLD_INGOT, OBSIDIAN, EMERALD]
     per-take: 2
     stock: 16
     restock-amount: 4
@@ -77,48 +86,50 @@ orders:
   # Open orders per team at the same time. More than 1 lets a team work on several at once.
   active-per-team: 1
   # Never more than this of one item in one order.
-  max-quantity-per-line: 48
+  max-quantity-per-line: 16
   # Orders get harder with the number of orders the team has delivered:
-  # lines = different items per order, max-tier = the rarest tier that may appear, scale = quantity factor.
+  # lines = different items per order, max-tier = the rarest recipe tier that may appear, scale = quantity factor.
   difficulty:
     - { from-order: 0, lines: 2, max-tier: 1, scale: 1.0 }
-    - { from-order: 3, lines: 3, max-tier: 2, scale: 1.0 }
-    - { from-order: 6, lines: 3, max-tier: 3, scale: 1.25 }
-    - { from-order: 9, lines: 4, max-tier: 3, scale: 1.5 }
+    - { from-order: 3, lines: 2, max-tier: 2, scale: 1.0 }
+    - { from-order: 6, lines: 3, max-tier: 3, scale: 1.0 }
+    - { from-order: 9, lines: 3, max-tier: 3, scale: 1.5 }
 
-# Everything that can be ordered. tier: 1 common, 2 uncommon, 3 rare; min/max = quantity before the scale;
-# value = points per item (for the part of the reward that depends on the items).
+# The recipes that can be ordered (crafted items). tier: 1 easy, 2 medium, 3 hard; min/max = how many are
+# ordered (before the scale); value = points per crafted item; requires = the raw materials, which must
+# lie on the piles (for the order generator: so no impossible orders).
 item-pool:
-  - { item: OAK_LOG,      tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: BIRCH_LOG,    tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: SPRUCE_LOG,   tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: COBBLESTONE,  tier: 1, min: 12, max: 24, value: 0.5 }
-  - { item: STONE,        tier: 1, min: 8,  max: 16, value: 0.6 }
-  - { item: ANDESITE,     tier: 1, min: 8,  max: 16, value: 0.6 }
-  - { item: WHEAT,        tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: CARROT,       tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: POTATO,       tier: 1, min: 8,  max: 16, value: 0.8 }
-  - { item: BEETROOT,     tier: 1, min: 6,  max: 12, value: 1.0 }
-  - { item: BONE,         tier: 2, min: 6,  max: 12, value: 1.2 }
-  - { item: STRING,       tier: 2, min: 6,  max: 12, value: 1.2 }
-  - { item: FEATHER,      tier: 2, min: 6,  max: 12, value: 1.2 }
-  - { item: LEATHER,      tier: 2, min: 4,  max: 8,  value: 1.5 }
-  - { item: QUARTZ,       tier: 2, min: 4,  max: 8,  value: 1.8 }
-  - { item: NETHER_WART,  tier: 2, min: 4,  max: 8,  value: 1.8 }
-  - { item: BLAZE_ROD,    tier: 3, min: 2,  max: 4,  value: 4.0 }
-  - { item: DIAMOND,      tier: 3, min: 2,  max: 4,  value: 6.0 }
-  - { item: EMERALD,      tier: 3, min: 2,  max: 4,  value: 5.0 }
-  - { item: GOLD_INGOT,   tier: 3, min: 3,  max: 6,  value: 3.0 }
-  - { item: LAPIS_LAZULI, tier: 3, min: 4,  max: 8,  value: 2.5 }
+  # tier 1
+  - { item: TORCH,          tier: 1, min: 8,  max: 16, value: 1.0,  requires: [COAL, OAK_PLANKS] }
+  - { item: STICK,          tier: 1, min: 8,  max: 16, value: 0.7,  requires: [OAK_PLANKS] }
+  - { item: BREAD,          tier: 1, min: 2,  max: 4,  value: 4.0,  requires: [WHEAT] }
+  - { item: CRAFTING_TABLE, tier: 1, min: 1,  max: 2,  value: 8.0,  requires: [OAK_PLANKS] }
+  - { item: CHEST,          tier: 1, min: 1,  max: 2,  value: 10.0, requires: [OAK_PLANKS] }
+  - { item: BUCKET,         tier: 1, min: 1,  max: 2,  value: 14.0, requires: [IRON_INGOT] }
+  - { item: FURNACE,        tier: 1, min: 1,  max: 2,  value: 8.0,  requires: [COBBLESTONE] }
+  - { item: STONE_PICKAXE,  tier: 1, min: 1,  max: 2,  value: 8.0,  requires: [COBBLESTONE, OAK_PLANKS] }
+  # tier 2
+  - { item: SHIELD,         tier: 2, min: 1,  max: 2,  value: 18.0, requires: [OAK_PLANKS, IRON_INGOT] }
+  - { item: HOPPER,         tier: 2, min: 1,  max: 2,  value: 28.0, requires: [IRON_INGOT, OAK_PLANKS] }
+  - { item: DISPENSER,      tier: 2, min: 1,  max: 2,  value: 24.0, requires: [COBBLESTONE, OAK_PLANKS, STRING, REDSTONE] }
+  - { item: PISTON,         tier: 2, min: 1,  max: 2,  value: 26.0, requires: [OAK_PLANKS, COBBLESTONE, IRON_INGOT, REDSTONE] }
+  - { item: BOOK,           tier: 2, min: 2,  max: 4,  value: 8.0,  requires: [PAPER, LEATHER] }
+  - { item: IRON_PICKAXE,   tier: 2, min: 1,  max: 2,  value: 22.0, requires: [IRON_INGOT, OAK_PLANKS] }
+  # tier 3
+  - { item: OBSERVER,       tier: 3, min: 1,  max: 2,  value: 30.0, requires: [COBBLESTONE, REDSTONE, QUARTZ] }
+  - { item: GOLDEN_APPLE,   tier: 3, min: 1,  max: 2,  value: 40.0, requires: [GOLD_INGOT, APPLE] }
+  - { item: FIREWORK_ROCKET, tier: 3, min: 3, max: 6,  value: 6.0,  requires: [PAPER, GUNPOWDER] }
+  - { item: ENCHANTING_TABLE, tier: 3, min: 1, max: 1, value: 70.0, requires: [PAPER, LEATHER, DIAMOND, OBSIDIAN] }
+  - { item: DIAMOND_PICKAXE, tier: 3, min: 1, max: 1,  value: 55.0, requires: [DIAMOND, OAK_PLANKS] }
 
 points:
   base-per-order: 10         # for every completed order
   per-value: 1.0             # multiplies quantity x item value
   speed-bonus: 25            # at most, for an order done within the par time (fades to 0 at twice par)
-  par-seconds-per-item: 3.0  # par time = items in the order x this
+  par-seconds-per-item: 12.0 # par time = crafted items in the order x this
   streak-per-step: 5         # for each order in a row after the first ...
   streak-cap: 25             # ... up to this
-  streak-window-seconds: 90  # an order must follow the previous one within this to continue the streak
+  streak-window-seconds: 120 # an order must follow the previous one within this to continue the streak
   team-placement: true       # the usual KMC team placement bonus at the end
 
 arena:

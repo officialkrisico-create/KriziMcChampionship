@@ -25,10 +25,8 @@ it as the rotation.
   - [TNT Tag](#tnt-tag)
   - [Elytra Endrium](#elytra-endrium)
   - [Parkour Warrior](#parkour-warrior)
-  - [The Bridge](#the-bridge)
   - [Adventure Escape](#adventure-escape)
   - [Bingo](#bingo)
-  - [Lucky Block](#lucky-block)
 - [Scoring reference](#scoring-reference)
 - [Admin commands cheat sheet](#admin-commands-cheat-sheet)
 - [Troubleshooting](#troubleshooting)
@@ -51,7 +49,7 @@ it as the rotation.
 - **Automation** — auto-progresses rotation when each game ends
 - **Simulation** — test scoring math without running real games (`/event simulate`)
 - **Snapshots / rollback** — recover from disasters with `/event rollback`
-- **Map rotation** — multi-map games (TGTTOS, Bridge, etc.) cycle automatically
+- **Map rotation** — multi-map games (TGTTOS, etc.) cycle automatically
 - **Lobby NPCs** — clickable game-launch NPCs in lobby
 - **Player preferences** — opt-in/out of features via `/kmcprefs`
 - **Server health monitor** — TPS, RAM, online — `/kmchealth`
@@ -70,10 +68,8 @@ it as the rotation.
 | **TNT Tag** | Hot-potato-style with TNT | Solo |
 | **Elytra Endrium** | Elytra checkpoint race | Solo with team aggregation |
 | **Parkour Warrior** | Solo parkour with stages and CPs | Solo |
-| **The Bridge** | Hypixel-style bridge battle, score goals | Teams |
 | **Adventure Escape** | Multi-lap race with checkpoints | Solo with team avg bonus |
 | **Bingo** | Survival-style bingo card crafting | Teams |
-| **Lucky Block** | Lucky block PvP | Teams |
 
 ---
 
@@ -244,7 +240,7 @@ If you want to manually pick games instead of voting:
 
 Available `<game_id>` values: `skywars`, `survival_games`, `quake_craft`,
 `spleef`, `tgttos`, `mob_mayhem`, `tnt_tag`, `elytra_endrium`,
-`parkour_warrior`, `the_bridge`, `adventure_escape`, `bingo`, `lucky_block`.
+`parkour_warrior`, `adventure_escape`, `bingo`.
 
 ### Skipping a stuck game
 
@@ -435,26 +431,7 @@ Solo parkour with stages, CPs, and powerups.
 **Tip:** difficulties EASY (+8), MEDIUM (+12), HARD (+15) are configured
 in `plugins/ParkourWarrior/config.yml` under `points.by-difficulty`.
 
-### The Bridge
-
-2v2 / 4v4 bridge battle. Score goals to win.
-
-**Setup steps:**
-
-```
-/bridge setworld <world-name>
-/bridge setvoidy 0
-/bridge createteam red                   # Create a team slot
-/bridge editteam red                     # Enter edit mode
-/bridge name "Red Side"
-/bridge color RED
-/bridge wool RED_WOOL                    # Wool block they place
-/bridge spawn                            # Stand at team spawn
-/bridge commit                           # Save and exit
-/bridge createteam blue
-/bridge editteam blue
 # ...repeat
-/bridge listteams                        # Verify
 ```
 
 Goal-detection is based on a "void below the goal hole" mechanism — players
@@ -517,24 +494,6 @@ permanently modified.
 > not in lava/water, and 4 blocks apart from each other. Up to 64 players
 > work in well under one tick.
 
-### Lucky Block
-
-PvP arena where lucky blocks drop random rewards.
-
-**Setup steps:**
-
-Lucky Block doesn't have arena commands — it uses team spawns from KMCCore
-and lucky-block placement is handled by world editing or world generation.
-
-You'll need to:
-1. Build a PvP arena
-2. Place lucky blocks (configured material in `plugins/LuckyBlock/config.yml`)
-3. Set team spawns through KMCCore (not LuckyBlock)
-
-**Run:** `/luckyblock start`
-
----
-
 ## Scoring reference
 
 Quick reference for how points are awarded across all games. Multiplied
@@ -592,12 +551,6 @@ by round multiplier automatically.
 - Section complete (any non-finish CP): **+15** extra
 - Finish: **+250 → +25** (floor)
 
-### The Bridge
-- Goal: **+50**
-- Assist (within 8s): **+20**
-- Kill: **+8**
-- Round win (each goal): **+10** each member
-
 ### Adventure Escape
 - Finish placement: **+320 → +10** (-10/place)
 - Fastest lap: **+25**
@@ -608,12 +561,6 @@ by round multiplier automatically.
   - Goes to the player who actually crafted it
 - Completion bonus: **+100 split** among most-squares team
   - 4 members = 25 each, 2 members = 50 each
-
-### Lucky Block
-- Kill: **+20**
-- Win: **+200**
-
----
 
 ## Admin commands cheat sheet
 
@@ -709,10 +656,8 @@ Every minigame has a `start`, `stop`, `status`, and `reload` command:
 /tnttag start          /tnttag stop          /tnttag status          /tnttag reload
 /elytraendrium start   /elytraendrium stop   /elytraendrium status   /elytraendrium reload
 /parkourwarrior start  /parkourwarrior stop  /parkourwarrior status  /parkourwarrior reload
-/bridge start          /bridge stop          /bridge status          /bridge reload
 /adventure start       /adventure stop       /adventure status       /adventure reload
 /bingo start           /bingo stop           /bingo status           /bingo reload
-/luckyblock start      /luckyblock stop      /luckyblock status      /luckyblock reload
 ```
 
 `reload` re-reads the per-game `config.yml` without restarting the

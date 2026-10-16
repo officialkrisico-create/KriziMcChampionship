@@ -5,16 +5,19 @@
       <module fileurl="file://$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" filepath="$PROJECT_DIR$/AdventureEscape/AdventureEscape.iml" />
       <module fileurl="file://$PROJECT_DIR$/bingo/Bingo.iml" filepath="$PROJECT_DIR$/bingo/Bingo.iml" />
       <module fileurl="file://$PROJECT_DIR$/BlockParty/BlockParty.iml" filepath="$PROJECT_DIR$/BlockParty/BlockParty.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Blockball/Blockball.iml" filepath="$PROJECT_DIR$/Blockball/Blockball.iml" />
       <module fileurl="file://$PROJECT_DIR$/CoreCharge/CoreCharge.iml" filepath="$PROJECT_DIR$/CoreCharge/CoreCharge.iml" />
       <module fileurl="file://$PROJECT_DIR$/CraftingCountdown/CraftingCountdown.iml" filepath="$PROJECT_DIR$/CraftingCountdown/CraftingCountdown.iml" />
       <module fileurl="file://$PROJECT_DIR$/CrownControl/CrownControl.iml" filepath="$PROJECT_DIR$/CrownControl/CrownControl.iml" />
       <module fileurl="file://$PROJECT_DIR$/Dodgebolt/Dodgebolt.iml" filepath="$PROJECT_DIR$/Dodgebolt/Dodgebolt.iml" />
+      <module fileurl="file://$PROJECT_DIR$/DungeonDraft/DungeonDraft.iml" filepath="$PROJECT_DIR$/DungeonDraft/DungeonDraft.iml" />
       <module fileurl="file://$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" filepath="$PROJECT_DIR$/ElytraEndrium/ElytraEndrium.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FactoryFrenzy/FactoryFrenzy.iml" filepath="$PROJECT_DIR$/FactoryFrenzy/FactoryFrenzy.iml" />
       <module fileurl="file://$PROJECT_DIR$/FormulaMC/FormulaMC.iml" filepath="$PROJECT_DIR$/FormulaMC/FormulaMC.iml" />
       <module fileurl="file://$PROJECT_DIR$/HoleInTheWall/HoleInTheWall.iml" filepath="$PROJECT_DIR$/HoleInTheWall/HoleInTheWall.iml" />
       <module fileurl="file://$PROJECT_DIR$/KMCCore/KMCCore.iml" filepath="$PROJECT_DIR$/KMCCore/KMCCore.iml" />
       <module fileurl="file://$PROJECT_DIR$/KnockoutKings/KnockoutKings.iml" filepath="$PROJECT_DIR$/KnockoutKings/KnockoutKings.iml" />
-      <module fileurl="file://$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" filepath="$PROJECT_DIR$/LuckyBlock/LuckyBlock.iml" />
+      <module fileurl="file://$PROJECT_DIR$/LaserLogic/LaserLogic.iml" filepath="$PROJECT_DIR$/LaserLogic/LaserLogic.iml" />
       <module fileurl="file://$PROJECT_DIR$/MobMayhem/MobMayhem.iml" filepath="$PROJECT_DIR$/MobMayhem/MobMayhem.iml" />
       <module fileurl="file://$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" filepath="$PROJECT_DIR$/ParkourWarrior/ParkourWarrior.iml" />
       <module fileurl="file://$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" filepath="$PROJECT_DIR$/QuakeCraft/QuakeCraft.iml" />
@@ -26,7 +29,6 @@
       <module fileurl="file://$PROJECT_DIR$/SurvivalGames/SurvivalGames.iml" filepath="$PROJECT_DIR$/SurvivalGames/SurvivalGames.iml" />
       <module fileurl="file://$PROJECT_DIR$/TGTTOS/TGTTOS.iml" filepath="$PROJECT_DIR$/TGTTOS/TGTTOS.iml" />
       <module fileurl="file://$PROJECT_DIR$/TNTTag/TNTTag.iml" filepath="$PROJECT_DIR$/TNTTag/TNTTag.iml" />
-      <module fileurl="file://$PROJECT_DIR$/TheBridge/TheBridge.iml" filepath="$PROJECT_DIR$/TheBridge/TheBridge.iml" />
       <module fileurl="file://$PROJECT_DIR$/ZoneZero/ZoneZero.iml" filepath="$PROJECT_DIR$/ZoneZero/ZoneZero.iml" />
       <module fileurl="file://$PROJECT_DIR$/kmc-core/kmc-core.iml" filepath="$PROJECT_DIR$/kmc-core/kmc-core.iml" />
       <module fileurl="file://$PROJECT_DIR$/kmc-game-api/kmc-game-api.iml" filepath="$PROJECT_DIR$/kmc-game-api/kmc-game-api.iml" />

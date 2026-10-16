@@ -368,7 +368,7 @@ public final class ParkourGameManagerV2 extends BaseGameManager {
                 player.getUniqueId(), player.getName(), System.currentTimeMillis() - startedMs);
         api.games().recordHighlight(player.getUniqueId(), "parkour", 5, registration.getId());
         api.games().announceFinish(player.getUniqueId(), finishOrder.size(), runners.size(), registration.getId());
-        tellKey("pw.finished", player.getName());
+        tellKey("pw.finished", player.getName(), finishOrder.size());
         player.sendTitle(api.tr(player.getUniqueId(), "pw.finish.title"),
                 api.tr(player.getUniqueId(), "pw.finish.sub"), 5, 40, 10);
         player.setGameMode(GameMode.SPECTATOR);

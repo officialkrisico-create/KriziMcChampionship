@@ -143,6 +143,17 @@ public final class PlatformCommands implements CommandExecutor, TabCompleter {
                 plugin.getConfig().set("live-api.enabled", true);
                 srv.start();
                 s.sendMessage(lm.tr(s, srv.isRunning() ? "platform.api.started" : "platform.api.failed"));
+                String bind = plugin.getConfig().getString("live-api.bind", "127.0.0.1");
+                int port = plugin.getConfig().getInt("live-api.port", 8765);
+                if (srv.isRunning()) {
+                    s.sendMessage("§7Overlay: §fhttp://" + bind + ":" + port + "/overlay §8| §7JSON: §f/api/state");
+                    if (bind.equals("127.0.0.1"))
+                        s.sendMessage("§e⚠ §7127.0.0.1 is alleen bereikbaar op de machine waar de server draait. Draait de server "
+                                + "elders? Zet §flive-api.bind: \"0.0.0.0\" §7en een §flive-api.token §7in config.yml, herlaad, "
+                                + "en open §fhttp://<server-ip>:" + port + "/overlay?token=<token>§7.");
+                } else if (!srv.lastError().isEmpty()) {
+                    s.sendMessage("§7Reden: §c" + srv.lastError() + " §8(poort " + port + " in gebruik of bind-adres onjuist?)");
+                }
             }
             case "stop" -> { srv.stop(); s.sendMessage(lm.tr(s, "platform.api.stopped")); }
             default -> s.sendMessage(lm.tr(s, srv.isRunning() ? "platform.api.on" : "platform.api.off",
